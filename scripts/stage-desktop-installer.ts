@@ -7,7 +7,7 @@ import {stageDistributionNotices, writeDistributionIntegrity} from './desktop-di
 /** Add the user installer to the existing app stage, without runtime state. */
 export async function stageDesktopInstaller(out: string) {
   const root = resolve(import.meta.dir, '..');
-  const files = ['soda-desktop', 'soda-factory-muse', 'factory-runtime/soda-factory-server',
+  const files = ['soda-desktop', 'factory-dev', 'soda-factory-muse', 'factory-runtime/soda-factory-server',
     ...['postgres', 'initdb', 'pg_isready'].map(name => 'factory-runtime/postgresql/bin/' + name),
     ...['broker', 'preparer', 'preparation-cleaner', 'agent', 'provider-relay', 'reviewer', 'worker']
       .map(name => 'factory-runtime/execution/libexec/soda-factory-' + name)];

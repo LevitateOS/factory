@@ -45,6 +45,11 @@ pub(super) struct Connections {
     next: AtomicU64,
 }
 impl Connections {
+    pub(super) fn developer_binding(&self, window: &str) -> Value {
+        self.selections.lock().unwrap().get(window).map(|s| {
+            serde_json::json!({"selection":s.id,"connection":s.connection,"repository":s.repository,"binding":*s.binding.lock().unwrap(),"retired":*s.cancelled.borrow()})
+        }).unwrap_or(Value::Null)
+    }
     pub fn new() -> Self {
         Self {
             selections: Mutex::new(HashMap::new()),

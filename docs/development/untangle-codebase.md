@@ -2,9 +2,56 @@
 
 ## Live desktop developer tool design (2026-11-10)
 
-Status: design only, requested by the owner. GitHub qualification remains
-paused at Q17's recovery record. No application, inference or remote operation
-was started for this design.
+Status: the first command surface is implemented and verified. GitHub product
+qualification remains paused at Q17's recovery record. The initial design below
+is retained with its scope; named product-read projections remain optional until
+an actual observation gap requires them.
+
+The normal release includes `factory-dev`, `factory --developer-cli`, opt-in
+`--developer-tools inspect|control`, a UID-private Unix listener and the fixed
+semantic UI driver. Status/tree/click/fill/select/check/wait use the actual
+desktop and rendered controls. Scope and expected-value checks preserve current
+selection/drafts; action IDs retain outcomes without eviction or automatic
+resend. The first real handshake exposed Serde's flattened unit-variant handling;
+the decoder now refuses extra fields using the serialized contract's keys.
+
+Evidence is private at `/home/vince/Projects/factory-dev-check/`:
+`integration4.log` passes the existing real native/WebKit harness's offline
+control journey, ambiguous/disabled/stale refusals, guarded editing, condition
+waits, browser/unknown-field refusal and deliberately lost reply with exactly
+one dispatch. Earlier partial attempts are preserved; no uncertain effect was
+repeated. `installed.log`, `inspect.log`, `disabled.log` and
+`final-retirement.log` qualify the ordinary installed release, its passthrough
+CLI, actual rendered tree/handler, new-window replay, original-session refusal,
+inspect-only action refusal, pending-wait retirement, default listener absence
+and normal semantic/physical keyboard Quit with PostgreSQL joined. Disposable
+profile counts are zero runs/zero charged minutes. These checks use a separate
+installation/profile, not the paused GitHub profile.
+
+Final review additionally bound snapshot handles to their captured scope.
+`scope-handle.log` proves the final ordinary installed release can inspect an
+actual failed backend, invoke one native Retry, refuse the original node under
+the new valid runtime scope, and leave the generation unchanged after refusal.
+Normal Quit joins afterward. This covers the concrete handle-capture change;
+the unchanged earlier journeys above are reused. Formatting leaves the embedded
+production UI byte-identical; the standalone CLI also checks without native-UI
+features (`cli-headless.log`).
+
+Final release inventory SHA256
+`69ef237afced9fac342b46c7f665fb2079e4d1ee2ba88770a9e6b40b3083590c`
+is retained at `stage-final/` and installed at guest
+`/home/factory/factory-dev-prefix` by exact-prior upgrade from the first verified
+inventory `e5be6b9bb238e4f5e40e45d5431ee4d0d86076a135a4c96e4790e361144d4f13`.
+`build-inputs.json` records baseline64e03df
+plus the exact dirty path list, Go1.27.3/Rust1.99.1/Bun1.4.2/PG18.6; this is
+tool qualification, not a fresh-release or full product gate. Cargo native-check
+and normal release builds, TypeScript, Lit179, dependency boundaries and TS unit
+ban pass. All disposable app/backend/PG processes are stopped. The original
+app965603/backend965748 remain live and idle, zero active/unsettled runs,
+unchanged153-minute charge and zero external-adoption commands. PR56 and the
+original uncertain publication remain unchanged; no model/provider write or
+Fountain qualification ran. The new release is ready for a future normal
+upgrade of that paused installation; it has not been installed over it.
 
 ### Outcome and chosen approach
 
@@ -205,8 +252,8 @@ directory; link necessary product receipts instead of duplicating their ledger.
    and receipts. Read existing state, operate exact current controls, and wait
    for original command/run outcomes without screenshot loops or effect replay.
 
-The design is ready for implementation. Nothing above claims that the tool
-exists or that any outstanding product journey has passed.
+The implemented first surface is qualified by the evidence above. Product-read
+extensions and outstanding product journeys have no completion claim here.
 
 Stable withdrawal recovery and completion (2026-11-10): actual installed
 current55/ea7ebff1b0a89ee71fdb191bcb4a615a4adf1452 records ordinary fresh merge

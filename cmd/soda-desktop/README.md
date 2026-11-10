@@ -35,6 +35,61 @@ It stages the fixed `soda-factory-muse` connector beside `soda-desktop`; keep bo
 files together. This helper uses Muse's existing login; the native tool owner
 can acquire the current verified executable in Factory's private cache.
 
+### Live developer inspection and control
+
+Normal release bundles include `factory-dev`. Quit the selected app normally,
+then launch it with an explicit diagnostic mode for that process lifetime:
+
+```sh
+factory --profile /home/USER/PROFILE --developer-tools inspect
+factory --developer-cli --profile /home/USER/PROFILE status
+factory --developer-cli --profile /home/USER/PROFILE --window main ui tree
+```
+
+`inspect` permits status, semantic UI snapshots and condition waits. Use
+`--developer-tools control` to additionally operate rendered controls. The
+desktop displays the enabled mode. A second launch only opens the original
+app; it cannot change its diagnostic mode. Default launches create no developer
+listener. The CLI does not start the app or backend.
+
+Take `result.scope` from a successful tree response, then target an exact name
+and role, optionally inside a named navigation/region/form. Multiple matches
+refuse; `--node` can instead use a fresh snapshot handle.
+
+```sh
+factory --developer-cli --profile /home/USER/PROFILE --window main ui click \
+  --scope "$scope" --within Factory --role button --name Work --action navigate-work-1
+factory --developer-cli --profile /home/USER/PROFILE --window main ui fill \
+  --scope "$scope" --label 'PR number' --expected '' --value 56 --action fill-pr-1
+factory --developer-cli --profile /home/USER/PROFILE --window main ui wait \
+  --scope "$scope" --role button --name 'Inspect PR' --state enabled --timeout 30
+```
+
+The scope binds the window/document, runtime generation and selected account/
+repository. Selection changes require a fresh tree. Click/fill/select/check
+require a caller-supplied action ID. Fills/selects require `--expected` with the
+current value; checkbox changes use `--value true/false --expected true/false`.
+Never replace human text without authorization. Every action passes through
+the normal UI handlers and product admission. A successful action reports
+`dispatched`, not product completion. Read the resulting UI/receipt separately.
+
+An identical action ID/request returns the recorded outcome; a changed request
+conflicts. After a possible send, a timeout/disconnect stays `outcome_unknown`:
+inspect the original saved product command rather than issuing another click.
+The session retains up to256 action IDs without eviction; exhaustion refuses
+new actions. IDs from an earlier session cannot acquire replacement authority.
+Quitting may lose its own action reply; observe process/endpoint retirement to
+confirm shutdown. Wait timeouts do not cancel runs or withdraw funding.
+
+The local socket is `PROFILE/developer/control.sock`, restricted to its owning
+UID. Pre-send action fingerprints go to private `client-SESSION.jsonl` files
+there, without editable values. Keep all output private: trees can contain
+repository text and drafts. Password values and native credentials are omitted.
+Guest access runs the CLI over SSH; no TCP listener is opened. JSON stdout and
+exit codes distinguish success(0), refusal/unavailable(2), deadline(3) and
+unknown dispatch(4). `--help` lists the supported operations. UI actions are
+synthetic DOM input; physical keyboard/window/visual checks remain separate.
+
 ### Linux execution services
 
 The stage also contains `factory-runtime/execution`: seven native helpers,

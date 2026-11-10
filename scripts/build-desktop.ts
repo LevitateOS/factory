@@ -106,12 +106,13 @@ const execution = resolve(out, 'factory-runtime/execution');
 await mkdir(resolve(execution, 'libexec'), {recursive: true});
 await mkdir(resolve(execution, 'systemd'), {recursive: true});
 const executionFiles: string[] = [];
-for (const name of ['soda-desktop', 'soda-factory-muse', 'soda-factory-broker', 'soda-factory-preparer',
+for (const name of ['soda-desktop', 'factory-dev', 'soda-factory-muse', 'soda-factory-broker', 'soda-factory-preparer',
   'soda-factory-preparation-cleaner', 'soda-factory-agent', 'soda-factory-provider-relay', 'soda-factory-reviewer', 'soda-factory-worker']) {
   const executable = executables.get(name);
   if (!executable) throw Error('Native desktop build did not produce ' + name);
-  if (name !== 'soda-desktop' && name !== 'soda-factory-muse') executionFiles.push('libexec\t' + name);
-  await copyFile(executable, resolve(name === 'soda-desktop' || name === 'soda-factory-muse' ? out : resolve(execution, 'libexec'), name));
+  const appAsset = ['soda-desktop', 'factory-dev', 'soda-factory-muse'].includes(name);
+  if (!appAsset) executionFiles.push('libexec\t' + name);
+  await copyFile(executable, resolve(appAsset ? out : resolve(execution, 'libexec'), name));
 }
 for (const owner of ['soda-factory-broker', 'soda-factory-worker']) {
   const directory = resolve(root, 'cmd', owner, 'systemd');

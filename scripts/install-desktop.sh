@@ -52,6 +52,9 @@ for binary in soda-desktop soda-factory-muse factory-runtime/soda-factory-server
   }
   [[ "$runtime" != *'not found'* ]] || { echo "Required runtime libraries are unavailable: $binary" >&2; printf '%s\n' "$runtime" | sed -n '/not found/p' >&2; exit 1; }
 done
+if [[ -e "$bundle/factory-dev" ]]; then
+  [[ -x "$bundle/factory-dev" && ! -L "$bundle/factory-dev" ]] || { echo 'Invalid developer CLI.' >&2; exit 1; }
+fi
 app="$prefix/lib/factory"
 launcher="$prefix/bin/factory"
 entry="$prefix/share/applications/factory.desktop"

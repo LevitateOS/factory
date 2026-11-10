@@ -16,6 +16,7 @@ pub struct Options {
 }
 #[derive(Clone, Copy, Default)]
 pub(super) struct Scenario {
+    pub developer: bool,
     pub enabled: bool,
     pub startup_error: bool,
     pub muse_login: bool,
@@ -41,6 +42,7 @@ impl Options {
     pub fn consume(&mut self, arg: &std::ffi::OsStr) -> bool {
         let scenario = &mut self.scenario;
         match arg.to_str() {
+            Some("--check-developer") => scenario.developer = true,
             Some("--check-github-writes") => scenario.github_writes = true,
             Some("--check-issue-read") => {
                 scenario.issue_read = true;
@@ -113,7 +115,7 @@ impl Options {
 }
 impl Scenario {
     fn timeout(self) -> Duration {
-        Duration::from_secs(if self.github_writes {
+        Duration::from_secs(if self.github_writes || self.developer {
             600
         } else if self.signin == Some(SignInMode::Consent) || self.muse_login {
             1000
@@ -450,6 +452,10 @@ pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
         return;
     }
     println!("Native desktop page loaded");
+    if window.state::<Desktop>().check.scenario.developer {
+        let _ = window.eval(include_str!("developer_check.js"));
+        return;
+    }
     if window.state::<Desktop>().check.scenario.startup_error {
         if window
             .state::<Desktop>()

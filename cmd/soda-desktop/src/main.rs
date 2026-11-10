@@ -1,6 +1,8 @@
 #[cfg(feature = "native-check")]
 mod bridge;
 mod product;
+mod developer;
+mod developer_protocol;
 use product::{
     factory_connect, factory_disconnect, factory_find_repository, factory_open_link,
     factory_prepare_connection, factory_product_cancel, factory_product_request,
@@ -54,6 +56,7 @@ struct Reply {
     body: Value,
 }
 struct Desktop {
+    developer: developer::Developer,
     paths: Paths,
     runtime: Mutex<Option<NativeSupervisor>>,
     credentials: Mutex<Option<Arc<Credentials>>>,
@@ -391,6 +394,7 @@ fn quit(app: tauri::AppHandle) {
     let product_tasks = app.state::<Desktop>().retire_credentials();
     app.state::<Desktop>().status.lock().unwrap().phase = "stopping".into();
     tauri::async_runtime::spawn(async move {
+        app.state::<Desktop>().developer.stop(&app).await;
         #[cfg(feature = "native-check")]
         for stream in streams {
             let _ = stream.await;
@@ -432,6 +436,10 @@ fn main() {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let exe = std::env::current_exe()?;
     let parent = exe.parent().ok_or("missing application directory")?;
+    if std::env::args_os().nth(1).is_some_and(|arg| arg == "--developer-cli") {
+        use std::os::unix::process::CommandExt;
+        return Err(std::process::Command::new(parent.join("factory-dev")).args(std::env::args_os().skip(2)).exec().into());
+    }
     let data = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
@@ -444,8 +452,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     #[cfg(feature = "native-check")]
     let mut checks = check::Options::default();
+    let mut developer_mode = developer::Mode::Disabled;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        if arg == "--developer-tools" {
+            if developer_mode != developer::Mode::Disabled { return Err("duplicate developer option".into()); }
+            developer_mode = developer::Mode::parse(args.next().and_then(|s| s.into_string().ok()).as_deref().ok_or("developer mode required")?)?;
+            continue;
+        }
         #[cfg(feature = "native-check")]
         if checks.consume(&arg) {
             continue;
@@ -475,6 +489,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .collect::<String>()
     );
     let state = Desktop {
+        developer: developer::Developer::new(developer_mode, parent)?,
         paths,
         runtime: Mutex::new(None),
         credentials: Mutex::new(None),
@@ -549,6 +564,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         open_window,
         close_window,
         quit_factory,
+        developer::developer_context,
+        developer::developer_reply,
         check::report
     ]);
     #[cfg(not(feature = "native-check"))]
@@ -584,10 +601,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_product_cancel,
         open_window,
         close_window,
-        quit_factory
+        quit_factory,
+        developer::developer_context,
+        developer::developer_reply
     ]);
     let app = builder
         .setup(|app| {
+            app.state::<Desktop>().developer.start(app.handle()).map_err(std::io::Error::other)?;
             open(app.handle(), "main").map_err(std::io::Error::other)?;
             Desktop::start(app.handle().clone());
             #[cfg(feature = "native-check")]

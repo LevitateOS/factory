@@ -4,6 +4,7 @@ import {mountMuseLogin} from './muse-login.js';
 import {mountFountainLogin} from './fountain-login.js';
 import {mountConnections} from './connections.js';
 import type {Core} from './transport.js';
+import {mountDeveloper} from './developer.js';
 interface RuntimeStatus {
   phase: 'starting' | 'ready' | 'failed' | 'stopping';
   profile: string | null;
@@ -75,3 +76,4 @@ setInterval(() => {
   if (!document.hidden) void refresh();
 }, 2000);
 void refresh();
+void mountDeveloper(core).catch(() => {});
