@@ -8,9 +8,9 @@ import (
 	"sync"
 )
 
-// Schema 100 preserves finite merge-only retry grants and their closed inference
-// roots. Older writers must refuse rather than discard this authority boundary.
-const schemaFormatVersion = 101
+// Schema 102 binds fresh retained-review funding to its approved setup. Older
+// writers must refuse rather than ignore that captured authority boundary.
+const schemaFormatVersion = 102
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -689,6 +689,13 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=101 WHERE version=100`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate host-claimed preparation format: %w", err))
+		}
+		version = 101
+	}
+	if version == 101 {
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=102 WHERE version=101`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate retained review setup capture format: %w", err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

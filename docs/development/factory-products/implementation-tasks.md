@@ -2167,7 +2167,38 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE (2026-11-10):** the original `q25-current9`
+**Active recovery — INCOMPLETE (2026-11-10,09:06UTC):** Q26/Q28 reached real
+installed publication, independent typed review and CI; full delivery is pending.
+Production current42 is clean`a89a50a28a86667d69589deffabcb748d6377ca1`,
+inventory82aae5f81df2db11a22153b887d99e3fea01a0c0f693ef435f4b9e7bdef8312c,
+archive2cdf3615ba1792236a3f03eb847cc5891aad318ae8ee0d61cf020991a9b2dca1.
+Explicit UI command`a2c9ba3ec2bc404eb80f7ecc85ec656d` carried only unused budget
+from9704f6ca's closed owner, preserving the first spent round. It captured current
+setupd4424101f46084baebf63af2e / approvalda1473b42a6c5a3fe00268bf8.
+Review`436d620a9f683405ac7dd4f91b6c449f` completed through the actual Muse1.4.15
+Factory tools and typed clear result, then published COMMENT review5839198795
+once on PR#2 with a committed causal receipt. Clean delivery acceptance
+007e9e8f482a67781becdb06323f9801 binds the exact candidate/base and original
+review coverage. Copy totals:19 settled runs,67 finished judgments,121 charged
+minutes; allowance remains120/revision4. A UI top-up was not confirmed and did
+not change that revision. Merge`2aac7f0a5f125af7e58308d05db85d47` had zero operation
+attempts and no send identity at last read; inspect its original row before action.
+The08:59UTC timer completed normal Quit at08:59:05, joined app588704/backend/PG
+and left no active run. Both original and copied credentials/profiles remain.
+Retained copy evidence: `q28-active40/current42-{funding-original,original-progress,accounting}.log`,
+`current42-review-receipts.sha256`, normal shutdown and original-file manifests.
+Both implementation fixes d3a324c4129ba8abbd1837ef1aabcc43247e6ab8 and a89a50a
+are committed/pushed; typecheck/Lit and actual installed review pass. The new setup
+capture also needs the format102 fence now being qualified; current42 is retained
+qualification evidence, not the final release. Remote dependency check42786932574
+is running for a89a50a, not format102. Next independent action: finish format102
+package/retained activation without model adapters. Future paid continuation needs
+an authorized time window and finite allowance; no original model/send may replay.
+Owned edits: format fence and these evidence records; no local check is running.
+Q24 still lacks its appliance; remaining full correction/adoption/security journeys
+stay outstanding and are not displaced by this installed review pass.
+
+Prior current40 checkpoint: the original `q25-current9`
 profile is stopped and unchanged. Actual installed current40 (clean
 `3cd82de1746b444b7992a591308ba9e1d7be7d2e`, inventory
 `9bcb993317080de13d49913476c24a831a0592fd19e767f4ce4a0745b9761334`, archive
@@ -2849,6 +2880,19 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Format102 now fences writers that would ignore the setup decisions captured by
+fresh retained-review funding. `q28-migrate/retained102/check.log` passes actual
+concurrent101→102/current reopen, all75 public-table hashes unchanged, exact101
+writer refusal, unknown103 refusal unchanged, unchanged original-copy files and
+joined copied PostgreSQL. No model/effect adapters. Current42's actual installed
+upgrade, sign-in/reopen, old candidate/unknown receipt retention and successful
+new provider execution remain scoped evidence in Q26; all original profile files
+are preserved. Earlier attempted active-inference upgrade did not run: its new
+judgment failed catalog authentication and was retained/charged once. The later
+current40 activation preserved a live app/backend after that judgment had ended,
+not an active worker. Active-worker upgrade and installed dependency/release
+delivery remain unfinished. Do not replay that failed judgment for missing proof.
 
 Format101 fences older constructors that would ignore captured host preparation
 grants; it grants no historical command authority. Disposable

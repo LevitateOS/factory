@@ -1,5 +1,17 @@
 # Factory untangling decisions
 
+Retained funding format fence (2026-11-10): advance to102 without rewriting any
+historical command or decision, because101 constructors could ignore the new
+setup capture. Existing disposable migration owner passes concurrent101→102,
+unchanged75-table fingerprints, exact101/unknown103 refusal and source-copy
+preservation; all check owners joined. Actual installed current42 already proves
+the prior compatibility/setup corrections: unused-budget commanda2c9ba3 records
+current decisions, Muse review436d620a completes its typed clear result, native
+COMMENT review5839198795 commits once and clean acceptance007e9e8f follows real CI.
+19 runs/67 judgments/121 minutes remain exact; original unknown publication is
+fenced. The cutoff timer Quit/joined app/PG normally. No paid replay or full
+delivery/security claim; Q26 holds the concise recovery record and remaining gates.
+
 Retained review setup recovery (2026-11-10): a synthesized blocked phase wrapper
 is still a missing report, not a typed review verdict. Permit its exact empty
 shape when carrying only unused budget; reported results, output, findings and
