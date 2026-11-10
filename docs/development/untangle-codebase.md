@@ -1,5 +1,21 @@
 # Factory untangling decisions
 
+Completion capture of retained delivery (2026-11-10): actual installed merged
+history failed capture with `completion material lacks its run view`. A retained
+publication owner deliberately launched no run. Project that owner with an exact
+model-safe reference to the original publication, assignment root, successful
+settled Builder run and candidate; keep its own history empty. Validate all joins
+in the sealed material rather than manufacture a new run or reservation. Preserve
+the stored singleton task's Parent flag, which the old projection lost. The actual
+schema103 copy now seals resultcc3b81e9 without modifying history; read-only probe
+`q28-format102/completion-local47.log` refuses changed candidate, foreign source,
+missing original publication, unsettled original execution and fabricated parent
+child, and confirms identical recapture. Existing PostgreSQL completion/source/
+publication checks run on a disposable database; installed integration is next.
+This derived-evidence extension leaves historical material without either optional
+field byte-compatible; older validators refuse the retained stage/parent task.
+No historical command acquires authority and no inference or send is repeated.
+
 Native GitHub read-quota hold (2026-11-10): actual post-merge readback returns
 github_rate_limited. Cache only authenticated GET retry/reset facts in the
 existing native HTTP owner, scoped to credential fingerprint and host, bounded
@@ -10,8 +26,14 @@ the typed429 when account binding fails, and the installed connection message
 names the rate limit. The existing declared TLS integration orders rate cases
 after independent observations and checks that repeated limited reads issue no
 GET; new native owners separate later scenarios. Native/UI compilation and Go
-runtime checks pass. Production installation and real saved-grant rate-limited
-readback are next; no model or prior publication is replayed.
+runtime checks pass. Actual current46/87e431c installation retains the original
+reset1794306191 in two saved-grant reads (8ms/7ms); the UI names the rate limit.
+After the real reset, the same app/owner reconnects and Work detail confirms
+delivery, exact reviewed candidate, CI, resulting merge and original closure
+(`current46-merged-detail.png`). GUI Quit joins app/backend/PG; source-copy file
+hashes remain unchanged. Source dependency run42797841128 passes all checks.
+The changed declared TLS integration compiled but was not run; this does not
+claim that suite's pass. No model or prior publication is replayed.
 
 Installed merge recovery verified (2026-11-10): current45/1ab41d95 admits fresh
 commande1cfe7efffe74367a7faf251fe620b14 after its predecessor expired without

@@ -468,6 +468,12 @@ func projectCompletionAssignmentTx(ctx context.Context, tx *sql.Tx, runCache map
 		Issue:        stored.Issue,
 		Revision:     stored.Revision,
 	}
+	if r := stored.RetainedPublication; r != nil {
+		projected.Retained = &factory.CompletionRetainedCandidate{AssignmentID: r.Assignment, PublicationID: r.Publication, RunID: r.Run, Candidate: r.Candidate}
+		// This owner never launched. Its original assignment/run/publication
+		// joins are checked together by CompletionMaterial.Validate below.
+		return projected, projected.Validate()
+	}
 	for _, runID := range stored.RunHistory {
 		state, err := resolveCompletionRunStateTx(ctx, tx, runCache, runID)
 		if err != nil {
@@ -988,6 +994,7 @@ func appendCompletionRootTasksTx(ctx context.Context, tx *sql.Tx, root string, t
 			Revision:     receipt.Revision,
 			State:        receipt.State,
 			Child:        receipt.Child,
+			Parent:       receipt.Parent,
 		}
 		if projected.Checks == nil {
 			projected.Checks = []string{}

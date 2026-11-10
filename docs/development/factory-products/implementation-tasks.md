@@ -48,15 +48,16 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q26/Q28 installed retained delivery and recovery.** Actual current45
+**Current work: Q26/Q28 installed retained delivery and recovery.** Actual current46
 reuses the complete Builder candidate, finishes independent typed review, real
 app-bound CI, a distinct merge command and original-issue closure. Original
 uncertain publication and all charges remain preserved; see Q26's active recovery.
 Q25's selected Linux host matrix is qualified. Native Fountain controller/claim,
 publication/review/CI/merge and installed preparation slices have scoped evidence;
-their complete automatic/installed journeys remain outstanding. Next: native
-GitHub rate-limit backoff and merged UI readback, alongside independent Fountain
-and intake implementation. Q14 stays complete; Q24's missing appliance affects
+their complete automatic/installed journeys remain outstanding. Native GitHub
+rate-limit hold and merged UI readback pass. Next: integrate the completion
+capture correction for retained publication owners and singleton task receipts,
+then continue independent Fountain and intake implementation. Q14 stays complete; Q24's missing appliance affects
 only appliance-dependent work. Q30's final completion criteria remain intact.
 
 **Retained Q14 evidence.** Q14 passed the approved append-only
@@ -277,9 +278,12 @@ interrupted/change/status/captured-byte races and joined helper retirement passe
 Current source inputs and owning discovery/validation paths are implemented;
 affected native UI/runtime/database/operation checks passed. See the
 [decision log](../untangle-codebase.md#q02-completion-current-inputs-and-owning-update-paths-2026-11-08)
-for retained evidence and precise rerun scope. Remote scheduled-job activation
-awaits default-branch publication and remains a Q30 finalization check; installed
-delivery/activation stays Q25/Q28. No release/security gate is qualified here.
+for retained evidence and precise rerun scope. Default-branch scheduled activation
+is now verified: run42789329677 (schedule, main, exact
+574182f1393fb291f1a8c5b98c91d6316747f047) passed Dependency validation, including
+native configurations and all Go checks with real PostgreSQL. This closes the
+source-job publication gap only. Installed component delivery/activation stays
+Q25/Q28; no release/security gate is qualified here.
 
 ```text
 Implement Q02 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
@@ -2168,7 +2172,7 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE (2026-11-10,10:03UTC):** current45 from clean
+**Active recovery — INCOMPLETE (2026-11-10):** current45 from clean
 `1ab41d95adf13f9543651d6bf522e804694dac3c` (inventory
 0544376fde2c6456425714e909c63e5829fc33379f2bc96ccf25649d61746c1b,
 archiveafab54844878a4afa5309f5aacf7367862c3fc46e0497ab44b6a49215c160fa5)
@@ -2190,25 +2194,34 @@ Native writer reads could not prove complete protection; temporary admin on this
 repository alone proved eligibility and admitted the merge. **Team permission is
 restored to original push**, confirmed in `muse41-contract/q26-team-restored45.log`;
 the restoration timer is stopped. No human text or other repository permission
-changed. Subsequent installed reads hit actual `github_rate_limited` and show
-stale history/disabled controls. Do not repeat the merge to refresh that UI.
-Normal GUI Quit at09:58:18 joined app/backend/PG. Both original profiles and all
-source-copy file hashes remain unchanged. Current45 copy is stopped at
+changed. Current46 from clean87e431c453b9a9d8da261ee73c3aeb030d1af65a
+(inventory1fca7898d93381072aaaa2268f9110b162abbf0547c70bad8a4d9ad62adcd1dc,
+archive97fba4e3ae5ccf199401e87c23e72005e0dae7783904458ba4b89dde2fe28443)
+qualifies the installed authenticated GET rate hold/typed failure, real reset and
+same-owner reconnect. Work detail confirms delivery and distinct candidate/result
+(`q25-package/current46-merged-detail.png`). No merge or model replay. Dependency
+run42797841128 passes UI/native/full Go+real PG; actual scheduled main run42789329677
+also closes source-job activation only. Normal GUI Quit joins app/backend/PG.
+Both original profiles and all source-copy file hashes remain unchanged. The copy is stopped at
 `/home/factory/q28-format102`; two KVM recipients remain, no paid/native send is
 running or uncertain beyond the preserved old branch. Exact prior installed102
 backend refusal against103 passes with every table/marker unchanged and copied
 PG joined (`prior102-installed-result.log`).
 
-Next executable action: package/install the native GitHub GET rate-limit hold
-and typed429/current failed-status correction, then reopen this installed copy and
-verify the merged UI without effects. Continue independent Fountain/intake work;
+Next executable action: package/install the completion capture correction, then
+reopen this installed copy and verify its sealed current context without replay.
+Actual read-only capture exposed a missing run view for non-executing retained
+owners and lost singleton Parent task flags. Owned Go material/projection edits
+now seal resultcc3b81e9, preserve original runs and reject five altered references
+(`q28-format102/completion-local47.log`). No historical row or authority changes.
+Continue independent Fountain/intake work;
 full correction/paid-delivery judgment, external adoption, active-worker upgrades,
 installed Fountain/appliance parity and Q30 security/release gates remain open.
-Q24 still has no replacement appliance. Owned rate-limit paths: native GitHub
-transport, native product binding/error projection, desktop connect message and
-the existing declared TLS check. Native/UI compilation and Go runtime checks
-pass; the updated credential-check binary is building. No provider/model check
-or uncertain effect is running.
+Q24 still has no replacement appliance. Owned paths: Go completion material and
+store projection, README source/installed qualification facts, this task record
+and the decision log. Affected Go builds and existing disposable PG completion/
+source/publication checks pass (`retained103/completion47-pg-checks.log`). Current46 native TLS check compiled but
+was not executed. No provider/model check or new uncertain effect is running.
 
 Prior recovery (09:06UTC): Q26/Q28 reached real
 installed publication, independent typed review and CI; full delivery is pending.
@@ -3285,7 +3298,7 @@ unknown runs fenced. Current successful checks do not retroactively settle them.
 | Historical pre-consent crash and Muse encoding causes | Both remain unknown under the owner's accepted current-evidence closures. Do not turn missing original logs into new prerequisites or claim the old cause was diagnosed. |
 | Shared Project lifecycle / current appliance | Deferred to Q24. No replacement appliance is available now; do not contact retired `soda`, start/rebuild SodaOS or require it for Q09's standalone closure. If still unavailable when Q24 is reached, report that exact blocker. |
 | Actual provider/host permissions and installed environments | Obtain the authorized real fixtures/capabilities when their owning Q piece is reached. Missing authority blocks the affected journey; simulated facts cannot qualify it. |
-| Dependency-job publication and release delivery | Current source configuration still needs actual default-branch activation and owning release/update delivery in Q25/Q28/Q30. A local commit is not a published workflow or installed update. |
+| Dependency-job publication and release delivery | Default-branch scheduled source run42789329677/574182f passed; source-job activation is verified. Owning release/update publication and installed delivery remain Q25/Q28/Q30. Source checks do not qualify those outcomes. |
 
 Existing owner decisions already settle local control, the full pipeline, Muse
 session reuse and single-account agent inspection; do not reopen them. Retain

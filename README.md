@@ -11,6 +11,13 @@ installed distribution remain unqualified. All remaining integration, security,
 qualification and release work is consolidated in
 [the central task list](docs/development/factory-products/implementation-tasks.md).
 
+Qualification update (2026-11-10): the task list records the selected Debian13.7/
+Rocky10.2 x86_64 systemd installer matrix and an actual installed GitHub candidate,
+independent typed review, CI, merge and original-issue closure. Correction,
+automatic/external adoption, complete installed Fountain behavior and release/
+security qualification remain outstanding. These scoped results do not establish
+a finished release.
+
 The Go engine lives in public `pkg/` packages under
 `github.com/levitateos/factory`. The native backend does not depend on the SodaOS
 module, an appliance, Fountain or its SDK. Existing versions and lockfiles are

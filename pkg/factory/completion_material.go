@@ -508,6 +508,7 @@ type CompletionPlanTask struct {
 	Revision     int64    `json:"revision"`
 	State        string   `json:"state"`
 	Child        string   `json:"child,omitempty"`
+	Parent       bool     `json:"parent,omitempty"`
 }
 
 func (t CompletionPlanTask) validateIdentity() error {
@@ -517,7 +518,11 @@ func (t CompletionPlanTask) validateIdentity() error {
 	if t.Revision < 0 || !validCompletionPlanTaskState(t.State) {
 		return errors.New("invalid completion plan task revision or state")
 	}
-	if t.State == "pending" {
+	if t.Parent {
+		if t.Child != "" {
+			return errors.New("singleton completion parent task cannot carry a child")
+		}
+	} else if t.State == "pending" {
 		if t.Child != "" {
 			return errors.New("pending completion plan task has no child")
 		}
@@ -615,22 +620,33 @@ func (r CompletionReservation) Validate() error {
 // workflow roots are excluded: their own admitted run must not invalidate
 // its pre-admission issue snapshot.
 type CompletionAssignment struct {
-	RunHistory   []CompletionRunState   `json:"run_history"`
-	Reservation  *CompletionReservation `json:"reservation,omitempty"`
-	Subject      ExecutionSubject       `json:"subject,omitempty"`
-	ID           string                 `json:"id"`
-	AttemptRoot  string                 `json:"attempt_root"`
-	ProjectID    string                 `json:"project_id"`
-	Role         string                 `json:"role"`
-	Phase        string                 `json:"phase,omitempty"`
-	Stage        string                 `json:"stage"`
-	Outcome      Outcome                `json:"outcome,omitempty"`
-	Reason       string                 `json:"reason,omitempty"`
-	Acceptance   string                 `json:"acceptance,omitempty"`
-	Preparation  string                 `json:"preparation"`
-	SourceCommit string                 `json:"source_commit"`
-	Issue        int64                  `json:"issue,string"`
-	Revision     int64                  `json:"revision"`
+	RunHistory   []CompletionRunState         `json:"run_history"`
+	Retained     *CompletionRetainedCandidate `json:"retained_candidate,omitempty"`
+	Reservation  *CompletionReservation       `json:"reservation,omitempty"`
+	Subject      ExecutionSubject             `json:"subject,omitempty"`
+	ID           string                       `json:"id"`
+	AttemptRoot  string                       `json:"attempt_root"`
+	ProjectID    string                       `json:"project_id"`
+	Role         string                       `json:"role"`
+	Phase        string                       `json:"phase,omitempty"`
+	Stage        string                       `json:"stage"`
+	Outcome      Outcome                      `json:"outcome,omitempty"`
+	Reason       string                       `json:"reason,omitempty"`
+	Acceptance   string                       `json:"acceptance,omitempty"`
+	Preparation  string                       `json:"preparation"`
+	SourceCommit string                       `json:"source_commit"`
+	Issue        int64                        `json:"issue,string"`
+	Revision     int64                        `json:"revision"`
+}
+
+// CompletionRetainedCandidate keeps a non-executing publication owner distinct
+// from the successful execution whose candidate it was authorized to publish.
+// Send deadlines, source credentials and operation payloads do not enter.
+type CompletionRetainedCandidate struct {
+	AssignmentID  string `json:"assignment_id"`
+	PublicationID string `json:"publication_id"`
+	RunID         string `json:"run_id"`
+	Candidate     string `json:"candidate"`
 }
 
 func (a CompletionAssignment) validateAddress() error {
@@ -659,6 +675,9 @@ func (a CompletionAssignment) validateSubject() error {
 	if err := a.Subject.Validate(); err != nil {
 		return err
 	}
+	if a.Retained != nil && a.Subject.Kind == SubjectIssue && a.Issue > 0 && project.ValidDecisionID(a.Acceptance) && a.Phase == "" {
+		return nil
+	}
 	if !project.ValidExecutionPhase(a.Phase) || !SubjectKindAllowed(a.Subject.Kind, a.Phase) ||
 		!ValidPhaseRole(a.Phase, a.Role) {
 		return errors.New("completion assignment role does not match its execution phase")
@@ -679,6 +698,17 @@ func (a CompletionAssignment) validateSubject() error {
 }
 
 func (a CompletionAssignment) validateStage() error {
+	if a.Retained != nil {
+		r := a.Retained
+		if a.Stage != AssignmentRetained || a.ID != a.AttemptRoot || a.ID == r.AssignmentID ||
+			!ValidID(r.AssignmentID) || !ValidID(r.PublicationID) || !ValidID(r.RunID) ||
+			!ValidCommit(r.Candidate) || r.Candidate == a.SourceCommit || a.Role != project.RoleCoder ||
+			a.Subject.Kind != SubjectIssue || a.Phase != "" || a.Revision != 0 || a.Outcome != "" || a.Reason != "" ||
+			len(a.RunHistory) != 0 || a.Reservation != nil {
+			return errors.New("invalid completion retained candidate owner")
+		}
+		return nil
+	}
 	switch a.Stage {
 	case AssignmentAssigned:
 		if a.Outcome != "" || a.Reason != "" {
@@ -698,7 +728,7 @@ func (a CompletionAssignment) validateHistory() error {
 	if !ValidCommit(a.SourceCommit) || !ValidPreparationRef(a.Preparation) || a.Revision < 0 {
 		return errors.New("invalid completion assignment bindings")
 	}
-	if len(a.RunHistory) == 0 || len(a.RunHistory) > MaxDispatchAttempts {
+	if a.Retained == nil && len(a.RunHistory) == 0 || len(a.RunHistory) > MaxDispatchAttempts {
 		return errors.New("invalid completion assignment run history")
 	}
 	seen := make(map[string]bool, len(a.RunHistory))
@@ -1433,6 +1463,30 @@ func (m CompletionMaterial) validateAssignments(idx *completionMaterialIndex) er
 		if _, ok := assignments[assignment.AttemptRoot]; !ok {
 			return errors.New("completion material assignment lacks its attempt root")
 		}
+		if r := assignment.Retained; r != nil {
+			source, ok := assignments[r.AssignmentID]
+			if !ok || source.Retained != nil || source.Stage != AssignmentFinished || source.Outcome != Succeeded ||
+				source.ProjectID != assignment.ProjectID || source.Issue != assignment.Issue || source.Acceptance != assignment.Acceptance ||
+				source.Preparation != assignment.Preparation || source.SourceCommit != assignment.SourceCommit || source.Role != project.RoleCoder {
+				return errors.New("completion retained candidate lacks its successful source")
+			}
+			found := false
+			for _, execution := range assignments {
+				if execution.AttemptRoot != source.AttemptRoot || execution.Retained != nil || execution.Stage != AssignmentFinished || execution.Outcome != Succeeded ||
+					execution.ProjectID != source.ProjectID || execution.Issue != source.Issue || execution.Acceptance != source.Acceptance ||
+					execution.Role != project.RoleCoder || execution.SourceCommit != source.SourceCommit || execution.Preparation != source.Preparation {
+					continue
+				}
+				for _, run := range execution.RunHistory {
+					if run.ID == r.RunID && run.Outcome == Succeeded && run.Reconciled && run.Settled && !run.Active {
+						found = true
+					}
+				}
+			}
+			if !found {
+				return errors.New("completion retained candidate lacks its settled run")
+			}
+		}
 	}
 	idx.assignments = assignments
 	return nil
@@ -1456,11 +1510,28 @@ func (m CompletionMaterial) validatePublications(idx *completionMaterialIndex) e
 			return errors.New("duplicate completion material publication")
 		}
 		publications[publication.ID] = true
-		if _, ok := idx.assignments[publication.AssignmentID]; !ok {
+		owner, ok := idx.assignments[publication.AssignmentID]
+		if !ok {
 			return errors.New("completion material publication lacks its assignment")
+		}
+		if r := owner.Retained; r != nil && (publication.Run != r.RunID || publication.Candidate != r.Candidate || publication.Acceptance != owner.Acceptance || publication.BaseSHA != owner.SourceCommit) {
+			return errors.New("completion publication changed its retained candidate")
 		}
 		if _, ok := idx.acceptances[publication.Acceptance]; !ok {
 			return errors.New("completion material publication lacks its acceptance body")
+		}
+	}
+	for _, owner := range m.Assignments {
+		if r := owner.Retained; r != nil {
+			found := false
+			for _, p := range m.Publications {
+				if p.ID == r.PublicationID && p.AssignmentID == r.AssignmentID && p.Run == r.RunID && p.Candidate == r.Candidate && p.BaseSHA == owner.SourceCommit && p.Acceptance == owner.Acceptance {
+					found = true
+				}
+			}
+			if !found {
+				return errors.New("completion retained candidate lacks its original publication")
+			}
 		}
 	}
 	priorMerge := ""
