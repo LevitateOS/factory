@@ -4136,6 +4136,24 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
 		return admittedPriorityFixture(ctx, db, port, prep, input.Executable, path)
 	}
+	if controller != nil {
+		// This is a declared single-role worker, not a full automation resume.
+		// The preceding real policy save deliberately disabled dispatch. Clear
+		// only that exact fixture hold with the existing CAS owner; any other
+		// closure still refuses this fixture rather than losing its cause.
+		open, revision, withdrawal, err := db.DispatchState(ctx, repository)
+		if err != nil {
+			return err
+		}
+		if !open {
+			if len(withdrawal.ActiveCauses) != 1 || withdrawal.ActiveCauses[0] != "policy_disabled" {
+				return errors.New("unrelated controller fixture dispatch hold")
+			}
+			if _, _, err = db.ReopenDispatch(ctx, repository, revision); err != nil {
+				return err
+			}
+		}
+	}
 	acceptance := factory.Acceptance{ID: "d" + factory.NewID()[:24], Repository: repository, IssueIndex: "3", Approver: actor, NativeRev: 1, TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
 	if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
 		return err

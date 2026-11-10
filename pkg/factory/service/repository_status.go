@@ -65,9 +65,10 @@ type SpendingToolStatus struct {
 
 // RepositoryPolicyOptions are current provider settings, not mutation authority.
 type RepositoryPolicyOptions struct {
-	NativeSetup  bool     `json:"native_setup,omitempty"`
-	TargetBranch string   `json:"target_branch"`
-	MergeMethods []string `json:"merge_methods"`
+	ControllerGrantRequired bool     `json:"controller_grant_required,omitempty"`
+	NativeSetup             bool     `json:"native_setup,omitempty"`
+	TargetBranch            string   `json:"target_branch"`
+	MergeMethods            []string `json:"merge_methods"`
 }
 
 type RepositoryStatus struct {

@@ -140,11 +140,30 @@ impl Client {
             Read::Repository {
                 repository: selected,
             } if selected == repository => {
+                let (raw, _): (Value, _) = self.request_url(reqwest::Method::GET,
+                    self.product_url(&[])?, None, 512 * 1024).await?;
+                if id(&raw["id"])? != repository || raw["full_name"] != format!("{}/{}",current.repository.owner,current.repository.name)
+                    || raw["default_branch"] != current.repository.default_branch { return Err(invalid()); }
                 json!({"kind":"repository","account":account,"repository":{
                     "external_id":current.repository.id,
                     "name":format!("{}/{}",current.repository.owner,current.repository.name),
                     "private":null,"default_branch":current.repository.default_branch,
-                    "push":null,"admin":null
+                    "push":raw["permissions"]["push"].as_bool(),"admin":raw["permissions"]["admin"].as_bool(),
+                    "merge_methods":{"merge":raw["allow_merge_commits"].as_bool(),"squash":raw["allow_squash_merge"].as_bool(),"rebase":raw["allow_rebase"].as_bool()}
+                }})
+            }
+            Read::OperationGrant { repository: selected, grant_id } if selected == repository => {
+                let grant = self.operation_grant(grant_id).await?;
+                let placement = self.placement().await?;
+                if grant.repository.id != repository || grant.actor.id != current.actor.id || !current.runtime_bound
+                    || !grant.active || grant.not_after <= time::OffsetDateTime::now_utc().unix_timestamp()
+                    || placement.state != "active" || placement.runtime_id != self.runtime || placement.owner_kind != "desktop"
+                    || placement.owner_id != current.id || placement.generation != grant.generation {
+                    return Err(invalid());
+                }
+                json!({"kind":"operation_grant","account":account,"capabilities":{
+                    "repository":repository,"actor":grant.actor.id,"grant_id":grant.id,"runtime":grant.runtime_id,
+                    "generation":grant.generation,"not_after":grant.not_after,"operations":grant.operations
                 }})
             }
             Read::TargetTip { repository: selected, target_ref } if selected == repository => {

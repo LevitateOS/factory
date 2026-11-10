@@ -84,7 +84,7 @@ export class SodaFactoryRuntimeController extends LitElement {
         this.message=value.outcome==='refused'?`Command refused (${String(value.reason_code??'controller changed')}). Its refusal is retained.`:`Controller ${this.current.state}, generation ${this.current.generation}.`;
       }else if(input.authorization){
         if(value.id!==input.authorization.command_id||value.not_after!==input.authorization.not_after||typeof value.active!=='boolean')throw Error('grant changed');
-        this.message=value.selection_outcome==='refused'?'The original authorization is retained. Repository policy changed or the grant became inactive, so it was not selected for new work.':value.active?`Operations authorized until ${new Date(input.authorization.not_after*1000).toLocaleTimeString()}. Funding remains separate.`:'The original operation grant is inactive. It was not renewed.';
+        this.message=value.selection_outcome==='refused'?'The original authorization is retained. Repository policy changed or the grant became inactive, so it was not selected for new work.':value.active?`Operation grant ${input.authorization.command_id} authorized until ${new Date(input.authorization.not_after*1000).toLocaleTimeString()}. Funding remains separate.`:'The original operation grant is inactive. It was not renewed.';
       }else{this.current=placement(value);this.message=`Controller ${this.current.state}${this.current.owner_kind?` on ${this.current.owner_kind}`:''}, generation ${this.current.generation}.`;}
       if(input.selection||input.authorization)record.settle(input);
       this.recover();

@@ -1264,6 +1264,19 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+Explicit policy grant selection (2026-11-10): shared role settings capture the
+chosen native Fountain operation grant, including execution, rather than using
+read enrollment as operation authority. The connector re-observes exact current
+host actor/repository/runtime/generation, operation list and original expiry.
+`q19-authority/product38c-connected.log` passes a real policy refusal for the
+limited host grant, a real disabled-policy save/readback for a freshly authorized
+full grant, and the existing source/worker/withdrawal/recovery journey. All
+owners joined; types pass, no inference. Checks38/38b preserve their successful
+policy checks and subsequent fixture dispatch holds. The declared single-role
+worker now clears only its exact policy-disabled fixture hold through the
+existing CAS owner; this does not qualify full automation resume. Captured
+privileged preparation and connected delivery remain incomplete.
+
 Preparation source adapter (2026-11-10): the enrolled Rust connector now
 projects target-tip, bounded optional setup/selected files and exact digest-bound
 source bundles into the existing product contract. Actual canonical-host

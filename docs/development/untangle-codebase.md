@@ -1,5 +1,13 @@
 # Factory untangling decisions
 
+Fountain policy capture (2026-11-10): expose nonsecret account references as
+configuration choices requiring a separately selected host operation grant.
+Shared role settings capture that exact grant for all selected operation slots;
+native admission checks current scope, controller generation, permitted kinds
+and original expiry. Actual `product38c-connected.log` passes limited-grant
+refusal and disabled-policy capture/readback before existing source and finite
+worker recovery. All owners joined, no models; full preparation/delivery remains.
+
 Fountain preparation inputs (2026-11-10): reuse semantic product selectors and
 the host source owner for authenticated target/setup/bundle observations.
 Optional absent setup files remain absent; changed tips and stale source commits

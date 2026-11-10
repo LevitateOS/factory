@@ -1239,7 +1239,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     ensure(catalog["complete"]==true&&items.len()==1&&items[0]["external_id"]==grant.repository.id&&items[0]["host"]==identity["host"],"native Fountain catalog scope changed")?;
     let repository=items[0]["id"].as_str().ok_or("canonical Fountain repository absent")?;
     let configuration=product_read(format!("/api/repositories/{repository}/factory")).await?;
-    ensure(configuration["native_bindings"].as_array().is_some_and(|refs|refs.is_empty())&&configuration["policy_options"].is_object()&&configuration["policy_options"]["native_setup"]!=true,"Fountain read enrollment offered unimplemented operation or setup authority")?;
+    ensure(configuration["native_bindings"].as_array().is_some_and(|refs|refs.len()==6&&refs.iter().all(|r|r["controller_grant_id"].is_null()))&&configuration["policy_options"]["controller_grant_required"]==true&&configuration["policy_options"]["native_setup"]!=true,"Fountain policy references lost their explicit host-grant prerequisite")?;
     let setup=product_read(format!("/api/repositories/{repository}/factory/setup")).await?;
     ensure(setup["available"]==false,"Fountain read enrollment exposed preparation without captured host authority")?;
     let placement_path=format!("/api/repositories/{repository}/factory/placement");
@@ -1248,6 +1248,23 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
     let refused=request.request("PUT",&placement_path,br#"{"expected_revision":"","state":"active"}"#).await?;
     ensure(refused.status==503,"Fountain standalone placement write was not refused before changing host observation")?;
+    let binding=serde_json::json!({"actor_id":identity["actor"],"token_id":"0","native_profile":ready.profile,"native_connection":connection,"controller_grant_id":grant.id});
+    let mut policy=serde_json::json!({"expected_revision":0,"enabled":false,"paused":false,"target_branch":format!("refs/heads/{}",grant.repository.default_branch),"merge_method":"merge","required_checks":["fixture/unavailable"],
+        "roles":{"soda-coder":{"harness":"muse","model":"fixture-unavailable"},"soda-reviewer":{"harness":"muse","model":"fixture-unavailable"}},"publish_actor":binding,"create_actor":binding,"review_actor":binding,"merge_actor":binding,"execution_actor":binding});
+    let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
+    let refused=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
+    ensure(refused.status!=200&&product_read(format!("/api/repositories/{repository}/factory")).await?["policy"].is_null(),"limited host grant was enlarged into publication policy")?;
+    let placement=client.placement().await.map_err(|e|e.code)?;
+    let full=client.authorize_operations(profile,&soda_desktop_runtime::fountain_provider::OperationAuthorization{
+        command_id:"123456789abcdef0123456789abcdefa".into(),expected_placement:placement.revision,generation:placement.generation,
+        operations:vec!["execution.launch".into(),"git.ref.publish".into(),"pull_request.create".into(),"pull_request.review.submit".into(),"pull_request.merge".into()],not_after:epoch() as i64+90}).await.map_err(|e|e.code)?;
+    for slot in ["publish_actor","create_actor","review_actor","merge_actor","execution_actor"] { policy[slot]["controller_grant_id"]=serde_json::json!(full.id); }
+    let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
+    let saved=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
+    if saved.status!=200 { return Err(format!("actual Fountain policy save HTTP {}: {}",saved.status,String::from_utf8_lossy(&saved.body)).into()); }
+    let saved=product_read(format!("/api/repositories/{repository}/factory")).await?;
+    ensure(saved["policy"]["execution_actor"]["controller_grant_id"]==full.id&&saved["policy"]["publish_actor"]["controller_grant_id"]==full.id&&saved["policy"]["enabled"]==false,"Fountain policy did not retain the explicit original host grant")?;
+    println!("PASS: actual shared Fountain policy refuses a limited host grant and captures a fresh explicitly selected full operation grant with automation disabled; no funding or execution inferred");
     let base=format!("/api/factory/collaboration/repositories/{repository}");
     let first=product_read(format!("{base}/issues?limit=1&state=all")).await?;
     ensure(first["items"].as_array().is_some_and(|items|items.len()==1),"native Fountain first issue page absent")?;

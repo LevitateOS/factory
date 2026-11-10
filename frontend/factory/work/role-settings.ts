@@ -52,13 +52,14 @@ interface Settings {
   sources: SpendingSource[];
   editable: boolean;
   bindings: Record<string, unknown>[];
-  options: {targetBranch: string; mergeMethods: string[]; nativeSetup: boolean} | undefined;
+  options: {targetBranch: string; mergeMethods: string[]; nativeSetup: boolean; controllerGrantRequired: boolean} | undefined;
 }
 interface SetupDraft {
   targetBranch: string;
   checks: string;
   method: string;
   useAccount: boolean;
+  controllerGrant: string;
 }
 interface LimitDraft {
   active_minutes: string;
@@ -166,6 +167,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
     available && Array.isArray(available.merge_methods)
       ? {
           nativeSetup: available.native_setup === true,
+          controllerGrantRequired: available.controller_grant_required === true,
           targetBranch: typeof available.target_branch === 'string' ? available.target_branch : '',
           mergeMethods: available.merge_methods.filter(
             (value): value is string => typeof value === 'string' && Object.hasOwn(mergeLabels, value)
@@ -251,7 +253,7 @@ export class SodaFactoryRoleSettings extends LitElement {
   private lifetime = new AbortController();
   constructor() {
     super();
-    this.setup = {targetBranch: '', checks: '', method: '', useAccount: false};
+    this.setup = {targetBranch: '', checks: '', method: '', useAccount: false, controllerGrant: ''};
     this.limits = {active_minutes: '', review_rounds: '', correction_cycles: ''};
     this.busy = false;
     this.automationReviewer = false;
@@ -326,7 +328,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           correction_cycles: limits ? String(limits.correction_cycles) : '',
         };
         if (!view.policy)
-          this.setup = {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false};
+          this.setup = {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false, controllerGrant: ''};
       }
     } catch {
       if (this.live(context, signal)) {
@@ -420,15 +422,18 @@ export class SodaFactoryRoleSettings extends LitElement {
     const actor = this.current?.actor;
     if (!actor || !id(actor)) return;
     const actors: Record<string, Record<string, unknown>> = {};
+    const required = this.view?.options?.controllerGrantRequired;
+    if (required && !/^[a-f0-9]{32}$/.test(this.setup.controllerGrant)) return;
     for (const [slot, kind] of Object.entries({
       publish_actor: 'git.ref.publish',
       create_actor: 'pull_request.create',
       review_actor: 'pull_request.review.submit',
       merge_actor: 'pull_request.merge',
+      ...(required ? {execution_actor: 'execution.launch'} : {}),
     })) {
       const matches = this.view?.bindings.filter((ref) => ref.actor_id === actor && ref.kind === kind) ?? [];
       if (matches.length !== 1) return;
-      actors[slot] = policyActor(matches[0]);
+      actors[slot] = {...policyActor(matches[0]), ...(required ? {controller_grant_id: this.setup.controllerGrant} : {})};
     }
     return actors;
   }
@@ -483,8 +488,14 @@ export class SodaFactoryRoleSettings extends LitElement {
           ...actors,
         };
     if (enrolling || disabling) payload.enabled = enrolling;
+    if (!initial && !disabling && view.options?.controllerGrantRequired && this.setup.controllerGrant) {
+      const replacements = this.initialActors();
+      if (!replacements) return;
+      Object.assign(payload, replacements);
+      if ('resolve_actor' in payload && payload.resolve_actor) payload.resolve_actor = {...object(payload.resolve_actor), controller_grant_id: this.setup.controllerGrant};
+    }
     if (!disabling) Object.assign(payload, {attempt_limits: limits});
-    const reviewIdentity = view.policy?.review_actor ?? actors?.review_actor;
+    const reviewIdentity = object(payload).review_actor;
     const automationReviewer = disabling ? !!view.policy?.automation_reviewer : this.automationReviewer;
     Object.assign(payload, {automation_reviewer: disabling
       ? view.policy?.automation_reviewer == null ? null : policyActor(view.policy.automation_reviewer)
@@ -698,6 +709,14 @@ export class SodaFactoryRoleSettings extends LitElement {
                     </fieldset>`
                   : ''
               }
+              ${view.options?.controllerGrantRequired ? html`
+                <label>Fountain operation grant
+                  <input aria-label="Fountain operation grant" maxlength="32" pattern="[a-f0-9]{32}" ?required=${initial}
+                    .value=${this.setup.controllerGrant}
+                    @input=${(event: Event)=>{this.setup={...this.setup,controllerGrant:(event.target as HTMLInputElement).value.trim()};}}>
+                </label>
+                <p>Choose the grant from an explicit Repository controller authorization. Saving captures it for new work with its original expiry. Leave blank to retain an existing policy's grant. Funding and workspace consent remain separate.</p>
+              ` : ''}
               <fieldset ?disabled=${this.busy || !view.editable}>
                 <legend>Execution limits</legend>
                 <p>Each run gets its own time limit. Reviews and corrections share the captured attempt counts. Waiting does not replenish counts. Source allowance is checked before each run; an admitted run may finish its full time limit even if it exceeds the remaining allowance. Changes apply to new attempts.</p>
