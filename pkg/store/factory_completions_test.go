@@ -17,8 +17,6 @@ func TestFactoryCompletionSchemaRegistered(t *testing.T) {
 		FactoryCompletionsDDL, FactoryReassessmentsDDL,
 		FactoryCompletionTriggers, FactoryCompletionDeleteTrigger,
 		FactoryReassessmentDeleteTrigger,
-		// Fresh bootstrap enters the same 95 -> current migration as reopen.
-		"INSERT INTO schema_version(version) VALUES(95)",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("completion schema statement missing: %.60s", want)

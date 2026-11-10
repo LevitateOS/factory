@@ -1937,9 +1937,11 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE:** installed current31 app295038/backend/PG remains
-running with matching production helpers; the latest paid attempt and uncertain
-publication are recorded above. Current32 clean07e44bd payload was installed
+**Active recovery — INCOMPLETE:** installed current33 app319791/backend/PG is
+running with matching production helpers. All17 runs remain reconciled,114
+minutes charged and62 judgments finished; no new inference or publication was
+attempted. The saved-grant blocker and original uncertain send are recorded above.
+Current32 clean07e44bd payload was installed
 under exact-prior inventory18b9ff834f20e700bbb3bb7018d95d5fe530b293936b1c1dd83959d9f7a75170
 while that original app remained open. Its `/proc/295038/exe`, profile identity,
 database password, signing key/identity and post-refresh keyring hashes are
@@ -2477,6 +2479,26 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q27 — Installed Fountain desktop product journey
 
+Installed shared-reader increment (2026-11-10): production current34 and
+canonical Fountain `a08934cf0e2ba3421532c37eaee9754cd4f06e15` pass
+`q25-package/fountain-ui34-journey.log`. The installed executable, bundled Go/
+PostgreSQL and real XTest input show the selected enrolled repository in shared
+Feed/issues; original issue text/comments remain verbatim. Local controller/
+environment actions stay disabled. Native OAuth uses explicit protocol2 issue
+scope; a lost enrollment reply is recovered by lookup, explicit refresh retains
+its scope, and normal Quit/reopen preserves profile/keyring/signer hashes.
+Original enrollment00edfc8f0851dad912710b760ccbe611 and profile
+0dce24a07185654a94b2b41b832f882c remain retained. Exact replay after refresh,
+withdrawal/inactive replay, credential removal and final Quit pass the host's
+three-enrollment/one-refresh assertions. All app/host PG/Mutter/keyring/bus
+owners joined. Current34 exact inputs/inventory are in Q19. This uses the same
+compiler-hidden recipient view as current2, not an appliance or clean VM; native
+execution is explicitly unavailable in this browsing fixture. Earlier32 failed
+on fixture consent-scope mismatch;32b read successfully then its input harness
+exited on missing xdotool. Both original roots/logs and joined shutdown remain.
+No paid inference or original grant was replayed to replace that missing evidence.
+Full Fountain execution/publication/intake/adoption remains unfinished.
+
 INCOMPLETE — the installed login/enrollment/lifecycle slice passes; the full
 Fountain delivery journey remains outstanding. Actual installed app source
 `72dadae8fcf4fc218b371b839b63cdf9e8b74ac9`, immutable
@@ -2726,6 +2748,23 @@ Final reply: requested Q29, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q30"></a>
 
 ### Q30 — Full finalization of non-Daybreak Factory work
+
+Dependency publication increment (2026-11-10): verified commits through
+`0c6f4d1c4526d8ea33c8a73ef62bf1b28c16348c` were published without force to
+the current Factory default branch. Dependency validation is now deployed;
+explicit run [42738186149](https://github.com/LevitateOS/factory/actions/runs/42738186149)
+passed UI/analyzer and native configurations, then found two stale Go fixtures.
+The completion-table test incorrectly pinned bootstrap95; schema/migration checks
+own that version contract. The phase/retry test omitted the newly mandatory
+selected-source plan opinion. Its declared store fixture now retains a finite
+judgment source, capability-bound question, command outcome, consultation and
+exact charge before advancement; the production admission gate is unchanged.
+`q30-dependency/store-targeted2.log` passes both affected tests. All ordinary
+checks in local `go-all.log` pass; its aggregate fails only because the supplied
+native DSN also selects the separate three-lifetime PostgreSQL driver without a
+phase. That invocation error is retained, not a native recovery qualification.
+Next: publish the verified fixture correction and run the actual configured
+dependency job again. This does not close product or broad security gates.
 
 ```text
 Execute through Q30 — Full finalization of non-Daybreak Factory work. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q30 despite the document's historical paused snapshot; it does not authorize work beyond Q30 or resuming the old product queue.

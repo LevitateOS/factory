@@ -61,9 +61,13 @@ func phaseTestInvestigateRoot(t *testing.T, now time.Time) (factory.Assignment, 
 	return a, r, run, view
 }
 
-func finishInvestigateRoot(t *testing.T, ctx context.Context, db *Store, a factory.Assignment, run factory.Run, now time.Time) factory.Assignment {
+func finishInvestigateRoot(t *testing.T, ctx context.Context, db *Store, a factory.Assignment, run factory.Run, now time.Time, reviewed ...bool) factory.Assignment {
 	t.Helper()
 	plan := phaseTestPlan(t, a.AttemptRoot, a.SourceCommit, a.Preparation)
+	var review string
+	if len(reviewed) == 1 && reviewed[0] {
+		review = phaseTestPlanReview(t, ctx, db, a, run, &plan)
+	}
 	// Retire the parent slot the way production settlement does: the run
 	// goes inactive and the reservation is consumed. The finished
 	// assignment alone still owns its process slot under the
@@ -81,7 +85,7 @@ func finishInvestigateRoot(t *testing.T, ctx context.Context, db *Store, a facto
 	}
 	phased := factory.PhaseResult{
 		Version: 2, Phase: project.ExecutionInvestigate, Status: "completed",
-		Summary: "plan ready", Output: &factory.PhaseOutput{Plan: &plan},
+		Summary: "plan ready", Output: &factory.PhaseOutput{Plan: &plan, PlanReview: review},
 	}
 	result := factory.AssignmentResult{
 		AssignmentID: a.ID, RunID: run.ID, Phase: project.ExecutionInvestigate,
@@ -137,11 +141,81 @@ func phaseTestImplementChild(t *testing.T, now time.Time, parent factory.Assignm
 	return a, r, run, view
 }
 
+// Declared store fixture only: exercise the selected-source journal and charge
+// required by the plan gate, without claiming model or installed qualification.
+func phaseTestPlanReview(t *testing.T, ctx context.Context, db *Store, owner factory.Assignment, run factory.Run, plan *factory.InvestigationPlan) string {
+	t.Helper()
+	cap := testMCPCapabilityRow()
+	cap.ID, cap.RunID, cap.AssignmentID = run.ID, run.ID, owner.ID
+	cap.Profile, cap.Subject = factory.MCPProfileArchitect, "investigate:42"
+	cap.Repository, cap.Project, cap.DeadlineUnix = owner.Repository, owner.ProjectID, run.Deadline.Unix()
+	if err := db.StageMCPCapability(ctx, cap); err != nil {
+		t.Fatal(err)
+	}
+	plan.ScopeDigest = cap.ScopeDigest()
+	var err error
+	plan.Digest, err = factory.PlanDigest(*plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, instructions, criteria := factory.IssuePlanReviewQuestion(cap, owner, *plan)
+	snapshot, err := factory.SystemOneWorkerSnapshot(cap.ID, factory.MCPToolSystemOneChoice, state, instructions, criteria)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt, err := factory.NativeConsultationPrompt("choice", state, map[string]factory.SystemOneWorkerQuestion{"judgment": {Instructions: instructions, Criteria: criteria}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := db.RepositoryPolicy(ctx, owner.Repository)
+	if err != nil || policy.Judgments == nil {
+		t.Fatal("missing declared judgment source", err)
+	}
+	source, err := db.Sponsorship(ctx, owner.Repository, policy.Judgments.Account)
+	if err != nil || source.Native == nil {
+		t.Fatal("missing declared source custody", err)
+	}
+	capture := factory.NativeJudgmentCapture{Profile: source.Native.Profile, Repository: owner.Repository, Selection: *policy.Judgments, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OutputKind: "consultation", WorkerCapability: cap.ID, WorkerScope: cap.ScopeDigest(), ToolVersion: "declared-1", ToolSHA256: strings.Repeat("b", 64), DeadlineUnixMS: time.Now().Add(5 * time.Second).UnixMilli()}
+	capture.ID = factory.NativeJudgmentID(capture.Profile, owner.Repository, "consultation:"+snapshot[:32])
+	if _, fresh, err := db.BeginNativeJudgment(ctx, capture); err != nil || !fresh {
+		t.Fatal("declare plan opinion", err)
+	}
+	answer := map[string]any{"type": "choice", "choice": "complete", "confidence": 1.0, "probabilities": map[string]any{"complete": 1.0, "replan": 0.0}}
+	result, err := json.Marshal(map[string]any{"output": map[string]any{"answers": map[string]any{"judgment": answer}}, "process": map[string]any{"run": capture.ID, "live": false, "finished": true, "tree_retired": true, "output_complete": true, "exit_code": 0, "executable_sha256": capture.ToolSHA256}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now().UTC()
+	if err = db.CompleteNativeJudgment(ctx, capture, result, factory.Usage{RunID: capture.ID, Repository: owner.Repository, Connection: capture.Selection.Account, Minutes: 1, StartedAt: started, EndedAt: started.Add(time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.RecordConsultationRequest(ctx, SystemOneConsultation{Repository: owner.Repository, Role: cap.Profile, FeedConsultation: factory.FeedConsultation{Snapshot: snapshot, Assignment: owner.ID, Tool: string(factory.MCPToolSystemOneChoice), Kind: "choice", State: state, Instructions: instructions, Criteria: criteria}}); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.RecordConsultationResult(ctx, snapshot, capture.Selection.Model, ConsultationStatusReturned, map[string]any{"native_judgment": capture.ID, "answer": answer}); err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
 func TestPhasedInvestigateRootAdvancesImplementChild(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	db := dispatchStoreFixture(t)
 	root, reservation, run, view := phaseTestInvestigateRoot(t, now)
+	selection := factory.RoleSelection{Account: factory.NewID(), Harness: project.FactoryHarnessMuse, Model: "declared-plan-review"}
+	policy, err := db.RepositoryPolicy(ctx, root.Repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.Judgments = &selection
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.SaveSponsorship(ctx, factory.Sponsorship{Repository: root.Repository, GrantedBy: 7, ActorID: 7, ProjectID: root.ProjectID, Connection: selection.Account, Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 10, Active: true, Native: &factory.NativeSponsorship{Profile: "cccccccccccccccccccccccccccccccc", Authentication: factory.NativeMuseLogin}}); err != nil {
+		t.Fatal(err)
+	}
+	root.Authority = reviewCorrectAuthority(t, ctx, db, root.ProjectID, root.Repository, root.Connection)
 	if err := recordDispatchTestPacket(t, ctx, db, root, reservation, run, view); err != nil {
 		t.Fatalf("investigate root refused: %v", err)
 	}
@@ -149,7 +223,7 @@ func TestPhasedInvestigateRootAdvancesImplementChild(t *testing.T) {
 	if err != nil || allowance.RootAssignment != root.ID || len(allowance.Corrections) != 0 {
 		t.Fatalf("investigate allowance not opened: %+v %v", allowance, err)
 	}
-	parent := finishInvestigateRoot(t, ctx, db, root, run, now)
+	parent := finishInvestigateRoot(t, ctx, db, root, run, now, true)
 	child, childReservation, childRun, childView := phaseTestImplementChild(t, now, parent)
 	plan := *parent.Result.PhaseResult.Output.Plan
 	planBytes, err := json.Marshal(plan)
