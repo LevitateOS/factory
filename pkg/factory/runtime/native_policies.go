@@ -87,7 +87,7 @@ func (b *nativeProductAccount) policyOptions(ctx context.Context, actor collabor
 	if branch := "refs/heads/" + observed.DefaultBranch; factory.ValidTargetBranch(branch) {
 		options.TargetBranch = branch
 	}
-	for _, method := range []string{"merge", "squash", "rebase"} {
+	for _, method := range []string{"merge", "squash", "rebase", factory.MergeFastForward} {
 		if enabled := observed.MergeMethods[method]; enabled != nil && *enabled {
 			options.MergeMethods = append(options.MergeMethods, method)
 		}

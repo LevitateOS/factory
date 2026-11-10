@@ -14,6 +14,18 @@ const MERGE: &str = "mutation FactoryMergePull($input:MergePullRequestInput!){me
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PullMerge {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub controller_grant_id:String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_connection:String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub head_ref:String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub base_ref:String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_revision:Option<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checks:Vec<Value>,
     pub repository: String,
     pub repository_node_id: String,
     pub pull_id: String,
@@ -33,10 +45,10 @@ impl PullMerge {
             || self.number == 0
             || !commit(&self.head)
             || !commit(&self.base)
-            || !matches!(self.method.as_str(), "merge" | "squash" | "rebase")
+            || !matches!(self.method.as_str(), "merge" | "squash" | "rebase" | "fast-forward-only")
             || self.message.len() > 65536
             || self.message.contains('\0')
-            || if self.method == "rebase" {
+            || if matches!(self.method.as_str(),"rebase"|"fast-forward-only") {
                 !self.message.is_empty()
             } else {
                 self.message.trim().is_empty()
@@ -203,6 +215,7 @@ impl Client {
     ) -> WriteOutcome {
         self.run_mutation(deadline, |mutation| async move {
             q.validate()?;
+            if !q.controller_grant_id.is_empty() || !q.source_connection.is_empty() || !q.head_ref.is_empty() || !q.base_ref.is_empty() || q.host_revision.is_some() || !q.checks.is_empty() || q.method=="fast-forward-only" {return Err(Failure::invalid());}
             if !remote_id(expected) { return Err(Failure::new(400,"invalid_native_write")); }
             let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;

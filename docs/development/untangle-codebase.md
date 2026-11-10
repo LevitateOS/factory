@@ -1,5 +1,20 @@
 # Factory untangling decisions
 
+Fountain checks and merge (2026-11-10): retain authenticated CI issuer identity
+(including the built-in Actions actor-2), exact evaluated head/base and complete
+latest statuses in the native connector. Go applies the existing check verdict.
+Only host-enabled fast-forward is available; the existing conditional operation
+and journal bind source/grant, checks, host revision, tuple and original deadline.
+Commentary avoids an unnecessary dependency on concurrently changing CI facts;
+snapshot/busy retries are reads only. `product49g-connected.log` with canonical
+Fountain `d1aff71b8a` passes real runner CI, conditional merge/result, original
+issue closure, all four lost replies/one send per phase, cancellation and retained
+restart/withdrawal. Every owner joined. Retain original merge progress before
+derived completion reads; do not repeat its effect when closure is still moving.
+Earlier49e's review remains unknown/fenced, unchanged. The existing finite worker
+is real, but candidate/run/verdict inputs are separately declared; no model or
+full automatic/installed delivery is qualified. Exact receipts/limits are in Q22.
+
 Fountain agent reviews (2026-11-10): extend the existing typed native publication
 capture and original host journal with a review variant. Bind source/grant,
 author, PR and exact head/base; recover by original operation only. Canonical

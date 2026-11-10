@@ -1421,7 +1421,7 @@ async fn observe_scope(
     scope: Arc<Scope>,
     effect: &Operation,
 ) -> std::result::Result<Value, Failure> {
-    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..) | Operation::Receipt(..) | Operation::Mutation(Command{operation:WriteOperation::PublishBranch(_) | WriteOperation::CreatePull(_) | WriteOperation::CreateReview(_),..})) {
+    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..) | Operation::Receipt(..) | Operation::Mutation(Command{operation:WriteOperation::PublishBranch(_) | WriteOperation::CreatePull(_) | WriteOperation::CreateReview(_) | WriteOperation::MergePull(_),..})) {
         return Err(Failure::new(503, "fountain_product_write_unavailable"));
     }
     if let Operation::Mutation(command) = effect {
@@ -1459,6 +1459,7 @@ async fn observe_scope(
                     let profile=state.channel.socket.parent().ok_or_else(Failure::unavailable)?;
                     match client.recover_publication(profile,&descriptor.command_id,&descriptor.digest,descriptor.not_after).await.map_err(|e|Failure::new(e.status,e.code))? {
                         Some(crate::fountain_provider::PublicationOutcome::Ref(outcome))=>Ok(write_reply(descriptor,"applied",outcome)),
+                        Some(crate::fountain_provider::PublicationOutcome::Merge(outcome))=>Ok(write_reply(descriptor,"applied",outcome)),
                         Some(crate::fountain_provider::PublicationOutcome::Pull(outcome)) | Some(crate::fountain_provider::PublicationOutcome::Review(outcome))=>Ok(write_reply(descriptor,"created",outcome)),None=>Ok(prior)
                     }
                 }
@@ -1471,6 +1472,7 @@ async fn observe_scope(
                         WriteOperation::PublishBranch(branch)=>("applied",client.publish_candidate(profile,&d.command_id,&d.digest,d.not_after,branch).await),
                         WriteOperation::CreatePull(pull)=>("created",client.create_pull(profile,&d.command_id,&d.digest,d.not_after,pull).await),
                         WriteOperation::CreateReview(review)=>("created",client.create_review(profile,&d.command_id,&d.digest,d.not_after,review).await),
+                        WriteOperation::MergePull(merge)=>("applied",client.merge_pull(profile,&d.command_id,&d.digest,d.not_after,merge).await),
                         _=>unreachable!()
                     };
                     return attempt.finish(write_reply(d,success,result));

@@ -64,6 +64,103 @@ fn unix(value: &Value) -> Result<i64> {
     .map_err(|_| invalid())
 }
 impl Client {
+    pub(super) async fn merge_completion(&self,repository:&str,number:u32)->Result<Value> {
+        let before=self.product_pull(number,repository).await?;
+        if before["merged"]!=true || before["state"]!="merged" {return Err(invalid());}
+        let base_ref=format!("refs/heads/{}",text(&before["base"],"name",512)?);
+        let head_ref=format!("refs/heads/{}",text(&before["head"],"name",512)?);
+        let tip=self.product_tip(&base_ref).await?;
+        let (raw,_):(Value,_)=self.request_url(reqwest::Method::GET,self.product_url(&["pulls",&number.to_string()])?,None,512*1024).await?;
+        let commit=text(&raw,"merge_commit_sha",40)?;
+        if !super::hex(commit,40) || raw["merged"]!=true || raw["number"].as_u64()!=Some(u64::from(number)) || super::product::id(&raw["id"])?!=before["external_id"] {return Err(invalid());}
+        let selection=json!({"families":["pull","refs","ancestry"],"pull_number":number.to_string(),"refs":[base_ref],"ancestry":{"ancestor_oid":commit,"descendant_oid":tip}});
+        let (revision,snapshot)=self.snapshot(selection.clone()).await?;
+        let pull=&snapshot["pull"];let ancestry=&snapshot["ancestry"];
+        let merged=super::product::date(&raw,"merged_at")?;
+        let closed=super::product::date(&raw,"closed_at")?;
+        let merger=super::product::actor(&raw["merged_by"])?;
+        let head=text(&before["head"],"commit",40)?;
+        if pull["visible"]!=true || pull["complete"]!=true || pull["has_merged"]!=true || pull["merged_commit"]!=commit || pull["head_tip"]!=head
+            || pull["merger_id"]!=merger["external_id"] || unix(&merged)?<=0 || pull["merged_unix"].as_i64()!=Some(unix(&merged)?) || unix(&closed)?<=0
+            || ancestry["ancestor_oid"]!=commit || ancestry["descendant_oid"]!=tip || !ancestry["reachable"].is_boolean(){return Err(invalid());}
+        let (after_revision,after)=self.snapshot(selection).await?;
+        if revision!=after_revision || snapshot!=after || self.product_pull(number,repository).await?!=before || self.product_tip(&base_ref).await?!=tip {return Err(invalid());}
+        Ok(json!({"repository":repository,"number":number,"pull_id":pull["id"],"issue_id":pull["issue_id"],"head":head,"head_ref":head_ref,"base_ref":base_ref,"commit":commit,
+            "base_tip":tip,"base_contains":ancestry["reachable"],"merger":merger,"merged_at":merged,"closed_at":closed,"issue_closed":true}))
+    }
+
+    pub(super) async fn automation_checks(&self,repository:&str,number:u32)->Result<Value> {
+        let before=self.review_facts(repository,number,false).await?;
+        let head=before["head_tip"].as_str().ok_or_else(invalid)?.to_owned();
+        let selection=json!({"families":["checks"],"sha":head,"limit":50});
+        let (revision,snapshot)=self.snapshot(selection.clone()).await?;
+        let set=&snapshot["checks"];
+        if set["sha"]!=head || set["complete"]!=true {return Err(invalid());}
+        let rows=match &set["items"] {Value::Null=>&[][..],Value::Array(items) if items.len()<=50=>items.as_slice(),_=>return Err(invalid())};
+        if set["total"].as_u64()!=Some(rows.len() as u64){return Err(invalid());}
+        let mut latest=std::collections::BTreeMap::<String,(i64,&Value)>::new();
+        let mut identities=BTreeSet::new();
+        for row in rows {
+            let id=remote(&row["id"])?;
+            let creator=if row["creator_id"]=="-2" {"-2"} else {remote(&row["creator_id"])?};
+            let name=text(row,"context",256)?;
+            let state=text(row,"state",64)?;
+            let index=row["index"].as_i64().filter(|v|*v>0).ok_or_else(invalid)?;
+            if row["sha"]!=head || row["visible"]!=true || row["complete"]!=true || name.trim().is_empty() || name.chars().any(char::is_control)
+                || state.chars().any(char::is_control) || creator.is_empty() || !identities.insert(id) {return Err(invalid());}
+            match latest.get(name) {
+                Some((prior,_)) if *prior==index=>return Err(invalid()),
+                Some((prior,_)) if *prior>index=>(),
+                _=>{latest.insert(name.into(),(index,row));}
+            }
+        }
+        let mut checks=Vec::new();let mut sources=Vec::new();
+        for (context,(_,row)) in latest {
+            let creator=row["creator_id"].as_str().ok_or_else(invalid)?;
+            let bound=if creator=="-2" {format!("actions:{context}")} else {format!("actor:{creator}:{context}")};
+            if bound.len()>256 {return Err(invalid());}
+            checks.push(json!({"context":bound,"state":row["state"]}));
+            sources.push(json!({"kind":"fountain_commit_status","id":row["id"],"index":row["index"],"creator":row["creator_id"],"commit":head,"context":context,"state":row["state"]}));
+        }
+        let (after_revision,after)=self.snapshot(selection).await?;
+        if revision!=after_revision || snapshot!=after || self.review_facts(repository,number,false).await?!=before {return Err(invalid());}
+        let mut result=before;
+        result.as_object_mut().ok_or_else(invalid)?.remove("author");
+        result["evaluation_commit"]=json!(head);result["checks"]=json!(checks);result["sources"]=json!(sources);
+        Ok(result)
+    }
+
+    pub(super) async fn merge_facts(&self,repository:&str,number:u32)->Result<Value> {
+        let before=self.review_facts(repository,number,true).await?;
+        let head=before["pull"]["head"].as_str().ok_or_else(invalid)?;
+        let base=before["base_tip"].as_str().ok_or_else(invalid)?;
+        let selection=json!({"families":["merge_eligibility","ancestry","reviews","refs"],"pull_number":number.to_string(),"refs":[before["head_ref"],before["base_ref"]],"ancestry":{"ancestor_oid":base,"descendant_oid":head},"limit":50});
+        let (revision,snapshot)=self.snapshot(selection.clone()).await?;
+        let gate=&snapshot["merge_eligibility"];let ancestry=&snapshot["ancestry"];
+        if gate["visible"]!=true || gate["complete"]!=true || gate["pull_number"]!=number.to_string() || gate["head_tip"]!=head || gate["base_tip"]!=base
+            || ancestry["ancestor_oid"]!=base || ancestry["descendant_oid"]!=head || !ancestry["reachable"].is_boolean() || !gate["eligible"].is_boolean(){return Err(invalid());}
+        let (repo,_):(Value,_)=self.request_url(reqwest::Method::GET,self.product_url(&[])?,None,512*1024).await?;
+        if super::product::id(&repo["id"])?!=repository {return Err(invalid());}
+        let enabled=repo["allow_fast_forward_only_merge"].as_bool().ok_or_else(invalid)?;
+        let push=repo["permissions"]["push"].as_bool().ok_or_else(invalid)?;
+        let archived=repo["archived"].as_bool().ok_or_else(invalid)?;
+        let rows=items(&snapshot["reviews"],remote(&snapshot["reviews"]["issue_id"])?)?;
+        let mut veto=false;
+        for row in rows {
+            if row["visible"]!=true || row["complete"]!=true {return Err(invalid());}
+            veto|=row["type"]=="REQUEST_CHANGES" && row["dismissed"]!=true && row["stale"]!=true;
+        }
+        let checks=self.automation_checks(repository,number).await?;
+        let (after_revision,after)=self.snapshot(selection).await?;
+        if revision!=after_revision || snapshot!=after || self.review_facts(repository,number,true).await?!=before {return Err(invalid());}
+        let available=enabled&&ancestry["reachable"]==true;
+        let eligible=available&&push&&!archived&&!veto&&gate["eligible"]==true;
+        Ok(json!({"repository":repository,"name":before["name"],"repository_node_id":before["repository_node_id"],"pull_id":before["pull"]["external_id"],"pull_node_id":before["pull"]["node_id"],
+            "number":number,"head":head,"base":base,"head_ref":before["head_ref"],"base_ref":before["base_ref"],"state":"open","draft":false,"merged":false,
+            "mergeable":available,"mergeable_state":if eligible{"clean"}else{"blocked"},"archived":archived,"disabled":false,"push":push,"methods":{"fast-forward-only":available},
+            "head_condition":"atomic_head_oid","base_condition":"atomic_base_oid","provider_complete":true,"provider_eligible":eligible,"host_revision":revision,"checks":checks["checks"]}))
+    }
+
     pub(super) async fn review_facts(&self, repository: &str, number: u32, prepare: bool) -> Result<Value> {
         let before=self.product_pull(number,repository).await?;
         let head=text(&before["head"],"name",512)?;
@@ -125,14 +222,20 @@ impl Client {
         }
         selection["repository_id"] = json!(enrollment.repository.id);
         selection["actor_id"] = json!(enrollment.actor.id);
-        let response: Value = self
-            .request_bounded(
-                reqwest::Method::POST,
-                &[&self.command, "snapshot"],
-                Some(serde_json::to_vec(&selection).map_err(|_| invalid())?),
-                2 * 1024 * 1024,
-            )
-            .await?;
+        let body=serde_json::to_vec(&selection).map_err(|_|invalid())?;
+        // Snapshot POSTs are read-only. An ordinary CI writer can briefly hold
+        // their revision bracket; retry that read, never a privileged send.
+        let mut attempt=0;
+        let response:Value=loop {
+            match self.request_bounded(reqwest::Method::POST,&[&self.command,"snapshot"],Some(body.clone()),2*1024*1024).await {
+                Ok(response)=>break response,
+                Err(error) if error.status==409 && attempt<4=>{
+                    attempt+=1;
+                    tokio::time::sleep(std::time::Duration::from_millis(attempt*50)).await;
+                }
+                Err(error)=>return Err(error),
+            }
+        };
         let revision = response["revision"]
             .as_i64()
             .filter(|n| *n > 0)

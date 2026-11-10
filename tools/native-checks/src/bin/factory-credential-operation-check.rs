@@ -1253,13 +1253,14 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let binding=serde_json::json!({"actor_id":identity["actor"],"token_id":"0","native_profile":ready.profile,"native_connection":connection,"controller_grant_id":grant.id});
     let mut policy=serde_json::json!({"expected_revision":0,"enabled":false,"paused":false,"target_branch":format!("refs/heads/{}",grant.repository.default_branch),"merge_method":"merge","required_checks":["fixture/unavailable"],
         "roles":{"soda-coder":{"harness":"muse","model":"fixture-unavailable"},"soda-reviewer":{"harness":"muse","model":"fixture-unavailable"}},"publish_actor":binding,"create_actor":binding,"review_actor":binding,"merge_actor":binding,"execution_actor":binding});
+    if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){policy["merge_method"]=serde_json::json!("fast-forward-only");policy["required_checks"]=serde_json::json!(["actions:Native CI / exact-candidate (pull_request)"]);}
     let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
     let refused=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
     ensure(refused.status!=200&&product_read(format!("/api/repositories/{repository}/factory")).await?["policy"].is_null(),"limited host grant was enlarged into publication policy")?;
     let placement=client.placement().await.map_err(|e|e.code)?;
     let full=client.authorize_operations(profile,&soda_desktop_runtime::fountain_provider::OperationAuthorization{
         command_id:"123456789abcdef0123456789abcdefa".into(),expected_placement:placement.revision,generation:placement.generation,
-        operations:vec!["execution.launch".into(),"git.ref.publish".into(),"pull_request.create".into(),"pull_request.review.submit".into(),"pull_request.merge".into()],not_after:epoch() as i64+90}).await.map_err(|e|e.code)?;
+        operations:vec!["execution.launch".into(),"git.ref.publish".into(),"pull_request.create".into(),"pull_request.review.submit".into(),"pull_request.merge".into()],not_after:epoch() as i64+if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){600}else{90}}).await.map_err(|e|e.code)?;
     for slot in ["publish_actor","create_actor","review_actor","merge_actor"] { policy[slot]["controller_grant_id"]=serde_json::json!(full.id); }
     let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
     let saved=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
@@ -1338,7 +1339,9 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         let publication:serde_json::Value=serde_json::from_slice(&fs::read(parent.join("publication-fixture.json"))?)?;
         let issue:serde_json::Value=serde_json::from_slice(&fs::read(parent.join("inputs-fixture.json"))?)?;
         let path=profile.join("publication-inputs.json");
-        fs::write(&path,serde_json::to_vec(&serde_json::json!({"Repository":repository,"Issue":issue["number"].to_string(),"Connection":connection,"Publication":publication}))?)?;
+        let mut input=serde_json::json!({"Repository":repository,"Issue":issue["number"].to_string(),"Connection":connection,"Publication":publication});
+        if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){input["Checks"]=serde_json::json!({"method":"fast-forward-only","merge_checks":["actions:Native CI / exact-candidate (pull_request)"]});}
+        fs::write(&path,serde_json::to_vec(&input)?)?;
         let operation=if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){"check-background-publication"}else{"check-background-publication-branch"};
         command(operation,path.to_str().ok_or("publication fixture path invalid")?).await?;
         if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_REVIEW").is_some() {
@@ -1442,6 +1445,9 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         not_after:admitted["DeadlineUnix"].as_i64().ok_or("worker deadline missing")?.min(grant.not_after),
     });
     }
+    if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){
+        command("check-background-publication-merge",profile.join("publication-inputs.json").to_str().ok_or("publication input path invalid")?).await?;
+    }
     tokio::task::spawn_blocking(move||supervisor.stop()).await?.map_err(|error|format!("native controller stop: {error}"))?;
     let recovered_credentials=Arc::new(Credentials::open(profile,&ready.profile)?);
     let (history,original_grant)=soda_desktop_runtime::fountain_provider::captured_operation_grant(recovered_credentials.clone(),profile,&ready.profile,connection,&grant.id).await.map_err(|e|e.code)?;
@@ -1512,7 +1518,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let client=Arc::new(Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",&enrollment).map_err(|e|e.code)?);
         let receipt=client.select_runtime(profile,&request).await.map_err(|e|e.code)?;
         ensure(receipt.placement.state=="active","reopened controller command not adopted")?;
-        let authorization=OperationAuthorization{command_id:"123456789abcdef0123456789abcdef4".into(),expected_placement:receipt.placement.revision.clone(),generation:receipt.placement.generation.clone(),operations:vec!["issue.comment.publish".into(),"execution.launch".into()],not_after:epoch() as i64+90};
+        let authorization=OperationAuthorization{command_id:"123456789abcdef0123456789abcdef4".into(),expected_placement:receipt.placement.revision.clone(),generation:receipt.placement.generation.clone(),operations:vec!["issue.comment.publish".into(),"execution.launch".into()],not_after:epoch() as i64+if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){600}else{90}};
         let grant=client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?;
         ensure(grant.active&&grant.allows_current("execution.launch")&&grant.allows_current("issue.comment.publish")&&!grant.allows_current("git.ref.publish"),"native per-operation authority missing or enlarged")?;
         let claim_request=ExecutionClaimRequest{command_id:"123456789abcdef0123456789abcdef8".into(),manifest_digest:"8".repeat(64),not_after:grant.not_after};
@@ -1595,12 +1601,13 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
                     Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Ref(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["new"]==capture["branch"]["candidate"]&&receipt["host_operation"]["grant_id"]==capture["branch"]["controller_grant_id"],"withdrawn publication journal changed its original receipt")?,
                     Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Pull(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["head"]["pin"]==capture["pull"]["head_pin"]&&receipt["base"]["pin"]==capture["pull"]["base_pin"]&&receipt["host_operation"]["grant_id"]==capture["pull"]["controller_grant_id"],"withdrawn PR journal changed its exact creation pins")?,
                     Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Review(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["head"]==capture["review"]["head"]&&receipt["base"]==capture["review"]["base"]&&receipt["review"]["state"]=="commented"&&receipt["host_operation"]["grant_id"]==capture["review"]["controller_grant_id"],"withdrawn review changed its original candidate or vote")?,
+                    Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Merge(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["commit"]==capture["merge"]["head"]&&receipt["base"]==capture["merge"]["base"]&&receipt["host_operation"]["grant_id"]==capture["merge"]["controller_grant_id"],"withdrawn merge changed its original candidate/result or base")?,
                     _=>return Err("withdrawn publication did not recover its original committed receipt".into())
                 }
                 ensure(fs::read(entry.path())?==before,"publication recovery renewed original authority")?;
                 recovered+=1;
             }
-            ensure(recovered==if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_REVIEW").is_some(){3}else if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){2}else{1},"original publication capture missing or duplicated")?;
+            ensure(recovered==if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){4}else if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_REVIEW").is_some(){3}else if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){2}else{1},"original publication capture missing or duplicated")?;
             println!("PASS: native restart and central withdrawal preserve the exact original conditional publication host receipt and captured deadline without registration or receive replay");
         }
         let original_intent=fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?;
@@ -2369,7 +2376,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     }).await??;
                     let facts=&observed["preparation"];
                     ensure(facts["push"]==true && facts["state"]=="open" && facts["methods"]["merge"]==true,"writer preparation unavailable")?;
-                    let merge=PullMerge{repository:field(5)?.into(),repository_node_id:facts["repository_node_id"].as_str().ok_or("repository node missing")?.into(),pull_id:facts["pull_id"].as_str().ok_or("pull missing")?.into(),pull_node_id:facts["pull_node_id"].as_str().ok_or("pull node missing")?.into(),number,head:facts["head"].as_str().ok_or("head missing")?.into(),base:facts["base"].as_str().ok_or("base missing")?.into(),method:"merge".into(),message:"Q11 permission-race fixture".into()};
+                    let merge=PullMerge{host_revision:None,checks:Vec::new(),controller_grant_id:String::new(),source_connection:String::new(),head_ref:String::new(),base_ref:String::new(),repository:field(5)?.into(),repository_node_id:facts["repository_node_id"].as_str().ok_or("repository node missing")?.into(),pull_id:facts["pull_id"].as_str().ok_or("pull missing")?.into(),pull_node_id:facts["pull_node_id"].as_str().ok_or("pull node missing")?.into(),number,head:facts["head"].as_str().ok_or("head missing")?.into(),base:facts["base"].as_str().ok_or("base missing")?.into(),method:"merge".into(),message:"Q11 permission-race fixture".into()};
                     fs::write(root.join("writer-preparation.json"),serde_json::to_vec(&observed)?)?;
                     fs::write(root.join("permission.ready"),b"downgrade fixture team before continue")?;
                     tokio::time::timeout(Duration::from_secs(300),async {while !root.join("permission.continue").exists(){tokio::time::sleep(Duration::from_millis(100)).await;}}).await?;

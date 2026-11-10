@@ -1787,6 +1787,37 @@ Final reply: requested Q21, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q22 — Fountain automatic issue intake
 
+Connected native delivery increment (2026-11-10): canonical Fountain
+`d1aff71b8a` and `q19-authority/product49g-connected.log` pass real native
+branch→PR→COMMENT→Forgejo Actions→conditional fast-forward merge, original PR/
+issue closure, causal receipt adoption/replay, cancellation, native restart and
+central withdrawal. The existing actual finite worker and two preparations also
+pass; their candidate/run/verdict inputs remain separate declared fixtures.
+There is no paid inference or complete automatic/coordinator qualification.
+The real v12.11.1 runner's task58 (`ci/tasks.json`) succeeded on
+841c9a42d07bc2a27b4afc7b63164ec5613cb262; the source is bound as
+`actions:Native CI / exact-candidate (pull_request)` to the host's built-in
+Actions actor-2. Ordinary actor statuses receive distinct source keys. Shared
+policy offers only the host-enabled fast-forward method. Captured host revision
+and exact checks fence late CI/review changes; original deadlines never extend.
+Merge command b1379be0a307cf2619a67eef251aaa17, intent
+4e33eab1494c18e522a6c6d45e1817778b05fed670977d34989e08a3624e03e9,
+PR8/id13, native actor2, old7b0faebf2eeab5bb259c193087a17c6648e82074 and
+result841c9a42d07bc2a27b4afc7b63164ec5613cb262 remain in the original host
+receipt. `profile/native-merge.json` retains original effect/result before
+completion reads and confirms original closing occurrence14. All four replies
+were lost; each phase sent once and every owner joined. CI starts after the
+committed fixture review, using normal runner registration and job execution.
+Earlier49/49b review refusals,49c's lost selected fixture bindings,49d's committed
+merge with an unresolved fixture dependency, and49f's committed merge during
+derived-closure readback remain preserved.49e's review
+f017525f77fd27f3aec3fa1a6811ec7a remains **unknown and fenced**, with its original
+native intent/capture and generic host refusal; it was never resent or declared
+not-sent. The dependency was completed by the normal issue API in fresh49g,
+and completion retries only reads. Full paid planning/Builder/review/correction,
+actual worker candidate export, next-Builder preparation, automatic intake,
+external adoption and installed qualification remain outstanding.
+
 **Verified input increment (2026-11-10); full Q22 remains INCOMPLETE.**
 The enrolled public snapshot endpoint reuses native history/visibility/permission
 ownership under actual OAuth scopes and profile proof. Canonical Fountain

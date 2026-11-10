@@ -30,7 +30,7 @@ pub(super) fn actor(value: &Value) -> Result<Value> {
     }
     Ok(json!({"external_id":id(&value["id"])?,"login":login}))
 }
-fn date(value: &Value, key: &str) -> Result<Value> {
+pub(super) fn date(value: &Value, key: &str) -> Result<Value> {
     if value[key].is_null() {
         return Ok(Value::Null);
     }
@@ -146,6 +146,9 @@ impl Client {
         }
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
+            Read::AutomationChecks {repository:selected,number} if selected==repository=>json!({"kind":"automation_checks","account":account,"automation_checks":self.automation_checks(repository,*number).await?}),
+            Read::MergePreparation {repository:selected,number} if selected==repository=>json!({"kind":"merge_preparation","account":account,"preparation":self.merge_facts(repository,*number).await?}),
+            Read::MergeCompletion {repository:selected,number} if selected==repository=>json!({"kind":"merge_completion","account":account,"publication":self.merge_completion(repository,*number).await?}),
             Read::AutomationReview {repository:selected,number} if selected==repository => {
                 json!({"kind":"automation_review","account":account,"automation_review":self.review_facts(repository,*number,false).await?})
             }
@@ -184,7 +187,7 @@ impl Client {
                     "name":format!("{}/{}",current.repository.owner,current.repository.name),
                     "private":null,"default_branch":current.repository.default_branch,
                     "push":raw["permissions"]["push"].as_bool(),"admin":raw["permissions"]["admin"].as_bool(),
-                    "merge_methods":{"merge":raw["allow_merge_commits"].as_bool(),"squash":raw["allow_squash_merge"].as_bool(),"rebase":raw["allow_rebase"].as_bool()}
+                    "merge_methods":{"fast-forward-only":raw["allow_fast_forward_only_merge"].as_bool()}
                 }})
             }
             Read::OperationGrant { repository: selected, grant_id } if selected == repository => {
@@ -370,7 +373,7 @@ impl Client {
             .extend(parts);
         Ok(url)
     }
-    async fn product_tip(&self, target: &str) -> Result<String> {
+    pub(super) async fn product_tip(&self, target: &str) -> Result<String> {
         let branch = target.strip_prefix("refs/heads/").ok_or_else(invalid)?;
         let (raw, _): (Value, _) = self.request_url(reqwest::Method::GET,
             self.product_url(&["branches", branch])?, None, 128 * 1024).await?;

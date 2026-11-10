@@ -45,7 +45,7 @@ func (p NativeMerges) request(ctx context.Context, w factory.MergeWork) (factory
 		return factory.HumanMergeCommand{}, err
 	}
 	message := ""
-	if w.Method != "rebase" {
+	if w.Method != "rebase" && w.Method != factory.MergeFastForward {
 		message = fmt.Sprintf("Merge Factory pull request #%d", w.PRNumber)
 	}
 	q := factory.HumanMergeCommand{ID: nativePublicationCommandID(string(p.Config.Profile), w.OperationID), Host: repo.Host, Repository: repo.ID, Actor: collaboration.ActorID(w.ActorID), Number: w.PRNumber, Method: w.Method, Message: message, ExpectedHead: collaboration.CommitID(w.HeadOID)}
@@ -108,7 +108,17 @@ func (p NativeMerges) LookupOp(ctx context.Context, id string) (factory.Operatio
 	}
 	lookup, err := p.Store.LookupHumanCommandDispatch(ctx, cmd)
 	if err == nil && lookup.Record != nil && lookup.Record.Effect == collaboration.EffectIndeterminate && lookup.Record.Receipt == nil {
-		account, e := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
+		var prepared nativeMergePreparation
+		if nativeDecode(c.ProviderIntent, &prepared) != nil {
+			return factory.OperationOutcome{}, errNativeRead
+		}
+		var account *nativeProductAccount
+		var e error
+		if prepared.Merge.ControllerGrantID != "" {
+			account, e = p.savedAccount(ctx, w.Repository, collaboration.ActorID(w.ActorID), prepared.Merge.SourceConnection)
+		} else {
+			account, e = p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
+		}
 		if e != nil {
 			return factory.OperationOutcome{}, e
 		}
@@ -122,12 +132,12 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	if w.ValidateTarget() != nil || !nativeIndex(w.PRNumber) {
 		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
-	if w.Method == factory.MergeFastForward {
-		return empty, &factory.PublicationWait{Reason: "native_merge_method_unavailable"}
-	}
 	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
 	if err != nil {
 		return empty, err
+	}
+	if (account.binding.Host.Provider == collaboration.Fountain) != (w.Method == factory.MergeFastForward) {
+		return empty, &factory.PublicationWait{Reason: "native_merge_method_unavailable"}
 	}
 	if int64(account.binding.Actor.ID) != w.ActorID {
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
@@ -203,6 +213,13 @@ func (p NativeMerges) admit(ctx context.Context, w factory.MergeWork) (*nativePr
 	if !open || !policy.Enabled || policy.Paused || policy.MergeMethod != w.Method {
 		return nil, &factory.PublicationWait{Reason: "dispatch_closed"}
 	}
+	assessment, err := p.Store.CheckAssessment(ctx, w.Repository, w.PRNumber)
+	if err != nil {
+		return nil, err
+	}
+	if factory.VerifyMergeCheckEvidence(w, assessment, policy) != nil {
+		return nil, &factory.PublicationWait{Reason: "check_evidence_stale"}
+	}
 	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
 	if err != nil {
 		return nil, err
@@ -267,7 +284,14 @@ func (p NativeMerges) SubmitMerge(ctx context.Context, w factory.MergeWork) (fac
 		if nativeDecode(c.ProviderIntent, &prep) != nil || prep.Merge.PullID != strconv.FormatInt(w.PRID, 10) || prep.Merge.Head != w.HeadOID || prep.Merge.Base != w.BaseOID {
 			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 		}
-		prep.NotAfter = w.NotAfter
+		prep.NotAfter = min(prep.NotAfter, w.NotAfter)
+		if prep.Merge.ControllerGrantID != "" {
+			captured := factory.ObservedChecks{NativeRev: 1, EvaluationCommit: w.HeadOID, HeadTip: w.HeadOID, BaseTip: w.BaseOID, Checks: prep.Merge.Checks, ObservedContexts: len(prep.Merge.Checks), Complete: true}
+			verdict, e := factory.VerifyChecks(target, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, captured, time.Now().Unix())
+			if e != nil || verdict.Verdict != factory.CheckPass {
+				return empty, &factory.PublicationWait{Reason: "check_evidence_pending"}
+			}
+		}
 		c.ProviderIntent, err = json.Marshal(prep)
 		if err == nil {
 			c, _, err = p.Store.CaptureHumanMerge(ctx, c)
@@ -277,7 +301,7 @@ func (p NativeMerges) SubmitMerge(ctx context.Context, w factory.MergeWork) (fac
 		return empty, err
 	}
 	var prep nativeMergePreparation
-	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter != w.NotAfter || prep.Merge.Head != w.HeadOID || prep.Merge.Base != w.BaseOID {
+	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter <= 0 || prep.NotAfter > w.NotAfter || prep.Merge.Head != w.HeadOID || prep.Merge.Base != w.BaseOID {
 		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
 	if account, err = p.admit(ctx, w); err != nil {
@@ -320,7 +344,11 @@ func (p NativeMerges) CancelOp(ctx context.Context, id string) (factory.Operatio
 		if e != nil {
 			return factory.OperationOutcome{}, e
 		}
-		c = factory.HumanMergeCapture{Request: q, Authority: "native-github:" + string(p.Config.Profile) + ":" + actor.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
+		host, e := p.Store.CollaborationHost(ctx, q.Host)
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		c = factory.HumanMergeCapture{Request: q, Authority: nativeHumanAuthority(p.Config.Profile, host, actor.ExternalID), OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
 		c, _, err = p.Store.CaptureHumanMerge(ctx, c)
 	}
 	if err != nil {
@@ -352,10 +380,10 @@ func (p NativeMerges) AdoptMerge(ctx context.Context, w factory.MergeWork, out f
 		return empty, err
 	}
 	var prep nativeMergePreparation
-	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter != w.NotAfter || prep.Merge.PullID != strconv.FormatInt(w.PRID, 10) || prep.Merge.Head != w.HeadOID || prep.Merge.Base != w.BaseOID || prep.Merge.Method != w.Method || prep.Merge.Message != q.Message {
+	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter <= 0 || prep.NotAfter > w.NotAfter || prep.Merge.PullID != strconv.FormatInt(w.PRID, 10) || prep.Merge.Head != w.HeadOID || prep.Merge.Base != w.BaseOID || prep.Merge.Method != w.Method || prep.Merge.Message != q.Message {
 		return empty, errNativeRead
 	}
-	receipt, err := validateNativeMergeReceipt(prep, out.Receipt)
+	receipt, err := validateNativeMergeReceipt(c, prep, out.Receipt)
 	if err != nil || receipt.WritingMatches == nil || !*receipt.WritingMatches {
 		return empty, errNativeRead
 	}
@@ -419,6 +447,20 @@ func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeW
 	}
 	if facts.PullID != strconv.FormatInt(w.PRID, 10) || facts.Head != w.HeadOID || facts.Base != w.BaseOID {
 		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
+	}
+	if account.binding.Host.Provider == collaboration.Fountain {
+		if w.Method != factory.MergeFastForward || facts.ProviderComplete == nil || facts.ProviderEligible == nil || facts.HeadRef != w.HeadRef || facts.BaseRef != w.BaseRef {
+			return empty, errNativeRead
+		}
+		checks, err := p.ObserveChecks(ctx, factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, w.ActorID)
+		if err != nil {
+			return empty, err
+		}
+		if checks.HeadTip != w.HeadOID || checks.BaseTip != w.BaseOID {
+			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
+		}
+		return factory.MergeObservation{Method: w.Method, MethodAvailable: facts.Methods[w.Method], Checks: checks, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID,
+			HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent, ProviderComplete: *facts.ProviderComplete, ProviderEligible: *facts.ProviderComplete && *facts.ProviderEligible}, nil
 	}
 	reads := nativeCollaborationReads{account}
 	gate, err := reads.readRequiredChecks(ctx, account.repository.ID, nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}, collaboration.CommitID(w.HeadOID), collaboration.CommitID(w.BaseOID), w.BaseRef[len("refs/heads/"):])

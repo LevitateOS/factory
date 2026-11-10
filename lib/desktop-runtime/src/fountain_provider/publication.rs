@@ -1,7 +1,7 @@
 //! A retained candidate has one registration and one conditional Git send.
 //! Recovery reads the original host journal; it never repeats either send.
 use super::{hex, invalid, unavailable, Client, OperationGrant, OperationRecord, Result};
-use crate::github_provider::{BranchPublish, Failure as NativeFailure, PullCreate, ReviewCreate, WriteOutcome};
+use crate::github_provider::{BranchPublish, Failure as NativeFailure, PullCreate, ReviewCreate, PullMerge, WriteOutcome};
 use crate::private_fs::{private_dir, publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -26,19 +26,22 @@ struct Capture {
     pull: Option<PullCreate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     review: Option<ReviewCreate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    merge: Option<PullMerge>,
     intent: Value,
     intent_digest: String,
 }
 impl Capture {
     fn scope(&self) -> Result<(&str, &str, &str)> {
-        match (&self.branch, &self.pull, &self.review) {
-            (Some(q), None, None) if self.version == 1 && q.bundle.is_empty() => {
+        match (&self.branch, &self.pull, &self.review,&self.merge) {
+            (Some(q), None, None,None) if self.version == 1 && q.bundle.is_empty() => {
                 Ok(("git.ref.publish", &q.repository, &q.controller_grant_id))
             }
-            (None, Some(q), None) if self.version == 2 => {
+            (None, Some(q), None,None) if self.version == 2 => {
                 Ok(("pull_request.create", &q.repository, &q.controller_grant_id))
             }
-            (None,None,Some(q)) if self.version==3 => Ok(("pull_request.review.submit",&q.repository,&q.controller_grant_id)),
+            (None,None,Some(q),None) if self.version==3 => Ok(("pull_request.review.submit",&q.repository,&q.controller_grant_id)),
+            (None,None,None,Some(q)) if self.version==4=>Ok(("pull_request.merge",&q.repository,&q.controller_grant_id)),
             _ => Err(invalid()),
         }
     }
@@ -47,11 +50,13 @@ enum Request {
     Ref(BranchPublish),
     Pull(PullCreate),
     Review(ReviewCreate),
+    Merge(PullMerge),
 }
 pub enum PublicationOutcome {
     Ref(WriteOutcome),
     Pull(WriteOutcome),
     Review(WriteOutcome),
+    Merge(WriteOutcome),
 }
 #[derive(Serialize)]
 struct Canonical<'a> {
@@ -272,6 +277,14 @@ impl Client {
         }
         if r.effect_state == "committed" {
             let p = r.receipt.as_ref().ok_or_else(invalid)?;
+            if let Some(q)=&c.merge {
+                if p["actor_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(c.account.as_str())
+                    || p["repository_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(q.repository.as_str())
+                    || p["pr_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(q.pull_id.as_str())
+                    || p["pr_number"].as_u64()!=Some(u64::from(q.number)) || p["old_oid"]!=q.base || p["new_oid"]!=q.head
+                    || p["head_ref"]!=q.head_ref || p["base_ref"]!=q.base_ref || p["method"]!="fast-forward-only" {return Err(invalid());}
+                return Ok(());
+            }
             if let Some(q)=&c.review {
                 if p["reviewer_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(c.account.as_str())
                     || p["pr_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(q.pull_id.as_str())
@@ -348,6 +361,12 @@ impl Client {
             Err(_) => return WriteOutcome::Indeterminate(unknown()),
         };
         let host = json!({"grant_id":g.id,"installation_id":g.installation_id,"operation_id":c.command,"intent_digest":r.intent_digest,"receipt":r.receipt});
+        if let Some(q)=&c.merge {
+            return WriteOutcome::Applied(json!({"account":{"external_id":g.actor.id,"login":g.actor.username},"repository":q.repository,"repository_node_id":q.repository_node_id,
+                "pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.head,"base":q.base,"method":q.method,"message_sha256":sha(q.message.as_bytes()),
+                "writing_matches":true,"head_condition":"atomic_head_oid","base_condition":"atomic_base_oid","commit":q.head,"merged_at":null,
+                "provider_response":{"protocol":"fountain_native_operation","status":200,"request_id":null,"response_sha256":response},"host_operation":host}));
+        }
         if let Some(q)=&c.review {
             let Some(p)=r.receipt.as_ref() else{return WriteOutcome::Indeterminate(unknown())};
             let Some(id)=p["review_id"].as_i64().map(|n|n.to_string()) else{return WriteOutcome::Indeterminate(unknown())};
@@ -424,7 +443,7 @@ impl Client {
         let grant = self.operation_grant(grant_id).await?;
         let record = self.publication_record(&c, &grant).await?;
         let outcome = self.publication_outcome(&c, &grant, &record);
-        Ok(Some(if c.review.is_some() { PublicationOutcome::Review(outcome) } else if c.pull.is_some() {
+        Ok(Some(if c.merge.is_some() {PublicationOutcome::Merge(outcome)} else if c.review.is_some() { PublicationOutcome::Review(outcome) } else if c.pull.is_some() {
             PublicationOutcome::Pull(outcome)
         } else {
             PublicationOutcome::Ref(outcome)
@@ -439,7 +458,7 @@ impl Client {
         request: Request,
         sent: &mut bool,
     ) -> Result<(Capture, OperationGrant, OperationRecord)> {
-        let (repository, grant_id, connection, kind, payload, branch, pull, review, version) = match request
+        let (repository, grant_id, connection, kind, payload, branch, pull, review, merge, version) = match request
         {
             Request::Ref(mut q) => {
                 q.bundle.clear();
@@ -452,6 +471,7 @@ impl Client {
                     "git.ref.publish",
                     payload,
                     Some(q),
+                    None,
                     None,
                     None,
                     1,
@@ -469,13 +489,19 @@ impl Client {
                     None,
                     Some(q),
                     None,
+                    None,
                     2,
                 )
             }
             Request::Review(q)=>{
                 let payload=json!({"pull_request_number":q.number,"pr_author_id":q.author_id.parse::<i64>().map_err(|_|invalid())?,"head_repository_id":q.repository.parse::<i64>().map_err(|_|invalid())?,
                     "head_ref":q.head_ref,"base_ref":q.base_ref,"expected_head_oid":q.head,"expected_base_oid":q.base,"commit_id":q.head,"event":"COMMENT","body":q.body});
-                (q.repository.clone(),q.controller_grant_id.clone(),q.source_connection.clone(),"pull_request.review.submit",payload,None,None,Some(q),3)
+                (q.repository.clone(),q.controller_grant_id.clone(),q.source_connection.clone(),"pull_request.review.submit",payload,None,None,Some(q),None,3)
+            }
+            Request::Merge(q)=>{
+                let payload=json!({"pull_request_number":q.number,"head_repository_id":q.repository.parse::<i64>().map_err(|_|invalid())?,"head_ref":q.head_ref,"base_ref":q.base_ref,
+                    "expected_head_oid":q.head,"expected_base_oid":q.base,"method":"fast-forward-only"});
+                (q.repository.clone(),q.controller_grant_id.clone(),q.source_connection.clone(),"pull_request.merge",payload,None,None,None,Some(q),4)
             }
         };
         if !hex(command, 32)
@@ -509,9 +535,17 @@ impl Client {
         {
             return Err(invalid());
         }
-        let revision = self.native_revision().await?;
+        let mut revision = self.native_revision().await?;
+        for _ in 0..5 {
+            if revision.idle || revision.inhibited {break;}
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            revision=self.native_revision().await?;
+        }
         if !revision.idle || revision.inhibited {
             return Err(invalid());
+        }
+        if let Some(q)=&merge {
+            if q.host_revision!=Some(revision.revision) {return Err(invalid());}
         }
         let canonical = Canonical {
             operation_id: command,
@@ -545,6 +579,7 @@ impl Client {
             branch,
             pull,
             review,
+            merge,
             intent,
             intent_digest: sha(bytes.as_bytes()),
         };
@@ -574,6 +609,22 @@ impl Client {
         self.check_publication_record(&capture, &grant, &record)?;
         Ok((capture, grant, record))
     }
+    pub(crate) async fn merge_pull(&self,profile:&Path,command:&str,digest:&str,not_after:u64,q:&PullMerge)->WriteOutcome {
+        let mut sent=false;
+        let result=async {
+            q.validate().map_err(|_|invalid())?;
+            if q.method!="fast-forward-only" || !q.message.is_empty(){return Err(invalid());}
+            let observed=self.merge_facts(&q.repository,q.number).await?;
+            if observed["repository_node_id"]!=q.repository_node_id || observed["pull_id"]!=q.pull_id || observed["pull_node_id"]!=q.pull_node_id
+                || observed["head"]!=q.head || observed["base"]!=q.base || observed["head_ref"]!=q.head_ref || observed["base_ref"]!=q.base_ref
+                || observed["host_revision"].as_i64()!=q.host_revision || observed["checks"]!=json!(q.checks)
+                || observed["provider_complete"]!=true || observed["provider_eligible"]!=true || observed["methods"]["fast-forward-only"]!=true {return Err(invalid());}
+            let (capture,grant,record)=self.register_publication(profile,command,digest,not_after,Request::Merge(q.clone()),&mut sent).await?;
+            Ok(self.publication_outcome(&capture,&grant,&record))
+        }.await;
+        match result {Ok(outcome)=>outcome,Err(error) if sent=>WriteOutcome::Indeterminate(failure(error)),Err(error)=>WriteOutcome::NotSent(failure(error))}
+    }
+
     pub(crate) async fn create_review(
         &self, profile:&Path, command:&str, digest:&str, not_after:u64, q:&ReviewCreate,
     )->WriteOutcome {
@@ -581,10 +632,14 @@ impl Client {
         let result=async {
             q.validate().map_err(|_|invalid())?;
             if q.event!="comment" || q.body.trim().is_empty() || q.body.len()>32768 {return Err(invalid());}
-            let observed=self.review_facts(&q.repository,q.number.try_into().map_err(|_|invalid())?,true).await?;
-            if observed["repository_node_id"]!=q.repository_node_id || observed["pull"]["external_id"]!=q.pull_id
-                || observed["pull"]["node_id"]!=q.pull_node_id || observed["pull"]["head"]!=q.head || observed["base_tip"]!=q.base
-                || observed["author_id"]!=q.author_id || observed["head_ref"]!=q.head_ref || observed["base_ref"]!=q.base_ref {return Err(invalid());}
+            let observed=self.product_pull(q.number.try_into().map_err(|_|invalid())?,&q.repository).await?;
+            // CI status writes are independent of commentary. The host primary
+            // atomically rechecks this exact tuple and refuses a pending draft.
+            if q.repository_node_id!=format!("fountain:repository:{}",q.repository) || q.pull_node_id!=format!("fountain:pull:{}:{}",q.repository,q.pull_id)
+                || observed["external_id"]!=q.pull_id || observed["head"]["repository"]["external_id"]!=q.repository || observed["base"]["repository"]["external_id"]!=q.repository
+                || observed["head"]["commit"]!=q.head || observed["base"]["commit"]!=q.base || observed["author"]["external_id"]!=q.author_id
+                || q.head_ref!=format!("refs/heads/{}",super::product::text(&observed["head"],"name",512)?) || q.base_ref!=format!("refs/heads/{}",super::product::text(&observed["base"],"name",512)?)
+                || observed["state"]!="open" || observed["draft"]!=false || observed["locked"]!=false {return Err(invalid());}
             let (capture,grant,record)=self.register_publication(profile,command,digest,not_after,Request::Review(q.clone()),&mut sent).await?;
             Ok(self.publication_outcome(&capture,&grant,&record))
         }.await;

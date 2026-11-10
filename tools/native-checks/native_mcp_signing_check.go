@@ -2289,6 +2289,26 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 		if err = json.Unmarshal(raw, &state); err != nil {
 			return err
 		}
+		if action == "check-background-publication-merge" {
+			reviews := factoryruntime.NativeReviews{NativeInputSource: port.NativeInputSource}
+			publication, _, e := db.PublicationReviewOperation(ctx, state.Review.OperationID)
+			if e != nil {
+				return e
+			}
+			review, e := reviews.AdoptReview(ctx, state.Review, state.ReviewOutcome)
+			if e != nil {
+				return e
+			}
+			if e = nativeMergeFixture(ctx, db, factoryruntime.NativeMerges{NativeInputSource: port.NativeInputSource}, publication, review, path); e != nil {
+				return e
+			}
+			policy, e := db.RepositoryPolicy(ctx, repository)
+			if e != nil {
+				return e
+			}
+			policy.Enabled = false
+			return db.SaveRepositoryPolicy(ctx, policy)
+		}
 		for _, item := range []struct {
 			Work    factory.PublicationWork
 			Outcome factory.OperationOutcome
@@ -2317,6 +2337,11 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 			}
 			if _, e = reviews.AdoptReview(ctx, state.Review, prior); e != nil {
 				return e
+			}
+		}
+		if os.Getenv("FACTORY_FOUNTAIN_CONTROLLER_MERGE") == "1" {
+			if err := nativeMergeRetained(ctx, db, factoryruntime.NativeMerges{NativeInputSource: port.NativeInputSource}, path); err != nil {
+				return err
 			}
 		}
 		fmt.Println("PASS: native branch/PR command receipts survive restart and exact credential withdrawal without sending again")
@@ -2361,12 +2386,16 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 		_, err = rawDB.ExecContext(ctx, `UPDATE factory_publications SET stage=$2,revision=$3,data=$4 WHERE assignment=$1`, publication.AssignmentID, publication.Stage, publication.Revision, string(raw))
 		return err
 	}
+	body := "Disposable integration fixture. Candidate bytes and provider effects are real; run completion and local authority are declared inputs. No model inspection or full coordinator journey is claimed."
+	if os.Getenv("FACTORY_FOUNTAIN_CONTROLLER_MERGE") == "1" {
+		body += fmt.Sprintf("\n\nCloses #%d", issue)
+	}
 	work := func(kind string) factory.PublicationWork {
 		expected := "absent"
 		if kind == factory.OpPRCreate {
 			expected = candidate
 		}
-		return factory.PublicationWork{Bundle: bundle, AssignmentID: publication.AssignmentID, Publication: publication.ID, RunID: run.ID, Run: run, Candidate: candidate, BaseSHA: base, TargetBranch: publication.TargetBranch, OperationID: factory.PublicationOperationID(publication.ID, kind, 1), AuthRevision: "declared-native-publication-fixture", ExpectedOld: expected, ComparisonRef: publication.TargetBranch, PRTitle: "Disposable Factory native publication check", PRBody: "Disposable integration fixture. Candidate bytes and provider effects are real; run completion and local authority are declared inputs. No model inspection or merge is claimed.", Repository: repository, Issue: issue, ActorID: int64(actor)}
+		return factory.PublicationWork{Bundle: bundle, AssignmentID: publication.AssignmentID, Publication: publication.ID, RunID: run.ID, Run: run, Candidate: candidate, BaseSHA: base, TargetBranch: publication.TargetBranch, OperationID: factory.PublicationOperationID(publication.ID, kind, 1), AuthRevision: "declared-native-publication-fixture", ExpectedOld: expected, ComparisonRef: publication.TargetBranch, PRTitle: "Disposable Factory native publication check", PRBody: body, Repository: repository, Issue: issue, ActorID: int64(actor)}
 	}
 	state.Branch = work(factory.OpRefPublish)
 	observed, err := port.ObservePublication(ctx, state.Branch)
@@ -3162,6 +3191,22 @@ func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntim
 	if err != nil {
 		return err
 	}
+	if controller, e := controllerFixture(port.Config.Directory); e != nil {
+		return e
+	} else if controller != nil {
+		open, revision, withdrawal, e := db.DispatchState(ctx, p.Repository)
+		if e != nil {
+			return e
+		}
+		if !open {
+			if len(withdrawal.ActiveCauses) != 1 || withdrawal.ActiveCauses[0] != "policy_disabled" {
+				return errors.New("unrelated native merge fixture dispatch hold")
+			}
+			if _, _, e = db.ReopenDispatch(ctx, p.Repository, revision); e != nil {
+				return e
+			}
+		}
+	}
 	w := factory.MergeWork{Method: policy.MergeMethod, MergeID: factory.NewID(), PublicationID: p.ID, OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared-native-merge-fixture", Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: review.ReviewerID, ReviewerID: review.ReviewerID, ActorID: review.ReviewerID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID, ReviewID: review.ReviewID, ReviewEvent: "COMMENT", NotAfter: time.Now().Add(5 * time.Minute).Unix()}
 	for n, phase := range options.Checks.Phases {
 		ready := filepath.Join(filepath.Dir(path), fmt.Sprintf("merge-phase-%02d", n))
@@ -3202,6 +3247,23 @@ func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntim
 	// Phase observations precede admission; freeze a new bounded lease only now.
 	w.NotAfter = time.Now().Add(5 * time.Minute).Unix()
 	observed, err := port.ObserveMerge(ctx, w)
+	if os.Getenv("FACTORY_FOUNTAIN_CONTROLLER_MERGE") == "1" {
+		for {
+			if err == nil && observed.MethodAvailable && observed.ProviderComplete && observed.ProviderEligible {
+				target := factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}
+				assessment, e := factory.VerifyChecks(target, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, observed.Checks, time.Now().Unix())
+				if e == nil && assessment.Verdict == factory.CheckPass {
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("actual Actions did not reach eligible required checks: observed=%+v err=%v: %w", observed, err, ctx.Err())
+			case <-time.After(500 * time.Millisecond):
+			}
+			observed, err = port.ObserveMerge(ctx, w)
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -3265,20 +3327,47 @@ func writeDeclaredNativeMerge(ctx context.Context, port factoryruntime.NativeMer
 func finishNativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeMerges, m factory.Merge, state nativeMergeFixtureState, path string) error {
 	w := state.Work
 	var err error
+	statePath := filepath.Join(filepath.Dir(path), "native-merge.json")
+	if raw, e := os.ReadFile(statePath); e == nil {
+		var prior nativeMergeFixtureState
+		if json.Unmarshal(raw, &prior) != nil || !reflect.DeepEqual(prior.Work, state.Work) || !reflect.DeepEqual(prior.Outcome, state.Outcome) {
+			return errors.New("original merge state differs; preserve it")
+		}
+		state = prior
+		if prior.Cancelled.OperationID != "" {
+			return nativeMergeRetained(ctx, db, port, path)
+		}
+	} else if !errors.Is(e, os.ErrNotExist) {
+		return e
+	}
 	state.Adopted, err = port.AdoptMerge(ctx, w, state.Outcome)
 	if err != nil {
 		return err
 	}
-	if state.Adopted.MergedCommit == w.HeadOID {
-		return errors.New("merge fixture did not capture the generated result separately")
+	if (w.Method == factory.MergeFastForward) != (state.Adopted.MergedCommit == w.HeadOID) {
+		return errors.New("merge fixture result does not match its exact selected method")
 	}
 	replay, err := port.SubmitMerge(ctx, w)
 	if err != nil || !reflect.DeepEqual(replay, state.Outcome) {
 		return errors.New("native merge replay changed")
 	}
-	state.Confirmation, err = port.ObserveCompletion(ctx, w)
+	rawProgress, err := json.Marshal(state)
 	if err != nil {
 		return err
+	}
+	if err = os.WriteFile(statePath, rawProgress, 0600); err != nil {
+		return err
+	}
+	for {
+		state.Confirmation, err = port.ObserveCompletion(ctx, w)
+		if err == nil && state.Confirmation.MergedCommit == state.Adopted.MergedCommit && state.Confirmation.BaseContainsMergedCommit && state.Confirmation.IssueClosed && state.Confirmation.OriginalClosed && state.Confirmation.OriginalClosingOccurrence != "" {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("original committed merge completion remains held: observed=%+v err=%v: %w", state.Confirmation, err, ctx.Err())
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 	if state.Confirmation.MergedCommit != state.Adopted.MergedCommit || !state.Confirmation.BaseContainsMergedCommit || !state.Confirmation.IssueClosed || !state.Confirmation.OriginalClosed || state.Confirmation.OriginalClosingOccurrence == "" {
 		return fmt.Errorf("native merge completion differs: %+v", state.Confirmation)
@@ -3354,7 +3443,7 @@ func finishNativeMergeFixture(ctx context.Context, db *store.Store, port factory
 	if err = nativeMergeRetained(ctx, db, port, path); err != nil {
 		return err
 	}
-	fmt.Println("PASS: actual native exact-head merge, distinct result adoption, issue/base completion, replay and cancellation; local workflow authorization declared, no model/full coordinator")
+	fmt.Println("PASS: actual native exact-head merge, method-bound result adoption, issue/base completion, replay and cancellation; local workflow authorization declared, no model/full coordinator")
 	fmt.Println("PASS: durable policy pause refuses unclaimed merge before capture; policy restoration keeps old assessment stale and cancellation terminal")
 	return nil
 }
@@ -4303,6 +4392,10 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if prior, err := db.RepositoryPolicy(ctx, repository); err == nil {
 		policy.Revision = prior.Revision
+		if controller != nil {
+			policy.Publish, policy.Create, policy.Review, policy.Merge = prior.Publish, prior.Create, prior.Review, prior.Merge
+			policy.TargetBranch, policy.Checks, policy.MergeMethod = prior.TargetBranch, prior.Checks, prior.MergeMethod
+		}
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
