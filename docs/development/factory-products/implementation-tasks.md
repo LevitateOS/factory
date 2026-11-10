@@ -1245,13 +1245,29 @@ ff3919df194251b2c8280632d are ready. Diagnostic readback and the retained root
 prove the hold: open issue allowancef848 is accounting-idle, so publication
 enumeration excludes it before child admission. Align those gates with the
 selected per-run contract; preserve Closed/current grants/exact bindings/counts
-and all old send deadlines. Existing real PostgreSQL allowance, publication,
+and all old send deadlines. Current53/04298499cc0a58d93cec91aa89b2f53c6ceb252d
+installs with inventoryba4dc14c94a0602fc5e446cc4867392e03891f3017c2ae0d1b4e83942f15cde9,
+archive266d99fe2e3acdddd0ba4dbe18ec2600d13d8b64d0fe46a062db4395bc9ac7df.
+Normal Quit joins current52 before upgrade. Same-source allowance becomes180/
+revision6 under standing permission. Actual fresh approvald3b33e09d166828ad8eec742f,
+coderfb391fadd50789999d89f1455 and reviewerfadf8965ebd0969bf57433ddf preserve
+cc3b81e9 and the clipboard-verified saved scripts. Original review cycle resumes
+once under private preparationf3aa28439edb8073bde75b51f; independent reviewer
+cb275dee75337b93eb46fc0897391190 settles succeeded/typed clear for54b82ef2/basecc3.
+All24 runs/86 judgments are settled; exact source usage150 minutes. Registration
+of its COMMENT still returns stale before a native send: SQL incorrectly checks
+the original Builder's setup head. Use the completed reviewer's exact captured
+setup/source for this new operation; never rewrite old publication authority.
+Existing PostgreSQL separate-reviewer-source/fresh-approval/withdrawal and
+publication/correction/lineage/journal checks pass (`intake49-fixture/review54-pg.log`).
+Next: install current54, preserve this current approval, and resume the saved
+review without another model/Retry. Full merge/journey remains incomplete.
+Existing real PostgreSQL allowance, publication,
 review/correction and merge checks pass (`intake49-fixture/idle53-pg.log`), as does
 the existing candidate-owner/read-failure check (`idle53-owner-pg.log`); affected
-Go compilation passes. Next: install current53 and resume the retained review
-cycle on PR#55; no fresh Retry, new publication or replay is needed. The existing
+Go compilation passes. No fresh Retry, new publication or replay is needed. The existing
 dispatch diagnostic now retains publication wait reasons without raw Detail;
-affected Go checks pass. Current52 app/backend/PG remain under
+affected Go checks pass. Current53 app/backend/PG remain under
 `/home/factory/q28-format102`; no new provider write/model is pending beyond the
 separately fenced original3ddb87ba.
 no fixture cleanup or diagnostic process remains. Original unknown publication

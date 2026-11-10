@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -409,6 +410,14 @@ func TestReviewChildAdmitsThroughReviewGuard(t *testing.T) {
 	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
 		t.Fatal(err)
 	}
+	approval, err := db.ApprovalDecision(ctx, owner.Authority.ApprovalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval.Predecessor, approval.ID = approval.ID, "d"+strings.Repeat("9", 24)
+	if err := db.AdmitApprovalDecision(ctx, approval); err != nil {
+		t.Fatal(err)
+	}
 	reviewerPrep := "f" + strings.Repeat("d", 24)
 	child, reservation, run, view := reviewCorrectChild(t, ctx, db, now, owner, project.ExecutionReview, project.RoleReviewer, owner.ID, reviewerPrep)
 	child.Connection, reservation.Connection = payingAccount.Connection, payingAccount.Connection
@@ -493,6 +502,43 @@ func TestReviewChildAdmitsThroughReviewGuard(t *testing.T) {
 			t.Fatal("admission did not recover after stop released its root", err)
 		}
 	})
+	finishReviewCorrectChild(t, ctx, db, child, run, now, cycle.ID, true)
+	stored = cyclePublicationRefresh(t, ctx, db, owner.ID)
+	op := factory.ReviewOperation{RunID: run.ID, Work: factory.ReviewWork{
+		OperationID: "review-" + run.ID, AuthRevision: factory.ReviewAuthRevision(owner.ID, run.ID),
+		Repository: stored.Repository, ActorID: policy.Review.ActorID,
+		PRNumber: stored.PRNumber, PRID: stored.PRID, IssueID: stored.PRCreate.IssueID, PRAuthorID: stored.PRCreate.Work.ActorID,
+		HeadRef: stored.PRCreate.HeadRef, BaseRef: stored.PRCreate.BaseRef, HeadOID: stored.Candidate, BaseOID: stored.PRCreate.BaseOID,
+		NativeRev: 9, NotAfter: time.Now().Add(5 * time.Minute).Unix(), Event: "COMMENT", AgentVerdict: "APPROVED", Body: "clear independent inspection",
+	}}
+	stored.ReviewOperations = append(stored.ReviewOperations, op)
+	stored.Revision++
+	payingAccount, err = db.Sponsorship(ctx, child.Repository, child.Connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payingAccount.Active = false
+	if err := db.SaveSponsorship(ctx, payingAccount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpdatePublication(ctx, stored); !errors.Is(err, ErrStaleRevision) {
+		t.Fatalf("withdrawn reviewer source admitted review: %v", err)
+	}
+	payingAccount, err = db.Sponsorship(ctx, child.Repository, child.Connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payingAccount.Active = true
+	if err := db.SaveSponsorship(ctx, payingAccount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpdatePublication(ctx, stored); err != nil {
+		t.Fatalf("reviewer's captured fresh setup/source did not admit review: %v", err)
+	}
+	after := cyclePublicationRefresh(t, ctx, db, owner.ID)
+	if after.Authority != stored.Authority || after.Authority.ApprovalID == child.Authority.ApprovalID || len(after.ReviewOperations) != 1 || !reflect.DeepEqual(after.ReviewOperations[0].Work, op.Work) {
+		t.Fatal("review changed the original publication authority or work")
+	}
 }
 
 func TestCorrectChildAdmitsThroughCorrectGuard(t *testing.T) {

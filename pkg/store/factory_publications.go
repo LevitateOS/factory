@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // storePublicationLimit bounds one outstanding-publication listing.
@@ -289,6 +290,33 @@ func (s *Store) UpdatePublication(ctx context.Context, p factory.Publication) er
 	if err = admitPublicationRegistrationTx(ctx, tx, previous, p, registering, newDeadlines); err != nil {
 		return err
 	}
+	assignment, authority := p.AssignmentID, p.Authority
+	if len(p.ReviewOperations) > len(previous.ReviewOperations) {
+		// A later independent reviewer captures its own source and approved
+		// setup. Restart may retire the Builder's standing setup; it must not
+		// strand that review or silently reauthorize the old publication.
+		if len(p.ReviewOperations) != len(previous.ReviewOperations)+1 || len(newDeadlines) != 1 {
+			return ErrPublicationConflict
+		}
+		op := p.ReviewOperations[len(previous.ReviewOperations)]
+		var child factory.Assignment
+		if err = loadGrantDocumentTx(ctx, tx, &child, `SELECT a.data FROM factory_assignments a JOIN factory_runs r ON r.id=a.run
+			WHERE a.run=$1 AND r.data->>'reconciled'='true' AND r.data->>'outcome'='succeeded'`, op.RunID); err != nil {
+			return err
+		}
+		var root string
+		if err = tx.QueryRowContext(ctx, `SELECT data->>'attempt_root' FROM factory_assignments WHERE id=$1`, p.AssignmentID).Scan(&root); err != nil {
+			return err
+		}
+		if child.Validate() != nil || child.Role != project.RoleReviewer || child.Phase != project.ExecutionReview ||
+			child.Stage != factory.AssignmentFinished || child.Outcome != factory.Succeeded ||
+			child.Result == nil || !child.Result.Reported || child.Result.Status != "completed" ||
+			child.AttemptRoot != root || child.PublicationAssignment != p.AssignmentID || child.ProjectID != p.ProjectID ||
+			child.Repository != p.Repository || child.Issue != p.Issue || child.Acceptance != p.Acceptance || child.SourceCommit != op.Work.HeadOID {
+			return ErrPublicationConflict
+		}
+		assignment, authority = child.ID, child.Authority
+	}
 	data, err := json.Marshal(p)
 	if err != nil {
 		return err
@@ -315,7 +343,7 @@ func (s *Store) UpdatePublication(ctx context.Context, p factory.Publication) er
 		))`,
 		p.Stage, p.Revision, string(data), p.AssignmentID, p.Revision-1, registering,
 		p.Repository, p.Repository, p.Issue, p.Acceptance, p.Repository, p.Issue, p.Acceptance,
-		p.AssignmentID, p.ProjectID, p.Authority.RequirementsID, p.Authority.ApprovalID)
+		assignment, p.ProjectID, authority.RequirementsID, authority.ApprovalID)
 	if err != nil {
 		return err
 	}

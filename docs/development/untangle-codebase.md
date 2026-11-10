@@ -1,5 +1,23 @@
 # Factory untangling decisions
 
+Review send authority after restart (2026-11-10): installed current53 from
+04298499cc0a58d93cec91aa89b2f53c6ceb252d resumes original review cycle d1bf0bf2
+once. Reviewercb275dee75337b93eb46fc0897391190 settles succeeded with a typed
+clear verdict on54b82ef2/basecc3b81e9;24 runs/86 judgments are settled and150
+minutes charged. Same-source allowance is explicitly180/revision6. Setup
+approvald3b33e09d166828ad8eec742f and source preparationsfb391fadd50789999d89f1455/
+fadf8965ebd0969bf57433ddf are ready; private review preparationf3aa28439edb8073bde75b51f
+is retained. Review registration returns stale before native send because its
+SQL still checks the original Builder's approval. Bind each new review to its
+completed independent reviewer's exact root/target, captured setup and source;
+leave original publication authority and recorded operations immutable. Existing
+PostgreSQL review admission now proves a fresh approval and separate reviewer
+source, including withdrawal refusal; related publication/correction/lineage/
+journal checks pass (`intake49-fixture/review54-pg.log`). The diagnostic recovery
+call returned stale before registration: no review operation/send exists yet.
+Next: install current54 and let the installed owner consume this saved review,
+without another approval, inference or Retry. Merge/full journey remains open.
+
 Open issue phase admission (2026-11-10): actual current52 preserves PR#55,
 23 settled runs/84 finished judgments/147 charged minutes and ready standing
 preparations, but cannot start its allocated reviewer. Rootf848 is open with an
