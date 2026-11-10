@@ -453,7 +453,14 @@ impl Owner {
                 finalization_jobs.close();
                 while let Ok(job) = finalization_jobs.try_recv() { drop(job); }
                 tasks.shutdown().await;
-                result
+                // Prepared checkout custody can still need the credential
+                // transport hosted on this executor to settle a host claim.
+                // Join it while this reactor is alive, after refusing ingress.
+                let preparations = state.preparations.clone();
+                let retired = tokio::task::spawn_blocking(move || preparations.retire_all())
+                    .await.map_err(|_| "native preparation owner failed".to_owned())?
+                    .map_err(|error| error.to_string());
+                result.and(retired)
             })
         }).map_err(|_| "native collaboration owner unavailable")?;
         let mut owner = Self {
@@ -542,6 +549,8 @@ struct Call {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BackgroundCall {
+    #[serde(default)]
+    fountain_repository: Option<String>,
     connection: String,
     account: String,
     repository: String,
@@ -717,6 +726,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
             if matches!(
                 query,
                 Read::Identity
+                    | Read::OperationGrant { .. }
                     | Read::TargetTip { .. }
                     | Read::SourceBundle { .. }
                     | Read::SetupSource { .. }
@@ -779,18 +789,28 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
             .await
             .map_err(|_| Failure::new(401, "native_credential_unavailable"))?;
         let account = capability.account();
-        if !credentials.is_profile(&state.channel.profile)
-            || account.provider != Provider::Github
-            || account.origin != "https://github.com"
-            || account.account != call.account
-        {
+        if !credentials.is_profile(&state.channel.profile) || account.account != call.account {
             return Err(Failure::new(401, "native_account_changed"));
         }
+        let fountain = match account.provider {
+            Provider::Github if account.origin == "https://github.com" && call.fountain_repository.is_none() => None,
+            Provider::Fountain => {
+                let name = call.fountain_repository.as_deref().ok_or_else(Failure::invalid)?;
+                let (owner, repository) = name.split_once('/').ok_or_else(Failure::invalid)?;
+                let profile = state.channel.socket.parent().ok_or_else(Failure::invalid)?;
+                let retained = credentials.capability(&call.connection).await.map_err(|_| Failure::new(401,"native_credential_unavailable"))?;
+                let client = crate::fountain_provider::retained_client(credentials.clone(), retained, profile,
+                    &state.channel.profile, owner, repository).await.map_err(|error| Failure::new(error.status,error.code))?;
+                client.product_current(&call.repository).await.map_err(|error| Failure::new(error.status,error.code))?;
+                Some(Arc::new(client))
+            }
+            _ => return Err(Failure::new(401,"native_account_changed")),
+        };
         let (cancelled, _) = watch::channel(false);
         let scope = Arc::new(Scope {
             credentials,
             capability,
-            fountain: None,
+            fountain,
             repository: Some(call.repository),
             deadline,
             cancelled,
@@ -1292,10 +1312,11 @@ async fn dispatch(
             .execution_error
             .lock()
             .is_ok_and(|error| error.is_none());
+        let credentials = state.background_credentials.read().map_err(|_|Failure::unavailable())?.clone();
         return state
             .preparations
             .clone()
-            .callback(call, execution_available)
+            .callback(call, execution_available, credentials)
             .await;
     }
     if execution {

@@ -1,18 +1,23 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"reflect"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
+	"github.com/levitateos/factory/pkg/strictjson"
 )
 
 var _ execution.PreparationObserver = NativeExecution{}
@@ -87,6 +92,11 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 		return empty, execution.ErrPreparation
 	}
 	request.Input.Preparation.Revision = 0
+	controller, _, err := p.preparationController(ctx, stored.Preparation)
+	if err != nil || request.Controller != nil && !reflect.DeepEqual(request.Controller, controller) {
+		return empty, errors.Join(execution.ErrPreparation, err)
+	}
+	request.Controller = controller
 	var state execution.PreparationState
 	err = nativeHostCall(bounded, p.Config, p.Instance, "/api/native/preparation", struct {
 		Operation string                                `json:"operation"`
@@ -157,8 +167,13 @@ func (p NativeExecution) PrepareWorkspace(ctx context.Context, request execution
 	// Observation revision is a Go CAS counter, not part of the native job's
 	// immutable inputs. Approval revisions and all actual inputs stay captured.
 	request.Input.Preparation.Revision = 0
+	controller, _, err := p.preparationController(ctx, record)
+	if err != nil || request.Controller != nil && !reflect.DeepEqual(request.Controller, controller) {
+		return empty, errors.Join(execution.ErrPreparation, err)
+	}
+	request.Controller = controller
 	var state execution.PreparationState
-	err := nativeHostCall(ctx, p.Config, p.Instance, "/api/native/preparation", struct {
+	err = nativeHostCall(ctx, p.Config, p.Instance, "/api/native/preparation", struct {
 		Operation string                               `json:"operation"`
 		Request   execution.StandingPreparationRequest `json:"request"`
 	}{"prepare", request}, &state)
@@ -175,6 +190,124 @@ func (p NativeExecution) PrepareWorkspace(ctx context.Context, request execution
 		return empty, execution.ErrPreparation
 	}
 	return state, nil
+}
+
+func (p NativeExecution) preparationController(ctx context.Context, record execution.PreparationRecord) (*execution.PreparationController, *nativeProductAccount, error) {
+	decision, err := p.Store.RequirementDecision(ctx, record.Preparation.Requirements.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	native := decision.Native
+	if native == nil || record.Native == nil || native.Profile != record.Native.Profile {
+		return nil, nil, execution.ErrPreparation
+	}
+	if native.ControllerGrantID == "" {
+		return nil, nil, nil
+	}
+	repository, err := p.Store.RecordedWorkspaceRepository(ctx, record.Preparation.Project, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	policy, err := p.Store.RepositoryPolicy(ctx, int64(repository))
+	if err != nil || policy.Execution == nil || policy.Execution.Validate() != nil || policy.Execution.Kind != "execution.launch" || policy.Execution.NativeProfile != native.Profile || policy.Execution.NativeConnection != native.ControllerConnection || policy.Execution.ControllerGrantID != native.ControllerGrantID {
+		return nil, nil, execution.ErrPreparation
+	}
+	connection, err := p.Store.CollaborationConnection(ctx, native.ControllerConnection)
+	if err != nil {
+		return nil, nil, err
+	}
+	if policy.Execution.ActorID != int64(connection.Actor) {
+		return nil, nil, execution.ErrPreparation
+	}
+	account, err := (NativeInputSource{p}).savedAccount(ctx, int64(repository), connection.Actor, native.ControllerConnection)
+	if err != nil {
+		return nil, nil, err
+	}
+	grant, err := account.controllerGrant(ctx, repository, native.ControllerGrantID, "execution.launch")
+	if err != nil || grant.Generation != native.Generation {
+		return nil, nil, errors.Join(execution.ErrPreparation, err)
+	}
+	return &execution.PreparationController{Connection: string(native.ControllerConnection), GrantID: grant.GrantID, NotAfter: grant.NotAfter}, account, nil
+}
+
+// Recheck the original approved request after remote claim I/O and before the
+// privileged constructor. This private route can neither approve nor renew it.
+func nativePreparationAdmission(p NativeExecution) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/native/preparation/admission" || r.URL.RawQuery != "" || r.URL.ForceQuery ||
+			len(r.Header.Values("X-Soda-Native-Instance")) != 1 || r.Header.Get("X-Soda-Native-Instance") != p.Instance {
+			nativeResponse(w, 400, map[string]string{"error": "invalid_native_preparation_admission"})
+			return
+		}
+		var input struct {
+			Kind       string          `json:"kind"`
+			Request    json.RawMessage `json:"request"`
+			Origin     string          `json:"origin"`
+			Actor      string          `json:"actor"`
+			Repository string          `json:"repository"`
+		}
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 2*1024*1024), &input) != nil {
+			nativeResponse(w, 400, map[string]string{"error": "invalid_native_preparation_admission"})
+			return
+		}
+		var record execution.PreparationRecord
+		var captured *execution.PreparationController
+		var err error
+		switch input.Kind {
+		case "standing":
+			var request execution.StandingPreparationRequest
+			if strictjson.Decode(bytes.NewReader(input.Request), &request) != nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) {
+				err = execution.ErrPreparation
+				break
+			}
+			record = execution.PreparationRecord{Preparation: request.Input.Preparation, Native: request.Native}
+			captured = request.Controller
+			err = p.Store.AuthorizeStandingPreparation(r.Context(), record)
+		case "candidate":
+			var request execution.CandidatePreparationRequest
+			if strictjson.Decode(bytes.NewReader(input.Request), &request) != nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) {
+				err = execution.ErrPreparation
+				break
+			}
+			stored, readErr := p.Store.CandidatePreparation(r.Context(), request.Input.Preparation.ID)
+			if readErr != nil {
+				err = readErr
+				break
+			}
+			record = stored.Preparation
+			actual, wanted := request.Input.Preparation, record.Preparation
+			actual.Revision, wanted.Revision = 0, 0
+			if !reflect.DeepEqual(actual, wanted) || !reflect.DeepEqual(record.Native, request.Native) || !reflect.DeepEqual(stored.Admission.SourceRun, request.Input.SourceRun) || !reflect.DeepEqual(stored.Admission.SourceMerge, request.Input.SourceMerge) {
+				err = execution.ErrPreparation
+				break
+			}
+			source, sourceErr := p.Store.Preparation(r.Context(), request.Input.SourcePreparation)
+			if sourceErr != nil || source.Native == nil || !p.currentPreparationAddress(source.Address()) || !source.State.Ready || source.State.Stopped || source.Preparation.Project != wanted.Project || source.Preparation.SetupDigest != wanted.SetupDigest || !source.Preparation.Requirements.Equal(wanted.Requirements) || source.Preparation.Approval != wanted.Approval || !slices.Equal(source.Preparation.Tools, wanted.Tools) {
+				err = execution.ErrPreparation
+				break
+			}
+			deadline, admissionErr := p.Store.AuthorizeCandidatePreparation(r.Context(), record.Preparation.ID)
+			err = admissionErr
+			if request.Input.Deadline.After(time.Unix(deadline, 0)) || !time.Now().Before(request.Input.Deadline) {
+				err = execution.ErrPreparation
+			}
+			captured = request.Controller
+		default:
+			err = execution.ErrPreparation
+		}
+		if err != nil {
+			nativeResponse(w, 403, map[string]string{"error": "native_preparation_admission_unavailable"})
+			return
+		}
+		expected, account, err := p.preparationController(r.Context(), record)
+		origin, originErr := collaboration.CanonicalAPIBase(input.Origin)
+		if err != nil || account == nil || captured == nil || !reflect.DeepEqual(captured, expected) || originErr != nil || account.binding.Host.APIBase != origin || account.binding.Actor.ExternalID != input.Actor || account.repository.ExternalID != input.Repository {
+			nativeResponse(w, 403, map[string]string{"error": "native_preparation_scope_unavailable"})
+			return
+		}
+		digest := sha256.Sum256(input.Request)
+		nativeResponse(w, 200, map[string]string{"intent_digest": hex.EncodeToString(digest[:])})
+	})
 }
 func (p NativeExecution) currentPreparationAddress(address execution.PreparationAddress) bool {
 	return address.Validate() == nil && address.Native != nil && address.Native.Profile == p.Config.Profile && address.Native.InstanceID == p.Instance

@@ -183,6 +183,9 @@ func bindNativeEnvironmentTx(ctx context.Context, tx *sql.Tx, g project.Environm
 		if err := requirePlacementTx(ctx, tx, host, collaboration.RepositoryID(g.Repository), n.Runtime, n.Generation, n.Profile); err != nil {
 			return g, err
 		}
+		if err := checkEnvironmentControllerTx(ctx, tx, g.Repository, g.Owner, n); err != nil {
+			return g, err
+		}
 	}
 	var id string
 	err := tx.QueryRowContext(ctx, `SELECT id FROM factory_native_workspaces WHERE repository=$1 AND runtime=$2 AND profile=$3`, g.Repository, n.Runtime, n.Profile).Scan(&id)
@@ -231,7 +234,18 @@ func requireNativeDecisionTx(ctx context.Context, tx *sql.Tx, workspace string, 
 	if json.Unmarshal(raw, &g) != nil || g.Validate() != nil || !g.Active || g.Project != workspace || g.Native == nil || *g.Native != *native {
 		return ErrAdmissionChanged
 	}
+	if err := checkEnvironmentControllerTx(ctx, tx, int64(repository), g.Owner, native); err != nil {
+		return err
+	}
 	return nil
+}
+
+func checkEnvironmentControllerTx(ctx context.Context, tx *sql.Tx, repository, actor int64, native *project.NativeEnvironment) error {
+	var ref *factory.ActorBindingRef
+	if native.ControllerGrantID != "" {
+		ref = &factory.ActorBindingRef{NativeProfile: native.Profile, NativeConnection: native.ControllerConnection, ControllerGrantID: native.ControllerGrantID, ActorID: actor, Kind: "execution.launch"}
+	}
+	return checkNativeControllerTx(ctx, tx, repository, native.Profile, ref)
 }
 
 // RecordedWorkspaceRepository resolves canonical history without admitting execution.

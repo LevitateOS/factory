@@ -1264,6 +1264,32 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+**Current preparation increment verified (2026-11-10); Q19 remains INCOMPLETE.**
+Native workspace consent and immutable setup decisions now capture the selected
+host operation grant. Go re-admits the exact approved request after host claim
+I/O; Rust journals one digest-bound preparation claim before constructing either
+role, watches withdrawal/expiry independently of provider I/O, and confirms
+physical retirement before settling that claim. Background reads recover the
+exact enrolled Fountain account/repository. Local capacity/workspace consent is
+separate from host-owned controller selection; read enrollment grants no setup.
+
+`q19-authority/product40-connected.log` passes actual public environment consent,
+source/recipe approval, both privileged role preparations and exact approval
+replay. Current schema101 `product43-connected.log` adds actual live-worker
+withdrawal, physical/host retirement, reopen receipt adoption and old-constructor
+refusal. `product42b-connected.log` loses the original preparation claim reply:
+no constructor/worker is admitted from lookup, exact approval replay sends no
+second claim, and definitive no-start/reopen preserve the original outcome.
+All owners joined; no models. Canonical host fixture owner is
+`e8b967567e39ef3aa9780fee5193b582c5addc37`; Factory inputs are1743ed2 plus
+`q19-authority/preparation43-source.patch` (ffdfdeb1145ad829e79c9220c5866795358a7805a8449d8cad306ed4b606c13e).
+Types, language boundaries, affected contract builds and selected real-PG
+store/migration checks pass (`product42-*`, `product41-store.log`). Earlier39/42
+logs preserve missing fixture enrollment, shutdown-executor and absent-directory
+check failures; none was retried under its original command or promoted to a pass.
+Installed configuration/preparation, expiry during in-flight I/O and full
+publication/delivery integration still need their required journeys.
+
 Explicit policy grant selection (2026-11-10): shared role settings capture the
 chosen native Fountain operation grant, including execution, rather than using
 read enrollment as operation authority. The connector re-observes exact current
@@ -2601,6 +2627,14 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Format101 fences older constructors that would ignore captured host preparation
+grants; it grants no historical command authority. Disposable
+`q28-migrate/retained101/check.log` passes concurrent100→101 migration/current
+reopen with all75 public-table hashes unchanged, exact prior100 writer refusal,
+unknown102 refusal unchanged and unchanged source-copy files. Copied PG joined;
+no provider/model adapter. Original retained100 evidence remains valid at its
+stated revisions. Whole installed/active-worker/provider/update scope remains.
 
 Scoped uninstall qualification on the actual Debian recipient now passes in
 `/home/factory/q28-uninstall29/{result,install,unknown-refusal,uninstall,uninstall-replay,reinstall}.log`.

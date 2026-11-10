@@ -12,15 +12,21 @@ import (
 	"github.com/levitateos/factory/pkg/collaboration"
 )
 
-// NativeEnvironment is the configured local controller, not an appliance image
-// or an arbitrary host path. Each preparation captures its own checkout owner.
+// NativeEnvironment captures the configured native controller and, for central
+// hosts, its separately authorized operation grant. Each preparation captures
+// its own checkout owner; these references admit no effects by themselves.
 type NativeEnvironment struct {
-	Profile    collaboration.ProfileID `json:"profile"`
-	Runtime    collaboration.RuntimeID `json:"runtime"`
-	Generation int64                   `json:"generation,string"`
+	ControllerConnection collaboration.ConnectionID `json:"controller_connection,omitempty"`
+	ControllerGrantID    string                     `json:"controller_grant_id,omitempty"`
+	Profile              collaboration.ProfileID    `json:"profile"`
+	Runtime              collaboration.RuntimeID    `json:"runtime"`
+	Generation           int64                      `json:"generation,string"`
 }
 
 func (n NativeEnvironment) Validate() error {
+	if (n.ControllerConnection == "") != (n.ControllerGrantID == "") || n.ControllerConnection != "" && (!collaboration.ValidID(string(n.ControllerConnection)) || !collaboration.ValidID(n.ControllerGrantID)) {
+		return errors.New("invalid native environment controller capture")
+	}
 	if !collaboration.ValidID(string(n.Profile)) || !collaboration.ValidID(string(n.Runtime)) || n.Generation <= 0 {
 		return errors.New("invalid native environment")
 	}

@@ -41,8 +41,9 @@ type NativeCollaboration struct {
 }
 
 type nativeScope struct {
-	Connection NativeConnection
-	Repository string
+	FountainRepository string
+	Connection         NativeConnection
+	Repository         string
 }
 
 type NativeConnection struct {
@@ -213,6 +214,9 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	route := "/api/native/collaboration"
 	if p.background != nil {
 		payload = map[string]any{"connection": p.background.Connection.Connection, "account": p.background.Connection.Account, "repository": p.background.Repository, "call": effect}
+		if p.background.FountainRepository != "" {
+			payload.(map[string]any)["fountain_repository"] = p.background.FountainRepository
+		}
 		route += "/background"
 	}
 	body, err := json.Marshal(payload)

@@ -144,9 +144,9 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.ReviewRequestReads = factoryhttp.CollaborationReviewRequests{Service: factoryservice.CollaborationReviewRequests{Source: reads}}
 	product.Repositories.Placements = factoryservice.Placements{Store: application.Store, Host: bound.binding.Host.ID,
 		Runtime:     collaboration.RuntimeRef{ID: collaboration.RuntimeID(port.operation.config.Profile), Profile: port.operation.config.Profile, Kind: collaboration.Native, Name: "This computer"},
-		AdminAccess: bound.localExecutionSettingsAccess}
+		AdminAccess: bound.localExecutionSettingsAccess, LocalSettings: bound.localResourceAccess}
 	product.Repositories.Runtime = factoryservice.RuntimeGrants{Writer: application.Coordinator, OperatorAccess: bound.localOwnerAccess,
-		Visibility: bound.visible, EnvironmentAccess: bound.localExecutionSettingsAccess, NativeEnvironment: bound.nativeEnvironment}
+		Visibility: bound.visible, EnvironmentAccess: bound.localResourceAccess, NativeEnvironment: bound.nativeEnvironment}
 	product.Repositories.Setup = nativeWorkspaceSetup{bound, application.Coordinator}
 	product.Repositories.Sponsorships = factoryservice.Sponsorships{Store: application.Store, Writer: application.Coordinator, Visibility: bound.visible, Custody: bound.sponsorship}
 	product.Repositories.Policies = factoryservice.Policies{Writer: application.Coordinator, BindingAccess: bound.policyBinding,

@@ -73,8 +73,11 @@ pub(super) struct Lease {
     client: Arc<Client>,
     grant: OperationGrant,
     request: ExecutionClaimRequest,
-    profile: PathBuf,
-    intent: LaunchIntent,
+    intent_digest: String,
+    admission_route: &'static str,
+    admission_kind: Option<&'static str>,
+    no_start: PathBuf,
+    no_start_receipt: Vec<u8>,
     alive: Arc<AtomicBool>,
     entered: bool,
     cancellation: Option<AgentCancellation>,
@@ -85,6 +88,60 @@ pub(super) struct Lease {
     admission: zeroize::Zeroizing<Vec<u8>>,
 }
 impl Lease {
+    pub(super) async fn admit_preparation(
+        credentials: Arc<Credentials>,
+        profile: PathBuf,
+        request: &serde_json::Value,
+        key: &str,
+        alive: Arc<AtomicBool>,
+        channel: NativeChannel,
+    ) -> io::Result<Self> {
+        let (client, grant, claim, bytes) =
+            preparation_capture(credentials, &profile, request, key).await?;
+        if !alive.load(Ordering::SeqCst)
+            || !grant.allows_current("execution.launch")
+            || claim.not_after <= time::OffsetDateTime::now_utc().unix_timestamp()
+        {
+            return Err(unavailable());
+        }
+        let root = profile.join("native-preparations").join(key);
+        let no_start = root.join("controller-not-started.json");
+        let no_start_receipt = preparation_no_start(&claim.manifest_digest)?;
+        let acquired = client.claim_execution(&profile, &grant, &claim).await;
+        if !acquired.is_ok_and(|value| value.acquired && value.state == "claimed") {
+            // This owner has not entered a constructor, even if the claim's
+            // original reply was lost. Absence is never dispatch authority.
+            publish_bytes(&no_start, &no_start_receipt)?;
+            return Err(unavailable());
+        }
+        Ok(Self {
+            client: Arc::new(client),
+            grant,
+            request: claim.clone(),
+            intent_digest: claim.manifest_digest,
+            admission_route: "/api/native/preparation/admission",
+            admission_kind: Some(
+                if request
+                    .get("input")
+                    .is_some_and(|input| input.get("source_preparation").is_some())
+                {
+                    "candidate"
+                } else {
+                    "standing"
+                },
+            ),
+            no_start,
+            no_start_receipt,
+            alive,
+            entered: false,
+            cancellation: None,
+            stop: Arc::new(Notify::new()),
+            monitor: None,
+            runtime: Handle::current(),
+            channel,
+            admission: zeroize::Zeroizing::new(bytes),
+        })
+    }
     pub(super) async fn admit(
         credentials: Arc<Credentials>,
         profile: PathBuf,
@@ -124,8 +181,11 @@ impl Lease {
             client,
             grant,
             request,
-            profile,
-            intent: intent.clone(),
+            intent_digest: intent.digest(),
+            admission_route: "/api/native/execution/launch-admission",
+            admission_kind: None,
+            no_start: no_start_path(&profile, intent),
+            no_start_receipt: no_start_bytes(intent)?,
             alive,
             entered: false,
             cancellation: None,
@@ -165,19 +225,21 @@ impl Lease {
         }
         let request: serde_json::Value =
             serde_json::from_slice(&self.admission).map_err(|_| unavailable())?;
-        let payload = zeroize::Zeroizing::new(
-            serde_json::to_vec(&serde_json::json!({
-                "request": request, "origin": self.client.origin(),
-                "actor": current.actor.id, "repository": current.repository.id,
-            }))
-            .map_err(|_| unavailable())?,
-        );
+        let mut payload = serde_json::json!({
+            "request": request, "origin": self.client.origin(),
+            "actor": current.actor.id, "repository": current.repository.id,
+        });
+        if let Some(kind) = self.admission_kind {
+            payload["kind"] = serde_json::json!(kind);
+        }
+        let payload =
+            zeroize::Zeroizing::new(serde_json::to_vec(&payload).map_err(|_| unavailable())?);
         let response = self
             .runtime
             .block_on(soda_unix_http::request_authenticated_async(
                 &self.channel.socket,
                 "POST",
-                "/api/native/execution/launch-admission",
+                self.admission_route,
                 "soda-native",
                 &payload,
                 &self.channel.key,
@@ -195,7 +257,7 @@ impl Lease {
             || binding
                 .get("intent_digest")
                 .and_then(|value| value.as_str())
-                != Some(self.intent.digest().as_str())
+                != Some(self.intent_digest.as_str())
             || cancellation.cancelled()
             || !self.alive.load(Ordering::SeqCst)
             || self.request.not_after <= time::OffsetDateTime::now_utc().unix_timestamp()
@@ -217,7 +279,14 @@ impl Lease {
             .build()?;
         self.monitor = Some(std::thread::Builder::new().name("factory-controller-watch".into()).spawn(move || runtime.block_on(async move {
             loop {
-                let current = tokio::select! { _ = stop.notified() => return, value = client.operation_grant(&grant.id) => value };
+                let remaining = time::OffsetDateTime::from_unix_timestamp(deadline)
+                    .map(|expires| (expires-time::OffsetDateTime::now_utc()).whole_milliseconds()).unwrap_or(0);
+                if remaining <= 0 { cancellation.cancel(); return; }
+                let current = tokio::select! {
+                    _ = stop.notified() => return,
+                    _ = tokio::time::sleep(Duration::from_millis(remaining as u64)) => { cancellation.cancel(); return; },
+                    value = client.operation_grant(&grant.id) => value,
+                };
                 if !alive.load(Ordering::SeqCst) || deadline <= time::OffsetDateTime::now_utc().unix_timestamp() || !current.is_ok_and(|current| current.allows_current("execution.launch") && same_grant(&current, &grant)) {
                     cancellation.cancel();
                     return;
@@ -228,6 +297,106 @@ impl Lease {
         self.entered = true;
         Ok(())
     }
+}
+
+fn preparation_no_start(digest: &str) -> io::Result<Vec<u8>> {
+    serde_json::to_vec(&serde_json::json!({"kind":"factory_controller_preparation_not_started","version":1,"intent_sha256":digest})).map_err(io::Error::other)
+}
+async fn preparation_capture(
+    credentials: Arc<Credentials>,
+    profile: &Path,
+    request: &serde_json::Value,
+    key: &str,
+) -> io::Result<(Client, OperationGrant, ExecutionClaimRequest, Vec<u8>)> {
+    let binding = &request["controller"];
+    let field = |name| binding[name].as_str().ok_or_else(unavailable);
+    let runtime = request["native"]["profile"]
+        .as_str()
+        .ok_or_else(unavailable)?;
+    let (client, grant) = captured_operation_grant(
+        credentials,
+        profile,
+        runtime,
+        field("connection")?,
+        field("grant_id")?,
+    )
+    .await
+    .map_err(|error| {
+        io::Error::other(format!(
+            "Fountain captured preparation grant: {}",
+            error.code
+        ))
+    })?;
+    if !super::hex(key, 32) || binding["not_after"].as_i64() != Some(grant.not_after) {
+        return Err(unavailable());
+    }
+    let mut not_after = grant.not_after;
+    if let Some(deadline) = request["input"].get("deadline") {
+        let deadline = time::OffsetDateTime::parse(
+            deadline.as_str().ok_or_else(unavailable)?,
+            &time::format_description::well_known::Rfc3339,
+        )
+        .map_err(|_| unavailable())?;
+        not_after = not_after.min(deadline.unix_timestamp());
+    }
+    let bytes = serde_json::to_vec(request).map_err(io::Error::other)?;
+    let claim = ExecutionClaimRequest {
+        command_id: key.into(),
+        manifest_digest: digest(&bytes),
+        not_after,
+    };
+    Ok((client, grant, claim, bytes))
+}
+
+// Physical retirement/no-start evidence is required even after expiry. This
+// uses only the original journal: lookup absence never sends another claim.
+pub(super) async fn recover_preparation(
+    credentials: Arc<Credentials>,
+    profile: &Path,
+    request: &serde_json::Value,
+    key: &str,
+    retired: Option<&[u8]>,
+) -> io::Result<()> {
+    if request
+        .get("controller")
+        .is_none_or(serde_json::Value::is_null)
+    {
+        return Ok(());
+    }
+    let (client, grant, claim, _) = preparation_capture(credentials, profile, request, key).await?;
+    let marker = profile
+        .join("native-preparations")
+        .join(key)
+        .join("controller-not-started.json");
+    let (state, receipt) = match read_bytes(&marker, 1024) {
+        Ok(bytes) if bytes == preparation_no_start(&claim.manifest_digest)? => {
+            ("not_started", bytes)
+        }
+        Ok(_) => return Err(unavailable()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let Some(retired) = retired else {
+                return Ok(());
+            };
+            ("retired",serde_json::to_vec(&serde_json::json!({"kind":"factory_controller_preparation_retired","version":1,"intent_sha256":claim.manifest_digest,"retirement_sha256":digest(retired)})).map_err(io::Error::other)?)
+        }
+        Err(error) => return Err(error),
+    };
+    client
+        .retire_execution(
+            profile,
+            &grant,
+            &claim,
+            &ExecutionRetirement {
+                manifest_digest: claim.manifest_digest.clone(),
+                state: state.into(),
+                receipt_digest: digest(&receipt),
+            },
+        )
+        .await
+        .map_err(|error| {
+            io::Error::other(format!("Fountain preparation retirement: {}", error.code))
+        })?;
+    Ok(())
 }
 impl Drop for Lease {
     fn drop(&mut self) {
@@ -241,9 +410,7 @@ impl Drop for Lease {
             let _ = monitor.join();
         }
         if !self.entered {
-            if let Ok(bytes) = no_start_bytes(&self.intent) {
-                let _ = publish_bytes(&no_start_path(&self.profile, &self.intent), &bytes);
-            }
+            let _ = publish_bytes(&self.no_start, &self.no_start_receipt);
         }
     }
 }

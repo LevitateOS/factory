@@ -44,7 +44,7 @@ export function mountPlacement(root: HTMLElement) {
     refresh.textContent = 'Refresh controller';
     root.append(title, status, help, action, refresh, limitLabel, saveLimit, limitStatus,
       permissionStatus, permission, environmentStatus, environment);
-    let placement: Placement | null = null, runtime = '', canSelect = false, busy = false, known = false;
+    let placement: Placement | null = null, runtime = '', canSelect = false, canConfigure = false, busy = false, known = false;
     let environmentRevision = 0, environmentActive = false;
     let capacityRevision = 0, operatorRevision = 0, operatorActive = false;
     const live = () => epoch === captured;
@@ -54,11 +54,11 @@ export function mountPlacement(root: HTMLElement) {
       action.disabled = busy || !known || !canSelect ||
         !!placement && placement.state !== 'inactive' && placement.runtime !== runtime;
       refresh.disabled = busy;
-      limit.disabled = saveLimit.disabled = busy || !known || !canSelect;
+      limit.disabled = saveLimit.disabled = busy || !known || !canConfigure;
       permission.textContent = operatorActive ? 'Withdraw repository run permission' : 'Allow this repository to use this computer';
-      permission.disabled = busy || !known || !canSelect || (!operatorActive && (placement?.state !== 'active' || placement.runtime !== runtime));
+      permission.disabled = busy || !known || !canConfigure || (!operatorActive && (placement?.state !== 'active' || placement.runtime !== runtime));
       environment.textContent = environmentActive ? 'Withdraw workspace permission' : 'Allow isolated workspaces';
-      environment.disabled = busy || !known || !canSelect || (!environmentActive && (placement?.state !== 'active' || placement.runtime !== runtime));
+      environment.disabled = busy || !known || !canConfigure || (!environmentActive && (placement?.state !== 'active' || placement.runtime !== runtime));
     };
     const read = async () => {
       const [response, envResponse, settingsResponse] = await Promise.all([
@@ -104,14 +104,14 @@ export function mountPlacement(root: HTMLElement) {
         operatorRev = Number(operator.revision); permitted = operator.active;
       }
       if (!live()) return;
-      placement = next; runtime = data.runtime; canSelect = data.can_select; known = true;
+      placement = next; runtime = data.runtime; canSelect = data.can_select; canConfigure = data.can_configure_local === undefined ? canSelect : data.can_configure_local === true; known = true;
       environmentRevision = revision; environmentActive = active;
       capacityRevision = capacityRev; operatorRevision = operatorRev; operatorActive = permitted;
       limit.value = String(runs);
       limitStatus.textContent = capacityRev ? `Run limit: ${runs}. This limit is shared by repositories in this Factory installation.` : 'No run limit is saved. Choose and save a limit before running agents.';
       permissionStatus.textContent = permitted ? 'This repository may use local run capacity. Policy, funding and admitted workers are still required.' : 'This repository does not have local run permission.';
       environmentStatus.textContent = active ? 'Isolated workspace permission is recorded. Execution still requires current policy, funding and worker admission.' : 'Isolated workspaces are not enabled.';
-      status.textContent = !canSelect ? 'Local execution settings are unavailable for this connection.' :
+      status.textContent = !canSelect ? (canConfigure ? 'Controller selection belongs to Fountain. Local workspace and capacity permissions remain separate.' : 'Local execution settings are unavailable for this connection.') :
         !placement || placement.state === 'inactive' ? 'No active controller.' :
         `${placement.runtime === runtime ? 'This computer' : 'Another computer'} · ${placement.state} · generation ${placement.generation}`;
     };
@@ -126,17 +126,17 @@ export function mountPlacement(root: HTMLElement) {
           const response = await transport.request(path, {method: 'PUT', body: JSON.stringify({state, expected_revision: placement?.revision ?? ''})});
           check(response.ok);
         } else if (change === 'capacity') {
-          check(known && canSelect);
+          check(known && canConfigure);
           const response = await transport.request('/api/factory/capacity', {method: 'PUT',
             body: JSON.stringify({max_concurrent_runs: Number(limit.value), expected_revision: capacityRevision})});
           check(response.ok);
         } else if (change === 'permission') {
-          check(known && canSelect);
+          check(known && canConfigure);
           const response = await transport.request(`repositories/${repository}/factory/operator-grant`, {method: 'PUT',
             body: JSON.stringify({active: !operatorActive, expected_revision: operatorRevision})});
           check(response.ok);
         } else if (change === 'environment') {
-          check(known && canSelect);
+          check(known && canConfigure);
           const response = await transport.request(`repositories/${repository}/factory/environment-grant`, {
             method: 'PUT', body: JSON.stringify({native: true, active: !environmentActive, expected_revision: environmentRevision}),
           });

@@ -5471,6 +5471,56 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if err = db.InitializeEmptyCollaborationLedger(ctx); err != nil {
 		return err
 	}
+	if mode == "retained" {
+		var fixture struct{ Preparation string }
+		raw, err := os.ReadFile(filepath.Join(profile, "admitted-native-fixture.json"))
+		if err != nil || json.Unmarshal(raw, &fixture) != nil || !project.ValidPreparationID(fixture.Preparation) {
+			return errors.New("original preparation fixture is unavailable")
+		}
+		record, err := db.Preparation(ctx, fixture.Preparation)
+		if err != nil || record.Native == nil || record.Native.InstanceID == instance {
+			return errors.New("original preparation instance was not retained")
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		state, err := port.InspectWorkspacePreparation(ctx, record.Address())
+		if err != nil {
+			return err
+		}
+		if !state.Stopped || state.Retirement != "confirmed" || state.Native == nil || *state.Native != *record.Native || state.SourceBundleSHA256 != record.State.SourceBundleSHA256 {
+			return errors.New("reopen did not adopt the exact original physical retirement")
+		}
+		entries, err := os.ReadDir(filepath.Join(profile, "native-preparations"))
+		if err != nil {
+			return err
+		}
+		var original json.RawMessage
+		for _, entry := range entries {
+			raw, err := os.ReadFile(filepath.Join(profile, "native-preparations", entry.Name(), "request.json"))
+			if err != nil {
+				return err
+			}
+			var request execution.StandingPreparationRequest
+			if json.Unmarshal(raw, &request) != nil {
+				return errors.New("retained preparation request is invalid")
+			}
+			if request.Input.Preparation.ID == fixture.Preparation {
+				original = raw
+			}
+		}
+		if len(original) == 0 {
+			return errors.New("original preparation request was lost")
+		}
+		var ignored execution.PreparationState
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "prepare", "request": original}, &ignored); err == nil {
+			return errors.New("old preparation constructor regained authority on reopen")
+		}
+		after, err := os.ReadDir(filepath.Join(profile, "native-preparations"))
+		if err != nil || len(after) != len(entries) {
+			return errors.New("refused old preparation created another native owner")
+		}
+		fmt.Println("PASS: native reopen adopts exact old preparation/host retirement; its original instance/request cannot reconstruct or replay setup")
+		return nil
+	}
 	var host collaboration.Host
 	var repo collaboration.RepositoryRef
 	var actor collaboration.ActorRef
@@ -5577,6 +5627,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return err
 	}
 	native := &project.NativeEnvironment{Profile: config.Profile, Runtime: placement.Runtime, Generation: placement.Generation}
+	if controller, err := controllerFixture(profile); err != nil {
+		return err
+	} else if controller != nil {
+		native.ControllerConnection, native.ControllerGrantID = collaboration.ConnectionID(controller.Connection), controller.Grant
+	}
 	if _, err = db.ApplyFactoryGrant(ctx, "native-source-fixture", project.EnvironmentGrant{Repository: int64(repo.ID), Owner: int64(actor.ID), Native: native, Active: true}); err != nil {
 		return err
 	}

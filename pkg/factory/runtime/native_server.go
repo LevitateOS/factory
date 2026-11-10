@@ -128,6 +128,7 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 	worker := nativeWorkerMCP(lifetime, NativeExecution{Config: config, Instance: instance, Store: db})
 	mux.Handle("/api/native/execution/mcp", application.application.Coordinator.AdmitHTTP(worker))
 	mux.Handle("/api/native/execution/launch-admission", application.application.Coordinator.AdmitHTTP(nativeLaunchAdmission(NativeExecution{Config: config, Instance: instance, Store: db})))
+	mux.Handle("/api/native/preparation/admission", application.application.Coordinator.AdmitHTTP(nativePreparationAdmission(NativeExecution{Config: config, Instance: instance, Store: db})))
 	mux.Handle("/api/native/collaboration/placement", application.application.Coordinator.AdmitHTTP(nativeFountainPlacement(NativeExecution{Config: config, Instance: instance, Store: db})))
 	product := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {

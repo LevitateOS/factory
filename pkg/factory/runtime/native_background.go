@@ -38,7 +38,11 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 	if ref.Validate() != nil || ref.Kind != kind || ref.NativeProfile != p.Config.Profile || ref.NativeConnection == "" || ref.TokenID != 0 {
 		return empty, errors.New("native background account is not configured")
 	}
-	return p.savedAccount(ctx, id, collaboration.ActorID(ref.ActorID), ref.NativeConnection)
+	account, err := p.savedAccount(ctx, id, collaboration.ActorID(ref.ActorID), ref.NativeConnection)
+	if err == nil && account.binding.Host.Provider == collaboration.Fountain {
+		_, err = account.controllerGrant(ctx, collaboration.RepositoryID(id), ref.ControllerGrantID, kind)
+	}
+	return account, err
 }
 
 // savedAccount keeps one canonical mapping/current-custody owner for policy
@@ -68,10 +72,16 @@ func (p NativeInputSource) savedAccount(ctx context.Context, repository int64, a
 	if err != nil {
 		return empty, err
 	}
-	if host.Provider != collaboration.GitHub || host.APIBase != "https://api.github.com" || connection.Profile != p.Config.Profile || connection.Actor != actorID || actor.Host != host.ID || repo.Host != host.ID || !nativeRemoteID(actor.ExternalID) || !nativeRemoteID(repo.ExternalID) {
+	if host.Provider != collaboration.GitHub && host.Provider != collaboration.Fountain || host.Provider == collaboration.GitHub && host.APIBase != "https://api.github.com" || connection.Profile != p.Config.Profile || connection.Actor != actorID || actor.Host != host.ID || repo.Host != host.ID || !nativeRemoteID(actor.ExternalID) || !nativeRemoteID(repo.ExternalID) {
 		return empty, errNativeReadScope
 	}
 	scope := &nativeScope{Connection: NativeConnection{Connection: string(connection.ID), Provider: "github", Origin: "https://github.com", Account: actor.ExternalID}, Repository: repo.ExternalID}
+	if host.Provider == collaboration.Fountain {
+		scope.Connection.Provider, scope.Connection.Origin, scope.FountainRepository = "fountain", host.APIBase, repo.Name
+		if !nativeConnectionValid(scope.Connection) {
+			return empty, errNativeReadScope
+		}
+	}
 	port := &NativeCollaboration{operation: nativeOperation{config: p.Config, instance: p.Instance}, background: scope}
 	bound := &nativeProductAccount{store: p.Store, port: port, identity: NativeIdentity{Connection: scope.Connection, Account: collaboration.ObservedActor{ExternalID: actor.ExternalID, Login: actor.Login}, SelectedRepository: repo.ExternalID},
 		binding: collaboration.ConnectionBinding{Host: host, Profile: profile, Actor: actor, Connection: connection}, repository: &repo}

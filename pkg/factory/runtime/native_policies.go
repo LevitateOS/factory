@@ -83,7 +83,7 @@ func (b *nativeProductAccount) policyOptions(ctx context.Context, actor collabor
 	if err != nil {
 		return nil, err
 	}
-	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}, NativeSetup: b.binding.Host.Provider == collaboration.GitHub, ControllerGrantRequired: b.binding.Host.Provider == collaboration.Fountain}
+	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}, NativeSetup: b.binding.Host.Provider == collaboration.GitHub || b.binding.Host.Provider == collaboration.Fountain, ControllerGrantRequired: b.binding.Host.Provider == collaboration.Fountain}
 	if branch := "refs/heads/" + observed.DefaultBranch; factory.ValidTargetBranch(branch) {
 		options.TargetBranch = branch
 	}

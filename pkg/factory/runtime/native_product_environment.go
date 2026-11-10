@@ -93,5 +93,17 @@ func (b *nativeProductAccount) nativeEnvironment(ctx context.Context, actor coll
 	if p.RequireDispatch(b.binding.Host.ID, repository, runtime, p.Generation) != nil {
 		return nil, factory.ErrPlacement
 	}
-	return &project.NativeEnvironment{Profile: profile, Runtime: runtime, Generation: p.Generation}, nil
+	native := &project.NativeEnvironment{Profile: profile, Runtime: runtime, Generation: p.Generation}
+	if b.binding.Host.Provider == collaboration.Fountain {
+		policy, err := b.store.RepositoryPolicy(ctx, int64(repository))
+		if err != nil || policy.Execution == nil || b.policyBinding(ctx, actor, repository, *policy.Execution) != nil {
+			return nil, factory.ErrPlacement
+		}
+		grant, err := b.controllerGrant(ctx, repository, policy.Execution.ControllerGrantID, "execution.launch")
+		if err != nil || grant.Generation != p.Generation {
+			return nil, factory.ErrPlacement
+		}
+		native.ControllerConnection, native.ControllerGrantID = policy.Execution.NativeConnection, grant.GrantID
+	}
+	return native, nil
 }

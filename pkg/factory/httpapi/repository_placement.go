@@ -21,6 +21,11 @@ func (s Repositories) placement(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		canSelect := s.Placements.AdminAccess != nil && s.Placements.Store == s.Store && s.Placements.AdminAccess(r.Context(), s.Actor, repository) == nil
 		result := map[string]any{"placement": nil, "runtime": s.Placements.Runtime.ID, "can_select": canSelect}
+		canConfigure := canSelect
+		if s.Placements.LocalSettings != nil {
+			canConfigure = s.Placements.LocalSettings(r.Context(), s.Actor, repository) == nil
+		}
+		result["can_configure_local"] = canConfigure
 		p, err := s.Store.Placement(r.Context(), repository)
 		if errors.Is(err, store.ErrNotFound) {
 			if s.current(w, r) {

@@ -97,7 +97,7 @@ pub async fn captured_operation_grant(
         &profile.join("fountain-commands").join(format!("{id}.json")),
         8192,
     )
-    .map_err(|_| unavailable())?;
+    .map_err(|_| super::Failure{status:503,code:"fountain_captured_grant_unavailable"})?;
     let capture: CapturedAuthorization = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
     if capture.version != 1
         || capture.profile != runtime
@@ -113,13 +113,13 @@ pub async fn captured_operation_grant(
     let capability = credentials
         .capability(&capture.connection)
         .await
-        .map_err(|_| unavailable())?;
+        .map_err(|_| super::Failure{status:503,code:"fountain_captured_credential_unavailable"})?;
     if capability.account().origin != capture.origin
         || capability.account().account != capture.account
     {
         return Err(invalid());
     }
-    let signer = Signer::open(profile).map_err(|_| unavailable())?;
+    let signer = Signer::open(profile).map_err(|_| super::Failure{status:503,code:"fountain_captured_proof_unavailable"})?;
     let client = Client::new(
         credentials,
         capability,

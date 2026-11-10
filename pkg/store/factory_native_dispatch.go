@@ -30,6 +30,9 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	if err := checkNativeControllerTx(ctx, tx, a.Repository, native.Workspace.Profile, grants.policy.Execution); err != nil {
 		return factory.Run{}, err
 	}
+	if ref := grants.policy.Execution; ref != nil && (ref.ControllerGrantID != env.Native.ControllerGrantID || ref.NativeConnection != env.Native.ControllerConnection) {
+		return refuse()
+	}
 	if _, err := lockAttemptAllowanceRootTx(ctx, tx, a.Repository, a.Issue, a.AttemptRoot); err != nil && (a.AttemptRoot != a.ID || !errors.Is(err, sql.ErrNoRows)) {
 		return factory.Run{}, err
 	}

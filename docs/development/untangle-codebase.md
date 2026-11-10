@@ -1,5 +1,21 @@
 # Factory untangling decisions
 
+Fountain privileged preparation (2026-11-10): extend the existing controller
+lease, source preparation owner and host claim journal rather than introducing
+a second executor. Capture the selected grant in environment/approval identity;
+Go re-admits after remote claim I/O and Rust admits only the original acquired
+reply. Prepared checkout custody retains the same withdrawal watcher until
+physical retirement. Join preparation before its credential executor closes;
+old-instance readback adopts retirement but cannot reconstruct setup. The native
+check now leaves its keyring reactor live during blocking/error-path retirement.
+Actual public two-role setup/live withdrawal/reopen passes in
+`product43-connected.log`; lost original preparation reply/no replay/no-start
+passes in `product42b-connected.log`, using canonical hoste8b967567e39.
+All owners joined, no models. Schema101 fences older constructors;
+`q28-migrate/retained101/check.log` preserves every retained row through
+concurrent upgrade, prior100/unknown102 refusal and current reopen. Full installed
+preparation, expiry/I/O and delivery journeys remain in Q19/Q27 and dependents.
+
 Fountain policy capture (2026-11-10): expose nonsecret account references as
 configuration choices requiring a separately selected host operation grant.
 Shared role settings capture that exact grant for all selected operation slots;

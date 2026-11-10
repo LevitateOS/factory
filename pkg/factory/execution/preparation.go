@@ -38,13 +38,30 @@ type PreparationObserver interface {
 }
 
 type StandingPreparationRequest struct {
-	Input  project.Prepare     `json:"input"`
-	Native *NativeWorkspaceRef `json:"native,omitempty"`
+	Controller *PreparationController `json:"controller,omitempty"`
+	Input      project.Prepare        `json:"input"`
+	Native     *NativeWorkspaceRef    `json:"native,omitempty"`
 }
 
 type CandidatePreparationRequest struct {
-	Input  project.FactoryCandidate `json:"input"`
-	Native *NativeWorkspaceRef      `json:"native,omitempty"`
+	Controller *PreparationController   `json:"controller,omitempty"`
+	Input      project.FactoryCandidate `json:"input"`
+	Native     *NativeWorkspaceRef      `json:"native,omitempty"`
+}
+
+// PreparationController captures a host grant's original finite authority.
+// Rust binds the complete immutable request digest into its execution claim.
+type PreparationController struct {
+	Connection string `json:"connection"`
+	GrantID    string `json:"grant_id"`
+	NotAfter   int64  `json:"not_after"`
+}
+
+func (c PreparationController) Validate() error {
+	if !collaboration.ValidID(c.Connection) || !collaboration.ValidID(c.GrantID) || c.NotAfter <= 0 {
+		return ErrPreparation
+	}
+	return nil
 }
 
 func (r StandingPreparationRequest) Address() PreparationAddress {
@@ -56,14 +73,14 @@ func (r CandidatePreparationRequest) Address() PreparationAddress {
 }
 
 func (r StandingPreparationRequest) Validate() error {
-	if r.Input.Validate() != nil || r.Address().Validate() != nil {
+	if r.Input.Validate() != nil || r.Address().Validate() != nil || r.Controller != nil && (r.Native == nil || r.Controller.Validate() != nil) {
 		return ErrPreparation
 	}
 	return nil
 }
 
 func (r CandidatePreparationRequest) Validate() error {
-	if r.Input.Validate() != nil || r.Address().Validate() != nil {
+	if r.Input.Validate() != nil || r.Address().Validate() != nil || r.Controller != nil && (r.Native == nil || r.Controller.Validate() != nil) {
 		return ErrPreparation
 	}
 	return nil

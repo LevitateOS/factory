@@ -33,7 +33,7 @@ func setupHead(head string, err error) (string, error) {
 }
 
 func (b nativeWorkspaceSetup) setupGrant(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (project.EnvironmentGrant, string, error) {
-	if b.binding.Host.Provider != collaboration.GitHub {
+	if b.binding.Host.Provider != collaboration.GitHub && b.binding.Host.Provider != collaboration.Fountain {
 		return project.EnvironmentGrant{}, "", execution.ErrPreparation
 	}
 	var empty project.EnvironmentGrant
@@ -58,6 +58,11 @@ func (b nativeWorkspaceSetup) setupGrant(ctx context.Context, actor collaboratio
 		target = policy.TargetBranch
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, "", err
+	}
+	if b.binding.Host.Provider == collaboration.Fountain {
+		if policy.Execution == nil || policy.Execution.ControllerGrantID != native.ControllerGrantID || policy.Execution.NativeConnection != native.ControllerConnection || b.policyBinding(ctx, actor, repository, *policy.Execution) != nil {
+			return empty, "", execution.ErrPreparation
+		}
 	}
 	if !factory.ValidTargetBranch(target) {
 		return empty, "", execution.ErrPreparation
@@ -122,13 +127,12 @@ func (b nativeWorkspaceSetup) readSetup(ctx context.Context, actor collaboration
 	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return view, err
 	}
-	if b.binding.Host.Provider != collaboration.GitHub {
-		view.Reason = "Workspace preparation is not available for this Fountain connection."
-		return view, nil
-	}
 	grant, target, err := b.setupGrant(ctx, actor, repository)
 	if errors.Is(err, store.ErrNotFound) || errors.Is(err, execution.ErrPreparation) || errors.Is(err, store.ErrAdmissionChanged) || errors.Is(err, factory.ErrPlacement) {
 		view.Reason = "Select this computer as controller and allow isolated workspaces first."
+		if b.binding.Host.Provider == collaboration.Fountain {
+			view.Reason = "Select this desktop through Fountain, capture a current operation grant in policy and allow isolated workspaces first."
+		}
 		return view, nil
 	}
 	if err != nil {
@@ -378,6 +382,9 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 			}
 			policy, err := b.store.RepositoryPolicy(ctx, int64(repository))
 			if err == nil && policy.TargetBranch != target {
+				return store.ErrStaleRevision
+			}
+			if err == nil && grant.Native.ControllerGrantID != "" && (policy.Execution == nil || policy.Execution.ControllerGrantID != grant.Native.ControllerGrantID || policy.Execution.NativeConnection != grant.Native.ControllerConnection) {
 				return store.ErrStaleRevision
 			}
 			if err != nil && !errors.Is(err, store.ErrNotFound) {

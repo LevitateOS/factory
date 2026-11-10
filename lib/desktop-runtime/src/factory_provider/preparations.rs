@@ -1,6 +1,7 @@
 //! Own credential-free preparation jobs and their private immutable inputs.
 //! Go owns approval and enrollment. Request drop never owns an admitted job.
 use super::{AgentCancellation, Broker, Role};
+use crate::credentials::Credentials;
 use crate::private_fs::{private_dir, read_bytes as load_bytes, write_bytes as save_bytes};
 use crate::supervisor::NativeChannel;
 use base64::Engine;
@@ -75,6 +76,16 @@ struct Input {
     derived: Option<DerivedSource>,
 }
 impl Input {
+    fn controller_request(&self) -> &Value {
+        self.request
+            .get("candidate_origin")
+            .unwrap_or(&self.request)
+    }
+    fn controlled(&self) -> bool {
+        self.controller_request()
+            .get("controller")
+            .is_some_and(|value| !value.is_null())
+    }
     fn effective_bundle(&self, directory: &Path) -> io::Result<Vec<u8>> {
         if self.derived.is_some() {
             match load_bytes(&directory.join("source.bundle"), MAX_STAGE_BUNDLE) {
@@ -248,6 +259,28 @@ pub(crate) struct Preparations {
     instance: String,
     alive: Arc<AtomicBool>,
     entries: Mutex<BTreeMap<String, Entry>>,
+    channel: NativeChannel,
+}
+#[derive(Clone)]
+struct Authority {
+    credentials: Arc<Credentials>,
+    channel: NativeChannel,
+    runtime: tokio::runtime::Handle,
+}
+
+fn retire_input(input: &Input, directory: &Path, profile: &str) -> io::Result<Vec<u8>> {
+    let sha256 = digest(&input.effective_bundle(directory)?);
+    let marker = directory.join("retired.json");
+    if marker.try_exists()? {
+        let prior: Value = load(&marker)?;
+        if prior["root"] != input.key || prior["bundle"] != sha256 {
+            return Err(denied());
+        }
+    } else {
+        Broker::retire_unlaunched(&input.key, profile, &sha256)?;
+        save(&marker, &json!({"root":input.key,"bundle":sha256}))?;
+    }
+    load_bytes(&marker, 1024)
 }
 impl Preparations {
     pub(crate) fn recovery_bundle(&self, intent: &super::LaunchIntent) -> io::Result<Vec<u8>> {
@@ -322,10 +355,14 @@ impl Preparations {
             instance: channel.instance.clone(),
             alive,
             entries: Mutex::new(BTreeMap::new()),
+            channel: channel.clone(),
         })
     }
-    pub(crate) fn prepare(&self, request: Value) -> io::Result<Value> {
+    fn prepare(&self, request: Value, authority: Option<Authority>) -> io::Result<Value> {
         let input = Arc::new(Input::decode(request, &self.profile, &self.instance)?);
+        if input.controlled() && authority.is_none() {
+            return Err(denied());
+        }
         let mut entries = self.entries.lock().map_err(|_| denied())?;
         if !self.alive.load(Ordering::SeqCst) {
             return Err(denied());
@@ -391,9 +428,19 @@ impl Preparations {
                 thread::Builder::new()
                     .name("factory-native-setup".into())
                     .spawn(move || {
+                        let mut lease = None;
+                        let mut admitted = false;
                         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             if !alive.load(Ordering::SeqCst) || cancellation.cancelled() {
                                 return Err(denied());
+                            }
+                            if input.controlled() {
+                                let authority = authority.as_ref().ok_or_else(denied)?;
+                                let root = authority.channel.socket.parent().ok_or_else(denied)?.to_path_buf();
+                                lease = Some(authority.runtime.block_on(super::controller::Lease::admit_preparation(
+                                    authority.credentials.clone(),root,input.controller_request(),&input.key,alive.clone(),authority.channel.clone()))?);
+                                lease.as_mut().ok_or_else(denied)?.enter(cancellation.clone())?;
+                                admitted = true;
                             }
                             let (bundle, cancellation) = if let Some(derived) = &input.derived {
                                 let remaining = derived.not_after - OffsetDateTime::now_utc();
@@ -424,7 +471,7 @@ impl Preparations {
                                 save_bytes(&directory.join("source.bundle"), &bundle)?;
                                 (bundle, cancellation)
                             } else {
-                                (input.bundle.clone(), cancellation)
+                                (input.bundle.clone(), cancellation.clone())
                             };
                             if cancellation.cancelled() {
                                 return Err(denied());
@@ -465,6 +512,25 @@ impl Preparations {
                         }
                         *completion.lock().unwrap_or_else(|error| error.into_inner()) =
                             Some(result);
+                        if input.controlled() {
+                            if admitted {
+                                let ready = completion.lock().unwrap_or_else(|e|e.into_inner()).as_ref().is_some_and(|c|c.receipt.is_some());
+                                // The claim owns the prepared checkout as well as
+                                // setup. Keep its watcher until physical retirement.
+                                if ready {
+                                    while alive.load(Ordering::SeqCst) && !cancellation.cancelled() { thread::sleep(Duration::from_millis(50)); }
+                                }
+                            }
+                            let retired = if admitted { retire_input(&input,&directory,&profile).ok() } else { None };
+                            drop(lease); // Join the watcher and retain exact no-start evidence.
+                            if let Some(authority) = authority {
+                                if let Some(root) = authority.channel.socket.parent() {
+                                    if let Err(error) = authority.runtime.block_on(super::controller::recover_preparation(authority.credentials,root,input.controller_request(),&input.key,retired.as_deref())) {
+                                        eprintln!("native preparation host retirement requires reconciliation: {error}");
+                                    }
+                                }
+                            }
+                        }
                     })?,
             )
         };
@@ -485,14 +551,19 @@ impl Preparations {
     fn key(&self, address: &Value) -> io::Result<String> {
         let native = &address["native"];
         if text(native, "profile", 32)? != self.profile
-            || text(native, "instance_id", 32)? != self.instance
+            || !super::hex(text(native, "instance_id", 32)?, 32)
         {
             return Err(denied());
         }
         text(native, "worktree_id", 128)?;
         Ok(digest(&serde_json::to_vec(native).map_err(io::Error::other)?)[..32].into())
     }
-    pub(crate) fn prepare_candidate(&self, request: Value, source: &Value) -> io::Result<Value> {
+    fn prepare_candidate(
+        &self,
+        request: Value,
+        source: &Value,
+        authority: Option<Authority>,
+    ) -> io::Result<Value> {
         let address = json!({"id":request["input"]["preparation"]["id"],"workspace":request["input"]["preparation"]["project"],"native":request["native"]});
         let key = self.key(&address)?;
         {
@@ -537,14 +608,14 @@ impl Preparations {
             .collect();
         let standing = json!({"native":request["native"],"input":{"preparation":target,"setup":{"files":files,"bundle":encode(&bundle)}},
             "candidate_origin":request,"candidate_source":{"key":source_key,"base":base.source,"sha256":digest(&bundle),"address":source}});
-        self.prepare(standing)
+        self.prepare(standing, authority)
     }
     pub(crate) fn inspect(&self, address: &Value) -> io::Result<Value> {
         if address["native"]["instance_id"] != self.instance {
             return self.retained_retirement(address);
         }
         let key = self.key(address)?;
-        let (input, completion, cancel, retired) = {
+        let (input, completion, cancel, mut retired) = {
             let entries = self.entries.lock().map_err(|_| denied())?;
             let entry = entries.get(&key).ok_or_else(|| {
                 io::Error::new(io::ErrorKind::NotFound, "native preparation not observed")
@@ -562,6 +633,16 @@ impl Preparations {
         };
         if !self.alive.load(Ordering::SeqCst) {
             return Err(denied());
+        }
+        let marker = self.directory.join(&key).join("retired.json");
+        if marker.try_exists()? {
+            let marker: Value = load(&marker)?;
+            if marker["root"] != key
+                || marker["bundle"] != digest(&input.effective_bundle(&self.directory.join(&key))?)
+            {
+                return Err(denied());
+            }
+            retired = true;
         }
         if !retired
             && completion
@@ -690,12 +771,7 @@ impl Preparations {
         if let Some(job) = job {
             job.join().map_err(|_| denied())?;
         }
-        let sha256 = digest(&input.effective_bundle(&self.directory.join(&key))?);
-        Broker::retire_unlaunched(&key, &self.profile, &sha256)?;
-        let marker = self.directory.join(&key).join("retired.json");
-        if !marker.try_exists()? {
-            save(&marker, &json!({"root":key,"bundle":sha256}))?;
-        }
+        retire_input(&input, &self.directory.join(&key), &self.profile)?;
         let mut entries = self.entries.lock().map_err(|_| denied())?;
         let entry = entries.get_mut(&key).ok_or_else(denied)?;
         entry.retired = true;
@@ -717,10 +793,16 @@ impl Preparations {
         }
         let key = digest(&serde_json::to_vec(native).map_err(io::Error::other)?)[..32].to_owned();
         let directory = self.directory.join(&key);
-        let input = Input::decode(load(&directory.join("request.json"))?, &self.profile, instance)?;
+        let input = Input::decode(
+            load(&directory.join("request.json"))?,
+            &self.profile,
+            instance,
+        )?;
         let marker: Value = load(&directory.join("retired.json"))?;
-        if input.native != *native || address["id"] != input.id
-            || address["workspace"] != input.workspace || input.key != key
+        if input.native != *native
+            || address["id"] != input.id
+            || address["workspace"] != input.workspace
+            || input.key != key
             || marker["root"] != key
             || marker["bundle"] != digest(&input.effective_bundle(&directory)?)
         {
@@ -767,15 +849,28 @@ impl Preparations {
         self: Arc<Self>,
         call: Call,
         execution_available: bool,
+        credentials: Option<Arc<Credentials>>,
     ) -> std::result::Result<Value, crate::github_provider::Failure> {
         use crate::github_provider::Failure;
         if matches!(&call, Call::Prepare { .. } | Call::Candidate { .. }) && !execution_available {
             return Err(Failure::new(503, "native_execution_unavailable"));
         }
-        let owner = self;
-        tokio::task::spawn_blocking(move || match call {
-            Call::Prepare { request } => owner.prepare(request),
-            Call::Candidate { request, source } => owner.prepare_candidate(request, &source),
+        let address = match &call {
+            Call::Inspect { address } | Call::Retire { address } => Some(address.clone()),
+            _ => None,
+        };
+        let recovery_credentials = credentials.clone();
+        let authority = credentials.map(|credentials| Authority {
+            credentials,
+            channel: self.channel.clone(),
+            runtime: tokio::runtime::Handle::current(),
+        });
+        let owner = self.clone();
+        let result = tokio::task::spawn_blocking(move || match call {
+            Call::Prepare { request } => owner.prepare(request, authority),
+            Call::Candidate { request, source } => {
+                owner.prepare_candidate(request, &source, authority)
+            }
             Call::Context { request } => owner.context(&request),
             Call::Inspect { address } => owner.inspect(&address),
             Call::Retire { address } => owner.retire(&address),
@@ -785,6 +880,47 @@ impl Preparations {
         .map_err(|error| {
             eprintln!("native preparation callback: {error}");
             Failure::new(503, "native_preparation_unavailable")
-        })
+        })?;
+        if let Some(address) = address {
+            if result["stopped"] == true {
+                let key = self.key(&address).map_err(|_| Failure::unavailable())?;
+                let directory = self.directory.join(&key);
+                let request: Value =
+                    load(&directory.join("request.json")).map_err(|_| Failure::unavailable())?;
+                let input = Input::decode(
+                    request,
+                    &self.profile,
+                    address["native"]["instance_id"]
+                        .as_str()
+                        .ok_or_else(Failure::invalid)?,
+                )
+                .map_err(|_| Failure::unavailable())?;
+                if input.controlled() {
+                    if input.key != key
+                        || input.id != address["id"]
+                        || input.workspace != address["workspace"]
+                        || input.native != address["native"]
+                    {
+                        return Err(Failure::unavailable());
+                    }
+                    let credentials = recovery_credentials.ok_or_else(Failure::unavailable)?;
+                    let marker = load_bytes(&directory.join("retired.json"), 1024)
+                        .map_err(|_| Failure::unavailable())?;
+                    super::controller::recover_preparation(
+                        credentials,
+                        self.channel
+                            .socket
+                            .parent()
+                            .ok_or_else(Failure::unavailable)?,
+                        input.controller_request(),
+                        &key,
+                        Some(&marker),
+                    )
+                    .await
+                    .map_err(|_| Failure::unavailable())?;
+                }
+            }
+        }
+        Ok(result)
     }
 }

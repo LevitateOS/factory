@@ -22,6 +22,9 @@ type Placements struct {
 	// Host-specific controller management: local owner on desktop, repository
 	// administration where the host operates a shared appliance.
 	AdminAccess WorkVisibility
+	// LocalSettings permits local capacity/workspace consent independently of
+	// host-owned controller selection. Actual environment admission is separate.
+	LocalSettings WorkVisibility
 }
 
 var ErrPlacementUnavailable = errors.New("runtime placement admission is unavailable")

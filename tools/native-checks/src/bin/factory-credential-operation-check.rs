@@ -1200,7 +1200,7 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
     Ok(())
 }
 
-async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client: Arc<soda_desktop_runtime::fountain_provider::Client>, origin: &str, connection: &str, grant: &soda_desktop_runtime::fountain_provider::OperationGrant) -> Result<soda_desktop_runtime::fountain_provider::ExecutionClaimRequest> {
+async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client: Arc<soda_desktop_runtime::fountain_provider::Client>, origin: &str, connection: &str, grant: &soda_desktop_runtime::fountain_provider::OperationGrant) -> Result<Option<soda_desktop_runtime::fountain_provider::ExecutionClaimRequest>> {
     use soda_desktop_runtime::{supervisor::NativeSupervisor, factory_provider::{LaunchIntent,ExecutionOutcome}};
     use std::os::unix::fs::OpenOptionsExt;
     use std::io::Write;
@@ -1216,7 +1216,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     ensure(ready.profile==grant.runtime_id,"native controller profile changed")?;
     supervisor.enroll_credentials(credentials.clone())?;
     supervisor.observe_fountain_controller(client.clone()).await?;
-    let product_read = |path:String| {
+    let product_request = |method:&'static str,path:String,body:Vec<u8>| {
         let supervisor=&supervisor;
         let credentials=credentials.clone();
         let client=client.clone();
@@ -1224,7 +1224,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         async move {
             let capability=credentials.capability(connection).await?;
             let request=supervisor.admit_fountain_product(credentials,capability,repository,client)?;
-            let reply=request.request("GET",&path,&[]).await?;
+            let reply=request.request(method,&path,&body).await?;
             if reply.status!=200 {
                 let failure:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 return Err(format!("connected Fountain shared product read {path}: HTTP {}, code={}",reply.status,failure["error"]["code"].as_str().unwrap_or("unavailable")).into());
@@ -1232,6 +1232,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
             Ok::<serde_json::Value,Box<dyn std::error::Error>>(serde_json::from_slice(&reply.body)?)
         }
     };
+    let product_read = |path:String| product_request("GET",path,Vec::new());
     let identity=product_read("/api/factory/identity".into()).await?;
     ensure(identity["host"].as_str().is_some_and(|id|id.len()==32)&&identity["actor"].as_str().is_some(),"native Fountain canonical identity missing")?;
     let catalog=product_read("/api/factory/collaboration/repositories".into()).await?;
@@ -1239,12 +1240,13 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     ensure(catalog["complete"]==true&&items.len()==1&&items[0]["external_id"]==grant.repository.id&&items[0]["host"]==identity["host"],"native Fountain catalog scope changed")?;
     let repository=items[0]["id"].as_str().ok_or("canonical Fountain repository absent")?;
     let configuration=product_read(format!("/api/repositories/{repository}/factory")).await?;
-    ensure(configuration["native_bindings"].as_array().is_some_and(|refs|refs.len()==6&&refs.iter().all(|r|r["controller_grant_id"].is_null()))&&configuration["policy_options"]["controller_grant_required"]==true&&configuration["policy_options"]["native_setup"]!=true,"Fountain policy references lost their explicit host-grant prerequisite")?;
+    ensure(configuration["native_bindings"].as_array().is_some_and(|refs|refs.len()==6&&refs.iter().all(|r|r["controller_grant_id"].is_null()))&&configuration["policy_options"]["controller_grant_required"]==true&&configuration["policy_options"]["native_setup"]==true,"Fountain policy references lost their explicit host-grant prerequisite")?;
     let setup=product_read(format!("/api/repositories/{repository}/factory/setup")).await?;
     ensure(setup["available"]==false,"Fountain read enrollment exposed preparation without captured host authority")?;
     let placement_path=format!("/api/repositories/{repository}/factory/placement");
     let placement=product_read(placement_path.clone()).await?;
     ensure(placement["can_select"]==false,"Fountain connection offered standalone placement authority")?;
+    ensure(placement["can_configure_local"]==true,"host placement disabled independent local resource consent")?;
     let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
     let refused=request.request("PUT",&placement_path,br#"{"expected_revision":"","state":"active"}"#).await?;
     ensure(refused.status==503,"Fountain standalone placement write was not refused before changing host observation")?;
@@ -1258,12 +1260,12 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let full=client.authorize_operations(profile,&soda_desktop_runtime::fountain_provider::OperationAuthorization{
         command_id:"123456789abcdef0123456789abcdefa".into(),expected_placement:placement.revision,generation:placement.generation,
         operations:vec!["execution.launch".into(),"git.ref.publish".into(),"pull_request.create".into(),"pull_request.review.submit".into(),"pull_request.merge".into()],not_after:epoch() as i64+90}).await.map_err(|e|e.code)?;
-    for slot in ["publish_actor","create_actor","review_actor","merge_actor","execution_actor"] { policy[slot]["controller_grant_id"]=serde_json::json!(full.id); }
+    for slot in ["publish_actor","create_actor","review_actor","merge_actor"] { policy[slot]["controller_grant_id"]=serde_json::json!(full.id); }
     let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
     let saved=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
     if saved.status!=200 { return Err(format!("actual Fountain policy save HTTP {}: {}",saved.status,String::from_utf8_lossy(&saved.body)).into()); }
     let saved=product_read(format!("/api/repositories/{repository}/factory")).await?;
-    ensure(saved["policy"]["execution_actor"]["controller_grant_id"]==full.id&&saved["policy"]["publish_actor"]["controller_grant_id"]==full.id&&saved["policy"]["enabled"]==false,"Fountain policy did not retain the explicit original host grant")?;
+    ensure(saved["policy"]["execution_actor"]["controller_grant_id"]==grant.id&&saved["policy"]["publish_actor"]["controller_grant_id"]==full.id&&saved["policy"]["enabled"]==false,"Fountain policy did not retain the explicit original host grants")?;
     println!("PASS: actual shared Fountain policy refuses a limited host grant and captures a fresh explicitly selected full operation grant with automation disabled; no funding or execution inferred");
     let base=format!("/api/factory/collaboration/repositories/{repository}");
     let first=product_read(format!("{base}/issues?limit=1&state=all")).await?;
@@ -1313,14 +1315,52 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
             ensure(status.success(),"connected controller native Go action failed")
         }
     };
-    command("check-native-preparation","ready").await?;
+    let public_setup=std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PRODUCT_SETUP").is_some();
+    let lost_preparation=std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PREPARATION_LOST").is_some();
+    if public_setup {
+        product_request("PUT",format!("/api/repositories/{repository}/factory/environment-grant"),serde_json::to_vec(&serde_json::json!({"native":true,"active":true,"expected_revision":0}))?).await?;
+        let setup_path=format!("/api/repositories/{repository}/factory/setup");
+        let preview=product_read(setup_path.clone()).await?;
+        ensure(preview["available"]==true&&preview["source"]==source.commit&&preview["source_inputs"].as_object().is_some_and(|paths|!paths.is_empty()),"actual Fountain setup preview did not bind selected source inputs")?;
+        let mut random=[0u8;16];getrandom::fill(&mut random)?;
+        let command_id:String=random.iter().map(|b|format!("{b:02x}")).collect();
+        let approval=serde_json::json!({"command_id":command_id,"source":preview["source"],"target":preview["target"],"source_inputs":preview["source_inputs"],"requirement":preview["requirement"],"approval":preview["approval"],"environment_revision":preview["environment_revision"],"tools":["git","bash"],
+            "files":{"setup.sh":"mkdir -p .factory-build\nprintf 'prepared dependency\\n' > .factory-build/dependency\nprintf 'prepared HOME\\n' > \"$HOME/factory-env\"\nchmod 600 \"$HOME/factory-env\" .factory-build/dependency\n",
+            "check.sh":"test \"$(cat .factory-build/dependency)\" = 'prepared dependency'\ntest \"$(cat \"$HOME/factory-env\")\" = 'prepared HOME'\nprintf 'checked-by-native\\n'\n"}});
+        product_request("PUT",setup_path.clone(),serde_json::to_vec(&approval)?).await?;
+        let until=Instant::now()+Duration::from_secs(35);
+        loop {
+            let view=product_read(setup_path.clone()).await?;
+            let states=view["preparations"].as_array().ok_or("public setup preparations missing")?;
+            if states.len()==2&&if lost_preparation { states.iter().filter(|p|p["state"]["phase"]=="interrupted").count()==1&&states.iter().filter(|p|p["state"]["ready"]==true).count()==1 } else {states.iter().all(|p|p["current"]==true&&p["state"]["ready"]==true)} {break;}
+            ensure(Instant::now()<until,"public Fountain role preparation did not become ready")?;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        // Exact approval recovery returns its original receipt; it cannot run
+        // either role's setup again or allocate another host claim.
+        product_request("PUT",setup_path,serde_json::to_vec(&approval)?).await?;
+        if !lost_preparation { println!("PASS: actual enrolled Fountain public product workspace consent, exact source/recipe approval, two host-claimed privileged role preparations and exact approval replay without another constructor"); }
+    } else {
+        command("check-native-preparation","ready").await?;
+    }
     let preparations=fs::read_dir(profile.join("native-preparations"))?.collect::<std::result::Result<Vec<_>,_>>()?;
-    ensure(preparations.len()==1,"controller preparation missing")?;
-    let prepared:serde_json::Value=serde_json::from_slice(&fs::read(preparations[0].path().join("request.json"))?)?;
-    let mut random=[0u8;16];getrandom::fill(&mut random)?;
-    let run:String=random.iter().map(|b|format!("{b:02x}")).collect();
+    ensure(preparations.len()==if public_setup{2}else{1},"controller preparation missing or duplicated")?;
+    let preparation=preparations.iter().find(|entry| if lost_preparation {entry.path().join("controller-not-started.json").is_file()} else {fs::read(entry.path().join("request.json")).ok().and_then(|raw|serde_json::from_slice::<serde_json::Value>(&raw).ok()).is_some_and(|request|request["input"]["preparation"]["role"]=="soda-coder")}).ok_or("selected preparation absent")?;
+    let prepared:serde_json::Value=serde_json::from_slice(&fs::read(preparation.path().join("request.json"))?)?;
     let fixture=profile.join("admitted-native-fixture.json");
     let withdraw = std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_WITHDRAW").is_some();
+    let mut worker_claim=None;
+    if lost_preparation {
+        fs::write(&fixture,serde_json::to_vec(&serde_json::json!({"Preparation":prepared["input"]["preparation"]["id"]}))?)?;
+        let no_workers=match fs::read_dir(profile.join("native-run-intents")) {
+            Ok(mut entries)=>entries.next().is_none(),
+            Err(error) if error.kind()==std::io::ErrorKind::NotFound=>true,
+            Err(error)=>return Err(error.into()),
+        };
+        ensure(no_workers,"lost preparation reply dispatched a worker")?;
+    } else {
+    let mut random=[0u8;16];getrandom::fill(&mut random)?;
+    let run:String=random.iter().map(|b|format!("{b:02x}")).collect();
     fs::write(&fixture,serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Withdraw":withdraw,"Preparation":prepared["input"]["preparation"]["id"],"Executable":finite}))?)?;
     command("launch-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
     let intent=LaunchIntent::from_go(&fs::read_to_string(profile.join("native-run-intents").join(format!("{run}.json")))?)?;
@@ -1359,15 +1399,38 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     }
     let wire:serde_json::Value=serde_json::from_str(intent.raw())?;
     let admitted:serde_json::Value=serde_json::from_slice(&fs::read(&fixture)?)?;
-    let claim=soda_desktop_runtime::fountain_provider::ExecutionClaimRequest {
+    worker_claim=Some(soda_desktop_runtime::fountain_provider::ExecutionClaimRequest {
         command_id:run,
         manifest_digest:wire["controller"]["manifest_digest"].as_str().ok_or("controller capture missing")?.into(),
         not_after:admitted["DeadlineUnix"].as_i64().ok_or("worker deadline missing")?.min(grant.not_after),
-    };
-    supervisor.stop()?;
-    if withdraw {println!("PASS: actual central placement withdrawal cancels the live native worker after MCP artifact publication; exact process/root retirement and original-source accounting retained without replay");}
-    println!("PASS: actual Fountain code-read enrollment/source bundle surrounds native preparation, original host claim, Go admission, finite local worker/MCP and physical retirement; setup/policy/funding declared, no inference or full delivery claimed");
-    Ok(claim)
+    });
+    }
+    tokio::task::spawn_blocking(move||supervisor.stop()).await?.map_err(|error|format!("native controller stop: {error}"))?;
+    let recovered_credentials=Arc::new(Credentials::open(profile,&ready.profile)?);
+    let (history,original_grant)=soda_desktop_runtime::fountain_provider::captured_operation_grant(recovered_credentials.clone(),profile,&ready.profile,connection,&grant.id).await.map_err(|e|e.code)?;
+    for preparation in &preparations {
+    let prepared:serde_json::Value=serde_json::from_slice(&fs::read(preparation.path().join("request.json"))?)?;
+    let preparation_claim=soda_desktop_runtime::fountain_provider::ExecutionClaimRequest{
+        command_id:preparation.file_name().into_string().map_err(|_|"preparation key invalid")?,manifest_digest:Sha256::digest(serde_json::to_vec(&prepared)?).iter().map(|b|format!("{b:02x}")).collect(),
+        not_after:prepared["controller"]["not_after"].as_i64().ok_or("preparation grant deadline absent")?};
+    let retired=history.execution_claim(&original_grant,&preparation_claim).await.map_err(|e|e.code)?;
+    ensure(retired.state==if preparation.path().join("controller-not-started.json").is_file(){"not_started"}else{"retired"}&&!retired.acquired&&retired.retirement_digest.len()==64,"physical preparation retirement did not settle its original host claim")?;
+    }
+    let reopened=NativeSupervisor::start(Path::new(&payload),Path::new(&backend),profile)?;
+    let reopened_ready=reopened.health()?;
+    ensure(reopened_ready.instance!=ready.instance,"preparation recovery reused the retired native instance")?;
+    reopened.enroll_credentials(recovered_credentials.clone())?;
+    let check_status=tokio::task::spawn_blocking({let profile=profile.to_path_buf();let check=check.clone();move||Command::new(check).arg(profile).arg(reopened_ready.instance).arg("check-native-preparation").arg("retained").status()}).await??;
+    ensure(check_status.success(),"retained preparation recovery failed")?;
+    tokio::task::spawn_blocking(move||reopened.stop()).await?.map_err(|error|format!("reopened native controller stop: {error}"))?;
+    recovered_credentials.retire();
+    println!("PASS: actual privileged preparation binds its original complete request to one host claim; normal shutdown confirms physical and host retirement, reopen adopts that receipt and refuses the old constructor without replay");
+    if lost_preparation {println!("PASS: lost original preparation claim reply admits no constructor or worker; exact approval replay sends no second claim, definitive no-start settles the original host journal and reopen preserves the refusal");}
+    else {
+        if withdraw {println!("PASS: actual central placement withdrawal cancels the live native worker after MCP artifact publication; exact process/root retirement and original-source accounting retained without replay");}
+        println!("PASS: actual Fountain code-read enrollment/source bundle surrounds native preparation, original host claim, Go admission, finite local worker/MCP and physical retirement; no inference or full delivery claimed");
+    }
+    Ok(worker_claim)
 }
 
 async fn fountain_controller(profile: &Path, origin: &str, application: &str) -> Result<()> {
@@ -1376,7 +1439,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
     let lock=fs::OpenOptions::new().create_new(true).write(true).open(profile.join("fixture.lock"))?;
     ensure(unsafe{libc::flock(lock.as_raw_fd(),libc::LOCK_EX|libc::LOCK_NB)}==0,"controller profile lock failed")?;
     let runtime="123456789abcdef0123456789abcdef0";
-    let enrollment="123456789abcdef0123456789abcdef2";
+    let mut enrollment=String::new();
     let mut store=Arc::new(Credentials::open(profile,runtime)?);
     let mut token=Vec::new();std::io::stdin().take(65537).read_to_end(&mut token)?;
     ensure(!token.is_empty()&&token.len()<=65536,"bounded fixture OAuth token required")?;
@@ -1398,8 +1461,10 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(url.query_pairs().any(|(key,value)|key=="scope"&&value=="write:repository write:issue"),"explicit native control scope missing")?;
         drop(pending); // This check uses the actual host-exchanged fixture token.
         let signer=Signer::open(profile)?;
-        let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
-        ensure(client.enroll().await.map_err(|e|e.code)?.active,"control enrollment missing")?;
+        let client=soda_desktop_runtime::fountain_provider::retained_client(store.clone(),store.capability(&saved.connection).await?,profile,runtime,"user2","repo1").await.map_err(|e|e.code)?;
+        let enrolled=client.enroll().await.map_err(|e|e.code)?;
+        ensure(enrolled.active,"control enrollment missing")?;
+        enrollment=enrolled.id;
         let initial=client.placement().await.map_err(|e|e.code)?;
         ensure(initial.state=="inactive","fixture controller was not retired")?;
         let request=Selection{command_id:"123456789abcdef0123456789abcdef3".into(),expected_revision:initial.revision,action:"activate".into(),not_after:epoch() as i64+120};
@@ -1407,7 +1472,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         drop(client);drop(signer);store.retire();
         store=Arc::new(Credentials::open(profile,runtime)?);
         let signer=Signer::open(profile)?;
-        let client=Arc::new(Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?);
+        let client=Arc::new(Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",&enrollment).map_err(|e|e.code)?);
         let receipt=client.select_runtime(profile,&request).await.map_err(|e|e.code)?;
         ensure(receipt.placement.state=="active","reopened controller command not adopted")?;
         let authorization=OperationAuthorization{command_id:"123456789abcdef0123456789abcdef4".into(),expected_placement:receipt.placement.revision.clone(),generation:receipt.placement.generation.clone(),operations:vec!["issue.comment.publish".into(),"execution.launch".into()],not_after:epoch() as i64+90};
@@ -1461,9 +1526,10 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let recovered=client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await.map_err(|e|e.code)?;
         ensure(recovered.intent_digest==completed.intent_digest&&recovered.receipt==completed.receipt,"native receipt changed across reopen")?;
         if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PAYLOAD").is_some() {
-            let worker=controller_worker(profile,store.clone(),client.clone(),origin,&saved.connection,&grant).await?;
+            if let Some(worker)=controller_worker(profile,store.clone(),client.clone(),origin,&saved.connection,&grant).await? {
             let retired=client.execution_claim(&grant,&worker).await.map_err(|e|e.code)?;
             ensure(retired.state=="retired"&&!retired.acquired&&retired.retirement_digest.len()==64,"native physical retirement did not settle the exact host claim")?;
+            }
         }
         ensure(!client.claim_execution(profile,&grant,&lost_claim).await.map_err(|e|e.code)?.acquired,"reopen acquired an old dispatch")?;
         let lost_no_start=ExecutionRetirement{manifest_digest:lost_claim.manifest_digest.clone(),state:"not_started".into(),receipt_digest:"b".repeat(64)};
@@ -1487,7 +1553,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let rebound=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:replacement,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository write:issue".into(),client_id:Some(application.into())}).await?;
         reconnected_connection=Some(rebound.connection.clone());
         ensure(rebound.connection!=saved.connection,"withdrawn source connection was reused")?;
-        let rebound_client=Client::new(store.clone(),store.capability(&rebound.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        let rebound_client=Client::new(store.clone(),store.capability(&rebound.connection).await?,&signer,runtime,application,"user2","repo1",&enrollment).map_err(|e|e.code)?;
         let original_grant=rebound_client.operation_grant(&grant.id).await.map_err(|e|e.code)?;
         ensure(!original_grant.active,"retired controller grant regained authority")?;
         ensure(matches!(rebound_client.submit_note(profile,&original_grant,operation,native.revision,not_after,&note).await,Err(error)if error.status==400),"a new connection rebound the old captured source")?;
@@ -2936,7 +3002,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
 fn main() {
     let result = (|| -> Result<()> {
         let args: Vec<_> = std::env::args_os().skip(1).collect();
-        let runtime = tokio::runtime::Builder::new_current_thread()
+        // Blocking owner retirement (including error-path Drop) must leave
+        // the fixture's keyring transport executor available until it joins.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
             .enable_all()
             .build()?;
         runtime.block_on(run_selected(&args))
