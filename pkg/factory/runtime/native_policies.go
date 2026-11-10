@@ -12,7 +12,7 @@ import (
 // native operation. Saved registry IDs and browser fields confer no authority.
 // Background publication must separately re-observe its selected account.
 func (b *nativeProductAccount) policyBinding(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, ref factory.ActorBindingRef) error {
-	if actor != b.binding.Actor.ID || b.repository == nil || repository != b.repository.ID || ref.Validate() != nil ||
+	if b.binding.Host.Provider != collaboration.GitHub || actor != b.binding.Actor.ID || b.repository == nil || repository != b.repository.ID || ref.Validate() != nil ||
 		ref.TokenID != 0 || ref.NativeProfile != b.binding.Profile.ID || ref.NativeConnection != b.binding.Connection.ID || ref.ActorID != int64(b.binding.Actor.ID) {
 		return factoryservice.ErrPolicyBindingUnavailable
 	}
@@ -23,6 +23,9 @@ func (b *nativeProductAccount) policyBinding(ctx context.Context, actor collabor
 func (b *nativeProductAccount) policyBindings(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factory.ActorBindingRef, error) {
 	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return nil, err
+	}
+	if b.binding.Host.Provider != collaboration.GitHub {
+		return []factory.ActorBindingRef{}, nil
 	}
 	var refs []factory.ActorBindingRef
 	for _, kind := range []string{factory.OpRefPublish, factory.OpPRCreate, factory.OpReviewSubmit, factory.OpThreadResolve, factory.OpMerge} {
@@ -37,7 +40,7 @@ func (b *nativeProductAccount) policyOptions(ctx context.Context, actor collabor
 	if err != nil {
 		return nil, err
 	}
-	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}, NativeSetup: true}
+	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}, NativeSetup: b.binding.Host.Provider == collaboration.GitHub}
 	if branch := "refs/heads/" + observed.DefaultBranch; factory.ValidTargetBranch(branch) {
 		options.TargetBranch = branch
 	}

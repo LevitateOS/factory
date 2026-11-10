@@ -33,6 +33,9 @@ func setupHead(head string, err error) (string, error) {
 }
 
 func (b nativeWorkspaceSetup) setupGrant(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (project.EnvironmentGrant, string, error) {
+	if b.binding.Host.Provider != collaboration.GitHub {
+		return project.EnvironmentGrant{}, "", execution.ErrPreparation
+	}
 	var empty project.EnvironmentGrant
 	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return empty, "", err
@@ -118,6 +121,10 @@ func (b nativeWorkspaceSetup) readSetup(ctx context.Context, actor collaboration
 	view := factoryservice.WorkspaceSetup{Files: map[string]string{}, SourceFiles: map[string]string{}, SourceInputs: map[string]string{}, SelectedPaths: []string{}, MissingPaths: []string{}, Tools: []string{"git", "bash"}, Preparations: []factoryservice.WorkspaceSetupPreparation{}}
 	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return view, err
+	}
+	if b.binding.Host.Provider != collaboration.GitHub {
+		view.Reason = "Workspace preparation is not available for this Fountain connection."
+		return view, nil
 	}
 	grant, target, err := b.setupGrant(ctx, actor, repository)
 	if errors.Is(err, store.ErrNotFound) || errors.Is(err, execution.ErrPreparation) || errors.Is(err, store.ErrAdmissionChanged) || errors.Is(err, factory.ErrPlacement) {

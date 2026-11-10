@@ -1,5 +1,13 @@
 # Factory untangling decisions
 
+Q19 configuration hold (2026-11-10): the new Fountain read composition must not
+inherit GitHub-only setup and policy choices. Withhold those choices, report
+preparation unavailable and refuse setup writes until captured host grants are
+integrated. Existing connected check `product32-connected2.log` verifies actual
+status/setup holds and retains the successful read/finite-worker/revocation
+journey. All owners joined, no models. Declared worker setup remains distinct
+from production preparation authority.
+
 Q19 Fountain shared native reads (2026-11-10): extend the existing admitted
 native product scope with one exact enrolled Fountain client. Rust owns all
 authenticated provider I/O and final custody/enrollment checks; the existing Go

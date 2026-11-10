@@ -1282,6 +1282,14 @@ language boundaries and production current31 build pass. Installed Fountain
 presentation, captured preparation grants and full execution/publication/intake/
 adoption remain outstanding; this read integration does not close Q19/Q27/Q29.
 
+The shared configuration now also withholds GitHub-only binding choices and
+native setup from Fountain read connections, and refuses preparation writes.
+`q19-authority/product32-connected2.log` passes actual shared status/setup reads
+with no operation bindings or available preparation, then the existing connected
+read/worker/revocation/recovery journey. It preserves the separately declared
+finite-worker setup fixture; real product preparation still needs its captured
+host-grant integration. All owners joined; no inference.
+
 **Verified native bridge increment; full Q19 remains INCOMPLETE.**
 Factory 65f4c0ced5a9deb83aa748929ec04cf26f481dae owns this increment.
 `q19-authority/native-worker-connected9.log` passes canonical Fountain

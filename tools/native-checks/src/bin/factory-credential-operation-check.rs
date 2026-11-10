@@ -1238,6 +1238,10 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let items=catalog["items"].as_array().ok_or("native Fountain catalog absent")?;
     ensure(catalog["complete"]==true&&items.len()==1&&items[0]["external_id"]==grant.repository.id&&items[0]["host"]==identity["host"],"native Fountain catalog scope changed")?;
     let repository=items[0]["id"].as_str().ok_or("canonical Fountain repository absent")?;
+    let configuration=product_read(format!("/api/repositories/{repository}/factory")).await?;
+    ensure(configuration["native_bindings"].as_array().is_some_and(|refs|refs.is_empty())&&configuration["policy_options"].is_object()&&configuration["policy_options"]["native_setup"]!=true,"Fountain read enrollment offered unimplemented operation or setup authority")?;
+    let setup=product_read(format!("/api/repositories/{repository}/factory/setup")).await?;
+    ensure(setup["available"]==false,"Fountain read enrollment exposed preparation without captured host authority")?;
     let base=format!("/api/factory/collaboration/repositories/{repository}");
     let first=product_read(format!("{base}/issues?limit=1&state=all")).await?;
     ensure(first["items"].as_array().is_some_and(|items|items.len()==1),"native Fountain first issue page absent")?;
