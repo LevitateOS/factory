@@ -110,6 +110,9 @@ func (s nativeHumanBranchCreates) decode(ctx context.Context, c factory.HumanBra
 	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || !(p.Version == 1 && p.Transfer == nil || p.Version == 2 && p.Transfer != nil && p.Transfer.ExpectedOld == "" && p.Transfer.valid(c.Request)) || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Branch.Repository != s.repository.ExternalID || !nativeReviewNode(p.Branch.RepositoryNodeID, 1024) || p.Branch.Name != c.Request.Name || p.Branch.Commit != string(c.Request.Commit) {
 		return p, factoryservice.ErrHumanBranchCreateConflict
 	}
+	if p.Transfer != nil && !p.Transfer.controllerMatches(s.nativeProductAccount) {
+		return p, errNativeReadScope
+	}
 	return p, nil
 }
 func validateNativeBranchCreateReceipt(c factory.HumanBranchCreateCapture, p nativeBranchCreatePreparation, raw json.RawMessage) (nativeBranchCreateReceipt, error) {

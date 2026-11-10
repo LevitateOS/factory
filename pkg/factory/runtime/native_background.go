@@ -40,7 +40,11 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 	}
 	account, err := p.savedAccount(ctx, id, collaboration.ActorID(ref.ActorID), ref.NativeConnection)
 	if err == nil && account.binding.Host.Provider == collaboration.Fountain {
-		_, err = account.controllerGrant(ctx, collaboration.RepositoryID(id), ref.ControllerGrantID, kind)
+		var grant nativeControllerGrant
+		grant, err = account.controllerGrant(ctx, collaboration.RepositoryID(id), ref.ControllerGrantID, kind)
+		if err == nil {
+			account.controller = &grant
+		}
 	}
 	return account, err
 }

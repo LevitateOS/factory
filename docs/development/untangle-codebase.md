@@ -1,5 +1,18 @@
 # Factory untangling decisions
 
+Fountain native publication (2026-11-10): keep candidate bundle validation in the
+existing native connector and conditional effects in the canonical host owner.
+Capture source connection and selected grant in the Go command intent. Reuse the
+native outcome journal and Fountain operation directory for distinct original
+registration/receive fences; recover only the original host receipt, including
+after withdrawal. Do not reuse current policy as historical authority. Actual
+Go→Rust→host conditional receive/lost reply/restart/withdrawal passes in
+`product45f-connected.log`, hostffe374e9e0bb/fixture694f82489ca1. Earlier45e's
+successful original send survives a fixture cleanup CAS failure; retained store
+recovery adopts its receipt and only disables that fixture policy, with all
+effect files unchanged. Owners joined; candidate/run declared and no models.
+Native PR creation and actual worker candidate→PR remain Q21 dependencies.
+
 Fountain intake inputs (2026-11-10): expose the existing native snapshot owner
 through public OAuth/enrollment reads, retaining original issue history at new
 creation rather than guessing from current text. Rust validates the bounded

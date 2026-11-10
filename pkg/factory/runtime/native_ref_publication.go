@@ -45,6 +45,9 @@ func (p NativePublication) decodeRefCapture(ctx context.Context, account *native
 	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.Version != 3 || prep.Transfer == nil || !prep.Transfer.valid(c.Request) || prep.Transfer.ExpectedOld != c.ExpectedOld || prep.Branch.Repository != account.repository.ExternalID || prep.Branch.Name != c.Request.Name || prep.Branch.Commit != string(c.Request.Commit) || prep.Account != account.identity.Account.ExternalID || c.Authority != account.humanAuthority() || c.Request.Actor != account.binding.Actor.ID || c.Request.Repository != account.repository.ID || c.Request.Host != account.binding.Host.ID {
 		return prep, errNativeReadScope
 	}
+	if !prep.Transfer.controllerMatches(account) {
+		return prep, errNativeReadScope
+	}
 	return prep, account.current(ctx)
 }
 func nativeRefPublicationRecord(c factory.RefPublicationCapture) collaboration.OperationRecord {
@@ -83,6 +86,9 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 		}
 		sum := sha256.Sum256(w.Bundle)
 		prep := nativeBranchCreatePreparation{Version: 3, Account: account.identity.Account.ExternalID, NotAfter: nativePublicationDeadline(w.NotAfter), Branch: nativeBranchCreateWrite{Repository: refs.Repository, RepositoryNodeID: refs.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: refs.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:]), ExpectedOld: w.ExpectedOld}}
+		if err = prep.Transfer.captureController(account, &prep.NotAfter); err != nil {
+			return empty, err
+		}
 		encoded, e := json.Marshal(prep)
 		if e != nil {
 			return empty, e
@@ -113,6 +119,9 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 	}
 	prep, err := p.decodeRefCapture(ctx, account, c)
 	if err != nil {
+		return empty, err
+	}
+	if err = prep.Transfer.admitController(ctx, account); err != nil {
 		return empty, err
 	}
 	sum := sha256.Sum256(w.Bundle)

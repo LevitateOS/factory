@@ -1421,7 +1421,7 @@ async fn observe_scope(
     scope: Arc<Scope>,
     effect: &Operation,
 ) -> std::result::Result<Value, Failure> {
-    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..)) {
+    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..) | Operation::Receipt(..) | Operation::Mutation(Command{operation:WriteOperation::PublishBranch(_),..})) {
         return Err(Failure::new(503, "fountain_product_write_unavailable"));
     }
     if let Operation::Mutation(command) = effect {
@@ -1451,10 +1451,26 @@ async fn observe_scope(
         if let Some(client) = &scope.fountain {
             let repository = scope.repository.as_deref().ok_or_else(Failure::invalid)?;
             return match effect {
-                Operation::Current => client.product_current(repository).await.map(|_|Value::Null),
-                Operation::Read(query) => client.product_read(repository, query).await,
-                _ => unreachable!(),
-            }.map_err(|error| Failure::new(error.status,error.code));
+                Operation::Current => client.product_current(repository).await.map(|_|Value::Null).map_err(|e|Failure::new(e.status,e.code)),
+                Operation::Read(query) => client.product_read(repository, query).await.map_err(|e|Failure::new(e.status,e.code)),
+                Operation::Receipt(descriptor) => {
+                    let prior=receipts::lookup(state,&scope,descriptor)?;
+                    if !prior.is_null() && prior["state"]!="indeterminate" {return Ok(prior);}
+                    let profile=state.channel.socket.parent().ok_or_else(Failure::unavailable)?;
+                    match client.recover_publication(profile,&descriptor.command_id,&descriptor.digest,descriptor.not_after).await.map_err(|e|Failure::new(e.status,e.code))? {
+                        Some(outcome)=>Ok(write_reply(descriptor,"applied",outcome)),None=>Ok(prior)
+                    }
+                }
+                Operation::Mutation(command) => {
+                    let WriteOperation::PublishBranch(branch)=&command.operation else{unreachable!()};
+                    if scope.write_claimed.swap(true,Ordering::SeqCst){return Err(Failure::new(409,"native_effect_already_claimed"));}
+                    let attempt=receipts::Attempt::reserve(state,&scope,command)?;
+                    let profile=state.channel.socket.parent().ok_or_else(Failure::unavailable)?;
+                    let d=&command.descriptor;
+                    let result=client.publish_candidate(profile,&d.command_id,&d.digest,d.not_after,branch).await;
+                    return attempt.finish(write_reply(d,"applied",result));
+                }
+            };
         }
         scope
         .credentials
@@ -1514,6 +1530,10 @@ async fn mutate(
         .operation
         .apply(&state.provider, token, account, deadline)
         .await;
+    attempt.finish(write_reply(&command.descriptor,success,outcome))
+}
+
+fn write_reply(descriptor:&Descriptor,success:&str,outcome:WriteOutcome)->Value {
     let (state, receipt, failure) = match outcome {
         WriteOutcome::Applied(receipt) => (success, Some(receipt), None),
         WriteOutcome::NotSent(failure) => ("not_sent", None, Some(failure)),
@@ -1522,7 +1542,7 @@ async fn mutate(
     let failure = failure.map(
         |f| json!({"status":f.status,"code":f.code,"retry_after":f.retry_after,"reset":f.reset}),
     );
-    attempt.finish(json!({"command_id":command_id,"digest":digest,"state":state,"receipt":receipt,"failure":failure}))
+    json!({"command_id":descriptor.command_id,"digest":descriptor.digest,"state":state,"receipt":receipt,"failure":failure})
 }
 
 // Crash recovery is allowed only under the supervisor's exclusive profile lock,

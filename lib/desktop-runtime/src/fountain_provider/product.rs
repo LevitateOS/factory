@@ -136,6 +136,16 @@ impl Client {
         }
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
+            Read::PublicationRefs { repository:selected,name,base_branch } if selected==repository => {
+                json!({"kind":"publication_refs","account":account,"publication":self.publication_refs(repository,name,base_branch).await?})
+            }
+            Read::BranchCreation { repository:selected,name,commit } if selected==repository => {
+                let observed=self.publication_refs(repository,name,&current.repository.default_branch).await?;
+                let tip=observed["tip"].as_str().ok_or_else(invalid)?;
+                json!({"kind":"branch_creation","account":account,"preparation":{"repository":repository,"name":observed["name"],
+                    "repository_node_id":observed["repository_node_id"],"archived":observed["archived"],"disabled":observed["disabled"],"push":observed["push"],
+                    "requested_branch":name,"requested_commit":commit,"branch":if tip.is_empty(){Value::Null}else{json!({"name":name,"node_id":format!("fountain:branch:{repository}:{name}"),"commit":tip})},"condition":"bounded_observation"}})
+            }
             Read::Identity => json!({"kind":"identity","account":account}),
             Read::AutomationInputs {repository:selected,number,comments,target_ref} if selected == repository => {
                 json!({"kind":"automation_inputs","account":account,"inputs":self.automation_inputs(*number,comments,target_ref).await?})
@@ -312,7 +322,7 @@ impl Client {
         Ok(result)
     }
 
-    fn product_url(&self, parts: &[&str]) -> Result<url::Url> {
+    pub(super) fn product_url(&self, parts: &[&str]) -> Result<url::Url> {
         let mut url = self.base.clone();
         url.path_segments_mut()
             .map_err(|_| invalid())?

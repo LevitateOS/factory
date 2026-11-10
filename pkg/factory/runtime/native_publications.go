@@ -228,7 +228,7 @@ func (p NativePublication) LookupOp(ctx context.Context, id string) (factory.Ope
 	}
 	lookup, err := p.Store.LookupHumanCommandDispatch(ctx, cmd)
 	if err == nil && lookup.Record != nil && lookup.Record.Effect == collaboration.EffectIndeterminate && lookup.Record.Receipt == nil {
-		account, e := p.account(ctx, strconv.FormatInt(w.Repository, 10), op.Kind)
+		account, e := p.lookupPublicationAccount(ctx, w, op.Kind, cmd)
 		if e != nil {
 			return factory.OperationOutcome{}, e
 		}
@@ -262,6 +262,43 @@ func (p NativePublication) LookupOp(ctx context.Context, id string) (factory.Ope
 		}
 	}
 	return nativePublicationOutcome(w, op.Kind, lookup), err
+}
+
+// Historical lookup uses the exact captured native connection and host grant.
+// An expired/withdrawn publication may be observed without selecting new policy
+// authority, while only admission for a new send requires an active grant.
+func (p NativePublication) lookupPublicationAccount(ctx context.Context, w factory.PublicationWork, kind string, cmd factory.Command) (*nativeProductAccount, error) {
+	var intent json.RawMessage
+	if cmd.Type == factory.CommandHumanBranchCreate {
+		c, err := factory.DecodeHumanBranchCreateCapture(cmd)
+		if err != nil {
+			return nil, err
+		}
+		intent = c.ProviderIntent
+	} else if cmd.Type == factory.CommandRefPublish {
+		c, err := factory.DecodeRefPublicationCapture(cmd)
+		if err != nil {
+			return nil, err
+		}
+		intent = c.ProviderIntent
+	}
+	if len(intent) > 0 {
+		var prep nativeBranchCreatePreparation
+		if nativeDecode(intent, &prep) != nil {
+			return nil, errNativeRead
+		}
+		if prep.Transfer != nil && prep.Transfer.ControllerGrantID != "" {
+			if !factory.ValidID(prep.Transfer.ControllerGrantID) || !collaboration.ValidID(string(prep.Transfer.SourceConnection)) {
+				return nil, errNativeReadScope
+			}
+			account, err := p.savedAccount(ctx, w.Repository, collaboration.ActorID(w.ActorID), prep.Transfer.SourceConnection)
+			if err == nil && account.binding.Host.Provider != collaboration.Fountain {
+				return nil, errNativeReadScope
+			}
+			return account, err
+		}
+	}
+	return p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
 }
 func (p NativePublication) admitSubmit(ctx context.Context, w factory.PublicationWork, kind string) (*nativeProductAccount, error) {
 	if w.Validate() != nil {
@@ -328,6 +365,9 @@ func (p NativePublication) SubmitPublish(ctx context.Context, w factory.Publicat
 		}
 		sum := sha256.Sum256(w.Bundle)
 		prep := nativeBranchCreatePreparation{Version: 2, Account: account.identity.Account.ExternalID, NotAfter: nativePublicationDeadline(w.NotAfter), Branch: nativeBranchCreateWrite{Repository: raw.Repository, RepositoryNodeID: raw.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: raw.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:])}}
+		if err = prep.Transfer.captureController(account, &prep.NotAfter); err != nil {
+			return empty, err
+		}
 		encoded, e := json.Marshal(prep)
 		if e != nil {
 			return empty, e
@@ -449,7 +489,11 @@ func (p NativePublication) CancelOp(ctx context.Context, id string) (factory.Ope
 			if lookupErr != nil {
 				return factory.OperationOutcome{}, lookupErr
 			}
-			capture = factory.RefPublicationCapture{Request: q, ExpectedOld: w.ExpectedOld, Authority: "native-github:" + string(p.Config.Profile) + ":" + actor.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
+			host, lookupErr := p.Store.CollaborationHost(ctx, q.Host)
+			if lookupErr != nil {
+				return factory.OperationOutcome{}, lookupErr
+			}
+			capture = factory.RefPublicationCapture{Request: q, ExpectedOld: w.ExpectedOld, Authority: nativeHumanAuthority(p.Config.Profile, host, actor.ExternalID), OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
 			capture, _, e = p.Store.CaptureRefPublication(ctx, capture)
 		}
 		if e != nil {
@@ -467,7 +511,11 @@ func (p NativePublication) CancelOp(ctx context.Context, id string) (factory.Ope
 			if lookupErr != nil {
 				return factory.OperationOutcome{}, lookupErr
 			}
-			c = factory.HumanBranchCreateCapture{Request: q, Authority: "native-github:" + string(p.Config.Profile) + ":" + actor.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
+			host, lookupErr := p.Store.CollaborationHost(ctx, q.Host)
+			if lookupErr != nil {
+				return factory.OperationOutcome{}, lookupErr
+			}
+			c = factory.HumanBranchCreateCapture{Request: q, Authority: nativeHumanAuthority(p.Config.Profile, host, actor.ExternalID), OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
 			c, _, e = p.Store.CaptureHumanBranchCreate(ctx, c)
 		}
 		if e != nil {
@@ -485,7 +533,11 @@ func (p NativePublication) CancelOp(ctx context.Context, id string) (factory.Ope
 			if lookupErr != nil {
 				return factory.OperationOutcome{}, lookupErr
 			}
-			c = factory.HumanPullCreateCapture{Request: q, Authority: "native-github:" + string(p.Config.Profile) + ":" + actor.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
+			host, lookupErr := p.Store.CollaborationHost(ctx, q.Host)
+			if lookupErr != nil {
+				return factory.OperationOutcome{}, lookupErr
+			}
+			c = factory.HumanPullCreateCapture{Request: q, Authority: nativeHumanAuthority(p.Config.Profile, host, actor.ExternalID), OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
 			c, _, e = p.Store.CaptureHumanPullCreate(ctx, c)
 		}
 		if e != nil {

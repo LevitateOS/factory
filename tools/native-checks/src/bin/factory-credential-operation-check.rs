@@ -1333,6 +1333,14 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         }
     };
     let public_setup=std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PRODUCT_SETUP").is_some();
+    if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PUBLICATION").is_some() {
+        let parent=profile.parent().ok_or("native fixture root missing")?;
+        let publication:serde_json::Value=serde_json::from_slice(&fs::read(parent.join("publication-fixture.json"))?)?;
+        let issue:serde_json::Value=serde_json::from_slice(&fs::read(parent.join("inputs-fixture.json"))?)?;
+        let path=profile.join("publication-inputs.json");
+        fs::write(&path,serde_json::to_vec(&serde_json::json!({"Repository":repository,"Issue":issue["number"].to_string(),"Connection":connection,"Publication":publication}))?)?;
+        command("check-background-publication-branch",path.to_str().ok_or("publication fixture path invalid")?).await?;
+    }
     let lost_preparation=std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PREPARATION_LOST").is_some();
     if public_setup {
         product_request("PUT",format!("/api/repositories/{repository}/factory/environment-grant"),serde_json::to_vec(&serde_json::json!({"native":true,"active":true,"expected_revision":0}))?).await?;
@@ -1560,6 +1568,27 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(!client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?.active,"old grant replay renewed withdrawal")?;
         let retirement=Selection{command_id:"123456789abcdef0123456789abcdef6".into(),expected_revision:placement.revision,action:"retire".into(),not_after:epoch() as i64+120};
         ensure(client.select_runtime(profile,&retirement).await.map_err(|e|e.code)?.placement.state=="inactive","native controller did not retire")?;
+        if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PUBLICATION").is_some() {
+            let entries=fs::read_dir(profile.join("fountain-operations"))?;
+            let mut recovered=0;
+            for entry in entries {
+                let entry=entry?;
+                if !entry.file_name().to_string_lossy().ends_with(".publication.json"){continue;}
+                let capture:serde_json::Value=serde_json::from_slice(&fs::read(entry.path())?)?;
+                let operation=capture["command"].as_str().ok_or("publication command absent")?;
+                let digest=capture["digest"].as_str().ok_or("publication digest absent")?;
+                let deadline=capture["not_after"].as_u64().ok_or("publication deadline absent")?;
+                let before=fs::read(entry.path())?;
+                match client.recover_publication(profile,operation,digest,deadline).await.map_err(|e|e.code)? {
+                    Some(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt))=>ensure(receipt["new"]==capture["branch"]["candidate"]&&receipt["host_operation"]["grant_id"]==capture["branch"]["controller_grant_id"],"withdrawn publication journal changed its original receipt")?,
+                    _=>return Err("withdrawn publication did not recover its original committed receipt".into())
+                }
+                ensure(fs::read(entry.path())?==before,"publication recovery renewed original authority")?;
+                recovered+=1;
+            }
+            ensure(recovered==1,"original publication capture missing or duplicated")?;
+            println!("PASS: native restart and central withdrawal preserve the exact original conditional publication host receipt and captured deadline without registration or receive replay");
+        }
         let original_intent=fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?;
         let original_receipt=profile.join("fountain-operations").join(format!("{operation}.receipt.json"));
         let receipt_backup=profile.join("fountain-operations").join(format!("{operation}.receipt.original.json"));

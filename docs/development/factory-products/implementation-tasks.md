@@ -1629,6 +1629,43 @@ Final reply: requested Q20, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q21 — Fountain candidate transfer and conditional publication
 
+**Verified native publication increment (2026-11-10); Q21 remains INCOMPLETE.**
+Rust transfers the digest-checked retained bundle through the existing public
+host conditional receive, using the original locally captured operation grant,
+account/profile/enrollment, command, deadline and exact branch/comparison tuple.
+Registration and receive each have a retained send fence. Native/Go recovery
+adopts the exact host journal; absence never permits another send. Historical
+lookup retains its original connection/grant rather than selecting current policy.
+The Go publication path captures this authority and verifies the causal receipt;
+GitHub captures and receipt conditions keep their existing wire meaning.
+
+`q19-authority/product45f-connected.log` passes actual Go publication → Rust
+bundle validation/transfer → public host registration/conditional Git hooks,
+deliberately lost receive reply, exact receipt adoption and original command
+replay, preparation/finite-worker retirement, native reopen and central withdrawal
+with no receive replay. Host source is canonical
+`ffe374e9e0bb74fa20739d7a9ef11635034c6e55`; retained fixture owner is
+`694f82489ca1fd92f551d5e39ab6ef13ec7194c0`. Original command
+`19eb685a7b72b4b35b5e82f01295ea6b` publishes candidate
+`6aae2193a05eed1062b3bd2ff6cb8171beedf5d6` against base
+`65f1bf27bc3bf70f64657658635e66094edbcb4d`, actor2, exact grant
+`123456789abcdef0123456789abcdefa`; host intent digest is
+`b795959478a047baeff14e6a50d405c63087f7102b36a9080b3ddafe6d7298f0`.
+All owners joined, no inference. This candidate/run completion is a declared
+fixture, separately from the actual finite worker; it is not the complete
+native worker→candidate→PR or installed journey.
+
+Earlier45e really committed command `45385ca7c77f5c300617a59a8acced51` before
+fixture policy restoration failed CAS. Its original native/host receipt was
+inspected, then `product45e-native/original-publication-recovery.log` reopens the
+original product store, adopts that same receipt and completes only the known
+remaining policy disable at its current revision, without provider I/O.
+`original-effects-preserved.log` verifies every original effect file unchanged;
+recovery PG joined. Nothing was resent to replace this result. Remaining work:
+native PR creation and actual worker candidate export into this path, partial
+transfer/expiry/withdrawal races, full review/check/merge and installed journeys.
+The next product action is PR creation through the same admitted host journal.
+
 **INCOMPLETE — active Q21 recovery (2026-11-09).** Host source
 `b44c7f53310021c91d797b205649da927f6ee50c` (canonical Fountain) adds public
 OAuth/native-proof conditional publication to the existing receive owner. It

@@ -64,7 +64,7 @@ fn unix(value: &Value) -> Result<i64> {
     .map_err(|_| invalid())
 }
 impl Client {
-    async fn snapshot(&self, mut selection: Value) -> Result<(i64, Value)> {
+    pub(super) async fn snapshot(&self, mut selection: Value) -> Result<(i64, Value)> {
         let enrollment = self.status().await?;
         if !enrollment.active {
             return Err(invalid());

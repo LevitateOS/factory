@@ -56,7 +56,14 @@ func (reply nativeCreationReply) applyFailure(record *collaboration.OperationRec
 func (s *nativeProductAccount) humanAuthority() string {
 	// Same-account refresh/restart/reconsent preserves command ownership. Each
 	// request independently admits current credential generation and repository.
-	return "native-github:" + string(s.port.operation.config.Profile) + ":" + s.identity.Account.ExternalID
+	return nativeHumanAuthority(s.port.operation.config.Profile, s.binding.Host, s.identity.Account.ExternalID)
+}
+
+func nativeHumanAuthority(profile collaboration.ProfileID, host collaboration.Host, account string) string {
+	if host.Provider == collaboration.Fountain {
+		return "native-fountain:" + string(profile) + ":" + host.APIBase + ":" + account
+	}
+	return "native-github:" + string(profile) + ":" + account
 }
 func nativeCreationSHA(raw []byte) string {
 	sum := sha256.Sum256(raw)

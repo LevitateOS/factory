@@ -204,6 +204,7 @@ type nativeProductAccount struct {
 	identity   NativeIdentity
 	binding    collaboration.ConnectionBinding
 	repository *collaboration.RepositoryRef
+	controller *nativeControllerGrant
 }
 
 func (b *nativeProductAccount) current(ctx context.Context) error {

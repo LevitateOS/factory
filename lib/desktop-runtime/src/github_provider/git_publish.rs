@@ -19,6 +19,10 @@ use std::time::Instant;
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BranchPublish {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub controller_grant_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_connection: String,
     pub repository: String,
     pub branch: String,
     pub expected_old: String,
@@ -45,7 +49,7 @@ impl BranchPublish {
         }
         self.pack().map(|_| ())
     }
-    fn pack(&self) -> Result<Vec<u8>> {
+    pub(crate) fn pack(&self) -> Result<Vec<u8>> {
         if self.bundle.is_empty() || self.bundle.len() > MAX_STAGE_BUNDLE.div_ceil(3) * 4 {
             return Err(Failure::new(413, "github_candidate_too_large"));
         }
@@ -142,6 +146,7 @@ impl Client {
         deadline: Option<Instant>,
     ) -> WriteOutcome {
         self.run_mutation(deadline, |mutation| async move {
+            if !q.controller_grant_id.is_empty() || !q.source_connection.is_empty() { return Err(Failure::invalid()); }
             q.validate()?;
             let pack = q.pack()?;
             let (mut permit, actor) = mutation.admit(self, token, expected).await?;

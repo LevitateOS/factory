@@ -14,6 +14,7 @@ mod operation;
 mod execution;
 mod source;
 mod snapshot;
+mod publication;
 mod product;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
@@ -241,6 +242,18 @@ impl Client {
         body: Option<Vec<u8>>,
         limit: usize,
     ) -> Result<(T, reqwest::header::HeaderMap)> {
+        let (bytes, headers) = self.request_wire(method, url, body, "application/json", None, limit).await?;
+        serde_json::from_slice(&bytes).map(|value|(value,headers)).map_err(|_| unavailable())
+    }
+    async fn request_wire(
+        &self,
+        method: reqwest::Method,
+        url: url::Url,
+        body: Option<Vec<u8>>,
+        content_type: &'static str,
+        operation: Option<(&str, &str)>,
+        limit: usize,
+    ) -> Result<(Vec<u8>, reqwest::header::HeaderMap)> {
         if url.origin() != self.base.origin() { return Err(invalid()); }
         let capability = self
             .credentials
@@ -261,10 +274,13 @@ impl Client {
                     .request(method, url)
                     .bearer_auth(authorization)
                     .header(PROOF_HEADER, proof)
-                    .header("Accept", "application/json");
+                    .header("Accept", content_type);
+                if let Some((grant, command)) = operation {
+                    request = request.header("X-Factory-Operation-Grant",grant).header("X-Forgejo-Operation",command);
+                }
                 if let Some(body) = body {
                     request = request
-                        .header("Content-Type", "application/json")
+                        .header("Content-Type", content_type)
                         .body(body);
                 }
                 let mut response = request.send().await.map_err(|_| unavailable())?;
@@ -282,7 +298,7 @@ impl Client {
                     }
                     bytes.extend_from_slice(&chunk);
                 }
-                serde_json::from_slice(&bytes).map(|value|(value,headers)).map_err(|_| unavailable())
+                Ok((bytes,headers))
             })
             .await
             .map_err(|_| Failure {

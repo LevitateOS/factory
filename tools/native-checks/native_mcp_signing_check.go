@@ -2197,7 +2197,89 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 		Branch, Pull               factory.PublicationWork
 		BranchOutcome, PullOutcome factory.OperationOutcome
 	}
-	if action != "check-background-publication" {
+	if action == "check-background-publication-branch-recover-original" {
+		rawDB, err := sql.Open("pgx", port.Config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer rawDB.Close()
+		rows, err := rawDB.QueryContext(ctx, `SELECT data FROM factory_publications WHERE repository=$1 AND issue=$2 AND data->>'candidate'=$3`, repository, issue, candidate)
+		if err != nil {
+			return err
+		}
+		var original factory.Publication
+		count := 0
+		for rows.Next() {
+			var raw []byte
+			if err = rows.Scan(&raw); err != nil {
+				rows.Close()
+				return err
+			}
+			if err = json.Unmarshal(raw, &original); err != nil {
+				rows.Close()
+				return err
+			}
+			count++
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		if count != 1 || original.Publish.Work == nil || original.Candidate != candidate || original.BaseSHA != base {
+			return errors.New("original publication is not uniquely recoverable")
+		}
+		run, err := db.FactoryRun(ctx, original.Run)
+		if err != nil {
+			return err
+		}
+		state.Branch = original.Publish.Work.Apply(factory.PublicationWork{AssignmentID: original.AssignmentID, Publication: original.ID, RunID: run.ID, Run: run, BaseSHA: original.BaseSHA, Issue: original.Issue})
+		state.BranchOutcome, err = port.LookupOp(ctx, original.Publish.OperationID)
+		if err != nil {
+			return err
+		}
+		if state.BranchOutcome.Effect != factory.OpEffectCommitted || state.BranchOutcome.Completion != factory.OpCompletionComplete {
+			return errors.New("original publication has no causal committed receipt")
+		}
+		if _, err = port.AdoptBranch(ctx, state.Branch, state.BranchOutcome); err != nil {
+			return err
+		}
+		policy, err := db.RepositoryPolicy(ctx, repository)
+		if err != nil {
+			return err
+		}
+		for _, selection := range policy.Roles {
+			if selection.Account != "fixture-unavailable" {
+				return errors.New("original publication fixture policy changed")
+			}
+		}
+		if policy.Enabled {
+			policy.Enabled = false
+			if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+				return err
+			}
+		}
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		file, err := os.OpenFile(statePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(raw)
+		closeErr := file.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		fmt.Println("PASS: retained original conditional publication and exact causal host receipt reopen/adopt without provider I/O or another send; only remaining fixture policy disable uses its current CAS revision")
+		return nil
+	}
+	branchOnly := action == "check-background-publication-branch"
+	if action != "check-background-publication" && !branchOnly {
 		raw, err := os.ReadFile(statePath)
 		if err != nil {
 			return err
@@ -2209,6 +2291,9 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 			Work    factory.PublicationWork
 			Outcome factory.OperationOutcome
 		}{{state.Branch, state.BranchOutcome}, {state.Pull, state.PullOutcome}} {
+			if item.Work.OperationID == "" {
+				continue
+			}
 			prior, err := port.LookupOp(ctx, item.Work.OperationID)
 			if err != nil || !reflect.DeepEqual(prior, item.Outcome) {
 				return fmt.Errorf("retained native publication differs: %v", err)
@@ -2217,14 +2302,23 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 		if _, err := port.AdoptBranch(ctx, state.Branch, state.BranchOutcome); err != nil {
 			return err
 		}
-		if _, err := port.AdoptPRCreation(ctx, state.Pull, state.PullOutcome); err != nil {
-			return err
+		if state.Pull.OperationID != "" {
+			if _, err := port.AdoptPRCreation(ctx, state.Pull, state.PullOutcome); err != nil {
+				return err
+			}
 		}
 		fmt.Println("PASS: native branch/PR command receipts survive restart and exact credential withdrawal without sending again")
 		return nil
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	publication := factory.Publication{ID: factory.NewID(), AssignmentID: factory.NewID(), Repository: repository, Issue: issue, Run: factory.NewID(), Stage: factory.PublicationOpen, Candidate: candidate, ProjectID: "p" + strings.Repeat("d", 24), Role: project.RoleCoder, Acceptance: "d" + strings.Repeat("a", 24), Preparation: "f" + strings.Repeat("b", 24), BaseSHA: base, TargetBranch: "refs/heads/main", CreatedUnix: now.Unix()}
+	if branchOnly {
+		policy, err := db.RepositoryPolicy(ctx, repository)
+		if err != nil {
+			return err
+		}
+		publication.TargetBranch = policy.TargetBranch
+	}
 	publication.Publish = factory.PublicationOperation{Kind: factory.OpRefPublish}
 	publication.PRCreate = factory.PublicationOperation{Kind: factory.OpPRCreate}
 	run := factory.Run{ID: publication.Run, ProjectID: publication.ProjectID, Role: project.RoleCoder, InputSHA: base, Started: now.Add(-time.Minute), Deadline: now.Add(time.Minute), Outcome: factory.Succeeded, Reconciled: true, Image: "sha256:" + strings.Repeat("1", 64), Harness: "declared-fixture", Model: "declared-fixture"}
@@ -2299,6 +2393,20 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 		return err
 	}
+	if branchOnly {
+		open, revision, withdrawal, err := db.DispatchState(ctx, repository)
+		if err != nil {
+			return err
+		}
+		if !open {
+			if len(withdrawal.ActiveCauses) != 1 || withdrawal.ActiveCauses[0] != "policy_disabled" {
+				return errors.New("unrelated publication fixture dispatch hold")
+			}
+			if _, _, err = db.ReopenDispatch(ctx, repository, revision); err != nil {
+				return err
+			}
+		}
+	}
 	state.BranchOutcome, err = port.SubmitPublish(ctx, state.Branch)
 	if err != nil {
 		return err
@@ -2329,6 +2437,25 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	record(&publication.Publish, state.BranchOutcome)
 	if err = write(); err != nil {
 		return err
+	}
+	if branchOnly {
+		policy, err = db.RepositoryPolicy(ctx, repository)
+		if err != nil {
+			return err
+		}
+		policy.Enabled = false
+		if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return err
+		}
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(statePath, raw, 0o600); err != nil {
+			return err
+		}
+		fmt.Println("PASS: real retained candidate bundle crosses Go publication capture, exact selected native controller grant and conditional host receive; exact branch/base/actor/digest receipt and original command replay, disabled policy refuses; run completion is declared, no model or full delivery")
+		return nil
 	}
 	state.Pull = work(factory.OpPRCreate)
 	observed, err = port.ObservePublication(ctx, state.Pull)
