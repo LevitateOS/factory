@@ -7,14 +7,14 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
-fn id(value: &Value) -> Result<String> {
+pub(super) fn id(value: &Value) -> Result<String> {
     value
         .as_i64()
         .filter(|id| *id > 0)
         .map(|id| id.to_string())
         .ok_or_else(invalid)
 }
-fn text<'a>(value: &'a Value, key: &str, bound: usize) -> Result<&'a str> {
+pub(super) fn text<'a>(value: &'a Value, key: &str, bound: usize) -> Result<&'a str> {
     value[key]
         .as_str()
         .filter(|s| s.len() <= bound && !s.contains('\0'))
@@ -137,6 +137,12 @@ impl Client {
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
             Read::Identity => json!({"kind":"identity","account":account}),
+            Read::AutomationInputs {repository:selected,number,comments,target_ref} if selected == repository => {
+                json!({"kind":"automation_inputs","account":account,"inputs":self.automation_inputs(*number,comments,target_ref).await?})
+            }
+            Read::IssueCreatorPermission {repository:selected,number,creator} if selected == repository => {
+                json!({"kind":"issue_creator_permission","account":account,"capabilities":self.issue_creator_permission(*number,creator).await?})
+            }
             Read::Repository {
                 repository: selected,
             } if selected == repository => {
@@ -341,7 +347,7 @@ impl Client {
         }
         Ok(Some(bytes))
     }
-    async fn product_issue(&self, number: u32) -> Result<Value> {
+    pub(super) async fn product_issue(&self, number: u32) -> Result<Value> {
         let (value, _): (Value, _) = self
             .request_url(
                 reqwest::Method::GET,

@@ -1688,6 +1688,22 @@ Final reply: requested Q21, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q22 — Fountain automatic issue intake
 
+**Verified input increment (2026-11-10); full Q22 remains INCOMPLETE.**
+The enrolled public snapshot endpoint reuses native history/visibility/permission
+ownership under actual OAuth scopes and profile proof. Canonical Fountain
+`ffe374e9e0bb74fa20739d7a9ef11635034c6e55` retains new issue creation history
+in its creation transaction; legacy rows are not backfilled. The Rust connector
+validates original provenance, exact body/title/comment versions, lifecycle and
+dependency occurrences, scoped dependency locators, target ref and current
+creator write permission before existing Go acceptance selection.
+`q19-authority/product44e-connected.log` passes actual API-created issue/comment/
+dependency reads and the shared Go acceptance preview, another-creator refusal,
+then privileged two-role preparation, finite worker and retirement/reopen.
+All owners joined; no inference or automatic dispatch. Earlier44b–44d failed
+checks and their partial fixture writes remain retained. Native publication,
+automatic acceptance/dispatch and full review/check/merge remain required;
+this increment does not establish installed or full delivery qualification.
+
 Outstanding. Full automatic Fountain delivery requires host issue provenance/policy, admitted operations, native execution and review/check/merge. Its implementation and ordinary admission checks do not depend on Q15 or Q23.
 
 ```text
@@ -1995,10 +2011,18 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE:** installed current33 app319791/backend/PG is
-running with matching production helpers. All17 runs remain reconciled,114
-minutes charged and62 judgments finished; no new inference or publication was
-attempted. The saved-grant blocker and original uncertain send are recorded above.
+**Active recovery — INCOMPLETE:** installed current36 app431452/backend/PG is
+running after normal GUI Quit of current33 and exact-prior upgrade. Source is
+`7f8f6d3e6c1b483e89c1a2d731dbab04c87aa7f4`, inventory
+`9ad259cc5c9323ea74fe7ccfa180b28406d40811dae3df6c9c828250b5ee2fb2`, archive
+`14d05502112bccbfa4ce84399086574205355113595bcac3526c6214736b9931`.
+Schema100→101 reopen preserves all17 original run rows (aggregate digest
+`69b01dab47e8189ef909d99f49557da7`),114 minutes, original write/run receipts,
+profile/password/signer and saved keyring. Guest artifacts are
+`q25-current9/current36-{upgrade,session2,original-receipts-after}.log`,
+`current36-preserved-before.sha256` and `current36-open.png`; the original
+08:59UTC cutoff timer remains active. No new inference or publication was
+attempted. The saved-grant blocker and original uncertain send remain above.
 Current32 clean07e44bd payload was installed
 under exact-prior inventory18b9ff834f20e700bbb3bb7018d95d5fe530b293936b1c1dd83959d9f7a75170
 while that original app remained open. Its `/proc/295038/exe`, profile identity,
@@ -2635,6 +2659,10 @@ reopen with all75 public-table hashes unchanged, exact prior100 writer refusal,
 unknown102 refusal unchanged and unchanged source-copy files. Copied PG joined;
 no provider/model adapter. Original retained100 evidence remains valid at its
 stated revisions. Whole installed/active-worker/provider/update scope remains.
+Actual current36 retained-profile upgrade/reopen is also qualified in Q26:
+all17 settled run rows, original receipts,114-minute charge, profile identity,
+password, signer and keyring survive100→101. This does not qualify upgrade while
+an inference worker is active; those original workers had already settled.
 
 Scoped uninstall qualification on the actual Debian recipient now passes in
 `/home/factory/q28-uninstall29/{result,install,unknown-refusal,uninstall,uninstall-replay,reinstall}.log`.

@@ -1,5 +1,16 @@
 # Factory untangling decisions
 
+Fountain intake inputs (2026-11-10): expose the existing native snapshot owner
+through public OAuth/enrollment reads, retaining original issue history at new
+creation rather than guessing from current text. Rust validates the bounded
+provider facts; existing Go owns acceptance and spending. Explicit optional
+dependency locators preserve old private SDK wire defaults. Canonical host
+ffe374e9e0bb and `q19-authority/product44e-connected.log` prove real issue/comment/
+dependency→shared acceptance preview, current creator permission and existing
+preparation/worker/recovery. Owners joined, no inference; publication/full intake
+remain. Actual clean7f8f6d3 current36 upgrade/reopen preserves the original Q26
+profile and settled accounting through format101; active-worker upgrades remain.
+
 Fountain privileged preparation (2026-11-10): extend the existing controller
 lease, source preparation owner and host claim journal rather than introducing
 a second executor. Capture the selected grant in environment/approval identity;

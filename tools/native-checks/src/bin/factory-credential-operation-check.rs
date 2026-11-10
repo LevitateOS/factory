@@ -1284,6 +1284,23 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let pull=product_read(format!("{base}/pulls/{pull_number}")).await?;
     ensure(pull["ref"]==pulls["items"][0]["ref"]&&pull["base"]==pulls["items"][0]["base"]&&pull["head"]==pulls["items"][0]["head"],"native Fountain pull detail changed repository/head/base identity")?;
     product_read(format!("{base}/pulls/{pull_number}/comments?limit=1")).await?;
+    if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_INPUTS").is_some() {
+        use soda_desktop_runtime::github_provider::Read;
+        let fixture:serde_json::Value=serde_json::from_slice(&fs::read(profile.parent().ok_or("fixture root absent")?.join("inputs-fixture.json"))?)?;
+        let number=u32::try_from(fixture["number"].as_u64().ok_or("snapshot fixture number absent")?)?;
+        let comment=fixture["comment"].as_str().ok_or("snapshot fixture comment absent")?.to_owned();
+        let query=Read::AutomationInputs{repository:grant.repository.id.clone(),number,comments:vec![comment.clone()],target_ref:format!("refs/heads/{}",grant.repository.default_branch)};
+        let observed=client.product_read(&grant.repository.id,&query).await.map_err(|e|e.code)?;
+        let input=&observed["inputs"];
+        ensure(input["issue"]["id"]==fixture["id"]&&input["issue"]["version"]==0&&input["issue"]["title_occurrence"]=="original"&&input["issue"]["lifecycle_occurrence"]=="original"&&input["issue"]["body"]=="Preserve this exact admitted objective.\n","native snapshot changed original creation/body/version")?;
+        ensure(input["comments"][0]["id"]==comment&&input["comments"][0]["body"]=="Selected native context.\n"&&input["comments"][0]["version"]==0,"native selected comment changed exact text/version")?;
+        ensure(input["dependencies"].as_array().is_some_and(|edges|edges.len()==1)&&input["dependencies"][0]["depends_on"]==fixture["dependency"]&&input["dependencies"][0]["number"]==fixture["dependency_number"],"native dependency occurrence lost its scoped target locator")?;
+        let permission=client.product_read(&grant.repository.id,&Read::IssueCreatorPermission{repository:grant.repository.id.clone(),number,creator:grant.actor.id.clone()}).await.map_err(|e|e.code)?;
+        ensure(permission["capabilities"]["issue_id"]==fixture["id"]&&permission["capabilities"]["write"]==true,"native creator permission was not currently verified")?;
+        product_read(format!("/api/repositories/{repository}/factory/issues/{number}/acceptance-preview?comment_id={comment}")).await?;
+        ensure(client.product_read(&grant.repository.id,&Read::IssueCreatorPermission{repository:grant.repository.id.clone(),number,creator:"999999".into()}).await.is_err(),"another creator was admitted to native intake")?;
+        println!("PASS: actual enrolled public native snapshots and shared Go acceptance preview bind first-created issue history, exact selected comment/version, dependency occurrence/locator, target ref and current creator permission; another creator is refused, no inference or dispatch");
+    }
     println!("PASS: actual enrolled Fountain shared Go product identity, exact canonical repository, two native authenticated issue pages, detail and comments; read enrollment grants no provider writes or execution");
     // Use the host's current code-read enrollment, not a declared local source
     // or a private appliance callback. Setup/funding remain explicit fixtures.

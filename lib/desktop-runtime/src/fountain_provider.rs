@@ -13,6 +13,7 @@ mod enrollment;
 mod operation;
 mod execution;
 mod source;
+mod snapshot;
 mod product;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
