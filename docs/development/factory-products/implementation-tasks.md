@@ -1166,6 +1166,17 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q16 — GitHub automatic own-issue intake
 
+**Current implementation (2026-11-10):** actual installed release/completion
+now has Q26's exact post-merge receipts; no full Q16 closure follows from it.
+The idle poller currently repeats successful empty reads every10 seconds and
+the installed account again hits its real quota. A successful complete empty
+page now schedules the next per-repository poll after one minute, bound to the
+original durable cursor/current policy revision. New runtime/policy, backlog,
+incomplete provenance and I/O failure retain their existing recovery behavior;
+disabled policies issue no intake read. Go checks pass. Next: install and prove
+cadence/current-policy invalidation without inference or sends, then finish the
+connected pagination/withdrawal/provenance/duplicate and full intake journey.
+
 Outstanding. Polling/provenance/cursor and withdrawal work is independent of Q15’s Retry decision. Full own-issue delivery still needs working admitted GitHub delivery phases and real paid/host evidence.
 
 ```text
@@ -2202,34 +2213,51 @@ same-owner reconnect. Work detail confirms delivery and distinct candidate/resul
 (`q25-package/current46-merged-detail.png`). No merge or model replay. Dependency
 run42797841128 passes UI/native/full Go+real PG; actual scheduled main run42789329677
 also closes source-job activation only. Normal GUI Quit joins app/backend/PG.
-Both original profiles and all source-copy file hashes remain unchanged. The copy is stopped at
-`/home/factory/q28-format102`; two KVM recipients remain, no paid/native send is
-running or uncertain beyond the preserved old branch. Exact prior installed102
+Both original profiles and all source-copy file hashes remain unchanged. Current48
+is running at `/home/factory/q28-format102`; two KVM recipients remain, no paid/native
+send is running or uncertain beyond the preserved old branch. Exact prior installed102
 backend refusal against103 passes with every table/marker unchanged and copied
 PG joined (`prior102-installed-result.log`).
 
-Next executable action: package/install the positive empty-inventory token fix,
-then reopen the stopped installed copy and verify its completion transition.
-Current47/af060d4252df033026e7ed853319f60489d54742 is installed (inventory
+Current47/af060d4252df033026e7ed853319f60489d54742 was installed (inventory
 41a6d09c33d2b668a0235468979135af2741259a9c3ed6ffa37dc3f6b0759c0b,
 archive3d444c4ef3bc680c6fb07141a926e0941390f4757a88a4952ca3e32f4d95921b).
 Its actual authenticated merged-source capture seals and open-issue inventory
 is complete/empty (`completion-native47.log`), without stored-history changes.
-The remaining collection failure is revision0 from folding that empty set;0 is
-the store's missing-evidence sentinel. Map only the observation token to1 and
-keep the full digest binding. After all19 runs were proved settled, controlled
+The collection failure was revision0 from folding that empty set;0 is
+the store's missing-evidence sentinel. Commit9314cc9e7523fde376fd06eef829de522bc7ac5e
+maps only that token to1 and keeps the full digest. After all19 runs were proved settled, controlled
 backend SIGQUIT confirmed actual failed status and GUI Quit joined PG
-(`current47-failed.png`, `current47-crash-check.log`). The copy is stopped.
+(`current47-failed.png`, `current47-crash-check.log`).
 Actual read-only capture exposed a missing run view for non-executing retained
-owners and lost singleton Parent task flags. Owned Go material/projection edits
+owners and lost singleton Parent task flags. The verified material/projection fixes
 now seal resultcc3b81e9, preserve original runs and reject five altered references
 (`q28-format102/completion-local47.log`). No historical row or authority changes.
+Current48/9314cc9e7523fde376fd06eef829de522bc7ac5e (inventory
+6147221b030db64abed495574c5461ece21925ab00a5b874e2f7af7df6a0f75c,
+archive8fa0194d6556bcb72a8dccb850466a8e4b49353e233ddb489fcae407392402ec)
+seals the actual empty inventory. Under standing permission the actual installed
+source form raises120→150/revision4→5, preserving old charges. First paid opinion
+continue/0.92 remains held on its old funding snapshot; explicit UI successor
+d7825e1f57f64d318e9b254f9d7bd881 retains it and releases after a fresh current-snapshot
+continue/0.95. The UI agrees (`current48-completion-released-final.png`). Exact
+ledger `current48-completion-ledger.json` SHA256
+86b5a115d20cc6e78baa6e280ab956ab3651fa4d86371d48efe70cc5352462fd retains both
+native captures/answers, the retry,19 runs/69 judgments/123 minutes and original
+unknown command3ddb87ba. Source-copy files still match their original hashes.
+Owned duplicate staging copies44–47 match retained host archives with no extra
+paths and were removed to recover guest space; installed releases/profiles remain.
+
+Next executable action: package/install the idle-intake cadence change and verify
+its retained cursor/quiet interval, then prepare both roles on the actual merged
+result. No preparation was sent during the confirmed provider hold until
+reset1794309800/11:23:20UTC (`current48-provider-read-status.log`).
 Continue independent Fountain/intake work;
 full correction/paid-delivery judgment, external adoption, active-worker upgrades,
 installed Fountain/appliance parity and Q30 security/release gates remain open.
 Q24 still has no replacement appliance. The completion material/store projection,
 README and source-job facts are committed asaf060d4252df033026e7ed853319f60489d54742.
-Owned paths: Go completion observation token, this task record and decision log.
+Owned paths: idle creation scheduling/coordinator metadata, this task record and decision log.
 Affected Go builds and existing disposable PG completion/
 source/publication checks pass (`retained103/completion47-pg-checks.log`). Current46 native TLS check compiled but
 was not executed. No provider/model check or new uncertain effect is running.

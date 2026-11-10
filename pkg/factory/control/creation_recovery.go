@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/store"
@@ -16,6 +17,15 @@ type CreationRecoverySource interface {
 }
 
 const creationRecoveryPageSize = 16
+
+const idleCreationPollSeconds = 60
+
+// This is scheduling metadata, never a history cursor or admission. A new
+// policy or runtime owner polls immediately; restart still resumes the durable
+// original-creation cursor. Unix time also includes time spent suspended.
+type creationIdlePoll struct {
+	position, policyRevision, notBefore int64
+}
 
 var ErrCreationProvenanceIncomplete = errors.New("retained native creation provenance is incomplete")
 
@@ -33,6 +43,21 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	after, err := c.Store.CreationRecoveryCursor(ctx, repository)
 	if err != nil {
 		return err
+	}
+	policy, err := c.Store.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return err
+	}
+	if !policy.Enabled {
+		delete(c.creationIdlePolls, repository)
+		return nil
+	}
+	now := time.Now().Unix()
+	if poll, ok := c.creationIdlePolls[repository]; ok {
+		if poll.position == after && poll.policyRevision == policy.Revision && poll.notBefore > now && poll.notBefore <= now+idleCreationPollSeconds {
+			return nil
+		}
+		delete(c.creationIdlePolls, repository)
 	}
 	if !readinessBudgetFrom(ctx).reserveNativeRPC(1) {
 		return ErrReadinessPassPending
@@ -58,6 +83,14 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	}
 	if !page.ProvenanceComplete {
 		return ErrCreationProvenanceIncomplete
+	}
+	// Only a successful, complete idle scan waits. Backlog pages, unresolved
+	// provenance and failed I/O keep their existing bounded recovery behavior.
+	if page.ReachedRetainedEnd && len(page.Events) == 0 {
+		if c.creationIdlePolls == nil {
+			c.creationIdlePolls = make(map[int64]creationIdlePoll)
+		}
+		c.creationIdlePolls[repository] = creationIdlePoll{position: checkpoint, policyRevision: policy.Revision, notBefore: time.Now().Unix() + idleCreationPollSeconds}
 	}
 	return nil
 }

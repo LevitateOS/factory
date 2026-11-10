@@ -1,5 +1,34 @@
 # Factory untangling decisions
 
+Idle intake scheduling (2026-11-10): the actual installed account exhausts its
+read quota again after release, despite no live delivery. The existing creator
+poller repeats a complete successful empty scan every10 seconds. Keep a per-repo
+one-minute idle deadline under the existing coordinator gate; bind it to the
+durable cursor and policy revision, and use Unix time for suspend/wake. It is
+not authority or retained history. Backlog, incomplete provenance and failed I/O
+retain immediate bounded recovery; disabled policies send no intake read. A new
+policy or runtime owner bypasses old scheduling metadata and still uses the
+original durable cursor. Go compilation passes; installed cadence is next.
+
+Installed empty completion follow-through (2026-11-10): current48/9314cc9e7523fde376fd06eef829de522bc7ac5e
+uses inventory6147221b030db64abed495574c5461ece21925ab00a5b874e2f7af7df6a0f75c,
+archive8fa0194d6556bcb72a8dccb850466a8e4b49353e233ddb489fcae407392402ec.
+Actual empty inventory seals with token1. Under the owner's standing permission,
+the installed source form explicitly increases the same allowance120→150,
+revision4→5, preserving121 charged minutes. The first actual Muse opinion is
+retained and release refuses its old sealed funding material; explicit UI command
+d7825e1f57f64d318e9b254f9d7bd881 supersedes cycle31d4fc0ea50dd7624cb24a6a4c5f9798.
+Its fresh current-snapshot opinion chooses continue/0.95 and releases; the old
+continue/0.92 answer stays superseded. The UI and native ledger agree. All19 runs,
+69 judgments/123 minutes, exact original unknown branch and source-copy hashes
+remain preserved. `current48-completion-ledger.json` SHA256
+86b5a115d20cc6e78baa6e280ab956ab3651fa4d86371d48efe70cc5352462fd retains both
+captures/answers and the explicit successor. This is post-completion judgment,
+not full pre-merge delivery-opinion/correction qualification. Next merged-source
+preparation was not sent: provider quota reset1794309800/11:23:20UTC currently
+holds reads. Current48 owner confirms that hold in8–9ms. Continue independent
+intake implementation rather than repeat old effects or stall the queue.
+
 Empty connected completion inventory (2026-11-10): current47/af060d4252df033026e7ed853319f60489d54742
 is installed from inventory41a6d09c33d2b668a0235468979135af2741259a9c3ed6ffa37dc3f6b0759c0b,
 archive3d444c4ef3bc680c6fb07141a926e0941390f4757a88a4952ca3e32f4d95921b.
