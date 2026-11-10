@@ -1,5 +1,22 @@
 # Factory untangling decisions
 
+Ordinary published merge preparation (2026-11-10): current54/e05efc54d2bbc22d358cb780d5c1210acf66227e
+automatically consumes the saved reviewer and commits COMMENT5842988198 once
+(review-cb275dee75337b93eb46fc0897391190, exact head54b82ef2/basecc3b81e9).
+No inference replay or fresh approval follows restart. Its ordinary merge row
+17d796207dfc32c91a73f3d0125ae886 remains pristine under the old setup. Existing
+fresh-merge recovery only accepts explicitly retained/re-published candidates;
+extend the same command/journal/receipt owner to ordinary published roots.
+Capture current approved setup in new offers, recheck it transactionally and
+archive the prior row unchanged. Historical finished commands still replay
+their exact prior receipts; old unlaunched offers without the capture refuse.
+No old operation, funding or inference deadline renews. Existing real PostgreSQL
+ordinary/separate-source review case proves setup-race refusal, fresh merge
+identity, exact replay and unchanged allowance; retained merge/no-send cases
+remain passing (`intake49-fixture/merge55{,-capture}-pg.log`). Go compilation,
+typecheck and Lit checks pass. Next: install current55 and qualify this command
+through the actual UI and provider merge/closure receipts. Q16/Q26 remain open.
+
 Review send authority after restart (2026-11-10): installed current53 from
 04298499cc0a58d93cec91aa89b2f53c6ceb252d resumes original review cycle d1bf0bf2
 once. Reviewercb275dee75337b93eb46fc0897391190 settles succeeded with a typed

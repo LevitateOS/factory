@@ -207,6 +207,8 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
   return value as RetainedCandidateFunding;
 }
 export interface MergePreparation {
+	requirements_id?: string;
+	approval_id?: string;
   retry_no_send?: true;
   publication: string;
   merge_id: string;
@@ -218,8 +220,10 @@ export interface MergePreparation {
 export function mergePreparation(value: unknown): MergePreparation | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const r = value as Record<string, unknown>;
+  const setup = r.requirements_id !== undefined || r.approval_id !== undefined;
   if (
-    Object.keys(r).length !== 6 + (r.retry_no_send === undefined ? 0 : 1) ||
+    Object.keys(r).length !== 6 + (r.retry_no_send === undefined ? 0 : 1) + (setup ? 2 : 0) ||
+    (setup && !['requirements_id', 'approval_id'].every(k => typeof r[k] === 'string' && /^d[a-f0-9]{24}$/.test(r[k] as string))) ||
     (r.retry_no_send !== undefined && r.retry_no_send !== true) ||
     !['publication', 'merge_id'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) ||
     !['head', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||

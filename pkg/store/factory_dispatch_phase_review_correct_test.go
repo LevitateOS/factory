@@ -539,6 +539,50 @@ func TestReviewChildAdmitsThroughReviewGuard(t *testing.T) {
 	if after.Authority != stored.Authority || after.Authority.ApprovalID == child.Authority.ApprovalID || len(after.ReviewOperations) != 1 || !reflect.DeepEqual(after.ReviewOperations[0].Work, op.Work) {
 		t.Fatal("review changed the original publication authority or work")
 	}
+	allowanceBefore, err := db.AttemptAllowance(ctx, owner.Repository, owner.Issue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := mergeTestRecord()
+	m.PublicationID, m.AssignmentID, m.Authority = after.ID, owner.ID, after.Authority
+	m.ProjectID, m.Repository, m.Issue, m.Acceptance = after.ProjectID, after.Repository, after.Issue, after.Acceptance
+	m.HeadRef, m.BaseRef, m.HeadOID, m.BaseOID = after.PRCreate.HeadRef, after.PRCreate.BaseRef, after.Candidate, after.PRCreate.BaseOID
+	m.PRNumber, m.PRID, m.IssueID, m.PRAuthorID, m.ReviewerID = after.PRNumber, after.PRID, after.PRCreate.IssueID, after.PRCreate.Work.ActorID, policy.Review.ActorID
+	if err := db.RecordMerge(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	offer, err := db.UnsentMergePreparation(ctx, after.ID)
+	if err != nil || offer.ApprovalID != child.Authority.ApprovalID || offer.RequirementsID != child.Authority.RequirementsID {
+		t.Fatalf("ordinary merge offer did not capture current setup: %+v %v", offer, err)
+	}
+	approval.Predecessor, approval.ID = approval.ID, "d"+strings.Repeat("8", 24)
+	if err := db.AdmitApprovalDecision(ctx, approval); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.PrepareUnsentMerge(ctx, factory.NewID(), "owner", offer, now); !errors.Is(err, ErrStaleRevision) {
+		t.Fatalf("changed setup admitted stale merge offer: %v", err)
+	}
+	offer, err = db.UnsentMergePreparation(ctx, after.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := factory.NewID()
+	receipt, err := db.PrepareUnsentMerge(ctx, command, "owner", offer, now)
+	if err != nil {
+		t.Fatalf("ordinary merge preparation: %v", err)
+	}
+	replay, err := db.PrepareUnsentMerge(ctx, command, "owner", offer, now.Add(time.Hour))
+	if err != nil || replay != receipt {
+		t.Fatalf("ordinary merge command replay: %+v %v", replay, err)
+	}
+	prepared, err := db.MergeByPublication(ctx, after.ID)
+	if err != nil || prepared.ID != command || prepared.Authority.ApprovalID != approval.ID || prepared.Operation.Attempts != 0 || prepared.Operation.OperationID != "" {
+		t.Fatalf("ordinary merge preparation renewed old work: %+v %v", prepared, err)
+	}
+	allowanceAfter, err := db.AttemptAllowance(ctx, owner.Repository, owner.Issue)
+	if err != nil || !reflect.DeepEqual(allowanceBefore, allowanceAfter) {
+		t.Fatal("merge preparation changed inference accounting", err)
+	}
 }
 
 func TestCorrectChildAdmitsThroughCorrectGuard(t *testing.T) {

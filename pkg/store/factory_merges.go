@@ -567,7 +567,7 @@ func (s *Store) UnsentMergePreparation(ctx context.Context, publication string) 
 		return factory.MergePreparation{}, err
 	}
 	defer tx.Rollback()
-	p, a, g, err := retainedFundingScopeTx(ctx, tx, publication)
+	p, a, g, err := mergePreparationScopeTx(ctx, tx, publication)
 	if err != nil {
 		return factory.MergePreparation{}, err
 	}
@@ -578,7 +578,72 @@ func (s *Store) UnsentMergePreparation(ctx context.Context, publication string) 
 	if err = admitUnsentMergePreparationTx(ctx, tx, p, a, g, m); err != nil {
 		return factory.MergePreparation{}, err
 	}
-	return factory.MergePreparation{RetryNoSend: mergeNoSendRecovery(m), Publication: p.ID, MergeID: m.ID, Revision: m.Revision, Policy: g.policy.Revision, Head: m.HeadOID, Base: m.BaseOID}, nil
+	return factory.MergePreparation{RetryNoSend: mergeNoSendRecovery(m), Publication: p.ID, MergeID: m.ID, Revision: m.Revision, Policy: g.policy.Revision, Head: m.HeadOID, Base: m.BaseOID,
+		RequirementsID: a.Authority.RequirementsID, ApprovalID: a.Authority.ApprovalID}, nil
+}
+
+// Merge-only recovery also belongs to ordinary published attempts. The fresh
+// command captures current standing setup; neither the assignment nor its
+// publication, old authorization or inference allowance is rewritten.
+func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory.Publication, factory.Assignment, admissionGrants, error) {
+	var p factory.Publication
+	var a factory.Assignment
+	var g admissionGrants
+	fail := func(err error) (factory.Publication, factory.Assignment, admissionGrants, error) { return p, a, g, err }
+	if !factory.ValidID(id) {
+		return fail(ErrMergeConflict)
+	}
+	var raw []byte
+	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1`, id).Scan(&raw); err != nil {
+		return fail(err)
+	}
+	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.ID != id {
+		return fail(ErrMergeConflict)
+	}
+	if p.ID == p.AssignmentID {
+		return retainedFundingScopeTx(ctx, tx, id)
+	}
+	if err := checkDispatchOpenTx(ctx, tx, p.Repository); err != nil {
+		return fail(err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE assignment=$1 FOR UPDATE`, p.AssignmentID).Scan(&raw); err != nil {
+		return fail(err)
+	}
+	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.ID != id || p.Stage != factory.PublicationPublished || p.WithdrawRequested {
+		return fail(ErrMergeConflict)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1 FOR UPDATE`, p.AssignmentID).Scan(&raw); err != nil {
+		return fail(err)
+	}
+	if json.Unmarshal(raw, &a) != nil || a.Validate() != nil || a.RetainedPublication != nil || a.ID != a.AttemptRoot || a.PublicationAssignment != a.ID || a.Role != p.Role || a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || a.ProjectID != p.ProjectID || a.Repository != p.Repository || a.Issue != p.Issue || a.Acceptance != p.Acceptance {
+		return fail(ErrMergeConflict)
+	}
+	owner, err := currentAttemptOwnerTx(ctx, tx, p.Repository, p.Issue, a.AttemptRoot)
+	if err != nil || owner != a.ID {
+		return fail(ErrMergeConflict)
+	}
+	var accepted bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM issue_acceptance_heads WHERE repository=$1 AND issue=$2 AND decision=$3) AND NOT EXISTS(SELECT 1 FROM issue_acceptance_withdrawals WHERE repository=$1 AND issue=$2 AND decision=$3)`, p.Repository, p.Issue, p.Acceptance).Scan(&accepted); err != nil {
+		return fail(err)
+	}
+	if !accepted {
+		return fail(ErrAdmissionChanged)
+	}
+	g, err = loadAdmissionGrantsTx(ctx, tx, p.Repository, a.Connection)
+	if err != nil {
+		return fail(err)
+	}
+	a.Authority = retainedMergeAuthority(a, g)
+	if err = tx.QueryRowContext(ctx, `SELECT decision FROM project_requirement_heads WHERE project_id=$1 FOR UPDATE`, a.ProjectID).Scan(&a.Authority.RequirementsID); err != nil {
+		return fail(err)
+	}
+	if err = tx.QueryRowContext(ctx, `SELECT decision FROM project_approval_heads WHERE project_id=$1 FOR UPDATE`, a.ProjectID).Scan(&a.Authority.ApprovalID); err != nil {
+		return fail(err)
+	}
+	if err = checkAssignmentStandingAuthorityTx(ctx, tx, a.Authority, a, g); err != nil {
+		return fail(err)
+	}
+	return p, a, g, nil
 }
 
 func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment, g admissionGrants, m factory.Merge) error {
@@ -650,7 +715,7 @@ func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal strin
 		}
 		return c.Receipt, nil
 	}
-	p, a, g, err := retainedFundingScopeTx(ctx, tx, r.Publication)
+	p, a, g, err := mergePreparationScopeTx(ctx, tx, r.Publication)
 	if err != nil {
 		return empty, err
 	}
@@ -659,6 +724,9 @@ func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal strin
 		return empty, err
 	}
 	if m.ID != r.MergeID || m.Revision != r.Revision || m.HeadOID != r.Head || m.BaseOID != r.Base || g.policy.Revision != r.Policy {
+		return empty, ErrStaleRevision
+	}
+	if r.RequirementsID != a.Authority.RequirementsID || r.ApprovalID != a.Authority.ApprovalID {
 		return empty, ErrStaleRevision
 	}
 	if r.RetryNoSend != mergeNoSendRecovery(m) {

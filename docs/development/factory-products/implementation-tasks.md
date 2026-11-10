@@ -1260,8 +1260,23 @@ the original Builder's setup head. Use the completed reviewer's exact captured
 setup/source for this new operation; never rewrite old publication authority.
 Existing PostgreSQL separate-reviewer-source/fresh-approval/withdrawal and
 publication/correction/lineage/journal checks pass (`intake49-fixture/review54-pg.log`).
-Next: install current54, preserve this current approval, and resume the saved
-review without another model/Retry. Full merge/journey remains incomplete.
+Current54/e05efc54d2bbc22d358cb780d5c1210acf66227e installs with inventory
+83ab3a59f8a07b47cc4759ab167833be74a5feac271dd48311dd65c514b7322e,
+archive1ceecd2afd054164777121d0b52174f01eeca08083d931c3261a0ca90398de2d.
+Normal current53 Quit joins app/backend/PG with24/86/150 preserved. After actual
+account/repository reconnect, the installed owner automatically consumes the
+same saved review: review-cb275dee75337b93eb46fc0897391190 causally commits
+GitHub COMMENT5842988198 at13:55:33UTC, exact54b82ef2/basecc3b81e9/cycled1bf0bf2.
+No new inference, setup approval or Retry. Ordinary merge17d796207dfc32c91a73f3d0125ae886
+is pristine under its earlier setup. Fresh merge preparation currently only
+supports explicitly retained publications; extend that same command to ordinary
+published attempts. New offers capture current approved setup and refuse a
+changed head before transactional admission; prior row, effects and allowance
+remain unchanged. Existing ordinary/retained PostgreSQL cases, setup race,
+withdrawal, command replay and no-send checks pass (`intake49-fixture/merge55-pg.log`,
+`merge55-capture-pg.log`); Go/typecheck/Lit pass. Next: install current55 and use
+the actual fresh merge control, then qualify current provider rules and causal
+merge/issue-closure receipts. Full merge/journey remains incomplete.
 Existing real PostgreSQL allowance, publication,
 review/correction and merge checks pass (`intake49-fixture/idle53-pg.log`), as does
 the existing candidate-owner/read-failure check (`idle53-owner-pg.log`); affected

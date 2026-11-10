@@ -373,18 +373,23 @@ const CommandPrepareMerge = "prepare-unsent-merge"
 // MergePreparation is a new explicit command for a definitively undriven row.
 // It never renews an existing operation or funds inference.
 type MergePreparation struct {
-	RetryNoSend bool   `json:"retry_no_send,omitempty"`
-	Publication string `json:"publication"`
-	MergeID     string `json:"merge_id"`
-	Revision    int64  `json:"revision"`
-	Policy      int64  `json:"policy"`
-	Head        string `json:"head"`
-	Base        string `json:"base"`
+	RequirementsID string `json:"requirements_id,omitempty"`
+	ApprovalID     string `json:"approval_id,omitempty"`
+	RetryNoSend    bool   `json:"retry_no_send,omitempty"`
+	Publication    string `json:"publication"`
+	MergeID        string `json:"merge_id"`
+	Revision       int64  `json:"revision"`
+	Policy         int64  `json:"policy"`
+	Head           string `json:"head"`
+	Base           string `json:"base"`
 }
 
 func (r MergePreparation) Validate() error {
 	if !ValidID(r.Publication) || !ValidID(r.MergeID) || r.Revision < 0 || r.Policy < 1 || !ValidCommit(r.Head) || !ValidCommit(r.Base) {
 		return errors.New("invalid unsent merge preparation")
+	}
+	if (r.RequirementsID != "" || r.ApprovalID != "") && (!project.ValidDecisionID(r.RequirementsID) || !project.ValidDecisionID(r.ApprovalID)) {
+		return errors.New("invalid unsent merge setup capture")
 	}
 	return nil
 }

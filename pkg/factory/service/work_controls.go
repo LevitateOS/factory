@@ -147,13 +147,22 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 	}
 	capabilities := workCapabilitiesDTO(in)
 	mutating, _ := workCapabilityGates(in)
-	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil && attempt.RetainedPublication != nil {
-		preparation, err := s.Store.UnsentMergePreparation(ctx, attempt.ID)
+	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil {
+		publication, err := s.Store.PublicationByAssignment(ctx, attempt.PublicationAssignment)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return empty, err
+		}
+		var preparation factory.MergePreparation
+		if err == nil {
+			preparation, err = s.Store.UnsentMergePreparation(ctx, publication.ID)
+		}
 		if err == nil {
 			capabilities.PrepareMerge = &WorkMergePreparationCapability{WorkCapability: WorkCapability{Available: true}, Preparation: preparation}
 		} else if !errors.Is(err, store.ErrRetainedPublicationIneligible) && !errors.Is(err, store.ErrMergeConflict) && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrAdmissionChanged) && !errors.Is(err, store.ErrAttemptRunsPending) && !errors.Is(err, factory.ErrAttemptClosed) {
 			return empty, err
 		}
+	}
+	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil && attempt.RetainedPublication != nil {
 		funding, err := s.Store.RetainedCandidateFundingOffer(ctx, attempt.ID)
 		if err == nil {
 			capabilities.FundRetained = &WorkFundingCapability{WorkCapability: WorkCapability{Available: true}, Funding: funding}
