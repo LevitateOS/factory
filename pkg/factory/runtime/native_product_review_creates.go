@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -12,6 +13,10 @@ import (
 )
 
 type nativeReviewCreateWrite struct {
+	nativePublicationAuthority
+	AuthorID         string `json:"author_id,omitempty"`
+	HeadRef          string `json:"head_ref,omitempty"`
+	BaseRef          string `json:"base_ref,omitempty"`
 	Repository       string `json:"repository"`
 	RepositoryNodeID string `json:"repository_node_id"`
 	PullID           string `json:"pull_id"`
@@ -36,6 +41,7 @@ type nativeReviewCreateEffect struct {
 	Review    nativeReviewCreateWrite `json:"review"`
 }
 type nativeReviewCreateReceipt struct {
+	HostOperation    *nativeHostOperation        `json:"host_operation,omitempty"`
 	Base             string                      `json:"base,omitempty"`
 	DiffBase         string                      `json:"diff_base,omitempty"`
 	Account          collaboration.ObservedActor `json:"account"`
@@ -63,6 +69,10 @@ type nativeReviewCreateReceipt struct {
 	ProviderResponse nativeCreationResponse `json:"provider_response"`
 }
 type nativeReviewPreparationFacts struct {
+	AuthorID            string                       `json:"author_id,omitempty"`
+	HeadRef             string                       `json:"head_ref,omitempty"`
+	BaseRef             string                       `json:"base_ref,omitempty"`
+	BaseTip             string                       `json:"base_tip,omitempty"`
 	ViewerIsAuthor      *bool                        `json:"viewer_is_author"`
 	PendingSHA256       *string                      `json:"pending_sha256"`
 	CommentsSnapshot    *nativeReviewCommentSnapshot `json:"comments_snapshot"`
@@ -126,6 +136,15 @@ func (s nativeHumanNewReviews) PrepareHumanReview(ctx context.Context, q factory
 		return empty, err
 	}
 	p := nativeReviewCreatePreparation{Version: 1, Account: s.identity.Account.ExternalID, NotAfter: time.Now().Add(5 * time.Minute).Unix(), Review: nativeReviewCreateWrite{Repository: observed.Repository, RepositoryNodeID: observed.RepositoryNodeID, PullID: observed.Pull.ExternalID, PullNodeID: observed.Pull.NodeID, Number: uint64(q.Number), Head: observed.Pull.Head, Event: string(q.Event), Body: q.Body}}
+	if err := p.Review.captureController(s.nativeProductAccount, &p.NotAfter); err != nil {
+		return empty, err
+	}
+	if s.binding.Host.Provider == collaboration.Fountain {
+		if q.Event != factory.HumanReviewComment || !nativeRemoteID(observed.AuthorID) || !collaboration.ValidCommitID(collaboration.CommitID(observed.BaseTip)) {
+			return empty, errNativeReadScope
+		}
+		p.Review.AuthorID, p.Review.HeadRef, p.Review.BaseRef, p.Review.Base = observed.AuthorID, observed.HeadRef, observed.BaseRef, observed.BaseTip
+	}
 
 	raw, err := json.Marshal(p)
 	if err != nil {
@@ -152,6 +171,9 @@ func (s nativeHumanNewReviews) decode(ctx context.Context, c factory.HumanReview
 
 	if c.Request.ExpectedHead != "" && string(c.Request.ExpectedHead) != p.Review.Head {
 		return p, factoryservice.ErrHumanReviewConflict
+	}
+	if !p.Review.controllerMatches(s.nativeProductAccount) {
+		return p, errNativeReadScope
 	}
 	return p, nil
 }
@@ -190,8 +212,12 @@ func (s *nativeProductAccount) humanReviewLookup(ctx context.Context, c factory.
 }
 func validateNativeReviewCreateReceipt(c factory.HumanReviewCapture, p nativeReviewCreatePreparation, raw json.RawMessage) (nativeReviewCreateReceipt, error) {
 	var r nativeReviewCreateReceipt
+	condition, pending, protocol := "preflight_and_causal_reply", "not_observed_before_send", "github_graphql_create_review"
+	if p.Review.ControllerGrantID != "" {
+		condition, pending, protocol = "atomic_head_base", "atomically_refused", "fountain_native_operation"
+	}
 	state := map[factory.HumanReviewEvent]string{factory.HumanReviewDraft: "pending", factory.HumanReviewComment: "commented", factory.HumanReviewApprove: "approved", factory.HumanReviewRequestChanges: "changes_requested"}[c.Request.Event]
-	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Review.Repository || r.RepositoryNodeID != p.Review.RepositoryNodeID || r.PullID != p.Review.PullID || r.PullNodeID != p.Review.PullNodeID || r.Number != p.Review.Number || r.Head != p.Review.Head || r.Event != p.Review.Event || r.HeadCondition != "preflight_and_causal_reply" || r.ExistingPending != "not_observed_before_send" || !nativeRemoteID(r.Review.ExternalID) || !nativeReviewNode(r.Review.NodeID, 1024) || r.Review.State != state || r.Review.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || r.Review.Commit != p.Review.Head || r.Review.CommentsCount == nil || *r.Review.CommentsCount != 0 || !nativeReviewNode(r.Review.AuthorNodeID, 1024) || (c.Request.Event == factory.HumanReviewDraft) != (r.Review.SubmittedAt == nil) || r.ProviderResponse.Protocol != "github_graphql_create_review" || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) {
+	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Review.Repository || r.RepositoryNodeID != p.Review.RepositoryNodeID || r.PullID != p.Review.PullID || r.PullNodeID != p.Review.PullNodeID || r.Number != p.Review.Number || r.Head != p.Review.Head || r.Event != p.Review.Event || r.HeadCondition != condition || r.ExistingPending != pending || !nativeRemoteID(r.Review.ExternalID) || !nativeReviewNode(r.Review.NodeID, 1024) || r.Review.State != state || r.Review.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || r.Review.Commit != p.Review.Head || r.Review.CommentsCount == nil || *r.Review.CommentsCount != 0 || !nativeReviewNode(r.Review.AuthorNodeID, 1024) || p.Review.ControllerGrantID == "" && (c.Request.Event == factory.HumanReviewDraft) != (r.Review.SubmittedAt == nil) || r.ProviderResponse.Protocol != protocol || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) {
 		return r, factoryservice.ErrHumanReviewConflict
 	}
 	if r.Base != p.Review.Base || p.Review.Base != "" && !collaboration.ValidCommitID(collaboration.CommitID(p.Review.Base)) {
@@ -199,6 +225,29 @@ func validateNativeReviewCreateReceipt(c factory.HumanReviewCapture, p nativeRev
 	}
 	if r.DiffBase != "" && (p.Review.Base == "" || !collaboration.ValidCommitID(collaboration.CommitID(r.DiffBase))) {
 		return r, factoryservice.ErrHumanReviewConflict
+	}
+	if p.Review.ControllerGrantID == "" {
+		if r.HostOperation != nil {
+			return r, errNativeRead
+		}
+	} else {
+		var h struct {
+			ReviewID   int64             `json:"review_id"`
+			CommentID  int64             `json:"comment_id"`
+			ReviewerID int64             `json:"reviewer_id"`
+			PRID       int64             `json:"pr_id"`
+			IssueID    int64             `json:"issue_id"`
+			Number     uint64            `json:"pr_number"`
+			Commit     string            `json:"commit_id"`
+			Event      string            `json:"event"`
+			Head       string            `json:"head_oid"`
+			Base       string            `json:"base_oid"`
+			Comments   []json.RawMessage `json:"comments,omitempty"`
+			MergeBase  string            `json:"merge_base_oid,omitempty"`
+		}
+		if !r.HostOperation.matches(p.Review.ControllerGrantID, c.OperationID) || nativeDecode(r.HostOperation.Receipt, &h) != nil || c.Request.Event != factory.HumanReviewComment || h.Event != "COMMENT" || strconv.FormatInt(h.ReviewID, 10) != r.Review.ExternalID || h.CommentID <= 0 || h.IssueID <= 0 || strconv.FormatInt(h.PRID, 10) != p.Review.PullID || h.Number != p.Review.Number || strconv.FormatInt(h.ReviewerID, 10) != p.Account || h.Commit != p.Review.Head || h.Head != p.Review.Head || h.Base != p.Review.Base || h.MergeBase != r.DiffBase || !collaboration.ValidCommitID(collaboration.CommitID(h.MergeBase)) || len(h.Comments) != 0 || r.Review.AuthorNodeID != "fountain:actor:"+p.Account || r.Review.SubmittedAt != nil || r.Review.CreatedAt != nil || r.Review.UpdatedAt != nil {
+			return r, errNativeRead
+		}
 	}
 	if r.ProviderResponse.RequestID != nil && !nativeObservedText(*r.ProviderResponse.RequestID, 256, false) {
 		return r, factoryservice.ErrHumanReviewConflict
@@ -214,6 +263,9 @@ func (s nativeHumanNewReviews) SubmitHumanReview(ctx context.Context, c factory.
 	}
 	if time.Now().Unix() >= p.NotAfter {
 		return empty, factoryservice.ErrHumanReviewAdmission
+	}
+	if err := p.Review.admitController(ctx, s.nativeProductAccount, factory.OpReviewSubmit); err != nil {
+		return empty, err
 	}
 	won, err := s.store.ReserveHumanReviewDispatch(ctx, c)
 	if err != nil {

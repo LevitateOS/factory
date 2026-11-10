@@ -20,7 +20,7 @@ pub(super) fn text<'a>(value: &'a Value, key: &str, bound: usize) -> Result<&'a 
         .filter(|s| s.len() <= bound && !s.contains('\0'))
         .ok_or_else(invalid)
 }
-fn actor(value: &Value) -> Result<Value> {
+pub(super) fn actor(value: &Value) -> Result<Value> {
     if value.is_null() {
         return Ok(Value::Null);
     }
@@ -117,6 +117,16 @@ fn pull(value: &Value, number: Option<u32>, repository: &str) -> Result<Value> {
     Ok(record)
 }
 
+fn review(value:&Value)->Result<Value> {
+    let provider=text(value,"state",64)?;
+    let state=match provider {"PENDING"=>"pending","APPROVED"=>"approved","REQUEST_CHANGES"=>"changes_requested","COMMENT"=>"commented","REQUEST_REVIEW"=>"unknown",_=>return Err(invalid())};
+    let state=if value["dismissed"]==true && matches!(state,"approved"|"changes_requested"){"dismissed"}else{state};
+    let commit=text(value,"commit_id",64)?;
+    if !commit.is_empty() && !super::hex(commit,40) {return Err(invalid());}
+    Ok(json!({"external_id":id(&value["id"])?,"author":actor(&value["user"])?,"body":text(value,"body",128*1024)?,"state":state,"provider_state":provider,
+        "commit":if commit.is_empty(){Value::Null}else{json!(commit)},"submitted_at":if provider=="PENDING" || provider=="REQUEST_REVIEW" {Value::Null}else{date(value,"submitted_at")?}}))
+}
+
 impl Client {
     pub(crate) async fn product_current(&self, repository: &str) -> Result<()> {
         let current = self.status().await?;
@@ -136,6 +146,12 @@ impl Client {
         }
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
+            Read::AutomationReview {repository:selected,number} if selected==repository => {
+                json!({"kind":"automation_review","account":account,"automation_review":self.review_facts(repository,*number,false).await?})
+            }
+            Read::PullPendingReviewSnapshot {repository:selected,number} if selected==repository => {
+                json!({"kind":"pull_pending_review_snapshot","account":account,"preparation":self.review_facts(repository,*number,true).await?})
+            }
             Read::PullBranches {repository:selected,head_repository,base_branch,head_branch} if selected==repository=>{
                 json!({"kind":"pull_branches","account":account,"branches":self.pull_branches(repository,head_repository,base_branch,head_branch).await?})
             }
@@ -283,6 +299,26 @@ impl Client {
                 let value = self.product_pull(*number, repository).await?;
                 json!({"kind":"pull","account":account,"pulls":{"repository":repository,"name":format!("{}/{}",current.repository.owner,current.repository.name),"items":[value],"next_page":0}})
             }
+            Read::PullReviews {repository:selected,number,page,limit} if selected==repository=>{
+                let before=self.product_pull(*number,repository).await?;
+                let (raw,next)=self.product_page(&["pulls",&number.to_string(),"reviews"],*page,*limit,&[]).await?;
+                let mut seen=BTreeSet::new();
+                let mut items=Vec::new();
+                for raw in raw {
+                    let item=review(&raw)?;
+                    if !seen.insert(item["external_id"].as_str().ok_or_else(invalid)?.to_owned()){return Err(invalid());}
+                    items.push(item);
+                }
+                if self.product_pull(*number,repository).await?!=before {return Err(invalid());}
+                json!({"kind":"pull_reviews","account":account,"reviews":{"repository":repository,"name":format!("{}/{}",self.owner,self.repository),"pull":{"kind":"pull","external_id":before["external_id"],"number":number},"items":items,"next_page":next}})
+            }
+            Read::PullReview {repository:selected,number,review_id} if selected==repository=>{
+                let before=self.product_pull(*number,repository).await?;
+                let (raw,_):(Value,_)=self.request_url(reqwest::Method::GET,self.product_url(&["pulls",&number.to_string(),"reviews",review_id])?,None,512*1024).await?;
+                let item=review(&raw)?;
+                if item["external_id"]!=*review_id || self.product_pull(*number,repository).await?!=before {return Err(invalid());}
+                json!({"kind":"pull_review","account":account,"reviews":{"repository":repository,"name":format!("{}/{}",self.owner,self.repository),"pull":{"kind":"pull","external_id":before["external_id"],"number":number},"items":[item],"next_page":0}})
+            }
             Read::IssueComments {
                 repository: selected,
                 number,
@@ -371,7 +407,7 @@ impl Client {
             .await?;
         issue(&value, Some(number))
     }
-    async fn product_pull(&self, number: u32, repository: &str) -> Result<Value> {
+    pub(super) async fn product_pull(&self, number: u32, repository: &str) -> Result<Value> {
         let (value, _): (Value, _) = self.request_url(
             reqwest::Method::GET, self.product_url(&["pulls", &number.to_string()])?, None, 512 * 1024,
         ).await?;

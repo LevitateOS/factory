@@ -1,7 +1,7 @@
 //! A retained candidate has one registration and one conditional Git send.
 //! Recovery reads the original host journal; it never repeats either send.
 use super::{hex, invalid, unavailable, Client, OperationGrant, OperationRecord, Result};
-use crate::github_provider::{BranchPublish, Failure as NativeFailure, PullCreate, WriteOutcome};
+use crate::github_provider::{BranchPublish, Failure as NativeFailure, PullCreate, ReviewCreate, WriteOutcome};
 use crate::private_fs::{private_dir, publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -24,18 +24,21 @@ struct Capture {
     branch: Option<BranchPublish>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pull: Option<PullCreate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    review: Option<ReviewCreate>,
     intent: Value,
     intent_digest: String,
 }
 impl Capture {
     fn scope(&self) -> Result<(&str, &str, &str)> {
-        match (&self.branch, &self.pull) {
-            (Some(q), None) if self.version == 1 && q.bundle.is_empty() => {
+        match (&self.branch, &self.pull, &self.review) {
+            (Some(q), None, None) if self.version == 1 && q.bundle.is_empty() => {
                 Ok(("git.ref.publish", &q.repository, &q.controller_grant_id))
             }
-            (None, Some(q)) if self.version == 2 => {
+            (None, Some(q), None) if self.version == 2 => {
                 Ok(("pull_request.create", &q.repository, &q.controller_grant_id))
             }
+            (None,None,Some(q)) if self.version==3 => Ok(("pull_request.review.submit",&q.repository,&q.controller_grant_id)),
             _ => Err(invalid()),
         }
     }
@@ -43,10 +46,12 @@ impl Capture {
 enum Request {
     Ref(BranchPublish),
     Pull(PullCreate),
+    Review(ReviewCreate),
 }
 pub enum PublicationOutcome {
     Ref(WriteOutcome),
     Pull(WriteOutcome),
+    Review(WriteOutcome),
 }
 #[derive(Serialize)]
 struct Canonical<'a> {
@@ -191,7 +196,7 @@ impl Client {
             &profile
                 .join("fountain-operations")
                 .join(format!("{command}.publication.json")),
-            16384,
+            128 * 1024,
         )
         .map_err(|_| unavailable())?;
         let capture: Capture = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
@@ -267,6 +272,15 @@ impl Client {
         }
         if r.effect_state == "committed" {
             let p = r.receipt.as_ref().ok_or_else(invalid)?;
+            if let Some(q)=&c.review {
+                if p["reviewer_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(c.account.as_str())
+                    || p["pr_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(q.pull_id.as_str())
+                    || p["pr_number"].as_u64()!=Some(q.number) || p["commit_id"]!=q.head || p["head_oid"]!=q.head || p["base_oid"]!=q.base
+                    || p["event"]!="COMMENT" || !p["comments"].is_null() && p["comments"]!=json!([])
+                    || !["review_id","comment_id","issue_id"].iter().all(|k|p[k].as_i64().is_some_and(|n|n>0))
+                    || !p["merge_base_oid"].as_str().is_some_and(|v|hex(v,40)) {return Err(invalid());}
+                return Ok(());
+            }
             if let Some(q) = &c.pull {
                 if p["repository_id"]
                     .as_i64()
@@ -334,6 +348,16 @@ impl Client {
             Err(_) => return WriteOutcome::Indeterminate(unknown()),
         };
         let host = json!({"grant_id":g.id,"installation_id":g.installation_id,"operation_id":c.command,"intent_digest":r.intent_digest,"receipt":r.receipt});
+        if let Some(q)=&c.review {
+            let Some(p)=r.receipt.as_ref() else{return WriteOutcome::Indeterminate(unknown())};
+            let Some(id)=p["review_id"].as_i64().map(|n|n.to_string()) else{return WriteOutcome::Indeterminate(unknown())};
+            return WriteOutcome::Applied(json!({"account":{"external_id":g.actor.id,"login":g.actor.username},"repository":q.repository,"repository_node_id":q.repository_node_id,
+                "pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.head,"base":q.base,"diff_base":p["merge_base_oid"],"event":q.event,
+                "head_condition":"atomic_head_base","existing_pending":"atomically_refused",
+                "review":{"external_id":id,"node_id":format!("fountain:review:{}:{id}",q.repository),"state":"commented","body_sha256":sha(q.body.as_bytes()),"commit":q.head,"comments_count":0,
+                    "author_node_id":format!("fountain:actor:{}",g.actor.id),"created_at":null,"updated_at":null,"submitted_at":null},
+                "provider_response":{"protocol":"fountain_native_operation","status":200,"request_id":null,"response_sha256":response},"host_operation":host}));
+        }
         if let Some(q) = &c.pull {
             let Some(p)=r.receipt.as_ref() else{return WriteOutcome::Indeterminate(unknown())};
             let (Some(id),Some(number),Some(issue))=(p["pr_id"].as_i64(),p["pr_number"].as_i64(),p["issue_id"].as_i64()) else{return WriteOutcome::Indeterminate(unknown())};
@@ -400,7 +424,7 @@ impl Client {
         let grant = self.operation_grant(grant_id).await?;
         let record = self.publication_record(&c, &grant).await?;
         let outcome = self.publication_outcome(&c, &grant, &record);
-        Ok(Some(if c.pull.is_some() {
+        Ok(Some(if c.review.is_some() { PublicationOutcome::Review(outcome) } else if c.pull.is_some() {
             PublicationOutcome::Pull(outcome)
         } else {
             PublicationOutcome::Ref(outcome)
@@ -415,7 +439,7 @@ impl Client {
         request: Request,
         sent: &mut bool,
     ) -> Result<(Capture, OperationGrant, OperationRecord)> {
-        let (repository, grant_id, connection, kind, payload, branch, pull, version) = match request
+        let (repository, grant_id, connection, kind, payload, branch, pull, review, version) = match request
         {
             Request::Ref(mut q) => {
                 q.bundle.clear();
@@ -428,6 +452,7 @@ impl Client {
                     "git.ref.publish",
                     payload,
                     Some(q),
+                    None,
                     None,
                     1,
                 )
@@ -443,8 +468,14 @@ impl Client {
                     payload,
                     None,
                     Some(q),
+                    None,
                     2,
                 )
+            }
+            Request::Review(q)=>{
+                let payload=json!({"pull_request_number":q.number,"pr_author_id":q.author_id.parse::<i64>().map_err(|_|invalid())?,"head_repository_id":q.repository.parse::<i64>().map_err(|_|invalid())?,
+                    "head_ref":q.head_ref,"base_ref":q.base_ref,"expected_head_oid":q.head,"expected_base_oid":q.base,"commit_id":q.head,"event":"COMMENT","body":q.body});
+                (q.repository.clone(),q.controller_grant_id.clone(),q.source_connection.clone(),"pull_request.review.submit",payload,None,None,Some(q),3)
             }
         };
         if !hex(command, 32)
@@ -513,6 +544,7 @@ impl Client {
             not_after,
             branch,
             pull,
+            review,
             intent,
             intent_digest: sha(bytes.as_bytes()),
         };
@@ -542,6 +574,23 @@ impl Client {
         self.check_publication_record(&capture, &grant, &record)?;
         Ok((capture, grant, record))
     }
+    pub(crate) async fn create_review(
+        &self, profile:&Path, command:&str, digest:&str, not_after:u64, q:&ReviewCreate,
+    )->WriteOutcome {
+        let mut sent=false;
+        let result=async {
+            q.validate().map_err(|_|invalid())?;
+            if q.event!="comment" || q.body.trim().is_empty() || q.body.len()>32768 {return Err(invalid());}
+            let observed=self.review_facts(&q.repository,q.number.try_into().map_err(|_|invalid())?,true).await?;
+            if observed["repository_node_id"]!=q.repository_node_id || observed["pull"]["external_id"]!=q.pull_id
+                || observed["pull"]["node_id"]!=q.pull_node_id || observed["pull"]["head"]!=q.head || observed["base_tip"]!=q.base
+                || observed["author_id"]!=q.author_id || observed["head_ref"]!=q.head_ref || observed["base_ref"]!=q.base_ref {return Err(invalid());}
+            let (capture,grant,record)=self.register_publication(profile,command,digest,not_after,Request::Review(q.clone()),&mut sent).await?;
+            Ok(self.publication_outcome(&capture,&grant,&record))
+        }.await;
+        match result {Ok(outcome)=>outcome,Err(error) if sent=>WriteOutcome::Indeterminate(failure(error)),Err(error)=>WriteOutcome::NotSent(failure(error))}
+    }
+
     pub(crate) async fn create_pull(
         &self,
         profile: &Path,

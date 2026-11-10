@@ -1,5 +1,17 @@
 # Factory untangling decisions
 
+Fountain agent reviews (2026-11-10): extend the existing typed native publication
+capture and original host journal with a review variant. Bind source/grant,
+author, PR and exact head/base; recover by original operation only. Canonical
+Fountain `e61341b76f` admits COMMENT without clearing prior votes or official
+state, and recovery matches the exact recorded event. Desktop agent votes,
+draft adoption and inline creation remain unavailable. Shared list/detail reads
+retain original prose and native COMMENT semantics. `product48d-connected.log`
+passes branch→PR→COMMENT with all three replies lost, one send per phase,
+original receipt/replay, shared Go reads, restart and central withdrawal; every
+owner joined. Existing host model/parser/SDK checks pass. Run/candidate/verdict
+are declared fixture inputs, no paid inference or full delivery qualification.
+
 Installed Fountain control (2026-11-10): keep read enrollment, privileged host
 grant, local workspace consent and funding separate in the existing shared UI.
 Current37 clean787a15bc976f and canonical Fountain27074cd5dd pass actual installed

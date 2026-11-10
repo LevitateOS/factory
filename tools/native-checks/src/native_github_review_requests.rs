@@ -3028,6 +3028,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
     };
     let token = || Token::new(b"factory-declared-review-create".to_vec());
     let request = || ReviewCreate {
+        controller_grant_id: String::new(), source_connection: String::new(), author_id: String::new(), head_ref: String::new(), base_ref: String::new(),
         base: String::new(),
         repository: "123".into(),
         repository_node_id: "R_123".into(),

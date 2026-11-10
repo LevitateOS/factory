@@ -15,6 +15,16 @@ pub(super) const CREATE:&str="mutation FactoryCreateReview($input:AddPullRequest
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReviewCreate {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub controller_grant_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_connection: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub author_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub head_ref: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub base_ref: String,
     pub repository: String,
     pub repository_node_id: String,
     pub pull_id: String,
@@ -86,6 +96,7 @@ impl Client {
         self.run_mutation(deadline, |mutation| async move {
             let until = mutation.deadline;
             q.validate()?;
+            if !q.controller_grant_id.is_empty() || !q.source_connection.is_empty() || !q.author_id.is_empty() || !q.head_ref.is_empty() || !q.base_ref.is_empty() {return Err(Failure::invalid());}
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }

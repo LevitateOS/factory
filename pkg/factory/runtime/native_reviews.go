@@ -45,7 +45,7 @@ func (p NativeReviews) request(ctx context.Context, w factory.ReviewWork) (facto
 	if err != nil {
 		return q, err
 	}
-	if host.Provider != collaboration.GitHub || host.APIBase != "https://api.github.com" {
+	if host.Provider != collaboration.Fountain && (host.Provider != collaboration.GitHub || host.APIBase != "https://api.github.com") {
 		return q, errNativeReadScope
 	}
 	event := map[string]factory.HumanReviewEvent{"COMMENT": factory.HumanReviewComment, "APPROVED": factory.HumanReviewApprove, "REQUEST_CHANGES": factory.HumanReviewRequestChanges}[w.Event]
@@ -149,7 +149,17 @@ func (p NativeReviews) LookupOp(ctx context.Context, id string) (factory.Operati
 	}
 	lookup, err := p.Store.LookupHumanCommandDispatch(ctx, cmd)
 	if err == nil && lookup.Record != nil && lookup.Record.Effect == collaboration.EffectIndeterminate && lookup.Record.Receipt == nil {
-		account, e := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpReviewSubmit)
+		var prepared nativeReviewCreatePreparation
+		if nativeDecode(c.ProviderIntent, &prepared) != nil {
+			return factory.OperationOutcome{}, errNativeRead
+		}
+		var account *nativeProductAccount
+		var e error
+		if prepared.Review.ControllerGrantID != "" {
+			account, e = p.savedAccount(ctx, w.Repository, collaboration.ActorID(w.ActorID), prepared.Review.SourceConnection)
+		} else {
+			account, e = p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpReviewSubmit)
+		}
 		if e != nil {
 			return factory.OperationOutcome{}, e
 		}
@@ -316,7 +326,11 @@ func (p NativeReviews) CancelOp(ctx context.Context, id string) (factory.Operati
 		if e != nil {
 			return empty, e
 		}
-		c = factory.HumanReviewCapture{Request: q, Authority: "native-github:" + string(p.Config.Profile) + ":" + actor.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
+		host, e := p.Store.CollaborationHost(ctx, q.Host)
+		if e != nil {
+			return empty, e
+		}
+		c = factory.HumanReviewCapture{Request: q, Authority: nativeHumanAuthority(p.Config.Profile, host, actor.ExternalID), OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
 		c, _, err = p.Store.CaptureHumanReview(ctx, c)
 	}
 	if err != nil {

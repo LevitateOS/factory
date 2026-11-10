@@ -1648,6 +1648,25 @@ Final reply: requested Q20, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q21 — Fountain candidate transfer and conditional publication
 
+The same original-operation journal now also carries native COMMENT reviews.
+Canonical Fountain `e61341b76f` and `q19-authority/product48d-connected.log`
+pass changed-file transfer→PR→same-account COMMENT, each original reply lost,
+one send per phase, exact receipt adoption/replay, shared Go review list/detail,
+native restart and central withdrawal. Review command
+`76a70fca44695e2b6a8cb4dab34b7c8e` committed review23/comment2100 on PR8/id13/
+issue27, actor2, head4af055f93698f7d639bc002b5ad17904777221f6 and
+base/merge-base65f1bf27bc3bf70f64657658635e66094edbcb4d. Original full receipts
+remain in `product48d-native/publication-*-reply.*`; all owners joined. Host
+model/parser/SDK existing checks pass (`product48-model-contracts.log`,
+`product48b-host-contracts.log`, `product48-sdk-contract.log`). Native authority
+and original grant deadlines stay captured; personal-account reviews cannot vote.
+Candidate/run/verdict remain declared fixture inputs: no inference, actual worker
+candidate export, CI, merge or installed full-delivery closure is claimed.
+Earlier48 passed publication/review;48b preserved those effects and read HTTP200
+but its detail assertion expected a collection instead of the endpoint's single
+object.48c failed before host effects on a fixture binary path. Those original
+roots/receipts remain intact;48d uses fresh commands, never resends old ones.
+
 **Current PR increment verified (2026-11-10); full Q21 remains INCOMPLETE.**
 The same native operation journal now creates same-repository Fountain PRs with
 captured source connection/grant, bounded original deadline, exact head/base

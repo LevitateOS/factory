@@ -1341,6 +1341,17 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         fs::write(&path,serde_json::to_vec(&serde_json::json!({"Repository":repository,"Issue":issue["number"].to_string(),"Connection":connection,"Publication":publication}))?)?;
         let operation=if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){"check-background-publication"}else{"check-background-publication-branch"};
         command(operation,path.to_str().ok_or("publication fixture path invalid")?).await?;
+        if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_REVIEW").is_some() {
+            let state:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("native-publication.json"))?)?;
+            let number=state["Review"]["pr_number"].as_u64().ok_or("original review PR number absent")?;
+            let list=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/reviews?limit=50")).await?;
+            let items=list["items"].as_array().ok_or("shared review list absent")?;
+            ensure(items.len()==1&&items[0]["state"]=="commented"&&items[0]["body"]==state["Review"]["body"]&&items[0]["commit"]==state["Review"]["head_oid"],"shared Go review list changed native COMMENT/body/candidate")?;
+            let id=items[0]["external_id"].as_str().ok_or("shared review identity absent")?;
+            let detail=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/reviews/{id}")).await?;
+            ensure(detail["external_id"]==id&&detail["body"]==state["Review"]["body"]&&detail["commit"]==state["Review"]["head_oid"]&&detail["state"]=="commented","shared review detail did not preserve its original native text")?;
+            println!("PASS: actual public Fountain review list/detail through shared Go presentation API retain COMMENT, exact candidate, author and verbatim original body");
+        }
     }
     let lost_preparation=std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PREPARATION_LOST").is_some();
     if public_setup {
@@ -1583,12 +1594,13 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
                 match client.recover_publication(profile,operation,digest,deadline).await.map_err(|e|e.code)? {
                     Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Ref(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["new"]==capture["branch"]["candidate"]&&receipt["host_operation"]["grant_id"]==capture["branch"]["controller_grant_id"],"withdrawn publication journal changed its original receipt")?,
                     Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Pull(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["head"]["pin"]==capture["pull"]["head_pin"]&&receipt["base"]["pin"]==capture["pull"]["base_pin"]&&receipt["host_operation"]["grant_id"]==capture["pull"]["controller_grant_id"],"withdrawn PR journal changed its exact creation pins")?,
+                    Some(soda_desktop_runtime::fountain_provider::PublicationOutcome::Review(soda_desktop_runtime::github_provider::WriteOutcome::Applied(receipt)))=>ensure(receipt["head"]==capture["review"]["head"]&&receipt["base"]==capture["review"]["base"]&&receipt["review"]["state"]=="commented"&&receipt["host_operation"]["grant_id"]==capture["review"]["controller_grant_id"],"withdrawn review changed its original candidate or vote")?,
                     _=>return Err("withdrawn publication did not recover its original committed receipt".into())
                 }
                 ensure(fs::read(entry.path())?==before,"publication recovery renewed original authority")?;
                 recovered+=1;
             }
-            ensure(recovered==if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){2}else{1},"original publication capture missing or duplicated")?;
+            ensure(recovered==if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_REVIEW").is_some(){3}else if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){2}else{1},"original publication capture missing or duplicated")?;
             println!("PASS: native restart and central withdrawal preserve the exact original conditional publication host receipt and captured deadline without registration or receive replay");
         }
         let original_intent=fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?;

@@ -2196,6 +2196,8 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	var state struct {
 		Branch, Pull               factory.PublicationWork
 		BranchOutcome, PullOutcome factory.OperationOutcome
+		Review                     factory.ReviewWork
+		ReviewOutcome              factory.OperationOutcome
 	}
 	if action == "check-background-publication-branch-recover-original" {
 		rawDB, err := sql.Open("pgx", port.Config.DatabaseDSN())
@@ -2305,6 +2307,16 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 		if state.Pull.OperationID != "" {
 			if _, err := port.AdoptPRCreation(ctx, state.Pull, state.PullOutcome); err != nil {
 				return err
+			}
+		}
+		if state.Review.OperationID != "" {
+			reviews := factoryruntime.NativeReviews{NativeInputSource: port.NativeInputSource}
+			prior, e := reviews.LookupOp(ctx, state.Review.OperationID)
+			if e != nil || !reflect.DeepEqual(prior, state.ReviewOutcome) {
+				return fmt.Errorf("retained native review differs: %v", e)
+			}
+			if _, e = reviews.AdoptReview(ctx, state.Review, prior); e != nil {
+				return e
 			}
 		}
 		fmt.Println("PASS: native branch/PR command receipts survive restart and exact credential withdrawal without sending again")
@@ -2499,6 +2511,49 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	publication.Stage, publication.Outcome, publication.Reason, publication.FinishedUnix = factory.PublicationPublished, factory.Succeeded, factory.PublishReasonLinked, time.Now().Unix()
 	if err = write(); err != nil {
 		return err
+	}
+	if os.Getenv("FACTORY_FOUNTAIN_CONTROLLER_REVIEW") == "1" {
+		reviews := factoryruntime.NativeReviews{NativeInputSource: port.NativeInputSource}
+		runID := factory.NewID()
+		state.Review = factory.ReviewWork{OperationID: "review-" + runID, AuthRevision: factory.ReviewAuthRevision(publication.AssignmentID, runID), Repository: repository, ActorID: int64(actor), PRAuthorID: linked.AuthorID,
+			PRID: linked.PRID, PRNumber: linked.PRNumber, IssueID: linked.IssueID, HeadRef: linked.HeadRef, BaseRef: linked.BaseRef, HeadOID: linked.HeadOID, BaseOID: linked.BaseOID, Event: "COMMENT", AgentVerdict: "APPROVED",
+			Body: "Disposable connected native review. Independent verdict and run are declared fixture inputs; no model inference or human vote is claimed.", NotAfter: time.Now().Add(time.Minute).Unix()}
+		observation, e := reviews.ObserveReview(ctx, state.Review)
+		if e != nil {
+			return e
+		}
+		state.Review.NativeRev = observation.NativeRev
+		publication.ReviewOperations = append(publication.ReviewOperations, factory.ReviewOperation{RunID: runID, Work: state.Review})
+		if err = write(); err != nil {
+			return err
+		}
+		// Retain the original work before crossing its one-shot send boundary.
+		raw, e := json.Marshal(state)
+		if e != nil {
+			return e
+		}
+		if e = os.WriteFile(statePath, raw, 0600); e != nil {
+			return e
+		}
+		state.ReviewOutcome, e = reviews.SubmitReview(ctx, state.Review)
+		if e != nil {
+			return e
+		}
+		if state.ReviewOutcome.Effect != factory.OpEffectCommitted || state.ReviewOutcome.Completion != factory.OpCompletionComplete {
+			return fmt.Errorf("native Fountain review outcome: %+v", state.ReviewOutcome)
+		}
+		adopted, e := reviews.AdoptReview(ctx, state.Review, state.ReviewOutcome)
+		if e != nil || adopted.Event != "COMMENT" || adopted.HeadOID != candidate || adopted.BaseOID != base || !factory.ValidCommit(adopted.MergeBaseOID) {
+			return fmt.Errorf("native Fountain COMMENT receipt differs: %v", e)
+		}
+		if replay, e := reviews.SubmitReview(ctx, state.Review); e != nil || !reflect.DeepEqual(replay, state.ReviewOutcome) {
+			return fmt.Errorf("native Fountain review replay: %v", e)
+		}
+		publication.ReviewOperations[len(publication.ReviewOperations)-1].Outcome = state.ReviewOutcome
+		if err = write(); err != nil {
+			return err
+		}
+		fmt.Println("PASS: actual native same-account COMMENT review over published candidate, exact head/base/merge-base/actor/grant and causal host receipt, original-command replay; verdict/run declared, no human vote or model inference")
 	}
 	encoded, err = json.Marshal(state)
 	if err != nil {
