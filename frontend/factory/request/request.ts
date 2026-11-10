@@ -72,6 +72,7 @@ export class SodaIntent extends LitElement {
     actor: {type: String, noAccessor: true},
     draftScope: {type: String, noAccessor: true},
     request: {type: String, noAccessor: true},
+    planningRepository: {attribute: false, noAccessor: true},
     project: {type: String},
     exploration: {state: true},
     objective: {state: true},
@@ -263,6 +264,7 @@ export class SodaIntent extends LitElement {
   private actorValue: string = '';
   private draftScopeValue: string = '';
   private requestValue: string = '';
+  private planningRepositoryValue = '0';
   declare project: string;
   declare exploration: Exploration | undefined;
   declare objective: string;
@@ -424,6 +426,21 @@ export class SodaIntent extends LitElement {
   }
   get request(): string {
     return this.requestValue;
+  }
+  get planningRepository(): string {
+    return this.planningRepositoryValue;
+  }
+  set planningRepository(value: string) {
+    check(value === '0' || id(value));
+    const previous = this.planningRepositoryValue;
+    if (previous === value) return;
+    this.retireRequests();
+    this.planningRepositoryValue = value;
+    this.requestUpdate('planningRepository', previous);
+  }
+  private requestRepository(): string {
+    // A saved request keeps its original scope even after host navigation.
+    return this.revision?.repository ?? this.planningRepository;
   }
   set request(value: string) {
     const previous = this.requestValue;
@@ -598,7 +615,7 @@ export class SodaIntent extends LitElement {
   private captureDraft(): RequestDraft {
     return structuredClone({
       base: this.revision?.id ?? '',
-      repository: this.revision?.repository ?? '0',
+      repository: this.requestRepository(),
       objective: this.objective,
       department: this.department,
       maxIssues: this.maxIssues,
@@ -662,7 +679,7 @@ export class SodaIntent extends LitElement {
       const ideas = new Set((this.revision?.ideas ?? []).map((idea) => idea.id));
       if (
         draft.base !== (this.revision?.id ?? '') ||
-        draft.repository !== (this.revision?.repository ?? '0') ||
+        draft.repository !== this.requestRepository() ||
         draft.ideas.length !== ideas.size ||
         !draft.ideas.every((idea) => ideas.has(idea.id))
       ) {
@@ -2012,7 +2029,7 @@ export class SodaIntent extends LitElement {
   }
   private async explore(signal: AbortSignal) {
     if (this.explorationBlocked()) return;
-    const saved = await this.save('draft', this.revision?.repository || '0', signal);
+    const saved = await this.save('draft', this.requestRepository(), signal);
     signal.throwIfAborted();
     try {
       const address = this.generationAddress();
@@ -2205,7 +2222,7 @@ export class SodaIntent extends LitElement {
   private exploreFailed(error: unknown) {
     if (error instanceof SodaRequestError && error.code === 'planning_unavailable')
       this.error =
-        'The TypeSafe System One judgment service could not complete exploration. Your description is saved; try again.';
+        'The selected judgment source could not complete exploration. Your description is saved; check its availability and project funding.';
     else if (error instanceof SodaRequestError && error.code === 'invalid_proposal_task_limit')
       this.error =
         'The derived work exceeds your selected issue limit. Your description is saved; review the planning limit or narrow the approach, then explore again. Limits never increase on their own.';
@@ -2223,7 +2240,7 @@ export class SodaIntent extends LitElement {
     if (this.objective.trim()) void this.perform((signal) => this.explore(signal));
   };
   private saveCurrent = async (signal: AbortSignal) => {
-    const saved = await this.save('draft', this.revision?.repository || '0', signal);
+    const saved = await this.save('draft', this.requestRepository(), signal);
     signal.throwIfAborted();
     this.dirty = false;
     this.dispatchEvent(
@@ -3039,6 +3056,7 @@ export class SodaIntent extends LitElement {
     const unsaved = this.unsavedSummary();
     return {
       ...(this.project ? {project: this.project} : {}),
+      projectPlanning: this.requestRepository() !== '0',
       editRequest: this.editRequest,
       objective: this.objective,
       department: this.department,

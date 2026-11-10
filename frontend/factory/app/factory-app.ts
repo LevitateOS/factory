@@ -315,6 +315,7 @@ export class SodaFactoryApp extends LitElement {
         });
         view.actor = context.actor;
         view.draftScope = context.scope;
+        view.planningRepository = context.selectedRepository ?? '0';
         view.request = route.intent ?? '';
         view.blocked = ports.blocked;
         view.api = async (path, body, childSignal) => {

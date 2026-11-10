@@ -13,6 +13,7 @@ export interface IntentView {
   // Repository display name when the request is started inside a project
   // (set by the shell through <soda-intent .project>); undefined otherwise.
   project?: string;
+  projectPlanning: boolean;
   // Focus the review's Desired outcome field. No save and no planning spend.
   editRequest(): void;
   objective: string;
@@ -117,6 +118,7 @@ export function describeIntent(view: IntentView) {
       ></textarea>
     </label>
     ${entryActions(view)}
+    ${view.projectPlanning ? html`<p>Planning uses this project's configured judgment source and available allowance.</p>` : ''}
     ${
       !view.objective.trim() && !view.busy && !view.blocked
         ? html`<p>Enter a description above to explore ideas.</p>`
