@@ -1892,7 +1892,21 @@ Owner authorization (2026-11-10): standing Muse use, fresh explicit commands and
 allowance increases on the selected source are authorized until10:00 Europe/
 Amsterdam today (09:00UTC). No repeated permission request is needed before that
 deadline. Preserve uncertain sends/inference, exact charges and old terminal
-authority. The one fresh Retry also approved after2e1fc21 is not yet sent.
+authority. The fresh Retry approved after2e1fc21 was sent once as
+`d37350b409284b5e80febf7191737e33` at2026-11-10T01:15:59Z. Architect
+`d4a8eabc125068fc6f8afe81fa77538f` and Builder
+`57d303f04386f7eed3411540ff18d853` both succeeded and reconciled. The Builder
+completed all four tasks and sealed candidate
+`6241464c348deb8bd88b1d54116a47986f8ec085`. All17 original runs,62 finished
+judgments and114 charged minutes remain (allowance120). Branch command
+`3ddb87ba4098c2d9345586a007776461` returned
+`github_publication_reply_unconfirmed`; its original native outcome is
+indeterminate and must remain fenced. Do not Retry planning/Builder or replay
+that branch send. Inspect this retained candidate's fresh-publication offer.
+The guest user timer `factory-q26-authorized-window-20261110.timer` is armed
+for08:59UTC: normal GUI Quit first, then bounded retirement of only this
+profile's captured Muse services if necessary. Script:
+`/home/factory/q25-current9/authorization-window-stop.sh`.
 Current31's real installed UI rotated the expired GitHub grant through the
 existing native owner: `current31-refresh-result.png` shows Saved, and
 `current31-repository-result3.png` reconnects the same sodaos account/repository.
@@ -1908,8 +1922,38 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE, current31:** installed app295038/backend/PG is
-running with matching production helpers. Executable-bit correction48e7b9d is
+**Active recovery — INCOMPLETE:** installed current31 app295038/backend/PG remains
+running with matching production helpers; the latest paid attempt and uncertain
+publication are recorded above. Current32 clean07e44bd payload was installed
+under exact-prior inventory18b9ff834f20e700bbb3bb7018d95d5fe530b293936b1c1dd83959d9f7a75170
+while that original app remained open. Its `/proc/295038/exe`, profile identity,
+database password, signing key/identity and post-refresh keyring hashes are
+unchanged (`current32-upgrade2.log`, retained checksum manifests). The worker
+had already settled before installation; this proves running-app preservation,
+not an active-worker upgrade. New inventory
+487b5f180cc1f3efa2c5dc30fb69e12b6502ee516929b55c0947f21d222676f4,
+archive4aa422c0424195a5979579c4e9cddefedca37e47e2544208170cf0607b9e5ed9.
+Next: qualify saved workflow permission and fresh retained-candidate publication
+without another model attempt. New sign-ins must request GitHub's separate
+workflow scope; the current code omitted it. This is a concrete permission
+gap, not proof of the original unconfirmed response's cause. Existing grants
+and refresh do not gain that scope automatically. Current33's installed account
+row confirms the retained sodaos grant lacks workflow scope
+(`current33-grant-status.png`). **Q26 publication is blocked on a fresh GitHub
+grant with workflow permission**: it cannot publish this candidate's required
+CI edit under the saved grant. No approval question or fresh device request was
+sent while the owner sleeps. This blocks this installed candidate's publication,
+review/CI/merge continuation, not Fountain, packaging or migration work.
+The corrected device request includes workflow; existing refresh preserves its
+original scope. Current33 production build, typecheck and language boundaries
+pass; its installed UI presents the missing permission without changing the
+saved credential. Inventoryfd8ab1326a207ae26beaad7d59025edeb547bbe9bb3fcfdac74058218ce95423,
+archive3042a3ea3d1d4b111c659a034dfd94c567b530ea707dd8b1566c681827883344.
+Input07e44bd plus `q25-package/current33-source.patch`
+(78d31c3e2a25d0254bce95b44de2061b6b9302b29aa2c3fe1534305fdf02a9fd).
+Normal Quit joined current31 after17 settled runs, then current33 reopened the
+same profile. No new model call or branch send was made. Independent Fountain work
+remains ready. Executable-bit correction48e7b9d is
 installed and its production-native check passes. The owner authorized30 additional
 minutes and one fresh Retry: UI saved sponsorship revision4,total120 on the same
 Muse connection, then command508de580c41d4a6e8add39a930069ceb once at00:06:47Z,

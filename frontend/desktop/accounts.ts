@@ -5,7 +5,7 @@ export interface Account {
   account: string;
   label?: string;
   state: 'stored' | 'expired' | 'refresh_pending' | 'locked' | 'withdrawn';
-  grant?: {refresh_available: boolean};
+  grant?: {refresh_available: boolean; scope?: string};
 }
 interface SignIn {
   attempt: number;
@@ -106,7 +106,12 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
         locked: 'Unlock your desktop keyring',
         withdrawn: 'Removed',
       }[account.state];
-      value.name.textContent = `${account.label ?? account.account} · ${state}`;
+      const workflow = account.grant?.scope === undefined
+        ? 'Workflow permission not recorded'
+        : account.grant.scope.split(/[,\s]+/).includes('workflow')
+          ? 'Workflow edits allowed by saved grant'
+          : 'Sign in again to allow workflow edits';
+      value.name.textContent = `${account.label ?? account.account} · ${state} · ${workflow}`;
       value.remove.disabled = busy || !ready || !accountsCurrent;
       value.refresh.hidden = !account.grant?.refresh_available;
       value.refresh.disabled = busy || !ready || !accountsCurrent || active || !['stored','expired'].includes(account.state);

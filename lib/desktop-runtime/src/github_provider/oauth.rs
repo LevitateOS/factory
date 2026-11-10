@@ -62,7 +62,7 @@ impl Client {
         let raw = self
             .oauth(
                 "/login/device/code",
-                form(&[("client_id", OAUTH_CLIENT_ID), ("scope", "repo read:user read:org")]),
+                form(&[("client_id", OAUTH_CLIENT_ID), ("scope", "repo read:user read:org workflow")]),
             )
             .await?;
         let challenge: Challenge = serde_json::from_slice(&raw).map_err(|_| Failure::protocol())?;

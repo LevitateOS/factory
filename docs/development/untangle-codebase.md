@@ -1,5 +1,21 @@
 # Factory untangling decisions
 
+Q26 workflow permission (2026-11-10): new GitHub device grants must request
+`workflow` alongside existing repository/account scopes. GitHub documents it as
+required for workflow changes; `repo` alone is insufficient. Display the saved
+grant's workflow status without expanding refresh authority. Current33 production
+build/type/boundary checks pass; actual installed `current33-grant-status.png`
+confirms sodaos's existing grant lacks that scope. A fresh user grant is required
+for this candidate's CI edit; no sleeping-owner approval question was sent.
+The successful original Architect/Builder,17 retained runs,62 judgments and114
+charged minutes remain. Candidate6241464c348deb8bd88b1d54116a47986f8ec085 is
+preserved; original branch command3ddb87ba4098c2d9345586a007776461 remains
+indeterminate. Missing scope does not retrospectively prove that send's outcome.
+Current32/current33 exact-prior payload upgrades preserve the open current31
+executable and profile/keyring hashes; normal Quit/reopen activates current33.
+Workers had already settled, so this does not qualify an active-worker upgrade.
+Exact package inputs and the independent-work dependency are in Q26's record.
+
 Q19 configuration hold (2026-11-10): the new Fountain read composition must not
 inherit GitHub-only setup and policy choices. Withhold those choices, report
 preparation unavailable and refuse setup writes until captured host grants are
