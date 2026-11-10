@@ -47,6 +47,48 @@ func TestReadinessCreationPageCapacityRollsBackCursorAndFacts(t *testing.T) {
 	if err := s.EnqueueReadinessCreationPage(ctx, 7, 0, 23, works); !errors.Is(err, ErrStaleRevision) {
 		t.Fatal("stale native page rewrote cursor:", err)
 	}
+	policy := grantTestPolicy()
+	policy.Repository = 7
+	if err := s.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	policy, err := s.RepositoryPolicy(ctx, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	captured := policy.Revision
+	policy.Enabled = false
+	if err = s.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	late := creationWork("late-policy-reply", 93)
+	if err = s.EnqueueReadinessCreationPage(ctx, 7, 22, 23, []ReadinessWork{late}, captured); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("withdrawn policy admitted in-flight discovery:", err)
+	}
+	decision := factory.Acceptance{ID: factory.InitialAcceptanceID(7, "193"), Repository: 7, IssueIndex: "93", Approver: 5, NativeRev: 9, Initial: true, TitleOccurrence: factory.OriginalOccurrence, TitleDigest: late.TitleDigest, ContentDigest: late.ContentDigest}
+	if err = s.AdmitAcceptanceDecision(ctx, decision, captured); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("withdrawn policy admitted in-flight initial acceptance:", err)
+	}
+	if cursor, err := s.CreationRecoveryCursor(ctx, 7); err != nil || cursor != 22 {
+		t.Fatal("withdrawn discovery advanced history:", cursor, err)
+	}
+	if _, err = s.ReadinessWork(ctx, late.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatal("withdrawn discovery retained new work:", err)
+	}
+	if _, err = s.AcceptanceHead(ctx, 7, 93); !errors.Is(err, ErrNotFound) {
+		t.Fatal("withdrawn discovery retained initial acceptance:", err)
+	}
+	policy, err = s.RepositoryPolicy(ctx, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.Enabled = true
+	if err = s.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.EnqueueReadinessCreationPage(ctx, 7, 22, 23, []ReadinessWork{late}, captured); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("re-enrollment renewed an old in-flight discovery:", err)
+	}
 }
 
 func TestReadinessCreationEnrichesPartialAndRejectsOriginalRewrite(t *testing.T) {

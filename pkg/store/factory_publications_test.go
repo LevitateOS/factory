@@ -109,10 +109,10 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err = p.Validate(); err != nil {
 				t.Fatal("ordinary published fixture", err)
 			}
-			raw, _ := json.Marshal(p)
-			if _, err = db.db.ExecContext(ctx, `UPDATE factory_publications SET stage=$1,revision=$2,data=$3 WHERE assignment=$4`, p.Stage, p.Revision, string(raw), origin.ID); err != nil {
+			if err = db.UpdatePublication(ctx, p); err != nil {
 				t.Fatal(err)
 			}
+			var raw []byte
 			before, err := db.AttemptAllowance(ctx, 7, 3)
 			if err != nil {
 				t.Fatal(err)

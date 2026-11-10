@@ -161,7 +161,7 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 		if account.binding.Host.Provider == collaboration.Fountain {
 			// Native issue IDs are local to one Fountain host. Preserve GitHub's
 			// existing global IDs while keeping separate hosts' deliveries distinct.
-			delivery = "fountain-original-issue:" + strconv.FormatInt(int64(account.binding.Host.ID), 10) + ":" + i.ID
+			delivery = "fountain-original-issue:" + string(account.binding.Host.ID) + ":" + i.ID
 		}
 		page.Events = append(page.Events, factory.OriginalCreationEvent{Position: i.Number, Delivery: delivery, Repository: repository, Issue: i.Number, OriginalIssueID: id, Creator: int64(creator.ID), CreatorWrite: *permission.Write, CreatedUnix: i.CreatedAt.Unix(), TitleDigest: inputDigest([]byte(i.Title)), ContentDigest: inputDigest([]byte(i.Body)), Verified: true})
 	}

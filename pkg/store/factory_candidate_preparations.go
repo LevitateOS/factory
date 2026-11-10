@@ -123,7 +123,7 @@ type candidatePreparationRegistration struct {
 	Control         factory.IssueControl         `json:"control"`
 	SourceRun       *project.FactoryExport       `json:"source_run,omitempty"`
 	SourceMerge     *project.FactoryMergedSource `json:"source_merge,omitempty"`
-	SourcePull      *project.FactoryPullSource `json:"source_pull,omitempty"`
+	SourcePull      *project.FactoryPullSource   `json:"source_pull,omitempty"`
 	NotAfter        int64                        `json:"not_after_unix"`
 	Stopped         bool                         `json:"stopped,omitempty"`
 	Retirement      string                       `json:"retirement,omitempty"`
@@ -613,6 +613,10 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 	if err = validateAttemptPacketTx(ctx, tx, assignment, false); err != nil {
 		return empty, err
 	}
+	grants, err := loadAdmissionGrantsTx(ctx, tx, r.Repository, r.Connection)
+	if err != nil {
+		return empty, err
+	}
 	if r.PublicationID != "" {
 		var publicationData []byte
 		if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE assignment=$1`, r.OwnerAssignment).Scan(&publicationData); err != nil {
@@ -626,14 +630,12 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 			publication.ProjectID != r.Project || publication.Stage != factory.PublicationPublished || publication.WithdrawRequested {
 			return empty, ErrAttemptRootMismatch
 		}
-		if publication.External!=nil && (grants.policy.Revision!=publication.External.Policy || grants.policy.Review.NativeProfile!=publication.External.Profile || grants.policy.Review.NativeConnection!=publication.External.Connection) { return empty,ErrAdmissionChanged }
-		if !reflect.DeepEqual(r.SourcePull,publication.PullSource()) && (r.SourcePull != nil || publication.External != nil && publication.Run == "") {
+		if publication.External != nil && (grants.policy.Revision != publication.External.Policy || grants.policy.Review.NativeProfile != publication.External.Profile || grants.policy.Review.NativeConnection != publication.External.Connection) {
+			return empty, ErrAdmissionChanged
+		}
+		if !reflect.DeepEqual(r.SourcePull, publication.PullSource()) && (r.SourcePull != nil || publication.External != nil && publication.Run == "") {
 			return empty, ErrAttemptRootMismatch
 		}
-	}
-	grants, err := loadAdmissionGrantsTx(ctx, tx, r.Repository, r.Connection)
-	if err != nil {
-		return empty, err
 	}
 	if grants.sponsorship.ProjectID != r.Project || grants.sponsorship.ActorID != r.ActorID {
 		return empty, ErrAdmissionChanged

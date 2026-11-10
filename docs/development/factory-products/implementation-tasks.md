@@ -9,7 +9,13 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-10): INCOMPLETE, implementation-only.** Q15–Q17,
+**Current snapshot (2026-11-10): INCOMPLETE, GitHub verification active.** The
+owner has authorized full GitHub verification; Fountain remains outside this
+pass. Current checks, installed state and the original external-fixture receipts
+are retained in Q17's active verification record below. No whole product or
+security gate is closed by source checks.
+
+**Earlier implementation-only snapshot (2026-11-10).** Q15–Q17,
 Q19 and Q21–Q29 remain outstanding. Source-only changes do not qualify these
 requests or the 13 open security gates. The owner has deferred execution; no
 builds, tests, installs, inference, provider effects or commits ran in this pass.
@@ -1424,6 +1430,56 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q17"></a>
 
 ### Q17 — GitHub external PR adoption
+
+**Active GitHub-only verification (2026-11-10), INCOMPLETE.** Baseline
+`256ae2ad401d1b2ece9dc472fd2a646f49a9dc23`; evidence is retained outside Git at
+`/home/vince/Projects/github-verification-20261110/`. Go verification found and
+fixed grant use before loading in candidate admission and an invalid host-ID
+conversion in the shared compilation closure. The existing retained-review PG
+fixture now uses `UpdatePublication`, including normal allowance retirement,
+rather than bypassing it with SQL. Existing real PG cases additionally cover
+policy withdrawal/re-enrollment after discovery I/O, initial-acceptance refusal,
+and completed-delivery replay/conflicting-root refusal.
+
+`go-final.log`, `store-final.log` (353 top-level real PostgreSQL checks),
+`review-pg.log`, `intake-races2.log`, `ui.log`, `lit.log`, `boundaries.log`,
+`unitban.log`, `native.log`, `desktop.log`, `retained-ui2.log` and
+`external-ui2.log` pass their respective source, PG, native compilation and
+production shared-DOM scopes. `migration.log` qualifies concurrent actual
+installed103-to105 migration on a disposable copy: all75 table hashes unchanged,
+exact prior103 and unknown106 refusal, current reopen and joined PG. Native
+transaction/restart/WAL recovery passes in `native-pg-crash.log`.
+
+Actual production bundle inventory
+`a227c6753da25e240748580c9324c834c33cc9dd55a75c61a424e90862da599f`
+is installed in the existing Debian13 guest through exact prior app/helper
+manifests. `build-inputs.json` retains baseline256ae2a plus the two compile
+corrections; its Go1.27.0/Bun1.4.2 inputs are not a fresh-release qualification.
+Original stopped profile/keyrings are preserved in private `original103.tar.gz`
+(SHA2563014daab2c262add64b327c7e6185c1f4f5cb96e5b2ab9e2e3f6fc43881730f6).
+Normal GUI Quit, actual105 reopen, saved GitHub refresh and fixture reconnect
+pass. Both native roles prepared exact merge0954a2d9; see `prepare-state.log`.
+Authenticated native issue/original-creation reads pass at cursor54 without
+dispatch. GitHub charge remains153 minutes; no new inference has run.
+
+Provider readback reuses the original PR55 COMMENT5842988198, successful real
+CI42819121752 and causal merge0954a2d9 of reviewed54b82ef2. New external
+fixture [PR56](https://github.com/LevitateOS/factory-installed-github-check-20261109/pull/56)
+is veighnsche's same-repository candidate3dd5ed757827304b472d6d7ff5e982539a66abaa
+at base0954a2d9. It omits one required help line; real CI42889791337 fails.
+Issue54 was reopened with its text untouched; all create/update/reopen replies
+are retained in `external-*-receipt.json` and `issue54-reopen-receipt.json`.
+No adoption/model command has yet been sent. Original uncertain publication
+0bc012940c247259280c0c90166c388c remains fenced and unreplayed.
+
+Recovery: the original installed app/backend/PG are running in guest port22209,
+profile `/home/factory/q28-format102/profile`, session owner
+`/home/factory/github-verification60/session.pid`. Recover the original
+preparations/PR56 and any later command before effects. Next: use issue54's
+installed Work panel to inspect PR56 and admit its exact explicit external
+command, then qualify actual review/correction/CI/allowed merge. Fork execution,
+automatic new-PR discovery and remaining installed/security journeys stay open.
+No Fountain host or consumer qualification is included.
 
 **INCOMPLETE — source implementation (2026-11-10), unverified.** Shared
 `external_publication.go`, `control/publication_external.go` and
@@ -3819,6 +3875,10 @@ Final reply: requested Q29, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q30"></a>
 
 ### Q30 — Full finalization of non-Daybreak Factory work
+
+Current GitHub-only verification and recovery are in Q17 above. The following
+source-only ledger is historical; the newer owner request permits GitHub
+execution without reopening Fountain qualification or weakening final gates.
 
 **INCOMPLETE — source-only finalization/recovery ledger (2026-11-10).** Requested
 ceiling Q30; actual work reached the source audit and Q15/shared-UI recovery

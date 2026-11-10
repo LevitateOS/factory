@@ -62,6 +62,17 @@ func TestReadinessWorkCheckpointAndAtomicDeliveryFinish(t *testing.T) {
 	if _, err = s.ReadinessWork(ctx, work.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatal("completed source retained:", err)
 	}
+	if err = s.EnqueueReadinessWork(ctx, "delivery:late-reply", "delivery-1", root); err != nil {
+		t.Fatal("completed-delivery replay refused:", err)
+	}
+	if _, err = s.ReadinessWork(ctx, "delivery:late-reply"); !errors.Is(err, ErrNotFound) {
+		t.Fatal("completed delivery queued duplicate work:", err)
+	}
+	changed := root
+	changed.Issue++
+	if err = s.EnqueueReadinessWork(ctx, "delivery:foreign-root", "delivery-1", changed); !errors.Is(err, ErrCommandConflict) {
+		t.Fatal("completed delivery changed its original root:", err)
+	}
 }
 
 func TestReadinessWorkCapacityGenerationAndDefer(t *testing.T) {
