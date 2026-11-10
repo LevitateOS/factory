@@ -1,5 +1,17 @@
 # Factory untangling decisions
 
+Retained review setup recovery (2026-11-10): a synthesized blocked phase wrapper
+is still a missing report, not a typed review verdict. Permit its exact empty
+shape when carrying only unused budget; reported results, output, findings and
+pending effects still refuse this path. Fresh funding now captures the current
+requirement and approval decisions transactionally, so newly approved workspaces
+after reopen do not silently reuse old setup authority or strand the candidate.
+Old commands retain their original payloads and receipts; only the new owner
+captures current setup. Historical captures without these fields remain bound to
+their recorded root's original decisions. `q28-active40/retained-offer42.log`
+passes the actual retained profile's read-only offer with spent budget preserved;
+connected model/merge continuation still needs installed qualification.
+
 Installed retained delivery and Muse1.4.15 (2026-11-10): preserve the offline
 original profile and qualify upgrades on its disposable copy. Current40's real
 fresh logins restore workflow permission and the selected Muse source. A new

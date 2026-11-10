@@ -132,6 +132,8 @@ export interface WorkCapability {
   reason?: string;
 }
 export interface RetainedCandidateFunding {
+  requirements?: string;
+  approval?: string;
   previous_root?: string;
   carry_unused?: boolean;
   native?: {profile: string; authentication?: string; credential_sha256?: string};
@@ -177,7 +179,8 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
     typeof x === 'number' && Number.isSafeInteger(x) && x >= min && x <= max;
   if (
     Object.keys(r).length !==
-      (n === undefined ? 9 : 10) + (r.previous_root === undefined ? 0 : 1) + (r.carry_unused === undefined ? 0 : 1) ||
+      (n === undefined ? 9 : 10) + (r.previous_root === undefined ? 0 : 1) + (r.carry_unused === undefined ? 0 : 1) + (r.requirements === undefined && r.approval === undefined ? 0 : 2) ||
+    ((r.requirements !== undefined || r.approval !== undefined) && !['requirements', 'approval'].every((k) => typeof r[k] === 'string' && /^d[a-f0-9]{24}$/.test(r[k] as string))) ||
     (r.previous_root !== undefined && r.previous_root !== r.publication) ||
     (r.carry_unused !== undefined && (r.carry_unused !== true || r.previous_root === undefined)) ||
     !source ||

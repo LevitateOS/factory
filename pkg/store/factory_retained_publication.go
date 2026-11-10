@@ -171,6 +171,7 @@ func (s *Store) RetainedCandidateFundingOffer(ctx context.Context, publication s
 	limits.CorrectionCycles = min(limits.CorrectionCycles, 1)
 	limits.MaxChildren = 1
 	f := factory.RetainedCandidateFunding{Native: g.sponsorship.Native, Publication: p.ID, PreviousRoot: previous, Candidate: p.Candidate, Base: p.PRCreate.BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
+	f.Requirements, f.Approval = a.Authority.RequirementsID, a.Authority.ApprovalID
 	if exists {
 		prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
 		if err != nil {
@@ -254,6 +255,15 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	current := p.Authority
 	current.Policy, current.Operator, current.Capacity = grants.policy.Revision, grants.operator.Revision, grants.capacity.Revision
 	current.Sponsorship, current.Environment = grants.sponsorship.Revision, grants.environment.Revision
+	if err = tx.QueryRowContext(ctx, `SELECT decision FROM project_requirement_heads WHERE project_id=$1 FOR UPDATE`, a.ProjectID).Scan(&current.RequirementsID); err != nil {
+		return fail(err)
+	}
+	if err = tx.QueryRowContext(ctx, `SELECT decision FROM project_approval_heads WHERE project_id=$1 FOR UPDATE`, a.ProjectID).Scan(&current.ApprovalID); err != nil {
+		return fail(err)
+	}
+	// Only the fresh funding offer captures this setup. Original publication,
+	// execution and funding captures retain their prior decisions forever.
+	source.Authority = current
 	// Retained publication has no execution run/preparation to renew. Its current
 	// standing authority, selected source and accepted inputs still must match.
 	// The new command captures today's policy and exact source grant; old
@@ -264,6 +274,7 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	if grants.policy.TargetBranch != p.TargetBranch || grants.policy.Roles[project.RoleReviewer].Account != source.Connection || !slices.Contains(grants.sponsorship.Roles, project.RoleReviewer) || grants.policy.Judgments != nil && grants.policy.Judgments.Account != source.Connection {
 		return fail(ErrRetainedPublicationIneligible)
 	}
+	a.Authority = current
 	return p, a, grants, nil
 }
 
@@ -304,6 +315,9 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 	if f.Candidate != p.Candidate || f.Base != p.PRCreate.BaseOID || f.Acceptance != p.Acceptance || !f.MatchesSource(g.sponsorship) || f.Policy != g.policy.Revision {
 		return empty, ErrRetainedPublicationIneligible
 	}
+	if f.Requirements != a.Authority.RequirementsID || f.Approval != a.Authority.ApprovalID {
+		return empty, ErrAdmissionChanged
+	}
 	settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, a.RetainedPublication.Assignment)
 	if err != nil || !settled {
 		return empty, ErrAttemptRunsPending
@@ -330,6 +344,7 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 		if launched != f.CarryUnused {
 			return empty, ErrRetainedPublicationIneligible
 		}
+		p.Authority = a.Authority
 		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, now)
 		if err != nil {
 			return empty, err
@@ -380,11 +395,15 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 		return ErrAttemptRunsPending
 	}
 	var unsafe bool
+	// Settlement may wrap a missing report in a blocked phase result. That
+	// exact empty wrapper is not a typed review verdict or reusable output.
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1
 		AND NOT COALESCE(stage='finished' AND data->>'phase'='review' AND data->>'outcome'='needs-human' AND data->>'reason'=$2
 		AND data#>>'{result,status}'='blocked' AND data#>>'{result,reported}'='false'
-		AND NOT (data->'result' ? 'phase_result') AND NOT (data->'result' ? 'review')
-		AND COALESCE(jsonb_array_length(data#>'{result,findings}'),0)=0,FALSE))`, a.ID, factory.AssignReasonNoReport).Scan(&unsafe); err != nil {
+		AND (NOT (data->'result' ? 'phase_result') OR data#>'{result,phase_result}'=jsonb_build_object(
+			'version',$3::int,'phase','review','status','blocked','summary',data#>>'{result,summary}'))
+		AND NOT (data->'result' ? 'review')
+		AND COALESCE(jsonb_array_length(data#>'{result,findings}'),0)=0,FALSE))`, a.ID, factory.AssignReasonNoReport, factory.PhaseResultVersion).Scan(&unsafe); err != nil {
 		return err
 	}
 	if unsafe {
@@ -459,6 +478,13 @@ func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 	// and rechecks its own current policy through the ordinary packet gate;
 	// reconnecting the writer does not refill time or rebind the funded source.
 	if json.Unmarshal(raw, &f) != nil || f.Validate() != nil || f.Publication != expectedPublication || f.PreviousRoot != root.RetainedPublication.AdoptedFrom || !f.MatchesSource(g.sponsorship) || f.Acceptance != a.Acceptance {
+		return ErrAdmissionChanged
+	}
+	requirements, approval := f.Requirements, f.Approval
+	if requirements == "" && approval == "" {
+		requirements, approval = root.Authority.RequirementsID, root.Authority.ApprovalID
+	}
+	if requirements != a.Authority.RequirementsID || approval != a.Authority.ApprovalID {
 		return ErrAdmissionChanged
 	}
 	return nil

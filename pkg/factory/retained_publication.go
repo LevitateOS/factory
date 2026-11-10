@@ -23,10 +23,15 @@ type RetainedCandidateFunding struct {
 	GrantID      string             `json:"grant_id"`
 	Generation   int64              `json:"generation"`
 	Policy       int64              `json:"policy"`
+	Requirements string             `json:"requirements,omitempty"`
+	Approval     string             `json:"approval,omitempty"`
 	Limits       AttemptLimits      `json:"limits"`
 }
 
 func (f RetainedCandidateFunding) Validate() error {
+	if (f.Requirements != "" || f.Approval != "") && (!project.ValidDecisionID(f.Requirements) || !project.ValidDecisionID(f.Approval)) {
+		return errors.New("invalid continuation setup capture")
+	}
 	if f.CarryUnused && f.PreviousRoot == "" {
 		return errors.New("unused review budget requires its prior owner")
 	}
