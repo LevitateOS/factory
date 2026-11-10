@@ -49,7 +49,11 @@ func (a *NativeApplication) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	product := factoryhttpapi.Product{Store: a.application.Store}
 	if a.bind != nil && r.Context().Err() == nil {
 		bound, err := a.bind(r.Context(), a.application)
-		if err == nil && bound.Store == a.application.Store {
+		if err != nil {
+			nativeProductResourceError(w, err)
+			return
+		}
+		if bound.Store == a.application.Store {
 			product = bound
 		}
 	}

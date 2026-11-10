@@ -356,8 +356,8 @@ pub(super) async fn run_evidence_declared(
         ("identity-change", 409),
         ("repository-change", 404),
         ("revoked", 401),
-        ("limited", 429),
         ("oversized", 413),
+        ("limited", 429),
     ] {
         mode(name)?;
         let cap = store.capability(&saved.connection).await?;
@@ -367,7 +367,19 @@ pub(super) async fn run_evidence_declared(
             &format!("declared {name} did not refuse: {}", reply.status),
         )?;
         cases.push(name);
+        if name == "limited" {
+            let before = fs::read_to_string(io.join("gets"))?;
+            mode("positive")?;
+            let cap = store.capability(&saved.connection).await?;
+            let held = runtime.github_read(&store, &cap, query()).await?;
+            ensure(held.status == 429 && fs::read_to_string(io.join("gets"))? == before,
+                "rate-limited read retried HTTPS before its reset")?;
+        }
     }
+    // The following independent provider scenarios begin in a new native
+    // owner. A retained login does not renew a rate hold or any write command.
+    runtime.stop()?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
     // The same facts must survive the real canonical consumer, not merely the
     // defining provider decoder. Each request admits fresh native custody.
     mode("positive-canonical")?;
@@ -456,7 +468,6 @@ pub(super) async fn run_evidence_declared(
         "identity-change-product",
         "repository-change-product",
         "revoked-product",
-        "limited-product",
         "oversized-product",
     ] {
         mode(name)?;
@@ -619,9 +630,9 @@ pub(super) async fn run_evidence_declared(
         ("jobs-empty-inconsistent-product", 502),
         ("jobs-cap-product", 413),
         ("revoked-product", 0),
-        ("limited-product", 0),
         ("identity-change-product", 0),
         ("repository-change-product", 0),
+        ("limited-product", 0),
     ] {
         mode(name)?;
         let response = declared_product(&runtime, &store, &saved.connection, &jobs_target).await;
@@ -631,6 +642,15 @@ pub(super) async fn run_evidence_declared(
                     && body.get("checks").is_none(),
                 &format!("declared job refusal {name} differs: {status}"),
             )?;
+            if name == "limited-product" {
+                ensure(status == 429 && body["error"]["code"] == "provider_rate_limited",
+                    "canonical binding hid the provider rate limit")?;
+                let before = fs::read_to_string(io.join("gets"))?;
+                mode("positive-canonical")?;
+                let (held, _) = declared_product(&runtime, &store, &saved.connection, &jobs_target).await?;
+                ensure(held == 429 && fs::read_to_string(io.join("gets"))? == before,
+                    "canonical rate-limited read retried HTTPS")?;
+            }
         }
         cases.push(name);
     }
@@ -642,6 +662,8 @@ pub(super) async fn run_evidence_declared(
         missed.is_empty(),
         "declared workflow job consistency refusals missing; see private job-refusals.json",
     )?;
+    runtime.stop()?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
     let retired = runtime.admit_product(
         store.clone(),
         store.capability(&saved.connection).await?,

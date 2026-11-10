@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -166,6 +167,24 @@ func nativeProductUnavailable(w http.ResponseWriter) {
 	nativeProductError(w, http.StatusServiceUnavailable, "authority_unavailable", "Current Factory account admission is unavailable.")
 }
 func nativeProductResourceError(w http.ResponseWriter, err error) {
+	var limited *NativePortError
+	if errors.As(err, &limited) && limited.Status == http.StatusTooManyRequests {
+		message := "The provider is rate limited. Wait before refreshing or reconnecting."
+		seconds := uint64(0)
+		if limited.RetryAfter != nil {
+			seconds = min(*limited.RetryAfter, 86400)
+		} else if limited.Reset != nil {
+			now := uint64(time.Now().Unix())
+			if *limited.Reset > now {
+				seconds = min(*limited.Reset-now, 86400)
+			}
+		}
+		if seconds > 0 {
+			message = "The provider is rate limited. Try again in " + strconv.FormatUint(seconds, 10) + " seconds."
+		}
+		nativeProductError(w, http.StatusTooManyRequests, "provider_rate_limited", message)
+		return
+	}
 	switch {
 	case errors.Is(err, factoryservice.ErrRepositoryHidden):
 		nativeProductError(w, 404, "repository_not_found", "Repository is not visible.")

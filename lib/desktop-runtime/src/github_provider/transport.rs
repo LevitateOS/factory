@@ -2,12 +2,13 @@ use super::{Failure, Result, API_VERSION};
 use reqwest::{header, redirect, Client as Http};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use zeroize::Zeroizing;
@@ -29,6 +30,11 @@ struct Wire {
     headers: header::HeaderMap,
     bytes: Zeroizing<Vec<u8>>,
 }
+struct RateHold {
+    until: Instant,
+    failure: Failure,
+}
+type RateHolds = Mutex<BTreeMap<String, RateHold>>;
 type ProviderRequest = Box<dyn FnOnce(&Http) -> Result<(reqwest::RequestBuilder, usize)> + Send>;
 
 enum Request {
@@ -99,6 +105,7 @@ impl Owner {
                 .map_err(|_| Failure::unavailable())
         })?;
         let (requests, mut inbox) = mpsc::channel::<Job>(MAX_REQUESTS);
+        let rate_holds = Arc::new(RateHolds::new(BTreeMap::new()));
         let (retired, mut retirement) = watch::channel(false);
         let handle = Client {
             requests,
@@ -114,7 +121,7 @@ impl Owner {
                     tokio::select! {
                         biased;
                         _ = retirement.changed() => break,
-                        Some(job) = inbox.recv() => { tasks.spawn(run(job, http.clone(), alive.clone())); }
+                        Some(job) = inbox.recv() => { tasks.spawn(run(job, http.clone(), alive.clone(), rate_holds.clone())); }
                         _ = tasks.join_next(), if !tasks.is_empty() => {}
                     }
                 }
@@ -477,14 +484,14 @@ impl Client {
         tokio::select! { biased; _ = retirement.changed() => Err(Failure::unavailable()), _ = tokio::time::sleep(duration) => self.current() }
     }
 }
-async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>) {
+async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>, rate_holds: Arc<RateHolds>) {
     let result = if !alive.load(Ordering::SeqCst) {
         Err(Failure::unavailable())
     } else {
         tokio::select! {
             biased;
             _ = job.cancelled.changed() => Err(Failure::unavailable()),
-            value = wire(&http, job.request) => value,
+            value = wire(&http, job.request, &rate_holds) => value,
         }
     };
     let result = if alive.load(Ordering::SeqCst) {
@@ -497,7 +504,7 @@ async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>) {
         _permit: job.permit,
     });
 }
-async fn wire(http: &Http, request: Request) -> Result<Wire> {
+async fn wire(http: &Http, request: Request, rate_holds: &RateHolds) -> Result<Wire> {
     let (request, limit) = match request {
         Request::Provider(build) => build(http)?,
         Request::Api { path, query, token } => {
@@ -526,7 +533,24 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
             16384,
         ),
     };
-    let mut response = request.send().await.map_err(network_failure)?;
+    let request = request.build().map_err(network_failure)?;
+    // Repeated authenticated GETs honor the provider's read-quota hold. Retain
+    // only a credential fingerprint and host; OAuth and mutation transport keep
+    // their existing admission and causal-response paths.
+    let rate_key = request.headers().get(header::AUTHORIZATION)
+        .filter(|_| request.method() == reqwest::Method::GET)
+        .map(|value| format!("{}:{}", request.url().host_str().unwrap_or(""), sha256(value.as_bytes())));
+    if let Some(key) = &rate_key {
+        let mut holds = rate_holds.lock().map_err(|_| Failure::unavailable())?;
+        let now = Instant::now();
+        holds.retain(|_, hold| hold.until > now);
+        if let Some(hold) = holds.get(key) {
+            let mut failure = hold.failure.clone();
+            failure.retry_after = Some(hold.until.duration_since(now).as_secs().saturating_add(1));
+            return Err(failure);
+        }
+    }
+    let mut response = http.execute(request).await.map_err(network_failure)?;
     if response
         .headers()
         .iter()
@@ -545,11 +569,33 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(Wire {
+    let wire = Wire {
         status,
         headers,
         bytes,
-    })
+    };
+    if let Some(key) = rate_key {
+        let exhausted = integer(&wire.headers, "x-ratelimit-remaining") == Some(0);
+        let failure = if exhausted || matches!(wire.status, 403 | 429) { Some(provider_failure(&wire)) } else { None };
+        if let Some(mut failure) = failure.filter(|failure| exhausted || failure.code == "github_rate_limited") {
+            let epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+            let seconds = failure.retry_after.or_else(|| failure.reset.map(|reset| reset.saturating_sub(epoch))).unwrap_or(60).clamp(1, 86400);
+            failure.status = 429;
+            failure.code = "github_rate_limited";
+            let mut holds = rate_holds.lock().map_err(|_| Failure::unavailable())?;
+            holds.retain(|_, hold| hold.until > Instant::now());
+            if holds.len() >= 256 && !holds.contains_key(&key) {
+                if let Some(oldest) = holds.iter().min_by_key(|(_, hold)| hold.until).map(|(key, _)| key.clone()) {
+                    holds.remove(&oldest);
+                }
+            }
+            let until = Instant::now() + Duration::from_secs(seconds);
+            if holds.get(&key).is_none_or(|previous| previous.until < until) {
+                holds.insert(key, RateHold { until, failure });
+            }
+        }
+    }
+    Ok(wire)
 }
 fn network_failure(error: reqwest::Error) -> Failure {
     if error.is_timeout() {

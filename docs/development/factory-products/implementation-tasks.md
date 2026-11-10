@@ -2199,12 +2199,16 @@ running or uncertain beyond the preserved old branch. Exact prior installed102
 backend refusal against103 passes with every table/marker unchanged and copied
 PG joined (`prior102-installed-result.log`).
 
-Next executable action: fix native GitHub rate-limit backoff/current failed-status
-presentation, then reopen this installed copy after admitted reads recover and
+Next executable action: package/install the native GitHub GET rate-limit hold
+and typed429/current failed-status correction, then reopen this installed copy and
 verify the merged UI without effects. Continue independent Fountain/intake work;
 full correction/paid-delivery judgment, external adoption, active-worker upgrades,
 installed Fountain/appliance parity and Q30 security/release gates remain open.
-Q24 still has no replacement appliance. No owned source edits/checks are running.
+Q24 still has no replacement appliance. Owned rate-limit paths: native GitHub
+transport, native product binding/error projection, desktop connect message and
+the existing declared TLS check. Native/UI compilation and Go runtime checks
+pass; the updated credential-check binary is building. No provider/model check
+or uncertain effect is running.
 
 Prior recovery (09:06UTC): Q26/Q28 reached real
 installed publication, independent typed review and CI; full delivery is pending.

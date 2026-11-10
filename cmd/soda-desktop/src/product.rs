@@ -244,6 +244,9 @@ pub(super) async fn factory_connect(
         // selection is installed so closure either refuses or cancels it.
         product_caller(&window)?;
         let reply = call(&desktop, &selection, "GET", "/api/factory/identity", &[]).await?;
+        if reply.status == 429 && reply.body["error"]["code"] == "provider_rate_limited" {
+            return Err("The provider is rate limited. Wait before reconnecting.".into());
+        }
         if reply.status != 200
             || !canonical(&reply.body["actor"])
             || !reply.body["host"].as_str().is_some_and(registry)
