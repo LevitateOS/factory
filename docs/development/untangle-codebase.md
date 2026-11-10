@@ -1,5 +1,28 @@
 # Factory untangling decisions
 
+Installed intake qualification (2026-11-10): current49/6301fde7baea4b528a63244cf1ea747ee260f845
+proves a quiet one-minute idle cursor interval, immediate policy-revision
+invalidation, and authenticated pagination over51 real locked issues. The actual
+poller advances1→18→34→53;19 runs/69 judgments/123 minutes stay unchanged. All
+creates/locks/state-only closures have original replies in
+`q25-package/intake49-fixture/operations.jsonl`, and all51 fixtures are closed.
+The actual installed New issue UI then creates#54 once as sodaos under
+commandeb68fc37473342029f292a79819de812. Polling advances54 and admits
+original-text/version0/current-writer acceptance d9d11a87668e338ad89bfda8a;
+manual creation is independent of automatic-origin journals. Policy re-enrollment
+does not reopen the earlier dispatch withdrawal: use explicit installed Resume
+before inference. Actual merged-result preparations for both roles are ready
+(requirementd7f750e732f7e1bead0efe0a4, approvaldab43b5cef08347f1fd2244ca),
+without replaying a model or granting automatic historical approval rebinding.
+Q16/Q26 full automatic/correction/recovery qualification remains open.
+
+Shared policy availability correction (2026-11-10): current49 visibly says queue
+comparisons are unavailable, contradicting Q13's same-repository owner and
+retained evidence. Correct that sentence in the one shared Lit component and
+keep mixed-repository funding unavailable. Typecheck/Lit pass. Both installed
+consumers still require rebuild and visible navigation/policy verification;
+this source correction alone does not close Q29.
+
 Idle intake scheduling (2026-11-10): the actual installed account exhausts its
 read quota again after release, despite no live delivery. The existing creator
 poller repeats a complete successful empty scan every10 seconds. Keep a per-repo
@@ -8,7 +31,8 @@ durable cursor and policy revision, and use Unix time for suspend/wake. It is
 not authority or retained history. Backlog, incomplete provenance and failed I/O
 retain immediate bounded recovery; disabled policies send no intake read. A new
 policy or runtime owner bypasses old scheduling metadata and still uses the
-original durable cursor. Go compilation passes; installed cadence is next.
+original durable cursor. Go compilation and current49's actual installed cadence
+pass; full automatic intake qualification is continuing above.
 
 Installed empty completion follow-through (2026-11-10): current48/9314cc9e7523fde376fd06eef829de522bc7ac5e
 uses inventory6147221b030db64abed495574c5461ece21925ab00a5b874e2f7af7df6a0f75c,

@@ -48,16 +48,25 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q26/Q28 installed retained delivery and recovery.** Actual current46
+**Current work: Q16/Q26 installed automatic issue intake.** Actual current49
+from clean `6301fde7baea4b528a63244cf1ea747ee260f845` qualifies idle polling and
+51-issue authenticated pagination without dispatch or spending. All locked
+fixtures are closed with causal receipts. Installed manual creation command
+`eb68fc37473342029f292a79819de812` creates issue#54 once as sodaos; the poller
+records original-text/current-creator initial acceptance `d9d11a87668e338ad89bfda8a`.
+Dispatch remains explicitly closed after policy withdrawal; resume through the
+installed control before its first model launch. See Q16/Q26 recovery below.
+Actual current46
 reuses the complete Builder candidate, finishes independent typed review, real
 app-bound CI, a distinct merge command and original-issue closure. Original
 uncertain publication and all charges remain preserved; see Q26's active recovery.
 Q25's selected Linux host matrix is qualified. Native Fountain controller/claim,
 publication/review/CI/merge and installed preparation slices have scoped evidence;
 their complete automatic/installed journeys remain outstanding. Native GitHub
-rate-limit hold and merged UI readback pass. Next: integrate the completion
-capture correction for retained publication owners and singleton task receipts,
-then continue independent Fountain and intake implementation. Q14 stays complete; Q24's missing appliance affects
+rate-limit hold and merged UI readback pass. Current48 also qualifies retained
+completion capture and paid release; current49 prepares both roles on the actual
+merge result. Continue this new automatic journey and independent Fountain work.
+Q14 stays complete; Q24's missing appliance affects
 only appliance-dependent work. Q30's final completion criteria remain intact.
 
 **Retained Q14 evidence.** Q14 passed the approved append-only
@@ -1166,16 +1175,36 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q16 — GitHub automatic own-issue intake
 
-**Current implementation (2026-11-10):** actual installed release/completion
-now has Q26's exact post-merge receipts; no full Q16 closure follows from it.
-The idle poller currently repeats successful empty reads every10 seconds and
-the installed account again hits its real quota. A successful complete empty
-page now schedules the next per-repository poll after one minute, bound to the
-original durable cursor/current policy revision. New runtime/policy, backlog,
-incomplete provenance and I/O failure retain their existing recovery behavior;
-disabled policies issue no intake read. Go checks pass. Next: install and prove
-cadence/current-policy invalidation without inference or sends, then finish the
-connected pagination/withdrawal/provenance/duplicate and full intake journey.
+**INCOMPLETE — installed intake (2026-11-10):** current49 from clean
+`6301fde7baea4b528a63244cf1ea747ee260f845` (inventory
+83c353eed9729f7b5242ae6d7c01be3b85be291794baf972926afac9427cb019,
+archive41c580adc7115f44b4dd148c9c5313ead322b31919b2b4ad9b949aeabc3fe6c6)
+proves the new one-minute idle cadence on the actual authenticated poller
+(`q28-format102/current49-idle-cadence.log`). Policy was disabled at revision4
+before creating 51 locked fixtures. Re-enrollment at revision5 immediately
+resumes the original durable cursor; real paginated reads advance1→18→34→53.
+No acceptance/model dispatch occurs for those locked issues:19 runs,69 judgments
+and123 charged minutes remain unchanged. All51 creates, locks and state-only
+closures have causal replies in
+`/home/vince/Projects/q25-package/intake49-fixture/operations.jsonl`; no open
+fixture remains and its text is preserved. Actual native read-only diagnostic
+`q28-format102/intake-native49.log` independently returns a complete first page
+with no events; this diagnostic is not the installed workflow proof.
+
+The installed New issue UI then creates original issue#54 as sodaos through
+command `eb68fc37473342029f292a79819de812` (native issue6306581044). Its title/body
+match the keyboard/clipboard-verified draft. Automatic polling reaches54 and
+admits initial acceptance `d9d11a87668e338ad89bfda8a`, original content version0,
+creator1/current write permission, native revision1010. The ordinary human issue
+command is correctly absent from automatic-origin journals even though it uses
+the automation account. Dispatch is closed by the earlier policy withdrawal;
+re-enrollment does not silently reopen it. Next: use installed Resume Factory work
+and finish actual planning/Builder/publication/review/CI/merge, then remaining
+withdrawal/provenance/duplicate/restart gates. Do not repeat its creation or
+initial acceptance. Existing source allowance150/revision5 retains123 charged
+minutes. Current49 app/backend/PG remain running under `/home/factory/q28-format102`;
+no fixture cleanup or diagnostic process remains. Original unknown publication
+3ddb87ba remains fenced, independently of this fresh issue.
 
 Outstanding. Polling/provenance/cursor and withdrawal work is independent of Q15’s Retry decision. Full own-issue delivery still needs working admitted GitHub delivery phases and real paid/host evidence.
 
@@ -2213,7 +2242,7 @@ same-owner reconnect. Work detail confirms delivery and distinct candidate/resul
 (`q25-package/current46-merged-detail.png`). No merge or model replay. Dependency
 run42797841128 passes UI/native/full Go+real PG; actual scheduled main run42789329677
 also closes source-job activation only. Normal GUI Quit joins app/backend/PG.
-Both original profiles and all source-copy file hashes remain unchanged. Current48
+Both original profiles and all source-copy file hashes remain unchanged. Current49
 is running at `/home/factory/q28-format102`; two KVM recipients remain, no paid/native
 send is running or uncertain beyond the preserved old branch. Exact prior installed102
 backend refusal against103 passes with every table/marker unchanged and copied
@@ -2248,16 +2277,24 @@ unknown command3ddb87ba. Source-copy files still match their original hashes.
 Owned duplicate staging copies44–47 match retained host archives with no extra
 paths and were removed to recover guest space; installed releases/profiles remain.
 
-Next executable action: package/install the idle-intake cadence change and verify
-its retained cursor/quiet interval, then prepare both roles on the actual merged
-result. No preparation was sent during the confirmed provider hold until
-reset1794309800/11:23:20UTC (`current48-provider-read-status.log`).
+Current49/6301fde7baea4b528a63244cf1ea747ee260f845 is installed; exact inventory,
+archive and real pagination/no-spend evidence are in Q16 above. Both roles are
+explicitly prepared on actual merge resultcc3b81e9: requirementd7f750e732f7e1bead0efe0a4,
+approvaldab43b5cef08347f1fd2244ca, coderf04528727cf7aa0ec9f9a9b9a and
+reviewerf544531687fd74672f58d8250 are ready. The unchanged source files and saved
+scripts were verified through actual keyboard/clipboard/UI
+(`current49-prepared-result.png`); no model ran. This is fresh explicit preparation
+of the actual result, not proof of automatic SourceMerge approval rebinding.
+No preparation was sent during the provider hold before reset1794309800/11:23:20UTC
+(`current48-provider-read-status.log`). Next: resume installed dispatch for fresh
+issue#54 and finish its automatic journey from retained acceptance; do not create
+or accept it again. Source allowance150/revision5 retains123 charged minutes.
 Continue independent Fountain/intake work;
 full correction/paid-delivery judgment, external adoption, active-worker upgrades,
 installed Fountain/appliance parity and Q30 security/release gates remain open.
 Q24 still has no replacement appliance. The completion material/store projection,
 README and source-job facts are committed asaf060d4252df033026e7ed853319f60489d54742.
-Owned paths: idle creation scheduling/coordinator metadata, this task record and decision log.
+Owned paths: shared role-setting availability text, this task record and decision log.
 Affected Go builds and existing disposable PG completion/
 source/publication checks pass (`retained103/completion47-pg-checks.log`). Current46 native TLS check compiled but
 was not executed. No provider/model check or new uncertain effect is running.
@@ -3195,6 +3232,14 @@ Final reply: requested Q28, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q29"></a>
 
 ### Q29 — Installed shared-component and host parity
+
+Current correction (2026-11-10): the actual installed role settings still say
+queue comparisons are unavailable despite Q13's verified same-repository owner.
+The single shared Lit presentation now names same-repository comparisons and
+keeps mixed-repository funding unavailable. Typecheck and Lit checks pass
+(`q25-package/intake49-fixture/shared-role-{typecheck,lit}.log`). Rebuild/install
+both consumers and verify actual navigation/policy behavior before Q29 closure;
+the running current49 intake journey still uses its original captured executable.
 
 Outstanding. Visible parity requires both actual installed consumers and current repository permissions. Shared code/build work can proceed independently; do not invent a cosmetic correction or treat the missing appliance’s stop/start check as a UI dependency.
 

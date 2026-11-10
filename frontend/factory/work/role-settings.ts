@@ -751,7 +751,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                     Select a source for routing, planning and other product judgments. Leave both fields empty to keep
                     judgments unconfigured. The full pipeline waits for admitted judgment execution.
                     ${this.eligible(judgmentRole, selected.account) && source?.judgmentAvailable && source.judgmentModels.includes(selected.model)
-                      ? 'This source can fund Feed, planning, consultations, contribution assessments and delivery judgments. Queue comparisons are not available yet. Delivery still requires the complete inspection, approval and CI evidence.'
+                      ? 'This source can fund Feed, planning, consultations, contribution assessments, same-repository queue comparisons and delivery judgments. Mixed-repository queue funding is unavailable. Delivery still requires the complete inspection, approval and CI evidence.'
                       : 'Judgment execution through this source is currently unavailable.'}
                     ${source?.judgmentModels.length
                       ? html`Supported judgment models: ${source.judgmentModels.join(', ')}.`
