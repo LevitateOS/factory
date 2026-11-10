@@ -2,16 +2,18 @@
 
 ## Deterministic role-contract exercise (2026-11-10)
 
-Status: typed-result and native workspace contracts verified; current automatic
-coordinator-dispatch fixture assessment remains in progress. The owner requested
-controlled role results through the existing harness, without new inference.
+Status: scoped deterministic role contracts, automatic native handoffs and
+retained recovery verified. The owner requested controlled role results through
+the existing harness, without new inference. Live product qualification remains
+paused.
 Native workspace modes ready/failed/ownership/dependency/cancel pass with current
 installed helpers in the existing local Debian VM. New assertions preserve the
 original busy receipt after head advancement, refuse a distinct stale-head start
 without losing the workspace, and retain readable frozen output after a failed
 check. Both task checkpoints, final candidate, cancellation's unresolved request
 and separate-process readback after exact retirement use the existing owners.
-This does not add failed-output repair or prove actual lost transport replies.
+These workspace-only modes do not add failed-output repair or prove lost
+checkpoint/final transport replies. The automatic mode below loses an edit reply.
 
 Evidence: `/home/vince/Projects/factory-contract-check/workspace.log` and VM
 `/home/factory/assembly-contract-check-20261110/workspace/`. The VM agent/broker
@@ -32,34 +34,81 @@ profile, source opinion, checkpoint run/candidate and missing-checkpoint refusal
 remain enforced. Server-owned head/base/finding/coverage fields replace stale
 worker copies; this is not downstream publication-adoption race proof.
 
-`roles2.log` passes write → clean restart → abrupt owned PostgreSQL crash → WAL
+`roles2.log` and the affected rerun `roles3.log` pass write → clean restart →
+abrupt owned PostgreSQL crash → WAL
 recovery. The original Architect proposal crosses the clean restart unconsumed;
 the final Inspector proposal crosses the crash unconsumed. Recovered settlements
 and exact replay preserve already-finished assignments and immutable payloads.
 The controlled plan opinion retains one synthetic fixture minute on its selected
 dummy source, without duplication. Manifest and original commands remain under
-`factory-contract-check/roles2/proof-post-id.role-handoffs.json`. `roles1.log`
+`factory-contract-check/roles{2,3}/proof-post-id.role-handoffs.json`. `roles1.log`
 preserves the initial fixture error (saving before run admission), and its owned
 DB is stopped. The correction uses `RecordFactoryRun`,
 `BindFactoryExecutionManifest` and `SaveFactoryFinalCheckpoint`; it does not
 weaken immutable metadata or seed finished assignments/accepted terminal rows.
 
-These are controlled admitted inputs, current-context, judgment and checkpoint
-observations; the Go scenario manually connects assignment outputs. It does not
-launch a worker, run application checks, authorize actual publication or prove
-automatic dispatch. Separate Rust workspace proof above executes real native
-checks/effects. Historical `q09-correction9.log` proves automatic controlled
-coordinator progression at its recorded revision; its old launch script must
-not be replayed because it changes shared service overrides. The current finite
-dispatch fixture needs the now-mandatory selected-source plan opinion before a
-current automatic-dispatch claim. No product implementation or live-model gate
-is closed by these checks. The frozen-failure repair limitation, prompt/catalog
-contradictions and diagnostic ambiguity from the audit remain open.
+The Go scenario controls admitted inputs, current context, judgment and checkpoint
+observations and manually connects assignment outputs. Separate automatic proof
+uses existing `execution-muse` with TASKS/REVIEW_CHILD/CORRECTION and
+`SODA_NATIVE_CHECK_CONTROLLED_PLAN_REVIEW=1`. Only the selected-source plan
+opinion is pre-recorded as a declared, bounded fixture judgment; a finite worker
+submits the matching deterministic plan through normal MCP. No terminal success
+is seeded. Provider publication/review/permission facts remain declared.
 
-Owned edits are this section plus the existing Go/Rust native MCP check files.
-No check is running. Next: resolve the bounded current automatic-fixture
-prerequisite or record its precise limit; commit only this slice's edits.
-The prior task-file pause edit remains unrelated and unstaged.
+`automatic-dispatch3.log` proves real coordinator/native Architect → Builder →
+independent Inspector finding → Fixer, with actual edits, executable-bit changes,
+dependent task checks, final checkpoint, candidate export, correction and canonical
+settlement. The worker deliberately loses an actual edit HTTP reply, reads back
+the effect and recovers its original receipt under the same command. Premature
+finish/output/start, invalid edit fields, stale executable digest and command
+identity conflict refuse. Architect is `62a41ba2625ab39e83a4ad001661f689`, Builder
+`9b0ef0368fdb677e1fbcdf051b0b7082`, Inspector
+`7ecdabb893eb0304a82864305c7c251a`, Fixer
+`6c85d1c223331dea731c76ed4641002e`. Inspector clear is covered by the typed
+scenario, not this automatic four-worker path.
+
+This found a product race: inspection stores a live process as Uncertain while
+the coordinator can adopt Running. Full-record task equality spuriously refused
+the same invocation. `NativeRecord.SameTaskBinding` now permits only that status
+difference. All other identity fields stay exact; sealed/stopped/exited records
+refuse, and receipt requests still require exact equality. `roles3.log` also
+proves old raw equality differs, the new comparison works both ways, and changed
+incarnation/manifest/terminal state refuses. The actual Builder/Fixer flow above
+qualifies the service/runtime integration of this fix.
+
+The full automatic attempt then stopped on an obsolete fixture assertion requiring
+an active capability after retirement. The helper now accepts Active or Retired
+(retirement preserves prior activation), still refusing Staged/Revoked.
+`automatic-recovery3.log` passes restart/readback of those original successful
+workers and their correction. The pre-existing correction marker forces readback
+before any dispatch path. `automatic3-{before,after}-recovery.sha256` match exactly:
+all four original intents/process receipts preserved, no replacement workers.
+`automatic-failed-recovery2.log` separately canonically settles original failed
+Builder `4dc1b298deb96dd22b5e4256af42490d` from its saved terminal facts, retaining
+its immutable stop-based usage and excluding offline recovery delay.
+
+Inputs/artifacts: host `/home/vince/Projects/factory-contract-check/`; guest
+`/home/factory/assembly-contract-check/dispatch{,2,3}/`; captured tiny source
+`19b426b10672d528823d11e5553c5b447c4ab7f7`; corrected backend SHA256
+`3837102aaa454595af25eb844ad12f4b85069c2a9109879dfbebfc32ff1b1a75`.
+Original failures remain: `automatic-dispatch.log`'s finite-client timeout
+(fixed by allowing the relay's existing bound without retry), and
+`automatic-dispatch2.log`'s binding race. The BPF-conditioned preliminary unit
+skipped before execution (`dispatch1.log`); it supplies no proof. Actual automatic
+work ran in `automatic-vm.qcow2`, a separate clean Rocky overlay with QEMU
+`restrict=on` blocking outbound networking. Helpers were installed only there.
+`automatic-cleanup.log` confirms all owned databases stopped and four native
+retirement receipts; the disposable VM shut down cleanly. The clean base,
+original paused Debian app/profile, shared helpers and unrelated task-file edit
+remain preserved. No inference or remote provider write ran.
+
+Typed/native groundwork is committed as
+`8a4397b0f785a3f88fead93a3a5d4d6c1d39ca69`; the narrow product correction,
+automatic fixture adaptation and this evidence are committed together. Historical
+`q09-correction9.log` remains valid only for its recorded revision; do not replay
+its service-override script. The frozen-failure repair limitation, prompt/catalog
+contradictions and diagnostic ambiguity from the audit remain open. This scoped
+exercise does not close live-model, connected GitHub or installed product gates.
 
 ## Retained assembly-line trace audit (2026-11-10)
 

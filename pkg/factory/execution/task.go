@@ -53,7 +53,32 @@ func (r TaskRequest) Validate() error {
 	return nil
 }
 
-func (r TaskRequest) Equal(other TaskRequest) bool { return reflect.DeepEqual(r, other) }
+// SameTaskBinding permits only the two live observation states for one exact
+// native binding. Inspection records Uncertain before the coordinator adopts
+// Running; neither observation replaces the process or its captured authority.
+func (r NativeRecord) SameTaskBinding(other NativeRecord) bool {
+	if r.Validate() != nil || other.Validate() != nil || r.Sealed || other.Sealed ||
+		(r.Retirement != Running && r.Retirement != Uncertain) || (other.Retirement != Running && other.Retirement != Uncertain) ||
+		r.Provenance.Process == nil || other.Provenance.Process == nil ||
+		r.Provenance.Process.StoppedAt != nil || other.Provenance.Process.StoppedAt != nil ||
+		r.Provenance.Process.ExitCode != nil || r.Provenance.Process.ExitSignal != nil ||
+		other.Provenance.Process.ExitCode != nil || other.Provenance.Process.ExitSignal != nil {
+		return false
+	}
+	r.Retirement, other.Retirement = Running, Running
+	return reflect.DeepEqual(r, other)
+}
+
+func (r TaskRequest) Equal(other TaskRequest) bool {
+	if r.Kind != collaboration.Native || other.Kind != collaboration.Native {
+		return reflect.DeepEqual(r, other)
+	}
+	if r.Native == nil || other.Native == nil || !r.Native.SameTaskBinding(*other.Native) {
+		return false
+	}
+	r.Native, other.Native = nil, nil
+	return reflect.DeepEqual(r, other)
+}
 
 // TaskReceipt preserves the task owner's result, including its replay receipt.
 // It is not a second workflow or an assertion that the task has completed.
@@ -63,7 +88,7 @@ type TaskReceipt struct {
 }
 
 func (r TaskReceipt) ValidateFor(request TaskRequest) error {
-	if request.Validate() != nil || !r.Request.Equal(request) || r.Result == nil || r.Result["task_id"] != request.Input.Arguments.TaskID {
+	if request.Validate() != nil || !reflect.DeepEqual(r.Request, request) || r.Result == nil || r.Result["task_id"] != request.Input.Arguments.TaskID {
 		return ErrTask
 	}
 	return nil

@@ -33,6 +33,26 @@ desktop provider operations and PostgreSQL restart/recovery. Use their existing
 case entrypoints and owned disposable profiles; do not run against retained
 accounts or databases just to check a refactor.
 
+For deterministic role contracts, build
+`tools/native-checks/native_mcp_signing_check.go` as a Go executable and pass it
+to `soda-native-pg-check POSTGRES_PAYLOAD NEW_SCRATCH -- CHECK_EXECUTABLE
+offline-role-handoffs`. This exercises all eight typed profiles, terminal
+settlement, exact-source fixture accounting and PostgreSQL restart/WAL recovery
+with controlled observations. It does not launch workers or qualify model output.
+
+The existing native signing checker has `workspace` and `execution-muse` modes
+for actual task/checkpoint ownership and automatic finite-worker handoffs.
+For the latter, `SODA_NATIVE_CHECK_TASKS=1`, `SODA_NATIVE_CHECK_REVIEW_CHILD=1`,
+`SODA_NATIVE_CHECK_CORRECTION=1` and
+`SODA_NATIVE_CHECK_CONTROLLED_PLAN_REVIEW=1` use scripted role results plus a
+declared selected-source plan opinion. Use an owned disposable Linux environment
+with the current installed helpers, a captured local source bundle/commit and
+outbound networking disabled; clear live/provider flags and credential
+environment. Startup ordinarily refreshes tool metadata. Preserve original
+failed-run journals before recovery, and do not replay historical service-override
+scripts against a shared installation. See the scoped artifacts and limitations
+in [the retained exercise record](untangle-codebase.md#deterministic-role-contract-exercise-2026-11-10).
+
 Build a desktop stage with explicit native PostgreSQL input:
 
 ```sh

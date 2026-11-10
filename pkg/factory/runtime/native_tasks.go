@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -96,7 +95,7 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 	if err != nil {
 		return empty, err
 	}
-	if !reflect.DeepEqual(run.Native, request.Native) || request.Input.ManifestDigest != project.ExecutionManifestDigest(run.ExecutionManifest) ||
+	if !run.Native.SameTaskBinding(*request.Native) || request.Input.ManifestDigest != project.ExecutionManifestDigest(run.ExecutionManifest) ||
 		run.Native.Provenance.InstanceID != p.Instance || run.Reconciled {
 		return empty, fmt.Errorf("native task current run: %w", execution.ErrTask)
 	}

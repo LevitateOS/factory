@@ -1897,6 +1897,62 @@ func (f *offlineRoleFixture) remainingProfiles(ctx context.Context) error {
 	return nil
 }
 
+// Use the existing PostgreSQL Builder manifest with declared process metadata;
+// this checks binding comparisons only, without claiming a native worker ran.
+func offlineTaskObservationDrift(ctx context.Context, db *store.Store, runID string) error {
+	run, err := db.FactoryRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	manifest, err := project.ParseExecutionManifest(run.ExecutionManifest)
+	var plan factory.InvestigationPlan
+	if err != nil || json.Unmarshal(manifest.Plan, &plan) != nil || len(plan.Tasks) == 0 {
+		return errors.New("controlled drift requires the retained Builder manifest")
+	}
+	tool := execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", Executable: "/home/fixture/bin/muse", SHA256: strings.Repeat("b", 64)}
+	native := execution.NativeRecord{Tool: tool, BundleSHA256: strings.Repeat("c", 64), PromptSHA256: strings.Repeat("d", 64), Retirement: execution.Running,
+		Provenance: execution.NativeProvenance{TrustMode: execution.NativeCLIProvider, Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: plan.Preparation, BrokerRun: run.ID,
+			Connector: &execution.NativeConnector{UID: 1000, Service: strings.Repeat("c", 32)}, Custody: execution.NativeCustody{State: execution.NotAcquired},
+			Process: &execution.NativeProcess{InvocationID: strings.Repeat("e", 32), SystemInstance: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", StartIdentity: "123", PID: 1001, StartedAt: run.Started, Executable: tool.Executable, ExecutableSHA256: tool.SHA256}}}
+	active := execution.TaskRequest{Kind: collaboration.Native, Native: &native, Input: project.FactoryNativeTask{Project: run.ProjectID, Run: run.ID, InvocationID: native.Provenance.Process.InvocationID,
+		ManifestDigest: project.ExecutionManifestDigest(run.ExecutionManifest), Action: "workspace", Arguments: project.FactoryNativeTaskArguments{TaskID: plan.Tasks[0].ID, Operation: "read", Path: "native-task.txt", Limit: 8192}}}
+	uncertain := active
+	observed := native
+	observed.Retirement = execution.Uncertain
+	uncertain.Native = &observed
+	if active.Validate() != nil || uncertain.Validate() != nil || reflect.DeepEqual(active, uncertain) || !active.Equal(uncertain) || !uncertain.Equal(active) || !native.SameTaskBinding(observed) {
+		return errors.New("live observation drift did not preserve the exact task binding; old raw equality must differ")
+	}
+	receipt := execution.TaskReceipt{Request: active, Result: map[string]any{"task_id": active.Input.Arguments.TaskID}}
+	if receipt.ValidateFor(active) != nil || !errors.Is(receipt.ValidateFor(uncertain), execution.ErrTask) {
+		return errors.New("task receipt stopped requiring its exact original request")
+	}
+	for _, change := range []struct {
+		name string
+		edit func(*execution.TaskRequest)
+	}{
+		{"incarnation", func(r *execution.TaskRequest) { r.Native.Provenance.Process.StartIdentity = "124" }},
+		{"sealed", func(r *execution.TaskRequest) { r.Native.Sealed = true }},
+		{"exited", func(r *execution.TaskRequest) { code := 0; r.Native.Provenance.Process.ExitCode = &code }},
+		{"stopped", func(r *execution.TaskRequest) {
+			stopped := run.Started
+			r.Native.Provenance.Process.StoppedAt = &stopped
+		}},
+		{"manifest", func(r *execution.TaskRequest) { r.Input.ManifestDigest = strings.Repeat("0", 64) }},
+	} {
+		changed := uncertain
+		binding, process := observed, *observed.Provenance.Process
+		binding.Provenance.Process = &process
+		changed.Native = &binding
+		change.edit(&changed)
+		if active.Equal(changed) {
+			return fmt.Errorf("controlled task drift accepted changed %s", change.name)
+		}
+	}
+	fmt.Println("PASS: retained PostgreSQL Builder manifest permits only controlled Running↔Uncertain task-binding drift; old raw equality differs, receipt requests remain exact, changed incarnation/seal/exit/stop/manifest refuse; no native process claim")
+	return nil
+}
+
 func offlineRoleHandoffs() error {
 	phase, path := os.Getenv("SODA_NATIVE_PG_PHASE"), os.Getenv("SODA_NATIVE_PG_POST_ID_FILE")+".role-handoffs.json"
 	if phase != "write" && phase != "restart" && phase != "recover" {
@@ -1998,6 +2054,9 @@ func offlineRoleHandoffs() error {
 	builder.AttemptRoot, builder.ParentAssignment, builder.PublicationAssignment = architect.ID, architect.ID, architect.ID
 	cap, err := f.admit(ctx, builder, factory.MCPProfileBuilder, plan)
 	if err != nil {
+		return err
+	}
+	if err = offlineTaskObservationDrift(ctx, db, builder.Run); err != nil {
 		return err
 	}
 	firstCandidate := strings.Repeat("2", 40)
@@ -4457,6 +4516,10 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if json.Unmarshal(raw, &input) != nil || !factory.ValidID(input.Run) {
 		return errors.New("admitted fixture input invalid")
 	}
+	controlledPlanReview := os.Getenv("SODA_NATIVE_CHECK_CONTROLLED_PLAN_REVIEW") == "1"
+	if controlledPlanReview && (!input.Tasks || !input.MuseLogin || input.Live || input.Withdraw || os.Getenv("SODA_NATIVE_CHECK_CONTROLLER") == "1" || os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" || os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" || os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1") {
+		return errors.New("controlled plan review requires only the finite local Muse-login task fixture")
+	}
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
 	if err != nil {
 		return err
@@ -5001,7 +5064,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			fmt.Println("PASS: actual investigation-derived Go admission, role MCP edits/readback/retry, sequential task and integration checks, retained final receipt and candidate export")
 		}
 		cap, err := db.GetMCPCapability(ctx, input.Run)
-		if err != nil || cap.State != factory.MCPCapabilityActive {
+		// Canonical settlement retires an activated capability; its retained
+		// state still proves activation after the worker and resources settle.
+		if err != nil || cap.State != factory.MCPCapabilityActive && cap.State != factory.MCPCapabilityRetired {
 			if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE") == "1" && err == nil && cap.State == factory.MCPCapabilityRevoked {
 				for {
 					(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcilePostJudgments(ctx)
@@ -5113,7 +5178,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	sponsoredRoles := []string{project.RoleCoder}
 	allowance, planned := 5, 1
-	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" || os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" || os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
+	if controlledPlanReview || os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" || os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" || os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
 		selection := roles[project.RoleCoder]
 		selection.Profile = factory.ExecutionProfile{Effort: "low", Contributor: true}
 		policy.Judgments = &selection
@@ -5203,6 +5268,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if input.Tasks {
 		prompt = append(prompt, []byte("\nnative-tasks-investigation-fixture\n")...)
+		if controlledPlanReview {
+			prompt = append(prompt, []byte("\nnative-controlled-plan-review-fixture\n")...)
+		}
 		if os.Getenv("SODA_NATIVE_CHECK_CORRECTION") == "1" {
 			if input.Live {
 				return errors.New("correction check uses only the local CLI fixture")
@@ -5309,6 +5377,11 @@ func launchNativeFixtureRun(ctx context.Context, db *store.Store, port factoryru
 	if err = db.StageMCPCapability(ctx, cap); err != nil {
 		return err
 	}
+	if strings.Contains(string(a.Prompt), "native-controlled-plan-review-fixture") {
+		if err = recordNativeControlledPlanReview(ctx, db, port, cap, a); err != nil {
+			return fmt.Errorf("prelaunch controlled plan opinion: %w", err)
+		}
+	}
 	secret, err := factoryruntime.NativeMCPSecretDeriver(port.Config, port.Instance)(ctx, cap)
 	if err != nil {
 		return err
@@ -5334,6 +5407,96 @@ func launchNativeFixtureRun(ctx context.Context, db *store.Store, port factoryru
 		return errors.New("public Go launch did not observe its actual live worker")
 	}
 	fmt.Println("PASS: actual native packet/capability admitted and launched through the public Go execution port")
+	return nil
+}
+
+// This finite fixture controls only the selected-source opinion. The real worker
+// still submits its plan through MCP, and the coordinator owns every transition.
+// Record the exact completed command before launch: a missing or pending opinion
+// must never allow the normal result gate to start provider inference here.
+func recordNativeControlledPlanReview(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, cap factory.MCPCapability, a factory.Assignment) error {
+	if os.Getenv("SODA_NATIVE_CHECK_CONTROLLED_PLAN_REVIEW") != "1" || a.Phase != project.ExecutionInvestigate || cap.Profile != factory.MCPProfileArchitect || cap.State != factory.MCPCapabilityStaged || a.NativeTool == nil {
+		return errors.New("controlled opinion requires its staged finite Architect")
+	}
+	executable, err := os.Executable()
+	if err != nil || a.NativeTool.Executable != executable {
+		return errors.New("controlled opinion worker is not this finite helper")
+	}
+	policy, err := db.RepositoryPolicy(ctx, a.Repository)
+	if err != nil || policy.Judgments == nil || policy.Judgments.Account != a.Connection || policy.Judgments.Harness != project.FactoryHarnessMuse || policy.Judgments.Model != a.Model || policy.Judgments.Profile != (factory.ExecutionProfile{Effort: "low", Contributor: true}) {
+		return errors.New("controlled opinion lacks its exact selected-source judgment policy")
+	}
+	source, err := db.Sponsorship(ctx, a.Repository, a.Connection)
+	if err != nil || source.Native == nil || source.Native.Profile != port.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || !slices.Contains(source.Roles, factory.RoleJudgment) || source.AllowanceMinutes != 30 {
+		return errors.New("controlled opinion lacks its explicit bounded source sponsorship")
+	}
+	payload, err := nativeTaskPlanPayload(a.Run, strings.Contains(string(a.Prompt), "native-correction-fixture"))
+	if err != nil {
+		return err
+	}
+	(factoryservice.WorkerResults{Assignments: db}).Bind(ctx, cap, factory.MCPToolFinishIssuePlan, payload)
+	raw, err := json.Marshal(payload["tasks"])
+	var plan factory.InvestigationPlan
+	if err != nil || json.Unmarshal(raw, &plan) != nil || plan.Executable() != nil {
+		return errors.New("controlled opinion plan is not the complete bound executable plan")
+	}
+	state, instructions, criteria := factory.IssuePlanReviewQuestion(cap, a, plan)
+	snapshot, err := factory.SystemOneWorkerSnapshot(cap.ID, factory.MCPToolSystemOneChoice, state, instructions, criteria)
+	if err != nil {
+		return err
+	}
+	prompt, err := factory.NativeConsultationPrompt("choice", state, map[string]factory.SystemOneWorkerQuestion{"judgment": {Instructions: instructions, Criteria: criteria}})
+	if err != nil {
+		return err
+	}
+	id := factory.NativeJudgmentID(port.Config.Profile, a.Repository, "consultation:"+snapshot[:32])
+	if _, err = db.FactoryCommand(ctx, id); !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("controlled opinion requires a fresh command before launch: %v", err)
+	}
+	if err = db.RecordConsultationRequest(ctx, store.SystemOneConsultation{Repository: a.Repository, Role: cap.Profile,
+		FeedConsultation: factory.FeedConsultation{Snapshot: snapshot, GroupID: snapshot, Assignment: a.ID, SourceRevision: cap.AcceptedRevision,
+			Tool: string(factory.MCPToolSystemOneChoice), Kind: "choice", State: state, Instructions: instructions, Criteria: criteria}}); err != nil {
+		return err
+	}
+	capture := factory.NativeJudgmentCapture{ID: id, Profile: port.Config.Profile, Repository: a.Repository, Selection: *policy.Judgments,
+		PolicyRevision: &policy.Revision, FundingRevision: &source.Revision, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OutputKind: "consultation",
+		WorkerCapability: cap.ID, WorkerScope: cap.ScopeDigest(), ToolVersion: "declared-offline-1", ToolSHA256: strings.Repeat("b", 64), DeadlineUnixMS: time.Now().Add(5 * time.Second).UnixMilli()}
+	if _, fresh, err := db.BeginNativeJudgment(ctx, capture); err != nil || !fresh {
+		return fmt.Errorf("controlled opinion admission fresh=%v: %v", fresh, err)
+	}
+	answer := map[string]any{"type": "choice", "choice": "complete", "confidence": 1.0, "probabilities": map[string]any{"complete": 1.0, "replan": 0.0}}
+	started := time.Now().UTC()
+	stopped := started.Add(time.Second)
+	outcome, err := json.Marshal(map[string]any{"output": map[string]any{"answers": map[string]any{"judgment": answer}}, "process": map[string]any{
+		"run": id, "live": false, "finished": true, "tree_retired": true, "output_complete": true, "exit_code": 0, "executable_sha256": capture.ToolSHA256,
+		"started_unix_ms": started.UnixMilli(), "stopped_unix_ms": stopped.UnixMilli()}})
+	if err != nil {
+		return err
+	}
+	if err = db.CompleteNativeJudgment(ctx, capture, outcome, factory.Usage{RunID: id, Repository: a.Repository, Connection: a.Connection, Minutes: 1, StartedAt: started, EndedAt: stopped}); err != nil {
+		return err
+	}
+	result := map[string]any{"native_judgment": id, "model": capture.Selection.Model, "answer": answer, "usage": map[string]any{"elapsed_milliseconds": 1000}}
+	if err = db.RecordConsultationResult(ctx, snapshot, capture.Selection.Model, store.ConsultationStatusReturned, result); err != nil {
+		return err
+	}
+	expected, err := capture.Command()
+	if err != nil {
+		return err
+	}
+	command, err := db.FactoryCommand(ctx, id)
+	if err != nil || command.Finished == "" || command.Type != expected.Type || command.Target != expected.Target || command.Principal != expected.Principal || command.Digest != expected.Digest || command.Payload != expected.Payload || command.Outcome != string(outcome) {
+		return errors.New("controlled opinion command is missing, pending or changed before launch")
+	}
+	post, err := db.FeedPost(ctx, factory.FeedConsultationPostID(snapshot))
+	if err != nil || post.Consultation == nil || post.Consultation.Status != store.ConsultationStatusReturned || post.Consultation.Snapshot != snapshot || post.Consultation.Assignment != a.ID || !factory.IssuePlanReviewAccepted(post.Consultation.Answer) || post.Consultation.Answer["native_judgment"] != id {
+		return errors.New("controlled opinion consultation is not the exact completed plan review")
+	}
+	pending, err := db.PendingNativeJudgments(ctx)
+	if err != nil || len(pending) != 0 || db.CheckNativeJudgmentSource(ctx, capture) != nil {
+		return errors.New("controlled opinion has pending commands or changed source before launch")
+	}
+	fmt.Printf("CONTROLLED: complete plan opinion %s snapshot=%s plan=%s; exact selected source, declared process/usage, no inference executed\n", id, snapshot, plan.ID)
 	return nil
 }
 
@@ -10080,7 +10243,9 @@ func workerProfileFixture() error {
 	}
 	request.Header.Set("Authorization", os.Getenv("SODA_FACTORY_RUN_AUTH"))
 	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true}}
+	// Let the native relay return within its own 20-second bound before this
+	// finite client times out; each operation still sends exactly once.
+	client := &http.Client{Timeout: 25 * time.Second, Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true}}
 	response, err := client.Do(request)
 	if err != nil {
 		return errors.New("native worker MCP relay unavailable")
@@ -10348,27 +10513,28 @@ func workerProfileFixture() error {
 			return errors.New("withdrawal fixture was not cancelled")
 		}
 		if strings.Contains(string(prompt), "native-tasks-investigation-fixture") {
-			plan := nativeWorkspacePlan(strings.Repeat("0", 40))
-			if strings.Contains(string(prompt), "native-correction-fixture") {
-				// Retain a final-tree invariant for the controller's correction
-				// checks; the first task's exact bytes are checked by readback.
-				plan.Checks[0].Argv = []string{"/usr/bin/bash", "-eu", "-c", "test -f native-task-dir/kept.txt; test ! -e native-task-dir/to-remove; test -f native-task.txt"}
+			var run string
+			if strings.Contains(string(prompt), "native-controlled-plan-review-fixture") {
+				raw, err := workerMCPCall(client, "factory.context", map[string]any{})
+				if err != nil {
+					return err
+				}
+				var current struct {
+					Run string `json:"run"`
+				}
+				if json.Unmarshal(raw, &current) != nil || !factory.ValidID(current.Run) {
+					return errors.New("controlled plan review current run missing")
+				}
+				run = current.Run
 			}
-			planBytes, err := json.Marshal(plan)
+			payload, err := nativeTaskPlanPayload(run, strings.Contains(string(prompt), "native-correction-fixture"))
 			if err != nil {
 				return err
-			}
-			var authored map[string]any
-			if err := json.Unmarshal(planBytes, &authored); err != nil {
-				return err
-			}
-			for _, field := range []string{"attempt_root", "source_commit", "integration_commit", "scope_digest", "input_digest", "preparation", "digest"} {
-				delete(authored, field)
 			}
 			if _, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "README.md"}); err != nil {
 				return err
 			}
-			if _, err := workerMCPCall(client, "factory.finish_issue_plan", map[string]any{"approach": plan.Approach, "tasks": authored, "evidence_refs": []string{"source:README.md"}}); err != nil {
+			if _, err := workerMCPCall(client, "factory.finish_issue_plan", payload); err != nil {
 				return err
 			}
 		} else if strings.Contains(string(prompt), "native-correction-fixture") && serverName == "soda-factory-"+string(factory.MCPProfileInspector) {
@@ -10856,6 +11022,35 @@ func ownedToolFixture(profile, instance, mode string) error {
 	}
 	fmt.Println("PASS: actual Go/native tool callback verifies official stable Muse", observed.Native.Version, "ELF", observed.Native.SHA256)
 	return nil
+}
+
+// Both sides of the controlled plan review author identical finite work. The
+// result owner supplies every source/scope binding and computes the digest.
+func nativeTaskPlanPayload(run string, correction bool) (map[string]any, error) {
+	plan := nativeWorkspacePlan(strings.Repeat("0", 40))
+	if run != "" {
+		if !factory.ValidID(run) {
+			return nil, errors.New("finite plan run is invalid")
+		}
+		plan.ID = factory.MCPInputDigest([]byte("native-controlled-plan-v1:" + run))[:32]
+	}
+	if correction {
+		// Retain a final-tree invariant for the controller's correction checks;
+		// the first task's exact bytes are checked by worker readback.
+		plan.Checks[0].Argv = []string{"/usr/bin/bash", "-eu", "-c", "test -f native-task-dir/kept.txt; test ! -e native-task-dir/to-remove; test -f native-task.txt"}
+	}
+	raw, err := json.Marshal(plan)
+	if err != nil {
+		return nil, err
+	}
+	var authored map[string]any
+	if err = json.Unmarshal(raw, &authored); err != nil {
+		return nil, err
+	}
+	for _, field := range []string{"attempt_root", "source_commit", "integration_commit", "scope_digest", "input_digest", "preparation", "digest"} {
+		delete(authored, field)
+	}
+	return map[string]any{"approach": plan.Approach, "tasks": authored, "evidence_refs": []string{"source:README.md"}}, nil
 }
 
 // Cross-language binding fixtures grant no task or provider admission.
