@@ -45,8 +45,8 @@ func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	case factory.MCPToolWorkspace:
 		return &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{
 			"task_id": {Type: "string", Pattern: "^[a-z][a-z0-9_-]{0,31}$"}, "operation": {Type: "string", Enum: []any{"read", "edit", "mkdir", "remove", "executable"}},
-			"path": {Type: "string", MinLength: ptrInt(1), MaxLength: ptrInt(1024)}, "offset": {Type: "integer"}, "limit": {Type: "integer"},
-			"expected": {Type: "string"}, "replacement": {Type: "string"}, "expected_digest": {Type: "string"}, "executable": {Type: "boolean"},
+			"path": {Type: "string", MinLength: ptrInt(1), MaxLength: ptrInt(1024)}, "offset": {Type: "integer", Description: "Zero-based UTF-8 byte offset for read or edit."}, "limit": {Type: "integer", Description: "Read only, 4–32768 bytes. Omit for mutations."},
+			"expected": {Type: "string", Description: "Edit only: exact text at offset; empty for insertion."}, "replacement": {Type: "string", Description: "Edit only: replacement text."}, "expected_digest": {Type: "string", Description: "Remove or executable only: file_digest from the latest read. Omit for edit; edits bind expected text instead."}, "executable": {Type: "boolean"},
 		}, Required: []string{"task_id", "operation", "path"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
 	case factory.MCPToolReadSource, factory.MCPToolListSource:
 		minLength := 1

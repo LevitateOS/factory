@@ -147,7 +147,7 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 		}
 	}
 	if reply.Result.Status == "preimage_mismatch" && request.Input.Action == "workspace" && args.Operation == "edit" {
-		return empty, errors.New("workspace edit preimage differs: expected must match at the zero-based UTF-8 byte offset; offset 0 is the beginning of the file, not a text search. Read the current file, then correct the offset or replace its complete read content at offset 0. Use a fresh operation_id; the refused edit changed nothing")
+		return empty, errors.New("workspace edit preimage differs: expected must match at the zero-based UTF-8 byte offset; offset 0 is the beginning of the file, not a text search. Read the current file, then correct the offset or replace its complete read content at offset 0. Use a fresh submission_id; the refused edit changed nothing")
 	}
 	if reply.Result.Status == "preimage_mismatch" && request.Input.Action == "workspace" && args.Operation == "executable" {
 		return empty, errors.New("workspace executable preimage differs: read the current file and use its file_digest as expected_digest with a fresh submission_id; the refused operation changed nothing")

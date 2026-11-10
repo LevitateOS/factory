@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -9845,6 +9846,15 @@ func workerSequentialTasks(client *http.Client) error {
 		payload := map[string]any{"task_id": id, "operation": "edit", "path": "native-task.txt", "expected": expected, "replacement": id + "\n"}
 		key := "native-task-" + id + "-edit"
 		if i == 0 {
+			for _, extra := range []map[string]any{{"limit": 8192}, {"expected_digest": strings.Repeat("a", 64)}} {
+				invalid := maps.Clone(payload)
+				for field, value := range extra {
+					invalid[field] = value
+				}
+				if _, err := workerMCPCallID(client, "factory.workspace", invalid, factory.NewID()); err == nil || !strings.Contains(err.Error(), "workspace edit does not accept limit or expected_digest") {
+					return fmt.Errorf("workspace edit read-field refusal was not actionable: %v", err)
+				}
+			}
 			if err := workerLoseEditReply(client, payload, key); err != nil {
 				return err
 			}

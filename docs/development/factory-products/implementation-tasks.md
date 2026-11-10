@@ -54,8 +54,10 @@ from clean `6301fde7baea4b528a63244cf1ea747ee260f845` qualifies idle polling and
 fixtures are closed with causal receipts. Installed manual creation command
 `eb68fc37473342029f292a79819de812` creates issue#54 once as sodaos; the poller
 records original-text/current-creator initial acceptance `d9d11a87668e338ad89bfda8a`.
-Dispatch remains explicitly closed after policy withdrawal; resume through the
-installed control before its first model launch. See Q16/Q26 recovery below.
+Installed Resume explicitly reopens the policy-withdrawal gate. Automatic Architect
+55b9d608ba352512bafaec9885018add succeeds; Builderdedb187e1c39140c20a48cd0066fc38a
+settles failed without writes after misleading workspace validation errors.
+See Q16/Q26 recovery below; preserve both runs before fresh authorized Retry.
 Actual current46
 reuses the complete Builder candidate, finishes independent typed review, real
 app-bound CI, a distinct merge command and original-issue closure. Original
@@ -1197,12 +1199,25 @@ match the keyboard/clipboard-verified draft. Automatic polling reaches54 and
 admits initial acceptance `d9d11a87668e338ad89bfda8a`, original content version0,
 creator1/current write permission, native revision1010. The ordinary human issue
 command is correctly absent from automatic-origin journals even though it uses
-the automation account. Dispatch is closed by the earlier policy withdrawal;
-re-enrollment does not silently reopen it. Next: use installed Resume Factory work
-and finish actual planning/Builder/publication/review/CI/merge, then remaining
+the automation account. Re-enrollment does not silently reopen the earlier
+policy withdrawal. Installed Resume confirms dispatch revision4/open and
+automatically launches Architect55b9d608ba352512bafaec9885018add; its typed
+two-task plan succeeds. Builderdedb187e1c39140c20a48cd0066fc38a then settles
+failed/harness_no_report without edits or a candidate. Its retained terminal
+(`intake49-fixture/builder-terminal.log`) shows valid submission IDs repeatedly
+receiving `workspace edit lacks its operation identity`. The validator also used
+that error for forbidden read-field arguments. Separate the failures and explain
+that edits omit limit/expected_digest; schema descriptions name the
+operation-specific fields. Identity, preimage and refusal semantics stay intact.
+Affected Go/catalog checks pass. The existing no-model sequential-native check
+now includes both rejected fields before its later exact edit/replay; that added
+native assertion is compiled, not yet executed. Next: install the correction,
+use one fresh explicit Retry under standing funding permission, and finish
+actual planning/Builder/publication/review/CI/merge, then remaining
 withdrawal/provenance/duplicate/restart gates. Do not repeat its creation or
-initial acceptance. Existing source allowance150/revision5 retains123 charged
-minutes. Current49 app/backend/PG remain running under `/home/factory/q28-format102`;
+initial acceptance. Existing source allowance150/revision5 retains135 charged
+minutes,21 settled runs and77 finished judgment commands. Current49 app/backend/PG
+remain running under `/home/factory/q28-format102`;
 no fixture cleanup or diagnostic process remains. Original unknown publication
 3ddb87ba remains fenced, independently of this fresh issue.
 

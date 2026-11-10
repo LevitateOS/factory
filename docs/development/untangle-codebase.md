@@ -1,5 +1,18 @@
 # Factory untangling decisions
 
+Actionable workspace refusal (2026-11-10): installed automatic issue#54 reaches
+a successful typed Architect plan, then Builderdedb187e1c39140c20a48cd0066fc38a
+ends without writes after repeated misleading `workspace edit lacks its operation
+identity` replies. The public MCP owner already binds valid submission IDs, but
+the shared validator conflates missing identity with nonzero read limit or a
+digest supplied to a text edit. Keep every refusal and preimage rule; distinguish
+the invalid fields and explain their correction, including the public
+submission_id rather than the private operation_id. Tool schema descriptions
+name read-only/digest-bound fields. Go/catalog checks and native-check compilation
+pass; the added existing sequential-native assertions and actual fresh Retry
+remain to run. Original21 settled runs,77 finished judgments/135 minutes and all
+uncertain sends remain preserved. No model is active before the next installation.
+
 Installed intake qualification (2026-11-10): current49/6301fde7baea4b528a63244cf1ea747ee260f845
 proves a quiet one-minute idle cursor interval, immediate policy-revision
 invalidation, and authenticated pagination over51 real locked issues. The actual

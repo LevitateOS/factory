@@ -53,8 +53,11 @@ func (a FactoryNativeTaskArguments) ValidateWorkspace() error {
 			return errors.New("workspace read is invalid")
 		}
 	case "edit":
-		if !ValidInvocation(a.OperationID) || a.Limit != 0 || a.ExpectedDigest != "" {
+		if !ValidInvocation(a.OperationID) {
 			return errors.New("workspace edit lacks its operation identity")
+		}
+		if a.Limit != 0 || a.ExpectedDigest != "" {
+			return errors.New("workspace edit does not accept limit or expected_digest; omit both, read the current text, and supply offset, expected and replacement with a fresh submission_id; this refused edit changed nothing")
 		}
 	case "mkdir", "remove":
 		if !ValidInvocation(a.OperationID) || a.Offset != 0 || a.Limit != 0 || a.Expected != "" || a.Replacement != "" || a.Operation == "remove" && !ValidDigest(a.ExpectedDigest) || a.Operation == "mkdir" && a.ExpectedDigest != "" {
