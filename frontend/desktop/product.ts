@@ -39,7 +39,7 @@ export class DesktopProduct {
     private navigate: (route: FactoryRoute) => void,
     private defaultBranch?: string
   ) {
-    this.scope = `github:${profile}:${selected.identity.host}:${selected.identity.actor}`;
+    this.scope = `${selected.provider}:${profile}:${selected.identity.host}:${selected.identity.actor}`;
     this.transport = new DesktopTransport(core, selected, profile);
   }
   retire() {
@@ -92,20 +92,21 @@ export class DesktopProduct {
     } else {
       const target = new URL(url),
         repository = this.selected.repository;
-      const path = target.origin === 'https://github.com' ? target.pathname.split('/').map(decodeURIComponent) : [];
+      const path = target.origin === this.selected.origin ? target.pathname.split('/').map(decodeURIComponent) : [];
+      const pulls = this.selected.provider === 'fountain' ? 'pulls' : 'pull';
       if (
         repository &&
-        target.origin === 'https://github.com' &&
+        target.origin === this.selected.origin &&
         !target.username &&
         !target.password &&
         !target.search &&
         path.length === 5 &&
         path.slice(1, 3).join('/').toLowerCase() === repository.name.toLowerCase() &&
-        (path[3] === 'issues' || path[3] === 'pull') &&
+        (path[3] === 'issues' || path[3] === pulls) &&
         id(path[4])
       ) {
         const fragment = target.hash ? decodeURIComponent(target.hash.slice(1)) : undefined;
-        const route: FactoryRoute = path[3] === 'pull'
+        const route: FactoryRoute = path[3] === pulls
           ? {kind: 'pull', repository: repository.id, pull: path[4]}
           : {kind: 'issue', repository: repository.id, issue: path[4], ...(fragment ? {fragment} : {})};
         admitFactoryRoute(route);
@@ -118,13 +119,15 @@ export class DesktopProduct {
     const repository = this.selected.repository;
     if (!repository || !href || /[\\\u0000-\u001f\u007f]/.test(href)) return;
     try {
-      const base = `https://github.com/${repository.name}/`;
-      if (href.startsWith('#') || href.startsWith('?')) return new URL(href, base + kind + '/' + number).href;
+      const base = `${this.selected.origin}/${repository.name}/`;
+      const subject = kind === 'pull' && this.selected.provider === 'fountain' ? 'pulls' : kind;
+      if (href.startsWith('#') || href.startsWith('?')) return new URL(href, base + subject + '/' + number).href;
       let url: URL;
       if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('/')) url = new URL(href, base);
       else {
         if (!this.defaultBranch) return;
-        url = new URL(href, base + 'blob/' + encodeURIComponent(this.defaultBranch) + '/');
+        const tree = this.selected.provider === 'fountain' ? 'src/branch/' : 'blob/';
+        url = new URL(href, base + tree + encodeURIComponent(this.defaultBranch) + '/');
       }
       if (!['https:', 'http:', 'mailto:'].includes(url.protocol) || url.username || url.password) return;
       return url.href;

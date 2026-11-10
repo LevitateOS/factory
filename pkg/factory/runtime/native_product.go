@@ -186,8 +186,12 @@ func nativeProductError(w http.ResponseWriter, status int, code, message string)
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 func nativeConnectionObservation(port *NativeCollaboration, identity NativeIdentity) collaboration.ConnectionObservation {
+	provider, base := collaboration.Provider(identity.Connection.Provider), identity.Connection.Origin
+	if provider == collaboration.GitHub {
+		base = "https://api.github.com"
+	}
 	return collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: port.operation.config.Profile, Name: "This computer"},
-		Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(identity.Connection.Connection),
+		Provider: provider, APIBase: base, Connection: collaboration.ConnectionID(identity.Connection.Connection),
 		Account: identity.Account.ExternalID, Login: identity.Account.Login}
 }
 func sameNativeAccount(a, b NativeIdentity) bool {

@@ -42,6 +42,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   let connection = '',
     wanted = '',
     nextPage = 0;
+  let fountainRepository = '';
+  const fountain = () => known.find(account => account.connection === connection)?.provider === 'fountain';
   // Account/repository are user choices; selected is only the current binding.
   let resumeRequested = false;
   let accountsCurrent = false;
@@ -55,14 +57,15 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   const live = (captured: number) => ready && serial === captured && !document.hidden;
   function render() {
     const options = JSON.stringify(
-      known.map((account) => [account.connection, account.label, account.account, account.state])
+      known.map((account) => [account.connection, account.label, account.account, account.state, account.provider, account.origin])
     );
     if (options !== accountOptions) {
       accountOptions = options;
       accounts.replaceChildren(
         new Option('Choose an account', ''),
         ...known.map((account) => {
-          const option = new Option(account.label ?? account.account, account.connection);
+          const label = account.label ?? account.account;
+          const option = new Option(account.provider === 'fountain' ? `${label} — ${account.origin}` : label, account.connection);
           option.disabled = account.state !== 'stored';
           return option;
         })
@@ -91,8 +94,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       busy ||
       !known.some((account) => account.connection === connection && account.state === 'stored');
     disconnect.disabled = !connection && !pending;
-    name.disabled = !selected || busy;
-    find.querySelector<HTMLButtonElement>('button')!.disabled = !selected || busy;
+    name.disabled = (!selected && !fountain()) || busy;
+    find.querySelector<HTMLButtonElement>('button')!.disabled = name.disabled;
     status.textContent = message;
   }
   function clear() {
@@ -164,13 +167,14 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     discovered = [...unique.values()];
     nextPage = next;
   }
-  async function choose(account: string, remote = '') {
+  async function choose(account: string, remote = '', enrolled = '') {
     resumeRequested = false;
     const captured = ++serial;
     const previousRepository = selected?.repository?.external_id;
     clear();
     connection = account;
     wanted = remote;
+    fountainRepository = enrolled;
     busy = true;
     message = account ? 'Connecting…' : 'Choose a saved account to connect.';
     render();
@@ -180,11 +184,18 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       render();
       return;
     }
+    if (fountain() && !remote) {
+      busy = false;
+      message = 'Enter a repository you have enrolled on this Fountain host.';
+      render();
+      return;
+    }
     let session: string | undefined;
     try {
       session = await core.invoke<string>('factory_prepare_connection', {
         connection: account,
         repository: remote || null,
+        fountainRepository: enrolled || null,
       });
       if (!live(captured)) {
         void core.invoke('factory_disconnect', {session}).catch(() => {});
@@ -236,10 +247,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     void choose(accounts.value);
   });
   repositories.addEventListener('change', () => {
-    void choose(connection, repositories.value);
+    void choose(connection, repositories.value, fountainRepository);
   });
   reconnect.addEventListener('click', () => {
-    void choose(connection, wanted);
+    void choose(connection, wanted, fountainRepository);
   });
   disconnect.addEventListener('click', () => {
     void choose('');
@@ -263,10 +274,11 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     event.preventDefault();
     const captured = serial,
       session = selected?.session;
-    if (!session || busy) return;
+    if ((!session && !fountain()) || busy) return;
     let value = name.value.trim();
     try {
-      if (value.startsWith('https://github.com/')) {
+      const origin = known.find(account => account.connection === connection)?.origin;
+      if (origin && value.startsWith(origin + '/')) {
         const url = new URL(value);
         check(!url.search && !url.hash && !url.username && !url.password);
         value = url.pathname.replace(/^\//, '').replace(/\/$/, '');
@@ -274,13 +286,29 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       value = value.replace(/\.git$/, '');
       check(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value));
     } catch {
-      message = 'Enter a GitHub repository URL or owner/name.';
+      message = 'Enter a repository URL on the selected host or owner/name.';
       render();
       return;
     }
     busy = true;
     message = 'Finding repository…';
     render();
+    if (fountain()) {
+      void core.invoke<{active:boolean;runtime_bound:boolean;repository:{id:string;owner:string;name:string;default_branch:string}}>('fountain_enrollment', {
+        connection, repository:value, action:'status',
+      }).then(enrollment => {
+        if (!live(captured)) return;
+        check(enrollment.active && enrollment.runtime_bound && id(enrollment.repository.id));
+        const repo = enrollment.repository;
+        discovered = [{external_id:repo.id,name:repo.owner+'/'+repo.name,private:null,default_branch:repo.default_branch}];
+        return choose(connection, repo.id, value);
+      }).catch(() => {
+        if (live(captured)) message = 'Current enrollment is unavailable. Enroll this repository before opening it.';
+      }).finally(() => {
+        if (serial === captured) { busy = false; render(); }
+      });
+      return;
+    }
     void core
       .invoke<NativeReply>('factory_find_repository', {session, name: value})
       .then((reply) => {
@@ -354,7 +382,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       }
       known = values;
       if (ready && !connection)
-        message = known.length ? 'Choose a saved account to connect.' : 'Sign in to GitHub to connect a repository.';
+        message = known.length ? 'Choose a saved account to connect.' : 'Sign in to connect a repository.';
       const account = known.find((account) => account.connection === connection);
       if (connection && account?.state !== 'stored') {
         ++serial;
@@ -377,7 +405,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
                 : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
       if (resumeRequested && ready && !document.hidden && !busy && account?.state === 'stored') {
-        void choose(connection, wanted);
+        void choose(connection, wanted, fountainRepository);
         return;
       }
       render();

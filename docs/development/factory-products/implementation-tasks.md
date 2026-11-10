@@ -1264,6 +1264,24 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+Native shared-read integration (2026-11-10): the enrolled Fountain repository
+now binds through Rust custody and the existing Go product/canonical services to
+the shared desktop. Repository selection checks the exact current enrollment;
+identity/repository, paginated issues, detail and comments are authenticated and
+bounded, with current enrollment checks after I/O. Unsupported writes/execution
+remain unavailable; issue-only enrollment is not claimed by a code-reader fixture.
+New sign-ins explicitly discover repository+issue OAuth scopes using protocol2;
+legacy discovery and existing refresh scopes are preserved. Canonical Fountain
+a95a153528 corrects OAuth scope parsing and adds opt-in comment pagination while
+preserving unpaged callers. `q19-authority/product31-connected7.log` passes actual
+TLS/OAuth/native custody/shared Go reads, two issue pages, detail/comments, finite
+worker/retirement and provider revocation/reconsent without renewed old authority.
+All check owners joined; no inference. Checks1–6 preserve their original scope,
+configuration/paging refusals and fixture-only URL/session failures. Types,
+language boundaries and production current31 build pass. Installed Fountain
+presentation, captured preparation grants and full execution/publication/intake/
+adoption remain outstanding; this read integration does not close Q19/Q27/Q29.
+
 **Verified native bridge increment; full Q19 remains INCOMPLETE.**
 Factory 65f4c0ced5a9deb83aa748929ec04cf26f481dae owns this increment.
 `q19-authority/native-worker-connected9.log` passes canonical Fountain
@@ -1882,7 +1900,7 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE, current30:** installed app283905/backend/PG is
+**Active recovery — INCOMPLETE, current31:** installed app295038/backend/PG is
 running with matching production helpers. Executable-bit correction48e7b9d is
 installed and its production-native check passes. The owner authorized30 additional
 minutes and one fresh Retry: UI saved sponsorship revision4,total120 on the same
@@ -1894,7 +1912,8 @@ aa494a696a777ff438e68f63bba7982d741ad12e and
 before its documentation task or finish report. Its native process exited0 and
 retired normally; this is an incomplete delivery, not a publication. All15 runs,
 55 finished judgments and97 charged minutes remain;23 minutes are available.
-This authorization is consumed; no further paid Retry is authorized. Read original command/run and
+This individual authorization is consumed; fresh commands use the standing Muse
+authorization above. Read original command/run and
 `q26-current29-{approved-funding,retry}-original.log` before further effects.
 Next: resolve the early model ending before seeking another paid attempt; the
 31 completed model calls are close to the captured32-step ceiling, but terminal

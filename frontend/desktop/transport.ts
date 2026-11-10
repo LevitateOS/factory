@@ -23,6 +23,8 @@ export interface Binding {
   identity: {host: string; actor: string};
   repository: RepositoryRef | null;
   account_label: string;
+  provider: 'github' | 'fountain';
+  origin: string;
 }
 export function binding(value: unknown, generation: number): Binding {
   const row = object(value),
@@ -34,6 +36,9 @@ export function binding(value: unknown, generation: number): Binding {
       id(identity.actor)
   );
   check(typeof row.account_label === 'string' && !!row.account_label.trim() && row.account_label.length <= 256);
+  check(row.provider === 'github' || row.provider === 'fountain');
+  check(typeof row.origin === 'string' && new URL(row.origin).origin === row.origin && row.origin.startsWith('https://'));
+  check(row.provider !== 'github' || row.origin === 'https://github.com');
   let repository: RepositoryRef | null = null;
   if (row.repository !== null) {
     const repo = object(row.repository);
@@ -52,6 +57,8 @@ export function binding(value: unknown, generation: number): Binding {
     identity: {host: identity.host as string, actor: identity.actor},
     repository,
     account_label: row.account_label,
+    provider: row.provider,
+    origin: row.origin,
   };
 }
 

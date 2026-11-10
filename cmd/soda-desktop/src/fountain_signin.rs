@@ -162,10 +162,10 @@ pub(super) async fn fountain_refresh(
                         .find(|value| value.connection == cap.account().connection)
                         .ok_or(Error::Reauthorize)?;
                     let client = match saved.grant.as_ref().map(|grant| grant.scope.as_str()) {
-                        Some("read:repository") => {
+                        Some("read:repository" | "read:repository read:issue") => {
                             Client::configured(&cap.account().origin).await?
                         }
-                        Some("write:repository") => {
+                        Some("write:repository" | "write:repository write:issue") => {
                             Client::configured_control(&cap.account().origin).await?
                         }
                         _ => return Err(Error::Reauthorize),

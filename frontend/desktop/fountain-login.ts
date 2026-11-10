@@ -3,7 +3,7 @@ import type {Core} from './transport.js';
 import type {Account} from './accounts.js';
 interface View {attempt:number;phase:string;prompt:{verification_uri:string;expires_at:number}|null;error:string|null}
 interface FountainAccount extends Account {grant?:{client_id?:string;scope:string;refresh_available:boolean}}
-const purpose=(account:FountainAccount)=>account.grant?.scope==='write:repository'?'control':account.grant?.scope==='read:repository'?'read':'access unknown';
+const purpose=(account:FountainAccount)=>['write:repository','write:repository write:issue'].includes(account.grant?.scope??'')?'control':['read:repository','read:repository read:issue'].includes(account.grant?.scope??'')?'read':'access unknown';
 interface Enrollment {active:boolean;runtime_bound:boolean;repository:{owner:string;name:string;permission:string}}
 /** Configured-host OAuth stays in Rust; the renderer receives public view state. */
 export function mountFountainLogin(core:Core){

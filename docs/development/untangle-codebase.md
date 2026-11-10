@@ -1,5 +1,19 @@
 # Factory untangling decisions
 
+Q19 Fountain shared native reads (2026-11-10): extend the existing admitted
+native product scope with one exact enrolled Fountain client. Rust owns all
+authenticated provider I/O and final custody/enrollment checks; the existing Go
+registry/services own canonical identity and UI records. The desktop selects an
+enrolled repository and uses the same shared feed/issue/detail presentation and
+host-specific links. Read enrollment still supplies no write or execution grant.
+Protocol2 explicitly discovers issue scopes alongside repository scopes, leaving
+legacy discovery and captured refresh scopes intact. Canonical Fountain
+a95a153528 fixes multi-scope controller admission and optional comment paging.
+`q19-authority/product31-connected7.log` passes the connected shared read and
+existing finite worker/revocation/recovery journey; all owners joined, no models.
+Production current31/types/boundaries pass. Full preparation-grant integration,
+Fountain delivery and installed shared presentation remain unfinished.
+
 Q26 installed GitHub refresh (2026-11-10): connect the missing desktop Refresh
 login action to the existing native OAuth rotation and sign-in lifetime owner.
 Keep cancellation, generation checks, immutable account identity and durable

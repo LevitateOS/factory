@@ -1214,8 +1214,42 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let supervisor=NativeSupervisor::start(Path::new(&payload),Path::new(&backend),profile)?;
     let ready=supervisor.health()?;
     ensure(ready.profile==grant.runtime_id,"native controller profile changed")?;
-    supervisor.enroll_credentials(credentials)?;
+    supervisor.enroll_credentials(credentials.clone())?;
     supervisor.observe_fountain_controller(client.clone()).await?;
+    let product_read = |path:String| {
+        let supervisor=&supervisor;
+        let credentials=credentials.clone();
+        let client=client.clone();
+        let repository=grant.repository.id.clone();
+        async move {
+            let capability=credentials.capability(connection).await?;
+            let request=supervisor.admit_fountain_product(credentials,capability,repository,client)?;
+            let reply=request.request("GET",&path,&[]).await?;
+            if reply.status!=200 {
+                let failure:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                return Err(format!("connected Fountain shared product read {path}: HTTP {}, code={}",reply.status,failure["error"]["code"].as_str().unwrap_or("unavailable")).into());
+            }
+            Ok::<serde_json::Value,Box<dyn std::error::Error>>(serde_json::from_slice(&reply.body)?)
+        }
+    };
+    let identity=product_read("/api/factory/identity".into()).await?;
+    ensure(identity["host"].as_str().is_some_and(|id|id.len()==32)&&identity["actor"].as_str().is_some(),"native Fountain canonical identity missing")?;
+    let catalog=product_read("/api/factory/collaboration/repositories".into()).await?;
+    let items=catalog["items"].as_array().ok_or("native Fountain catalog absent")?;
+    ensure(catalog["complete"]==true&&items.len()==1&&items[0]["external_id"]==grant.repository.id&&items[0]["host"]==identity["host"],"native Fountain catalog scope changed")?;
+    let repository=items[0]["id"].as_str().ok_or("canonical Fountain repository absent")?;
+    let base=format!("/api/factory/collaboration/repositories/{repository}");
+    let first=product_read(format!("{base}/issues?limit=1&state=all")).await?;
+    ensure(first["items"].as_array().is_some_and(|items|items.len()==1),"native Fountain first issue page absent")?;
+    let cursor=first["next"].as_str().filter(|v|!v.is_empty()).ok_or("native Fountain next issue page absent")?;
+    let cursor:String=url::form_urlencoded::byte_serialize(cursor.as_bytes()).collect();
+    let second=product_read(format!("{base}/issues?limit=1&state=all&cursor={cursor}")).await?;
+    ensure(second["items"].as_array().is_some_and(|items|items.len()==1)&&second["items"][0]["ref"]!=first["items"][0]["ref"],"native Fountain pagination duplicated its first issue")?;
+    let number=first["items"][0]["ref"]["number"].as_str().ok_or("native Fountain issue number absent")?;
+    let issue=product_read(format!("{base}/issues/{number}")).await?;
+    ensure(issue["ref"]==first["items"][0]["ref"],"native Fountain issue detail changed identity")?;
+    product_read(format!("{base}/issues/{number}/comments?limit=1")).await?;
+    println!("PASS: actual enrolled Fountain shared Go product identity, exact canonical repository, two native authenticated issue pages, detail and comments; read enrollment grants no provider writes or execution");
     // Use the host's current code-read enrollment, not a declared local source
     // or a private appliance callback. Setup/funding remain explicit fixtures.
     let source=client.source("",&[],&[]).await.map_err(|e|e.code)?;
@@ -1305,7 +1339,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
     let read_oauth=fountain_oauth::Client::configured(origin).await?;
     let read_saved=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:Token::new(read_token)?,refresh:None,expires_at:None,refresh_expires_at:None,scope:"read:repository".into(),client_id:Some(read_oauth.application().into())}).await?;
     let original=store.capability(&read_saved.connection).await?;
-    let saved=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:Token::new(control_token)?,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository".into(),client_id:Some(application.into())}).await?;
+    let saved=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:Token::new(control_token)?,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository write:issue".into(),client_id:Some(application.into())}).await?;
     ensure(saved.connection!=read_saved.connection,"control sign-in replaced the original read connection")?;
     store.with_token(&original,|bytes|!bytes.is_empty()).await?;
     let mut reconnected_connection=None;
@@ -1314,7 +1348,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(consent.application()==application,"configured control application changed")?;
         let pending=consent.begin().await?;
         let url=url::Url::parse(&pending.prompt().authorization_uri)?;
-        ensure(url.query_pairs().any(|(key,value)|key=="scope"&&value=="write:repository"),"explicit native control scope missing")?;
+        ensure(url.query_pairs().any(|(key,value)|key=="scope"&&value=="write:repository write:issue"),"explicit native control scope missing")?;
         drop(pending); // This check uses the actual host-exchanged fixture token.
         let signer=Signer::open(profile)?;
         let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
@@ -1403,7 +1437,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         fs::rename(&original_receipt,&receipt_backup)?;
         let replacement=store.with_token(&store.capability(&saved.connection).await?,|bytes|Token::new(bytes.to_vec())).await??;
         store.withdraw(&saved.connection).await?;
-        let rebound=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:replacement,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository".into(),client_id:Some(application.into())}).await?;
+        let rebound=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:replacement,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository write:issue".into(),client_id:Some(application.into())}).await?;
         reconnected_connection=Some(rebound.connection.clone());
         ensure(rebound.connection!=saved.connection,"withdrawn source connection was reused")?;
         let rebound_client=Client::new(store.clone(),store.capability(&rebound.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;

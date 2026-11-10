@@ -42,6 +42,7 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(8);
 struct Scope {
     credentials: Arc<Credentials>,
     capability: TokenCapability,
+    fountain: Option<Arc<crate::fountain_provider::Client>>,
     repository: Option<String>,
     deadline: Instant,
     cancelled: watch::Sender<bool>,
@@ -261,11 +262,36 @@ impl Port {
         capability: TokenCapability,
         repository: Option<String>,
     ) -> Result<NativeRequest> {
+        self.admit_scoped(products, credentials, capability, repository, None)
+    }
+    pub(crate) fn admit_fountain(
+        &self,
+        products: Products,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        repository: String,
+        client: Arc<crate::fountain_provider::Client>,
+    ) -> Result<NativeRequest> {
+        self.admit_scoped(products, credentials, capability, Some(repository), Some(client))
+    }
+    fn admit_scoped(
+        &self,
+        products: Products,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        repository: Option<String>,
+        fountain: Option<Arc<crate::fountain_provider::Client>>,
+    ) -> Result<NativeRequest> {
         let account = capability.account();
+        let provider = match &fountain {
+            None => account.provider == Provider::Github && account.origin == "https://github.com",
+            Some(client) => account.provider == Provider::Fountain
+                && client.connection() == account.connection
+                && client.origin() == account.origin && repository.is_some(),
+        };
         if !self.0.alive.load(Ordering::SeqCst)
             || !credentials.is_profile(&self.0.channel.profile)
-            || account.provider != Provider::Github
-            || account.origin != "https://github.com"
+            || !provider
             || !remote_id(&account.account)
             || repository.as_ref().is_some_and(|id| !remote_id(id))
         {
@@ -284,6 +310,7 @@ impl Port {
         let scope = Arc::new(Scope {
             credentials: credentials.clone(),
             capability,
+            fountain,
             repository,
             deadline: Instant::now() + LIFETIME,
             cancelled,
@@ -486,6 +513,10 @@ impl Drop for Owner {
 async fn finalize(job: Finalize) {
     let mut cancelled = job.scope.cancelled.subscribe();
     let work = async {
+        if let Some(client) = &job.scope.fountain {
+            client.product_current(job.scope.repository.as_deref().ok_or("native repository unavailable")?)
+                .await.map_err(|_| "Fountain enrollment is no longer current".to_owned())?;
+        }
         job.scope
             .credentials
             .with_token_operation(&job.scope.capability, async |_| ())
@@ -759,6 +790,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         let scope = Arc::new(Scope {
             credentials,
             capability,
+            fountain: None,
             repository: Some(call.repository),
             deadline,
             cancelled,
@@ -1368,6 +1400,9 @@ async fn observe_scope(
     scope: Arc<Scope>,
     effect: &Operation,
 ) -> std::result::Result<Value, Failure> {
+    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..)) {
+        return Err(Failure::new(503, "fountain_product_write_unavailable"));
+    }
     if let Operation::Mutation(command) = effect {
         validate_mutation(&scope, command)?;
     }
@@ -1391,7 +1426,16 @@ async fn observe_scope(
     }
     let mut cancelled = scope.cancelled.subscribe();
     let mut retired = state.retired.subscribe();
-    let work = scope
+    let work = async {
+        if let Some(client) = &scope.fountain {
+            let repository = scope.repository.as_deref().ok_or_else(Failure::invalid)?;
+            return match effect {
+                Operation::Current => client.product_current(repository).await.map(|_|Value::Null),
+                Operation::Read(query) => client.product_read(repository, query).await,
+                _ => unreachable!(),
+            }.map_err(|error| Failure::new(error.status,error.code));
+        }
+        scope
         .credentials
         .with_token_operation(&scope.capability, async |token: &[u8]| match effect {
             Operation::Current => Ok(Value::Null),
@@ -1403,13 +1447,14 @@ async fn observe_scope(
             }
             Operation::Mutation(command) => mutate(state, &scope, token, command).await,
             Operation::Receipt(descriptor) => receipts::lookup(state,&scope,descriptor),
-        });
+        }).await.map_err(|_| Failure::new(401, "native_credential_unavailable"))?
+    };
     let observation = tokio::select! {
         biased;
         _ = cancelled.wait_for(|cancelled| *cancelled) => return Err(Failure::new(401, "native_operation_retired")),
         _ = retired.wait_for(|retired| *retired) => return Err(Failure::unavailable()),
         _ = tokio::time::sleep_until(scope.deadline.into()) => return Err(Failure::new(401, "native_operation_retired")),
-        result = work => result.map_err(|_| Failure::new(401, "native_credential_unavailable"))??,
+        result = work => result?,
     };
     if !scope.current() || !state.alive.load(Ordering::SeqCst) {
         return Err(Failure::new(401, "native_operation_retired"));

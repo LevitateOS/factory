@@ -522,6 +522,17 @@ impl NativeSupervisor {
                 repository,
             )
     }
+    pub fn admit_fountain_product(
+        &self,
+        credentials: Arc<crate::credentials::Credentials>,
+        capability: crate::credentials::TokenCapability,
+        repository: String,
+        client: Arc<crate::fountain_provider::Client>,
+    ) -> Result<crate::collaboration::NativeRequest> {
+        self.collaboration.as_ref().ok_or("native collaboration unavailable")?
+            .admit_fountain(self.products.clone().ok_or("native products unavailable")?,
+                credentials, capability, repository, client)
+    }
     pub fn stop(mut self) -> Result<()> {
         self.stop_inner()
     }

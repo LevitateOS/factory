@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -50,6 +51,25 @@ type NativeConnection struct {
 	Origin     string `json:"origin"`
 	Account    string `json:"account"`
 }
+
+func nativeConnectionValid(c NativeConnection) bool {
+	if !nativeOpaqueID(c.Connection) || !nativeRemoteID(c.Account) {
+		return false
+	}
+	if c.Provider == "github" {
+		return c.Origin == "https://github.com"
+	}
+	if c.Provider != "fountain" {
+		return false
+	}
+	u, err := url.Parse(c.Origin)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return false
+	}
+	canonical, err := collaboration.CanonicalAPIBase(c.Origin)
+	return err == nil && canonical == c.Origin
+}
+
 type NativeIdentity struct {
 	Connection NativeConnection
 	Account    collaboration.ObservedActor
@@ -256,7 +276,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		Repository  *string          `json:"repository"`
 		Observation json.RawMessage  `json:"observation"`
 	}
-	if nativeDecode(raw, &envelope) != nil || !nativeOpaqueID(envelope.Connection.Connection) || envelope.Connection.Provider != "github" || envelope.Connection.Origin != "https://github.com" || !nativeRemoteID(envelope.Connection.Account) || nativeDecode(envelope.Observation, observation) != nil {
+	if nativeDecode(raw, &envelope) != nil || !nativeConnectionValid(envelope.Connection) || nativeDecode(envelope.Observation, observation) != nil {
 		return zero, errors.New("invalid native observation")
 	}
 	scope := nativeScope{Connection: envelope.Connection}

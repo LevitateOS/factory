@@ -17,6 +17,8 @@ const HTTP_TIMEOUT: Duration = Duration::from_secs(8);
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 const SCOPE: &str = "read:repository";
 const CONTROL_SCOPE: &str = "write:repository";
+const COLLABORATION_SCOPE: &str = "read:repository read:issue";
+const COLLABORATION_CONTROL_SCOPE: &str = "write:repository write:issue";
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -150,11 +152,17 @@ impl Client {
                         "api/v1/factory/desktop/oauth"
                     })
                     .map_err(|_| Error::Invalid)?,
-            ),
+            ).header("X-Factory-Desktop-Protocol", "2"),
         )
         .await?;
-        let scope = if control { CONTROL_SCOPE } else { SCOPE };
-        if !client_id(&configured.client_id) || configured.scope != scope {
+        let scope = match (control,configured.scope.as_str()) {
+            (false,SCOPE)=>SCOPE,
+            (true,CONTROL_SCOPE)=>CONTROL_SCOPE,
+            (false,COLLABORATION_SCOPE)=>COLLABORATION_SCOPE,
+            (true,COLLABORATION_CONTROL_SCOPE)=>COLLABORATION_CONTROL_SCOPE,
+            _=>return Err(Error::Invalid),
+        };
+        if !client_id(&configured.client_id) {
             return Err(Error::Invalid);
         }
         Ok(Self {

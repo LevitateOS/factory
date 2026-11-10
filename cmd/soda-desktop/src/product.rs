@@ -19,12 +19,15 @@ pub(super) struct Binding {
     identity: Value,
     repository: Option<Value>,
     account_label: String,
+    provider: String,
+    origin: String,
 }
 struct Selection {
     id: String,
     window: String,
     connection: String,
     repository: Option<String>,
+    fountain_repository: Option<String>,
     generation: u64,
     cancelled: watch::Sender<bool>,
     binding: Mutex<Option<Binding>>,
@@ -116,13 +119,28 @@ async fn call(
         .await
         .map_err(|_| "Factory account is unavailable")?;
     current(desktop, selection)?;
+    let fountain = if capability.account().provider == soda_desktop_runtime::credentials::Provider::Fountain {
+        let name = selection.fountain_repository.as_deref().ok_or("Choose an enrolled Fountain repository")?;
+        let (owner, repository) = name.split_once('/').ok_or("Use owner/repository")?;
+        let profile = desktop.status.lock().unwrap().profile.clone().ok_or("Factory is unavailable")?;
+        let client = soda_desktop_runtime::fountain_provider::retained_client(
+            credentials.clone(), credentials.renew_capability(&capability).await.map_err(|_|"Factory account changed")?, &desktop.paths.profile, &profile, owner, repository,
+        ).await.map_err(|_| "Current Fountain enrollment is unavailable")?;
+        Some(Arc::new(client))
+    } else {
+        if selection.fountain_repository.is_some() { return Err("Factory account changed".into()); }
+        None
+    };
     let request = {
         let runtime = desktop.runtime.lock().unwrap();
         current(desktop, selection)?;
-        runtime
-            .as_ref()
-            .ok_or("Factory is unavailable")?
-            .admit_product(credentials, capability, selection.repository.clone())?
+        let runtime = runtime.as_ref().ok_or("Factory is unavailable")?;
+        if let Some(client) = fountain {
+            runtime.admit_fountain_product(credentials, capability,
+                selection.repository.clone().ok_or("Choose an enrolled Fountain repository")?, client)?
+        } else {
+            runtime.admit_product(credentials, capability, selection.repository.clone())?
+        }
     };
     let response = request.request(method, path, body).await?;
     current(desktop, selection)?;
@@ -169,9 +187,11 @@ pub(super) async fn factory_prepare_connection(
     app: tauri::AppHandle,
     connection: String,
     repository: Option<String>,
+    fountain_repository: Option<String>,
 ) -> Result<String, String> {
     product_caller(&window)?;
     if !registry(&connection)
+        || fountain_repository.as_ref().is_some_and(|name| name.len() > 201 || !name.split_once('/').is_some_and(|(owner,repo)| !owner.is_empty() && !repo.is_empty() && name.bytes().all(|b|b.is_ascii_alphanumeric()||matches!(b,b'/'|b'_'|b'-'|b'.'))))
         || repository
             .as_ref()
             .is_some_and(|r| !canonical(&Value::String(r.clone())))
@@ -193,6 +213,7 @@ pub(super) async fn factory_prepare_connection(
             window: window.label().into(),
             connection,
             repository,
+            fountain_repository,
             generation: desktop.generation.load(Ordering::SeqCst),
             cancelled: watch::channel(false).0,
             binding: Mutex::new(None),
@@ -281,6 +302,12 @@ pub(super) async fn factory_connect(
             identity: reply.body,
             repository,
             account_label,
+            provider: match cap.account().provider {
+                soda_desktop_runtime::credentials::Provider::Github=>"github",
+                soda_desktop_runtime::credentials::Provider::Fountain=>"fountain",
+                _=>return Err("Unsupported Factory account".into()),
+            }.into(),
+            origin: cap.account().origin.clone(),
         };
         *selection.binding.lock().unwrap() = Some(binding.clone());
         Ok(binding)

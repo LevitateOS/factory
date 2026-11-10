@@ -128,7 +128,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       view = next;
       accounts = saved.filter((account) => account.provider === 'github');
       accountsCurrent = true;
-      changed(accounts);
+      changed(saved.filter((account) => account.provider === 'github' || account.provider === 'fountain'));
       render();
     } catch (error) {
       if (captured === generation && capturedInteraction === interaction) {

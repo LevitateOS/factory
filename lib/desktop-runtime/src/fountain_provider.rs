@@ -13,6 +13,7 @@ mod enrollment;
 mod operation;
 mod execution;
 mod source;
+mod product;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
 pub use controller::{
@@ -230,6 +231,16 @@ impl Client {
         url.path_segments_mut()
             .map_err(|_| invalid())?
             .extend(parts);
+        self.request_url(method, url, body, limit).await.map(|(value,_)|value)
+    }
+    async fn request_url<T: serde::de::DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        url: url::Url,
+        body: Option<Vec<u8>>,
+        limit: usize,
+    ) -> Result<(T, reqwest::header::HeaderMap)> {
+        if url.origin() != self.base.origin() { return Err(invalid()); }
         let capability = self
             .credentials
             .renew_capability(&self.capability)
@@ -262,6 +273,7 @@ impl Client {
                         code: "fountain_request_refused",
                     });
                 }
+                let headers = response.headers().clone();
                 let mut bytes = Vec::new();
                 while let Some(chunk) = response.chunk().await.map_err(|_| unavailable())? {
                     if bytes.len().saturating_add(chunk.len()) > limit {
@@ -269,7 +281,7 @@ impl Client {
                     }
                     bytes.extend_from_slice(&chunk);
                 }
-                serde_json::from_slice(&bytes).map_err(|_| unavailable())
+                serde_json::from_slice(&bytes).map(|value|(value,headers)).map_err(|_| unavailable())
             })
             .await
             .map_err(|_| Failure {
