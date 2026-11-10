@@ -3051,6 +3051,33 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q27 — Installed Fountain desktop product journey
 
+**Active installed execution recovery (2026-11-10), INCOMPLETE.** Current57
+(`6dd064f6a05590a83b194cb94c80f5efbb21aedb`, inventory
+`de9cc15829fb08dcc7230d03359cf2a3d7da0f0adeb92d37ea8c5cf327279dd9`)
+and canonical Fountain `53b44129f29ed99c8a92bf63f52cb9deb2a1897d` now prove
+actual installed OAuth/control enrollment with lost-reply lookup, native setup,
+explicit 60-minute Muse funding, automatic original issue #2 acceptance,
+real Architect/Builder and candidate export/conditional transfer to PR #3.
+Retained evidence is `q25-package/fountain-installed58/` (host/TLS fixture),
+guest `q28-format102/profile`; original acceptance
+`dcde07279c4c9ff3bf529bf60`, root `560438c680ceeb9926b2091abcd4bfd5`,
+Architect `1e5cfc8d07b78ad1e631543728f241d3`, Builder
+`2fbb50344c73b4994cf484d7c12824c8`, candidate
+`97c80b72387cccb31110d211111cf285fb5faf40`, base
+`a2bdc068fc2244b57e48dc7c87aaf9807faed9b3`, publication
+`35a3a6d8c04c15dad7e3e8c90b0776e6`, native branch/PR commands
+`28bb12fed515c04e637f45656fa7f389`/`c34f20ebde6fee9d0dba643c70d623e1`.
+Actions task58 reports success on this candidate; retain step/log proof before
+calling CI qualified. Eight minutes charged; no repeated planning/Builder/send.
+Independent review preparation `f11a147402085e4de97eb3814` has no native
+constructor: the original profile has 64 journals, 62 confirmed physically
+retired, and the storage guard counts history against new capacity. The Rust
+fix counts unsettled history using the existing validated retirement reader,
+preserving every journal and the 64 limit. Cargo check passes; installed
+qualification remains next. Expired host grants and original preparation
+deadlines cannot renew. Preserve the completed candidate/PR and resume only
+fresh authorized review after installation. No appliance is involved or claimed.
+
 Actual installed control/preparation/restart/withdrawal now passes current37 in
 `q25-package/fountain-ui37c-journey.log`; exact inputs, original native and host
 receipts, joined shutdown and limits are in Q19 above. The shared UI captures

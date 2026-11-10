@@ -283,6 +283,39 @@ fn retire_input(input: &Input, directory: &Path, profile: &str) -> io::Result<Ve
     load_bytes(&marker, 1024)
 }
 impl Preparations {
+    fn storage_at_capacity(&self) -> io::Result<bool> {
+        let mut unsettled = 0;
+        for entry in fs::read_dir(&self.directory)? {
+            let entry = entry?;
+            let directory = entry.path();
+            if !directory.join("retired.json").try_exists()? {
+                unsettled += 1;
+                if unsettled >= 64 {
+                    return Ok(true);
+                }
+                continue;
+            }
+            // Retain every original journal. Only a matching physical retirement
+            // receipt releases its slot; absence or corrupt history cannot.
+            let metadata = directory.symlink_metadata()?;
+            if !metadata.is_dir()
+                || metadata.uid() != unsafe { libc::geteuid() }
+                || metadata.mode() & 0o077 != 0
+            {
+                return Err(denied());
+            }
+            let request: Value = load(&directory.join("request.json"))?;
+            let address = json!({"id":request["input"]["preparation"]["id"],
+                "workspace":request["input"]["preparation"]["project"],"native":request["native"]});
+            if entry.file_name().to_str() != Some(self.key(&address)?.as_str())
+                || self.retained_retirement(&address)?["stopped"] != true
+            {
+                return Err(denied());
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) fn recovery_bundle(&self, intent: &super::LaunchIntent) -> io::Result<Vec<u8>> {
         let scope = intent.scope()?;
         if scope.profile != self.profile {
@@ -380,7 +413,7 @@ impl Preparations {
         }
         let directory = self.directory.join(&input.key);
         let existing = directory.try_exists()?;
-        if !existing && fs::read_dir(&self.directory)?.take(65).count() >= 64 {
+        if !existing && self.storage_at_capacity()? {
             return Err(io::Error::other(
                 "native preparation storage capacity retained",
             ));
@@ -779,15 +812,14 @@ impl Preparations {
         Ok(input.state(completion.as_ref(), true))
     }
 
-    // A new controller may adopt an original owner's confirmed retirement.
-    // This read never opens a workspace, renews a deadline or performs setup.
+    // Adopt an original owner's confirmed retirement, including for storage
+    // accounting. This read never opens a workspace or renews its authority.
     fn retained_retirement(&self, address: &Value) -> io::Result<Value> {
         let native = &address["native"];
         let instance = text(native, "instance_id", 32)?;
         if !self.alive.load(Ordering::SeqCst)
             || native["profile"] != self.profile
             || !super::hex(instance, 32)
-            || instance == self.instance
         {
             return Err(denied());
         }

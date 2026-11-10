@@ -3643,6 +3643,18 @@ accounting. Q28's separate-prefix offline-copy uninstall/refusal/replay/reinstal
 also passes without changing original profile/service state. Exact artifacts,
 source/build identities and remaining ordinary gates are in the existing sections.
 
+### Installed Fountain preparation capacity (2026-11-10)
+
+The actual installed Q27 issue-to-candidate/PR path reaches independent review,
+then refuses its constructor because 62 retired journals consume the 64-entry
+storage bound. Preserve those original receipts: storage admission now uses the
+existing native retirement validator and counts only unsettled journals. Missing
+or malformed retirement evidence never releases capacity; the per-owner memory
+bound and all constructor, grant and deadline checks remain. Cargo check passes
+(`q25-package/fountain-installed58/capacity-check.log`). Q27 records the exact
+paid runs, candidate and publication; installed correction and review recovery
+remain unqualified until the new build passes that retained profile journey.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
