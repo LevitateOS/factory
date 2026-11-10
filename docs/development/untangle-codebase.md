@@ -1,5 +1,147 @@
 # Factory untangling decisions
 
+## Retained assembly-line trace audit (2026-11-10)
+
+Scope: existing GitHub/Muse runs and their owning code at
+`b842323500928d36f91264e26f3e3f754d9d85ac`. This pass reads original
+transcripts, native request/receipt pairs, retained ledgers and Git history.
+No Factory inference, application launch, test/build, provider request or product-code
+change ran. Product qualification stays paused; the existing task-file pause
+edit and all original profiles, operations and receipts are preserved.
+
+### Failure attribution from original runs
+
+Builder artifacts below are retained under
+`/home/vince/Projects/github-verification-20261110/retained-copy/profile/`:
+`native-run-receipts/<run>.muse.receipt`, `native-run-intents/<run>.manifest`
+and `native-task-receipts/<run>/`. Muse receipts contain a four-byte big-endian
+JSON-header length, that header, then the original UTF-8 terminal stream.
+Transcript line numbers below count that decoded stream, not the binary header.
+These are selected historical cases, not a failure-rate sample.
+
+| Original run / evidence | Observed cause | Classification and present status |
+| --- | --- | --- |
+| Builder `999863fd6e690e2a985b2c78115ee893`; edit request `03ecec0852ad41b091b4b10a10950e10037aff05f647aa600fc62c6647f6cf29.request` | Offset 0 expected `test` although the file began with a Bash shebang. The rejection killed the workspace service; later calls reported callback unavailable. | **Model argument mistake plus orchestration defect.** `685b43d27376af8cc4e131005fe92a3bb36cad9e` makes preimage mismatch a durable nonfatal reply; current owner is `cmd/soda-factory-worker/src/agent_workspace.rs` edit handling. |
+| Builder `7f876a0a1029710baf1e18c15bbfb6dd`; paired preimage-refusal receipts | Two edits used offset 0 for text from the middle of CI. The workspace survived, but the model stopped after an earlier task commit. | **Model argument mistakes; guidance weakness.** Absolute byte positions, full-file replacement and append are explained by `bfb9fe05aad829b524ec7cb910420c51f2a5d6ea` in `pkg/factory/runtime/native_tasks.go`. An edit capability existed. |
+| Builder `cbff71940983098a42f2142f9c2bc978`; `be049a4ca1fce3c80ff2b5056447e24c302c926a3e819d06c245034f556b318c.request` without a receipt | Started `docs-ci` after releasing the prior output but before its checkpoint committed. The ordinary sequencing error killed the workspace service. | **Model sequencing mistake plus orchestration defect.** `4f9555642661656e7adf1523fbb344d6c4ce0642` adds captured-head starts and recoverable busy/dependency/stale replies. Old uncertain requests remain historical, not retry authority. |
+| Builder `9bdc78d895f070207a365ca324f5f116`; checkpoint `1eb6dd77047601a6ca9ee13cb1b3090c625273517b177a6eb22bee81af18b804.receipt` | Accepted check required `test -x check-note-file.sh`; new files were mode 0600 and the captured tool set had no mode operation. Receipt says `filemode_check:false`. | **Missing tool and contradictory plan/tool contract.** The model could not satisfy that requirement with those tools. `48e7b9dc9989c30a1c399aaeb3c45643ff3254ad` adds digest-bound executable-bit changes. Subsequent cancellation is not the originating cause. |
+| Builder `dedb187e1c39140c20a48cd0066fc38a`; terminal lines 117, 135, 153, 243 | One submission ID really was malformed. Later refusals said identity was missing, while the validator also used that message for unrelated edit fields. Those requests never reached native mutation journals. | **Model schema misuse plus misleading diagnostics.** `5ff232665eb22137adfe589df25d4beba78da197` separates identity from forbidden `limit`/`expected_digest` fields in `pkg/project/factory_native_task.go`. Exact latter public argument payloads were not retained in the examined output; the conflation is established by code. |
+| Builder `0774bcd9cd0acea1c8e82ed5ab441aef`; terminal line 449 | Exited 0 after 24 completed model calls, made no finish call, and promised remaining work in “the next turn.” Its captured prompt already forbade assuming a later turn. | **Model instruction-following failure.** `62b12ca6d76ea4ec30bb6e7030a401ae08a0c023` strengthens the reminder in `pkg/factory/dispatch_prompt.go`; elimination of this failure class is not established. |
+| Builder `3215837b733202f406bfb7f0a25a1511`; terminal line 549 | Stopped after 31 completed model calls, reporting incomplete. Terminal reason is null. | **Unresolved cause.** Proximity to the old 32-step limit does not prove exhaustion. `2e1fc21220906cd80324a123eef899f85d7cb652` raises the source limit to 128; that change does not retrospectively diagnose the old ending. |
+| Inspector `60bb3689d3464ee3e9b88a9a11a2049c`; `/home/vince/Projects/q15-retained-publication/review-context-retained1.log` and original terminal `a280…` | Context/status returned SQL “no rows”; a bound review tuple could not be obtained. The worker reported incomplete. | **Orchestration defect.** Retained publication/original implementation lookup is corrected by `63b9b1dea6f7466d38aaca05a81c4d1d763ba954`; current owner is `pkg/store/factory_context_review_implementation.go`, with prelaunch completeness admission in `control/dispatch_launch.go`. Later Inspector `0e330a1183d43779a8847b6a03790f92` obtained context and recorded clear review COMMENT `5825933008`. |
+| Completion judgments `dfac09904f6fda2639024cea0992649a`, `1a916c3f0313e509da896c331b8cb5ca`; `/home/vince/Projects/q25-package/current55-material-{sealed,now}.json` | Both chose continue/.92, but controller freshness rejected adoption. The retained material differs only in original fenced publication revision 1610→1678 and the resulting scope digest: unchanged withdrawal polling churned durable state. | **Orchestration defect, not a bad model answer.** Installed `6dd064f6a05590a83b194cb94c80f5efbb21aedb` timestamps only changed admitted outcomes. Original command `81dd99b502c747e1a2838054ce588443` then adopted judgment `291aa7c5838071915b9000b08d4bc1c2`, preserving old results, uncertain publication and charges. |
+
+Do not equate `harness_no_report` with absence of a finish call. Original
+Builder streams `999863…:333`, `7f876…:459`, `cbff…:514`, `dedb…:279` and
+`321583…:549` all contain successful `factory_finish_incomplete` results with
+`state:recorded`. Current `pkg/factory/control/mcp_settle.go:259` maps an
+explicit blocked report to the same `AssignReasonNoReport` used for missing
+reports; `mcp_fw40.go` and `dispatch_result.go` also reuse it. This is a current
+diagnostic ambiguity that explains misleading historical prose. A recorded
+submission is not proof of successful work or final settlement, but these
+workers did report. Among the normally exited Builder runs compared here,
+only `0774…` omitted a finish call. `9bdc…` also lacked one, but was cancelled
+with signal 9 after its failed checkpoint.
+
+### Successful control and its limits
+
+Installed own-issue #54 retained Architect
+`d1345ff8d355a3802decd828de2801de` → Builder
+`57c159c10e13c682b5a4f7fcd97a04fc`. The Builder completed 36 model calls,
+recovered from seven failed tool calls including two preimage refusals, and
+recorded `factory_finish_implementation` at terminal line 639. Native receipts
+`7182c263…`, `517a06c2…` and `7fbd5319…` retain both task checkpoints and final
+integration at candidate `54b82ef2a3f36bf767a463facaaa55e2cbbf007f`.
+
+That same candidate became publication `6ca7139540319f02a9b23d7d932bba3e`,
+PR55, real CI run `42819121752`, independent Inspector
+`cb275dee75337b93eb46fc0897391190` and COMMENT `5842988198`. Retained merge
+`2cb02c1842c34bcc9dd0f6ca7fc19fc9` / native operation
+`1a0e5e6668cafa4847d5d15ce65a21b4` produced
+`0954a2d9ef2f6a9343b20e178c3c224d49b5f28d` and closed issue54. Idle-phase
+admission (`04298499cc0a58d93cec91aa89b2f53c6ceb252d`), restarted reviewer
+send binding (`e05efc54d2bbc22d358cb780d5c1210acf66227e`) and fresh ordinary
+merge preparation (`ea7ebff1b0a89ee71fdb191bcb4a615a4adf1452`) required
+controller fixes; they resumed retained work rather than replaying Builder.
+Original receipts are in `q25-package/current55-delivery-ledger.json` and
+`current57-completion-ledger.json`. The latter records 24 retired/reconciled
+runs, 89 finished judgments and 153 charged minutes; original uncertain
+publication `0bc012940c247259280c0c90166c388c` remains fenced.
+
+One passing planned check is weak evidence: the captured `workflow_grep` argv
+is `["grep","-q","--help",".github/workflows/q15.yml"]`. GNU grep interprets
+`--help` as an option, not the intended search pattern. Its passing receipt
+does not prove the workflow assertion. This is a **planner command mistake**
+which structural validation and the plan opinion did not catch. Final native
+integration and actual CI are separate retained evidence; a successful process
+exit must not be promoted into proof that every accepted outcome was tested.
+This ordinary clear-review path also does not qualify a correction journey.
+
+### Eight profiles: implemented contract versus retained coverage
+
+The canonical catalog is `pkg/factory/mcp_profile.go:159`. Profiles share
+bounded source/context, communication, artifact and judgment tools. Builder
+and Fixer alone receive workspace/task mutations; typed terminal submissions
+are validated before recording and trusted checkpoints gate candidate finishes.
+Two native coder/reviewer identities are not the eight product profiles.
+
+| Profile | Handoff and retained evidence in this pass |
+| --- | --- |
+| Issue Maker | Captured request → journaled issue refinement/create and one semantic task. Q14 `b9fcc2ad2681f2021f203fdc98fb77e9` refined #14, created #15 and finished; malformed payloads were refused before corrected submission. Original artifacts: `/home/vince/Projects/q14-native-authoring/`, including `accounted-retained.log` and native Muse terminal `ce874…`. |
+| Product Lead | Draft → candidate graphs and authored walkthroughs; review, acceptance and graph writes remain separate gates. Q14 `3b167d55c0fab4ae5d348b2c6f935a4c` corrected invalid candidate-level `idea_ids`, finished, and retained #16/#17 acceptances through restart (`q14-native-authoring/graph-retained.log`). |
+| Architect | Accepted issue/source → executable plan with server-bound identity and selected-source completeness opinion. Q15 `efc2a62327f2c18f7390fc1ff58a0e20` corrected omitted/misplaced fields and finished; #54's later Architect also succeeded. |
+| Builder | Bound plan → task checkpoints → final candidate. Both Q15 `bf339c1b9a0023a95bf95ad815ca5458` and the #54 control succeeded; retained failures above distinguish recoverable mistakes from lost workspace service. |
+| Inspector | Exact head/base, original implementation and recorded checks → typed findings/clear. Original Q15 and #54 clear reviews succeeded after their respective context/admission fixes; personal-account agent reviews remained COMMENT. |
+| Fixer | Granted finding set/candidate → complete dispositions, fix evidence and singleton native checkpoints. `q09-correction9.log` proves native correction plumbing without a model or remote write. A connected live-model Fixer chain is **not established by the examined Q15/Q26 evidence**. |
+| Strategist | Sealed cause/inventory → typed reassessment or repair report; separate validated adoption. `current57-completion-ledger.json` has automated judgment/release with `coder_runs:null`; this does **not** prove a live Strategist worker. |
+| Test Pilot | Integrated delivery/approved manifest/native evidence → outcome-linked verification report and recorded journey references. Code is present; **no live Test Pilot proof was found in these retained journeys**. |
+
+Coverage absences above are qualification gaps, not proof of absent code.
+Inspector/Test Pilot can inspect source and recorded trusted checks; this
+catalog does not provide arbitrary shell or interactive application control.
+The developer CLI does not implicitly become a worker capability.
+
+### Current actionable contract findings
+
+1. **Routine failing checks have no same-run repair path.** Native Release
+   freezes output before task checks. Checkpoint failure sets `self.failed`,
+   after which only reads/close are allowed (`agent_workspace.rs:439,717,759`).
+   There is no advertised pre-freeze approved-check operation or task-output
+   revision path. This policy makes an ordinary failed check terminal for that
+   workspace. It is a current usability limitation; the missing executable
+   operation above is the demonstrated historical instance, not a new failing
+   run. A future correction should retain immutable failed receipts and explicit
+   identities while allowing bounded repair under existing authority.
+2. **Architect receives contradictory generic policy.**
+   `dispatch_prompt.go:346,353` permits checkout modification and demands a
+   resulting candidate, while its investigation section at453 and
+   `control/dispatch_attempt.go` require an unchanged checkout and plan only.
+   Both reached the retained successful Architect prompt. Make policy/evidence
+   prose phase-specific; no observed failure is attributed solely to this text.
+3. **Issue Maker discovery advertises an obsolete refusal.**
+   `mcpwire/bound.go:54` says human edits refuse refinement. Assigned guidance
+   in `control/intent_bound.go:105` and the actual writer in
+   `runtime/native_issue_refinement.go:83` append a journaled refinement comment
+   and preserve human text, as the owner authorized. Align discovery; the
+   current append-only writer is not an unsafe body replacement.
+4. **Terminal diagnostics conflate blocked reports with missing reports.**
+   Separate the cause labels described above while preserving old receipts and
+   compatibility; do not infer model behavior from the aggregate reason alone.
+5. **Plan checks need semantic scrutiny.** The retained grep mistake above
+   survived admission. Exact argv/receipt binding proves what executed, not
+   that its predicate covers the stated requirement. Include the intended
+   assertion when assessing plan/check evidence; do not erase the weak receipt
+   or rerun inference to replace it during this audit.
+
+Next executable slice, if implementation is requested: address bounded
+pre-freeze checking/repair in the existing task owner, then align these two
+prompt/catalog contracts and terminal diagnostics. Reuse the retained cases;
+new inference is unnecessary for those corrections. Paid delivery judgment,
+funding/revocation, immutable source binding and unknown-send fences remain
+required. This audit is complete within its read-only scope; connected
+correction, external adoption and the remaining installed journeys retain their
+existing open gates. No product-completion or Fountain claim is made.
+
 ## Live desktop developer tool design (2026-11-10)
 
 Status: the first command surface is implemented and verified. GitHub product
