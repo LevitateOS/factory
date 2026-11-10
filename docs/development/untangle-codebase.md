@@ -1,5 +1,20 @@
 # Factory untangling decisions
 
+Installed merge recovery verified (2026-11-10): current45/1ab41d95 admits fresh
+commande1cfe7efffe74367a7faf251fe620b14 after its predecessor expired without
+allocating a send. Both original deadlines and pristine operations remain in
+history. Generation3's single native command7cd8a38f11fea499f30287ce06d99b13
+causally merges reviewed6241464c to resultcc3b81e9 and closes original issue#1;
+native ledger and independent GitHub read agree. Required Actions15368 check and
+the actual typed clear COMMENT remain distinct from human approval. Complete
+protection needs an administrator observation on this fixture; temporary team
+admin was restored to original push. All19 runs/67 judgments/121 minutes and the
+original unknown branch remain exact. Actual rate-limited readback stays stale,
+with controls disabled; next work is native backoff/status, never another send.
+Current/prior installed store fences and original file equality pass, all owned
+app/backend/PG checks joined. Q26 records exact package/receipt references and
+the remaining full correction/adoption/security gates.
+
 Installed expired retry follow-through (2026-11-10): current44/3eb4004 admits
 UI command451912fde3174524a90467007ad1d892, preserves original generation1 and
 binds a distinct generation2. Its finite grant expires with zero sends while

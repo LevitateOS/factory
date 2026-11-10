@@ -48,15 +48,16 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q25 independent Linux recipient qualification.** Q19's selector
-and finite actor-grant slices are committed; captured execution authority in the
-dispatch admission remains unfinished. Existing launch contracts must not acquire
-today's authority during historical recovery.
-Q25's clean recipient and Q28's installed payload/update-status slices have
-scoped evidence below. Q15's fresh publication and Q28's format-97 boundary are
-verified; Q15's separate review/correction funding choice is pending. Its original
-send remains fenced. Q14's receipts remain complete and preserved.
-No GitHub decision or Q24 appliance is a blanket dependency for independent work.
+**Current work: Q26/Q28 installed retained delivery and recovery.** Actual current45
+reuses the complete Builder candidate, finishes independent typed review, real
+app-bound CI, a distinct merge command and original-issue closure. Original
+uncertain publication and all charges remain preserved; see Q26's active recovery.
+Q25's selected Linux host matrix is qualified. Native Fountain controller/claim,
+publication/review/CI/merge and installed preparation slices have scoped evidence;
+their complete automatic/installed journeys remain outstanding. Next: native
+GitHub rate-limit backoff and merged UI readback, alongside independent Fountain
+and intake implementation. Q14 stays complete; Q24's missing appliance affects
+only appliance-dependent work. Q30's final completion criteria remain intact.
 
 **Retained Q14 evidence.** Q14 passed the approved append-only
 authoring contract and actual prepared/funded plan, walkthrough review, accepted
@@ -2167,52 +2168,43 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE (2026-11-10,09:48UTC):** actual current44
-(clean3eb40045db935eed56ec5ece0422ef09e5c293c5, inventory
-e62b5e36d08892e5c05d34ba5e9b25cb271db63afa7605a4dd456b7826b6b117,
-archivef252e1b20a2f075e78e4ff129e02fb384dd94e2df2fe9afa80097c20e9559181)
-runs on `/home/factory/q28-format102` (PID in app.pid), format103, zero active
-runs. Real UI command451912fde3174524a90467007ad1d892 archived original
-2aac7f0a's expired authorization, bound generation2, then safely expired/withdrew
-with zero native attempts. Original branch3ddb87ba remains unknown/fenced;
-19 runs/67 finished judgments/121 minutes unchanged. Native merge observation
-is incomplete under writer permission; temporary admin on this fixture repository
-alone proves complete/eligible current CI/rules (`merge-admin-confirmed44.log`).
-Fixture main now requires Actions15368/q15-note-example; all other supported
-requirements are off. **Fixture team factory-team-check-20261106 currently has
-temporary admin here; restore its original push permission after this check.**
-No human text or other repository permission changed. Owned edit fixes the
-expired merge-only retry's paused/open allowance case; no allowance mutation.
-Actual read-only offer passes (`merge-expired-offer45.log`); current45 production
-package/install and one fresh explicit merge command are next. Local existing
-PG checks are being rerun; dependency job42791548557/3eb4004 passed all checks.
-Current app/backend/PG and the two KVM recipients remain; no model or uncertain
-send is running/replayed. Q24 still lacks its appliance; all independent queued
-work and Q30 completion gates stay outstanding.
+**Active recovery — INCOMPLETE (2026-11-10,10:03UTC):** current45 from clean
+`1ab41d95adf13f9543651d6bf522e804694dac3c` (inventory
+0544376fde2c6456425714e909c63e5829fc33379f2bc96ccf25649d61746c1b,
+archiveafab54844878a4afa5309f5aacf7367862c3fc46e0497ab44b6a49215c160fa5)
+qualified actual installed fresh merge commands, preserved expired/unallocated
+history, real app-bound CI, typed clear COMMENT review and allowed merge/closure.
+Commande1cfe7efffe74367a7faf251fe620b14 archived expired451912fd generation2;
+generation3 sent once as native command7cd8a38f11fea499f30287ce06d99b13.
+Reviewed candidate6241464c348deb8bd88b1d54116a47986f8ec085 differs from resulting
+mergecc3b81e9c18a2e5f596a5bacd1149ddf50be2b54. GitHub and native committed causal
+receipt confirm PR#2 merged09:52:40 and original issue#1 closed09:52:41.
+The two expired generations retain their exact deadlines and zero attempts.
+Ledger `q28-format102/current45-delivery-ledger.json` preserves19 runs,
+67 finished judgments,121 minutes and original branch3ddb87ba's unknown outcome.
+No inference was repeated. Source dependency jobs42791548557/3eb4004 and
+42793772208/1ab41d9 passed every UI/native/Go/PostgreSQL check.
 
-Prior recovery (09:31UTC): actual current43
-(`574182f1393fb291f1a8c5b98c91d6316747f047`, inventory
-86c9ec5f9b24b42c21151ac8f4400f1aa2a89d6f7826820e5839970b9da99d95,
-archive8c763ab00ef98db3d84f8a719900227347ce32862f25eee244398681e795cca9)
-passes installed101→102, exact prior installed101 backend refusal without table
-changes, and current reopen on disposable `/home/factory/q28-format102`.
-Source-copy file hashes remain unchanged. Current app PID is retained in
-`q28-format102/app.pid`; app/backend/PG are running, with zero active runs.
-No inference after09:00UTC. Exact installed Work detail confirms typed clear
-COMMENT, passing real CI and open merge with zero attempts. Current grants are
-effective; no preparation bypass is needed. Its original bound authorization
-expired before allocating an operation; the existing fresh-merge offer refuses
-this case (`merge-authority43.log`). Owned implementation extends only the
-existing explicit unsent-merge command: preserve the expired local authorization,
-native-journal absence plus pristine product state, distinct bounded generation,
-and unchanged inference allowance. Format103 fences older writers. Existing
-disposable migration passes102→103 with75 tables unchanged and exact102/unknown104
-refusal. Typecheck/Lit pass; affected existing PostgreSQL checks and production
-current44 qualification are next. Do not replay any original model or send.
-Both dependency jobs42786932574/a89a50a and42788652296/574182f passed all source,
-native and PostgreSQL checks. Q24 lacks its appliance; further paid correction/
-adoption needs an authorized time window and finite allowance. The independent
-queue and Q30's full completion criteria remain outstanding.
+Fixture main now explicitly requires GitHub Actions15368/q15-note-example.
+Native writer reads could not prove complete protection; temporary admin on this
+repository alone proved eligibility and admitted the merge. **Team permission is
+restored to original push**, confirmed in `muse41-contract/q26-team-restored45.log`;
+the restoration timer is stopped. No human text or other repository permission
+changed. Subsequent installed reads hit actual `github_rate_limited` and show
+stale history/disabled controls. Do not repeat the merge to refresh that UI.
+Normal GUI Quit at09:58:18 joined app/backend/PG. Both original profiles and all
+source-copy file hashes remain unchanged. Current45 copy is stopped at
+`/home/factory/q28-format102`; two KVM recipients remain, no paid/native send is
+running or uncertain beyond the preserved old branch. Exact prior installed102
+backend refusal against103 passes with every table/marker unchanged and copied
+PG joined (`prior102-installed-result.log`).
+
+Next executable action: fix native GitHub rate-limit backoff/current failed-status
+presentation, then reopen this installed copy after admitted reads recover and
+verify the merged UI without effects. Continue independent Fountain/intake work;
+full correction/paid-delivery judgment, external adoption, active-worker upgrades,
+installed Fountain/appliance parity and Q30 security/release gates remain open.
+Q24 still has no replacement appliance. No owned source edits/checks are running.
 
 Prior recovery (09:06UTC): Q26/Q28 reached real
 installed publication, independent typed review and CI; full delivery is pending.
@@ -2927,6 +2919,15 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Current45's actual101→102→103 retained activation preserves all19 runs,
+67 judgments,121 minutes and original uncertain outcomes. Exact prior installed
+current43/format102 backend refuses103 before application/adapters; every public
+table and marker matches before/after. `q28-format102/prior102-installed-result.log`
+and original source-copy file hashes pass; copied PG joins. Actual installed
+merge/closure uses the new explicit command and original candidate, without new
+inference. Rate-limited UI readback and active-worker/update-delivery gates remain
+open. Current45 app/backend/PG joined normally at09:58:18.
 
 Actual installed current43 on the offline `/home/factory/q28-format102` copy
 qualifies101→102, exact prior installed current42 backend refusal and current
