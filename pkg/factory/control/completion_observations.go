@@ -48,6 +48,11 @@ func bracketIssueObservations(ctx context.Context, deps CompletionDriveDeps, rep
 	// The retained numeric field is an observation token, not a remote clock.
 	// The seal also binds the complete 256-bit content chain and exact bodies.
 	revision := int64(binary.BigEndian.Uint64(running[:8]) & 0x7fffffffffffffff)
+	// Zero names missing evidence in the retained record. The complete empty
+	// observation has a zero chain, but still needs a positive observation token.
+	if revision == 0 {
+		revision = 1
+	}
 	g := inventoryGather{repository: repository, generation: generation, local: local, revision: revision, next: InventoryCollector{Issues: first, Running: running, Local: local, Revision: revision}}
 	for _, issue := range first {
 		g.evidence += len(issue.Data)

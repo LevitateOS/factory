@@ -2208,8 +2208,18 @@ running or uncertain beyond the preserved old branch. Exact prior installed102
 backend refusal against103 passes with every table/marker unchanged and copied
 PG joined (`prior102-installed-result.log`).
 
-Next executable action: package/install the completion capture correction, then
-reopen this installed copy and verify its sealed current context without replay.
+Next executable action: package/install the positive empty-inventory token fix,
+then reopen the stopped installed copy and verify its completion transition.
+Current47/af060d4252df033026e7ed853319f60489d54742 is installed (inventory
+41a6d09c33d2b668a0235468979135af2741259a9c3ed6ffa37dc3f6b0759c0b,
+archive3d444c4ef3bc680c6fb07141a926e0941390f4757a88a4952ca3e32f4d95921b).
+Its actual authenticated merged-source capture seals and open-issue inventory
+is complete/empty (`completion-native47.log`), without stored-history changes.
+The remaining collection failure is revision0 from folding that empty set;0 is
+the store's missing-evidence sentinel. Map only the observation token to1 and
+keep the full digest binding. After all19 runs were proved settled, controlled
+backend SIGQUIT confirmed actual failed status and GUI Quit joined PG
+(`current47-failed.png`, `current47-crash-check.log`). The copy is stopped.
 Actual read-only capture exposed a missing run view for non-executing retained
 owners and lost singleton Parent task flags. Owned Go material/projection edits
 now seal resultcc3b81e9, preserve original runs and reject five altered references
@@ -2217,9 +2227,10 @@ now seal resultcc3b81e9, preserve original runs and reject five altered referenc
 Continue independent Fountain/intake work;
 full correction/paid-delivery judgment, external adoption, active-worker upgrades,
 installed Fountain/appliance parity and Q30 security/release gates remain open.
-Q24 still has no replacement appliance. Owned paths: Go completion material and
-store projection, README source/installed qualification facts, this task record
-and the decision log. Affected Go builds and existing disposable PG completion/
+Q24 still has no replacement appliance. The completion material/store projection,
+README and source-job facts are committed asaf060d4252df033026e7ed853319f60489d54742.
+Owned paths: Go completion observation token, this task record and decision log.
+Affected Go builds and existing disposable PG completion/
 source/publication checks pass (`retained103/completion47-pg-checks.log`). Current46 native TLS check compiled but
 was not executed. No provider/model check or new uncertain effect is running.
 

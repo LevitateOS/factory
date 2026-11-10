@@ -1,5 +1,20 @@
 # Factory untangling decisions
 
+Empty connected completion inventory (2026-11-10): current47/af060d4252df033026e7ed853319f60489d54742
+is installed from inventory41a6d09c33d2b668a0235468979135af2741259a9c3ed6ffa37dc3f6b0759c0b,
+archive3d444c4ef3bc680c6fb07141a926e0941390f4757a88a4952ca3e32f4d95921b.
+Authenticated merged-source capture and complete empty issue read both pass
+(`q28-format102/completion-native47.log`), but the cycle cannot persist its seal:
+folding no issue bodies leaves a zero chain, and the observation projection used
+that as revision0, which correctly means missing evidence to the store. Map that
+token to1; the full content chain, repository, generation and local material
+remain independently digest-bound. No provider clock or idle guarantee is added.
+Actual installed empty-inventory transition is the next check. A controlled
+SIGQUIT after proving every run settled confirmed the actual installed failed
+status and GUI Quit/PG retirement (`current47-failed.png`, `current47-crash-check.log`).
+Original19 runs/67 judgments/121 minutes, source profiles and the unknown branch
+remain preserved; no model or publication is replayed.
+
 Completion capture of retained delivery (2026-11-10): actual installed merged
 history failed capture with `completion material lacks its run view`. A retained
 publication owner deliberately launched no run. Project that owner with an exact
