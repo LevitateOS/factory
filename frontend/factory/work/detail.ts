@@ -6,6 +6,7 @@ import './acceptance.js';
 import './context-resolution.js';
 import './completion-retry.js';
 import './retained-publication.js';
+import './external-pull.js';
 import './journey.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks, FactoryAcceptanceLinks} from '../app/navigation.js';
@@ -545,6 +546,9 @@ export class SodaFactoryWorkDetail extends LitElement {
       <soda-factory-retained-publication
         .context=${{transport: context.transport, repository: context.repository, issue: context.issue, detail: this.detail, commandScope: context.commandScope}}
       ></soda-factory-retained-publication>
+      <soda-factory-external-pull
+        .context=${{transport: context.transport, repository: context.repository, issue: context.issue, available: this.detail?.capabilities.adopt_external?.available === true, commandScope: context.commandScope}}
+      ></soda-factory-external-pull>
       <soda-factory-work-journey
         .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.links, issue: context.issue}}
       ></soda-factory-work-journey>

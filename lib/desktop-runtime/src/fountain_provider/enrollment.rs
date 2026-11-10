@@ -12,6 +12,8 @@ use std::{path::Path, sync::Arc};
 #[derive(Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct Capture {
+    #[serde(default, skip_serializing_if = "is_false")]
+    issues_only: bool,
     version: u8,
     profile: String,
     connection: String,
@@ -22,6 +24,7 @@ struct Capture {
     repository: String,
     command: String,
 }
+fn is_false(value: &bool) -> bool { !*value }
 /// Adopt the original command after a lost reply/reopen. A withdrawn host grant
 /// remains withdrawn; neither current login nor a missing local reply renews it.
 pub async fn retained_client(
@@ -53,13 +56,18 @@ pub async fn retained_client(
                 && value.origin == account.origin
         })
         .ok_or_else(unavailable)?;
-    let application = current.grant.and_then(|g| g.client_id).ok_or(Failure {
+    let grant = current.grant.ok_or(Failure {
+        status: 409,
+        code: "fountain_sign_in_again",
+    })?;
+    let issues_only = grant.scope == "write:issue";
+    let application = grant.client_id.ok_or(Failure {
         status: 409,
         code: "fountain_sign_in_again",
     })?;
     let owner = owner.to_ascii_lowercase();
     let repository = repository.to_ascii_lowercase();
-    let scope = serde_json::to_vec(&(
+    let mut scope = serde_json::to_vec(&(
         runtime,
         &account.connection,
         &account.origin,
@@ -69,6 +77,7 @@ pub async fn retained_client(
         &repository,
     ))
     .map_err(|_| invalid())?;
+    if issues_only { scope.extend_from_slice(b"\x00issues"); }
     let key = Sha256::digest(&scope)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -77,6 +86,7 @@ pub async fn retained_client(
     private_dir(&directory).map_err(|_| unavailable())?;
     let path = directory.join(format!("{key}.json"));
     let mut capture = Capture {
+        issues_only,
         version: 1,
         profile: runtime.into(),
         connection: account.connection.clone(),
@@ -111,7 +121,7 @@ pub async fn retained_client(
         return Err(unavailable());
     }
     let signer = Signer::open(profile).map_err(|_| unavailable())?;
-    Client::new(
+    Client::new_scoped(
         credentials,
         capability,
         &signer,
@@ -120,5 +130,6 @@ pub async fn retained_client(
         &saved.owner,
         &saved.repository,
         &saved.command,
+        issues_only,
     )
 }

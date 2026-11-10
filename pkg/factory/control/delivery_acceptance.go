@@ -176,7 +176,7 @@ func checkClearCoverage(in ClearAdmissionInput, report factory.ClearReviewReport
 // and journals it on the publication.
 func finishClearAcceptance(published factory.Publication, in ClearAdmissionInput, content, coverage string) (factory.Publication, factory.DeliveryAcceptance, error) {
 	var empty factory.DeliveryAcceptance
-	if in.Cycle.Head != published.Candidate || in.Cycle.BaseOID != published.PRCreate.BaseOID {
+	if in.Cycle.Head != published.Candidate || in.Cycle.BaseOID != published.PullTarget().BaseOID {
 		return published, empty, errors.New("clear review answers a superseded tuple")
 	}
 	if in.Reviewer.SourceCommit != in.Cycle.Head {
@@ -287,7 +287,7 @@ func AdmitJevAcceptance(in JevAdmissionInput) (factory.Publication, factory.Deli
 	if !recordedClearCycle(published, in.Cycle) || in.Cycle.PublicationID != published.ID {
 		return published, empty, errors.New("funded decision consumes an unrecorded cycle")
 	}
-	if in.Cycle.Head != published.Candidate || in.Cycle.BaseOID != published.PRCreate.BaseOID {
+	if in.Cycle.Head != published.Candidate || in.Cycle.BaseOID != published.PullTarget().BaseOID {
 		return published, empty, errors.New("funded decision answers a superseded tuple")
 	}
 	if err := checkJevFingerprint(published, in); err != nil {

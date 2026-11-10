@@ -236,6 +236,8 @@ func checkDeliveryRepairSubject(s ExecutionSubject) error {
 // parent and no publication assignment. Admission always records Subject,
 // Phase and ParentAssignment.
 type Assignment struct {
+	ExternalPlanning      *ExternalPullPlanning `json:"external_planning,omitempty"`
+	ExternalPublication   *ExternalPublicationOwner `json:"external_publication,omitempty"`
 	RetainedPublication   *RetainedPublication      `json:"retained_publication,omitempty"`
 	AcceptedContext       *AcceptedContext          `json:"accepted_context,omitempty"`
 	ReviewContext         *CurrentReviewContext     `json:"review_context,omitempty"`
@@ -424,6 +426,10 @@ func assignmentPromptBound(a Assignment) int {
 // Validate rejects malformed assignments. Assigned work carries no outcome
 // or result; finished work carries both plus its reason.
 func (a Assignment) Validate() error {
+	if err:=a.validateExternalPlanning(); err!=nil { return err }
+	if a.ExternalPublication != nil {
+		return a.validateExternalPublicationOwner()
+	}
 	if a.RetainedPublication != nil {
 		return a.validateRetainedPublication()
 	}

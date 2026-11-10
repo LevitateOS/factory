@@ -1,7 +1,7 @@
 //! Owned PostgreSQL child on a private, authenticated Unix socket. Never adopts
 //! or stops another server, overwrites a cluster, or opens a TCP listener.
 use crate::child_process::parent_death;
-use crate::private_fs::{private_dir, private_file};
+use crate::private_fs::{private_dir, private_file, read_bytes};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::Write;
@@ -52,18 +52,29 @@ impl NativePostgres {
             .ok_or("invalid native postgres version")?;
         let data = profile.join("data");
         let password_file = profile.join("database.password");
-        if data.try_exists()? {
+        let data_exists = match fs::symlink_metadata(&data) {
+            Ok(_) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        if data_exists {
             private_dir(&data)?;
             if fs::read_to_string(data.join("PG_VERSION"))?.trim() != major {
                 return Err("native PostgreSQL major version differs from retained cluster; upgrade required".into());
             }
         } else {
-            let mut random = [0; 32];
-            getrandom::fill(&mut random)?;
-            let password: String = random.iter().map(|b| format!("{b:02x}")).collect();
-            let mut secret = private_file(&password_file, true)?;
-            secret.write_all(password.as_bytes())?;
-            secret.sync_all()?;
+            if !password_file.try_exists()? {
+                let mut random = [0; 32];
+                getrandom::fill(&mut random)?;
+                let password: String = random.iter().map(|b| format!("{b:02x}")).collect();
+                let mut secret = private_file(&password_file, true)?;
+                secret.write_all(password.as_bytes())?;
+                secret.sync_all()?;
+            }
+            // A stopped initialization may have saved its password before
+            // creating a cluster. Keep that credential; never rotate it during
+            // recovery or invoke initdb against a partial existing data tree.
+            read_password(&password_file)?;
             let mut init = command(&payload, &profile, "initdb");
             init.arg("-D")
                 .arg(&data)
@@ -87,12 +98,7 @@ impl NativePostgres {
                 .into());
             }
         }
-        let secret = private_file(&password_file, false)?;
-        let password = fs::read_to_string(&password_file)?;
-        drop(secret);
-        if password.len() != 64 || !password.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err("invalid native database password file".into());
-        }
+        let password = read_password(&password_file)?;
         let mut uri = url::Url::parse("postgresql:///postgres")?;
         uri.query_pairs_mut()
             .append_pair("host", socket.to_str().ok_or("non-UTF8 database profile")?)
@@ -215,6 +221,17 @@ impl Drop for NativePostgres {
             eprintln!("native database retirement: {error}");
         }
     }
+}
+
+fn read_password(path: &Path) -> Result<String> {
+    if !fs::symlink_metadata(path)?.is_file() {
+        return Err("invalid native database password file".into());
+    }
+    let password = String::from_utf8(read_bytes(path, 64)?)?;
+    if password.len() != 64 || !password.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("invalid native database password file".into());
+    }
+    Ok(password)
 }
 
 fn command(payload: &Path, profile: &Path, name: &str) -> Command {

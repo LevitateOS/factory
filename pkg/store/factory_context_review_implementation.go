@@ -13,6 +13,12 @@ import (
 // independent reviewer. The existing typed plan projection excludes prompts,
 // coding conversations and event logs and stays in this same read snapshot.
 func currentPublishedImplementationTx(ctx context.Context, tx *sql.Tx, a, owner factory.Assignment, p factory.Publication, current *factory.CurrentReviewContext) error {
+	if p.External!=nil {
+		if _,err:=publicationExecutionOwner(ctx,tx,p,owner); err!=nil { return err }
+		current.External=p.External
+		current.Implementation=nil
+		return nil
+	}
 	// Corrections can advance the current head. The original implementation
 	// remains bound to the immutable PR creation candidate; current correction
 	// facts and the current tuple separately describe the later head.

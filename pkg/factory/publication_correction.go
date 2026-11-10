@@ -28,7 +28,7 @@ func NativeCorrectionPreparationID(assignment string) string {
 // additionally verifies that checkout's exact publication, child and source.
 func (a Assignment) PublicationCoderPreparation(owner Assignment) bool {
 	return a.Preparation == owner.Preparation ||
-		a.Phase == project.ExecutionCorrect && a.NativeTool != nil && (owner.NativeTool != nil || owner.RetainedPublication != nil) &&
+		a.Phase == project.ExecutionCorrect && a.NativeTool != nil && (owner.NativeTool != nil || owner.RetainedPublication != nil || owner.ExternalPublication != nil) &&
 			a.Preparation == NativeCorrectionPreparationID(a.ID)
 }
 
@@ -524,7 +524,7 @@ func (p Publication) validateReviewCycleJournal() error {
 	if len(p.ReviewCycles) == 0 {
 		return nil
 	}
-	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced) || p.PRCreate.Work == nil || p.PRCreate.Effect != OpEffectCommitted {
+	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced) || !p.HasPullTarget() {
 		return errors.New("review cycles require a linked publication")
 	}
 	seen := make(map[string]bool, len(p.ReviewCycles))
@@ -591,8 +591,8 @@ func (p Publication) validateDeliveryAcceptances() error {
 	}
 	seen := make(map[string]bool, len(p.DeliveryAcceptances))
 	known := make(map[string]bool)
-	if p.Publish.Work != nil {
-		known[p.Publish.Work.Candidate] = true
+	if initial:=p.InitialCandidate(); initial!="" {
+		known[initial] = true
 	}
 	for _, correction := range p.Corrections {
 		if correction.Effect == OpEffectCommitted && correction.Work != nil {
@@ -613,7 +613,7 @@ func (p Publication) validateDeliveryAcceptances() error {
 		if !known[acceptance.Tuple.Head] {
 			return errors.New("delivery acceptance answers an unknown candidate")
 		}
-		if acceptance.Tuple.Base != p.PRCreate.BaseOID {
+		if acceptance.Tuple.Base != p.PullTarget().BaseOID {
 			return errors.New("delivery acceptance answers another base")
 		}
 	}

@@ -209,8 +209,8 @@ func mergeRebaseMatches(m factory.Merge, p factory.Publication) bool {
 	return op.Attempts == 0 && op.Work == nil && op.Effect == "" &&
 		m.Repository == p.Repository && m.Issue == p.Issue &&
 		m.PRNumber == p.PRNumber && m.PRID == p.PRID &&
-		m.HeadRef == p.PRCreate.HeadRef && m.BaseRef == p.PRCreate.BaseRef &&
-		m.BaseOID == p.PRCreate.BaseOID
+		m.HeadRef == p.PullTarget().HeadRef && m.BaseRef == p.PullTarget().BaseRef &&
+		m.BaseOID == p.PullTarget().BaseOID
 }
 
 // admitMergeAuthority resolves the authority bracket and union gate

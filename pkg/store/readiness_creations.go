@@ -146,8 +146,8 @@ func (s *Store) CreationRecoveryRepositories(ctx context.Context, after int64, l
 // EnqueueReadinessCreationPage advances native history only after every original
 // observation is durable. Capacity, identity conflicts and stale cursors roll
 // back the whole page, so a later serving pass can retry the same native tasks.
-func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, expected, next int64, works []ReadinessWork) error {
-	if repository <= 0 || expected < 0 || next < expected || len(works) > 16 {
+func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, expected, next int64, works []ReadinessWork, policyRevision ...int64) error {
+	if repository <= 0 || expected < 0 || next < expected || len(works) > 16 || len(policyRevision) > 1 || len(policyRevision) == 1 && policyRevision[0] < 1 {
 		return errors.New("invalid creation page")
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -155,6 +155,11 @@ func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, ex
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if len(policyRevision) == 1 {
+		if err = admitCreationPolicyTx(ctx, tx, repository, policyRevision[0]); err != nil {
+			return err
+		}
+	}
 	var locked int
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM factory_readiness_budget WHERE id=1 FOR UPDATE`).Scan(&locked); err != nil {
 		return err
@@ -172,6 +177,22 @@ func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, ex
 	for _, work := range works {
 		if work.Root.Repository != repository {
 			return ErrCommandConflict
+		}
+		if err = admitReadinessCreation(work); err != nil {
+			return err
+		}
+		// Keep an original queued delivery when discovery learns a newer scoped
+		// identity. Reopening old Fountain state must not fork its pending work.
+		prior, priorErr := readReadinessWork(ctx, tx, `SELECT `+readinessWorkColumns+` FROM factory_readiness_sources
+			WHERE repository=$1 AND issue=$2 AND native_issue_id=$3 AND native_issue_id>0 AND creator_id>0
+			ORDER BY id LIMIT 1 FOR UPDATE`, repository, work.Root.Issue, work.NativeIssueID)
+		if priorErr == nil {
+			if err = checkSavedCreationConflict(prior, work); err != nil {
+				return err
+			}
+			work.ID, work.Delivery = prior.ID, prior.Delivery
+		} else if !errors.Is(priorErr, ErrNotFound) {
+			return priorErr
 		}
 		var priorRepo, priorIssue int64
 		err = tx.QueryRowContext(ctx, `SELECT repository,issue FROM intake_deliveries WHERE delivery=$1`, work.Delivery).Scan(&priorRepo, &priorIssue)
@@ -192,4 +213,26 @@ func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, ex
 		return err
 	}
 	return tx.Commit()
+}
+
+// Hold the captured policy through cursor/acceptance publication. Native reads
+// may outlive a pause or policy replacement; their old facts grant no admission.
+func admitCreationPolicyTx(ctx context.Context, tx *sql.Tx, repository, revision int64) error {
+	if err := checkDispatchOpenTx(ctx, tx, repository); err != nil {
+		return err
+	}
+	var current bool
+	err := tx.QueryRowContext(ctx, `SELECT revision=$2 AND COALESCE((data->>'enabled')::boolean,FALSE)
+		AND NOT COALESCE((data->>'paused')::boolean,FALSE)
+		FROM factory_policies WHERE repository=$1 FOR SHARE`, repository, revision).Scan(&current)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrAdmissionChanged
+	}
+	if err != nil {
+		return err
+	}
+	if !current {
+		return ErrAdmissionChanged
+	}
+	return nil
 }

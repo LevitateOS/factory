@@ -17,6 +17,7 @@ mod snapshot;
 mod publication;
 mod product;
 mod discussion;
+mod issues;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
 pub use publication::PublicationOutcome;
@@ -93,6 +94,7 @@ pub struct Enrollment {
 }
 
 pub struct Client {
+    issues_only: bool,
     http: reqwest::Client,
     credentials: Arc<Credentials>,
     capability: TokenCapability,
@@ -124,6 +126,13 @@ impl Client {
         repository: &str,
         command: &str,
     ) -> Result<Self> {
+        Self::new_scoped(credentials, capability, signer, runtime, application, owner, repository, command, false)
+    }
+    fn new_scoped(
+        credentials: Arc<Credentials>, capability: TokenCapability, signer: &Signer,
+        runtime: &str, application: &str, owner: &str, repository: &str, command: &str,
+        issues_only: bool,
+    ) -> Result<Self> {
         let account = capability.account();
         if account.provider != Provider::Fountain
             || !credentials.is_profile(runtime)
@@ -152,7 +161,7 @@ impl Client {
         }
         let owner = owner.to_ascii_lowercase();
         let repository = repository.to_ascii_lowercase();
-        let scope = serde_json::to_vec(&[
+        let mut scope = vec![
             base.origin().ascii_serialization(),
             account.account.clone(),
             runtime.into(),
@@ -160,7 +169,9 @@ impl Client {
             owner.clone(),
             repository.clone(),
             command.into(),
-        ])
+        ];
+        if issues_only { scope.push("issues".into()); }
+        let scope = serde_json::to_vec(&scope)
         .map_err(|_| invalid())?;
         let proof = signer
             .derive_desktop_enrollment(&scope)
@@ -173,7 +184,7 @@ impl Client {
             repository.as_str(),
             "factory",
             "desktop",
-            "grants",
+            if issues_only { "issue-grants" } else { "grants" },
         ]);
         let http = reqwest::Client::builder()
             .https_only(true)
@@ -188,6 +199,7 @@ impl Client {
             .build()
             .map_err(|_| unavailable())?;
         Ok(Self {
+            issues_only,
             http,
             credentials,
             capability,
@@ -314,7 +326,7 @@ impl Client {
             || !repository.id.bytes().all(|byte| byte.is_ascii_digit())
             || !repository.owner.eq_ignore_ascii_case(&self.owner)
             || !repository.name.eq_ignore_ascii_case(&self.repository)
-            || repository.permission != "read"
+            || repository.permission != if self.issues_only { "issues" } else { "read" }
         {
             return Err(invalid());
         }
@@ -331,7 +343,7 @@ impl Client {
             || value.application_id != self.application
             || value.actor.id != self.capability.account().account
             || !value.runtime_bound
-            || value.operations != ["repository.read"]
+            || if self.issues_only { value.operations != ["issues.read", "issue.collaborate"] } else { value.operations != ["repository.read"] }
         {
             return Err(invalid());
         }

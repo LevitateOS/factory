@@ -6,6 +6,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -146,7 +147,16 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 		return empty, err
 	}
 	capabilities := workCapabilitiesDTO(in)
+	if attempt!=nil && attempt.ExternalPlanning!=nil { capabilities.Retry=WorkCapability{Reason:"external_planning_requires_new_adoption"} }
 	mutating, _ := workCapabilityGates(in)
+	if !s.ExecutionUnavailable && mutating=="" && in.DispatchOpen && in.Member {
+		policy,err:=s.Store.RepositoryPolicy(ctx,int64(repository))
+		if err!=nil { return empty,err }
+		_,native,err:=s.Store.ExecutionWorkspace(ctx,repository)
+		if err==nil && native!=nil && policy.Review.NativeProfile==native.Profile && policy.Review.NativeConnection!="" && policy.Roles[project.RoleCoder].Account==policy.Roles[project.RoleReviewer].Account && (policy.Judgments==nil || policy.Judgments.Account==policy.Roles[project.RoleCoder].Account) {
+			capabilities.AdoptExternal=&WorkCapability{Available:true}
+		}
+	}
 	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil {
 		publication, err := s.Store.PublicationByAssignment(ctx, attempt.PublicationAssignment)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
@@ -162,12 +172,24 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 			return empty, err
 		}
 	}
-	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil && attempt.RetainedPublication != nil {
-		funding, err := s.Store.RetainedCandidateFundingOffer(ctx, attempt.ID)
+	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil {
+		publication, err := s.Store.PublicationByAssignment(ctx, attempt.PublicationAssignment)
+		var funding factory.RetainedCandidateFunding
+		if err == nil {
+			funding, err = s.Store.RetainedCandidateFundingOffer(ctx, publication.ID)
+		}
 		if err == nil {
 			capabilities.FundRetained = &WorkFundingCapability{WorkCapability: WorkCapability{Available: true}, Funding: funding}
 		} else if !errors.Is(err, store.ErrRetainedPublicationIneligible) && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrAdmissionChanged) && !errors.Is(err, store.ErrAttemptRunsPending) {
 			return empty, err
+		}
+		if publication.ID != "" {
+			retry, retryErr := s.Store.ReviewRetryOffer(ctx, publication.ID)
+			if retryErr == nil {
+				capabilities.RetryReview = &WorkReviewRetryCapability{WorkCapability: WorkCapability{Available:true}, Retry:retry}
+			} else if !errors.Is(retryErr, store.ErrRetainedPublicationIneligible) && !errors.Is(retryErr, store.ErrNotFound) {
+				return empty, retryErr
+			}
 		}
 	}
 	if s.ExecutionUnavailable {

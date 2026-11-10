@@ -364,8 +364,8 @@ func MergeAuthRevision(assignmentID, mergeID string, revision int64) string {
 func MergeTargetChanged(m Merge, p Publication) bool {
 	return m.Repository != p.Repository || m.Issue != p.Issue || m.PRNumber != p.PRNumber || m.PRID != p.PRID ||
 		m.HeadRef == "" || m.BaseRef == "" || m.HeadOID == "" || m.BaseOID == "" ||
-		p.PRCreate.HeadRef != m.HeadRef || p.PRCreate.BaseRef != m.BaseRef ||
-		p.Candidate != m.HeadOID || p.PRCreate.BaseOID != m.BaseOID
+		p.PullTarget().HeadRef != m.HeadRef || p.PullTarget().BaseRef != m.BaseRef ||
+		p.Candidate != m.HeadOID || p.PullTarget().BaseOID != m.BaseOID
 }
 
 const CommandPrepareMerge = "prepare-unsent-merge"

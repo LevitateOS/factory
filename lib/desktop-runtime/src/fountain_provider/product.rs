@@ -144,8 +144,20 @@ impl Client {
         if !current.active || current.repository.id != repository {
             return Err(invalid());
         }
+        if self.issues_only && !matches!(query, Read::Identity | Read::Repository {..} | Read::Issues {..} |
+            Read::Issue {..} | Read::IssueComments {..} | Read::WriteCapabilities {pull:false,..}) {
+            return Err(super::Failure{status:403,code:"fountain_issue_scope_only"});
+        }
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
+            Read::WriteCapabilities {repository:selected,number,pull:false} if self.issues_only && selected==repository => {
+                json!({"kind":"write_capabilities","account":account,"capabilities":self.issue_capabilities(repository,*number).await?})
+            }
+            Read::Repository {repository:selected} if self.issues_only && selected==repository => {
+                json!({"kind":"repository","account":account,"repository":{"external_id":repository,
+                    "name":format!("{}/{}",current.repository.owner,current.repository.name),"private":null,
+                    "default_branch":"","push":false,"admin":false,"merge_methods":{}}})
+            }
             Read::PullRequiredChecks {repository:selected,number,head,base} if selected==repository=>json!({"kind":"pull_required_checks","account":account,"required_checks":self.visible_required_checks(repository,*number,head,base).await?}),
             Read::DeliveryOpinions {repository:selected,number} if selected==repository=>json!({"kind":"delivery_opinions","account":account,"delivery_opinions":self.delivery_opinions(repository,*number).await?}),
             Read::PullThreads {repository:selected,number,page,limit,thread_id} if selected==repository=>json!({"kind":"pull_threads","account":account,"threads":self.discussion_threads(repository,*number,*page,*limit,thread_id).await?}),

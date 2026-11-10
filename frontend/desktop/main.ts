@@ -47,7 +47,7 @@ async function refresh() {
     status.textContent = 'Factory is unavailable. Your saved work is kept.';
     app.context = undefined;
     connections.refresh(false, epoch, null);
-    await Promise.all([refreshAccounts(false, epoch), refreshMuse(false, epoch)]);
+    await Promise.all([refreshAccounts(false, epoch), refreshMuse(false, epoch), refreshFountain(false, epoch)]);
   } finally {
     reading = false;
   }

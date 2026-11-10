@@ -12,6 +12,10 @@ import (
 // Reconciliation never depends on an export, current actor credential, or open
 // dispatch. Those are prerequisites for new writes, not for learning old effects.
 func (c *Coordinator) reconcilePublication(ctx context.Context, p factory.Publication, report *PublishReport) {
+	if p.External!=nil {
+		if p.Stage==factory.PublicationPublished || p.Stage==factory.PublicationFenced { c.reconcilePublishedPublication(ctx,p,report) }
+		return
+	}
 	if p.Stage == factory.PublicationPublished {
 		c.reconcilePublishedPublication(ctx, p, report)
 		return
@@ -47,10 +51,10 @@ func (c *Coordinator) loadPublicationRunState(ctx context.Context, p factory.Pub
 		publicationError(report, p.ID, "store_unavailable")
 		return factory.Assignment{}, factory.Run{}, false, false
 	}
-	run, err := c.Store.FactoryRun(ctx, p.Run)
-	if err != nil {
-		publicationError(report, p.ID, "store_unavailable")
-		return factory.Assignment{}, factory.Run{}, false, false
+	var run factory.Run
+	if p.External==nil {
+		run,err=c.Store.FactoryRun(ctx,p.Run)
+		if err!=nil { publicationError(report,p.ID,"store_unavailable"); return factory.Assignment{},factory.Run{},false,false }
 	}
 	open, _, _, err := c.Store.DispatchState(ctx, p.Repository)
 	if err != nil {

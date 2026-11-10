@@ -40,7 +40,7 @@ const (
 
 // ValidRepositoryAction reports whether action is a repository control.
 func ValidRepositoryAction(action string) bool {
-	return action == ActionPause || action == ActionResume || action == ActionCompletionRetry
+	return action == ActionPause || action == ActionResume || action == ActionCompletionRetry || action == ActionInspectExternalPull || action == CommandAdoptExternalPull
 }
 
 // ValidRunAction reports whether action is a run control.

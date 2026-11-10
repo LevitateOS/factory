@@ -43,7 +43,7 @@ func (c *Coordinator) producePublishedChildren(ctx context.Context, report *Publ
 
 func admitPublicationChildInput(p factory.Publication) bool {
 	return p.Validate() == nil && p.Stage == factory.PublicationPublished && !p.WithdrawRequested &&
-		p.PRNumber > 0 && p.PRID > 0 && p.PRCreate.Work != nil && p.PRCreate.BaseOID != ""
+		p.HasPullTarget() && p.PullTarget().BaseOID != ""
 }
 
 func (c *Coordinator) loadPublicationChildOwner(ctx context.Context, p factory.Publication, report *PublishReport) (owner factory.Assignment, stop bool) {
@@ -57,6 +57,13 @@ func (c *Coordinator) loadPublicationChildOwner(ctx context.Context, p factory.P
 }
 
 func (c *Coordinator) gatePublicationChildAttempt(ctx context.Context, p factory.Publication, owner factory.Assignment, report *PublishReport) (factory.AttemptAllowance, bool) {
+	if p.External!=nil {
+		policy,err:=c.Store.RepositoryPolicy(ctx,p.Repository)
+		if err!=nil || policy.Revision!=p.External.Policy || policy.Review.NativeProfile!=p.External.Profile || policy.Review.NativeConnection!=p.External.Connection {
+			publicationWait(report,p.ID,"external_adoption_policy_changed")
+			return factory.AttemptAllowance{},true
+		}
+	}
 	latest, err := c.Store.LatestIssueAssignment(ctx, p.Repository, p.Issue)
 	if err != nil {
 		publicationError(report, p.ID, "issue_assignment_unavailable")
@@ -249,19 +256,19 @@ func childCycleDigests(p factory.Publication, role string, in childReviewInput, 
 			// The bounded policy-required pass carries its separately
 			// recorded cause; the digest stays head/base-only so a
 			// replay reuses its round and never double-charges.
-			digest = reviewCycleInputDigest(p.Candidate, p.PRCreate.BaseOID, nil, nil)
+			digest = reviewCycleInputDigest(p.Candidate, p.PullTarget().BaseOID, nil, nil)
 			triggerDecision, triggerReason = policyReviewDecision, policyReviewReason(in.policyActor, p.Candidate)
 		} else if in.hasReview {
-			digest = reviewCycleEvidenceDigest(p.Candidate, p.PRCreate.BaseOID, in.review, in.checks)
+			digest = reviewCycleEvidenceDigest(p.Candidate, p.PullTarget().BaseOID, in.review, in.checks)
 			triggerDecision, triggerReason = "re-review-same-head", "another inspection of head "+shortHead+" after "+in.review.Verdict+" with outstanding findings"
 		} else if len(p.ReviewCycles) == 0 {
-			digest = reviewCycleInputDigest(p.Candidate, p.PRCreate.BaseOID, nil, nil)
+			digest = reviewCycleInputDigest(p.Candidate, p.PullTarget().BaseOID, nil, nil)
 			triggerDecision, triggerReason = "initial-review", "first review of published head "+shortHead
 		} else if reviewCycleHeadSeen(p, p.Candidate) {
-			digest = reviewCycleInputDigest(p.Candidate, p.PRCreate.BaseOID, nil, nil)
+			digest = reviewCycleInputDigest(p.Candidate, p.PullTarget().BaseOID, nil, nil)
 			triggerDecision, triggerReason = "re-review-same-head", "another inspection of head "+shortHead+" without prior verdict"
 		} else {
-			digest = reviewCycleInputDigest(p.Candidate, p.PRCreate.BaseOID, nil, nil)
+			digest = reviewCycleInputDigest(p.Candidate, p.PullTarget().BaseOID, nil, nil)
 			triggerDecision, triggerReason = "re-review-after-correction", "fresh review of corrected head "+shortHead
 		}
 		inputDigest = digest
@@ -278,7 +285,7 @@ func childCycleDigests(p factory.Publication, role string, in childReviewInput, 
 			return "", "", "", "", true
 		}
 		digest = setDigest
-		inputDigest = reviewCycleEvidenceDigest(p.Candidate, p.PRCreate.BaseOID, in.review, in.checks)
+		inputDigest = reviewCycleEvidenceDigest(p.Candidate, p.PullTarget().BaseOID, in.review, in.checks)
 		triggerDecision, triggerReason = "correction-after-review", "address "+in.review.Verdict+" with "+in.checks.Verdict+" checks on head "+shortHead
 	}
 	return digest, inputDigest, triggerDecision, triggerReason, false
@@ -403,6 +410,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 // Release that exact custody before admitting the next session, independently
 // of the retained run, report and exported candidate evidence.
 func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factory.Publication, owner factory.Assignment, role string) error {
+	if role == project.RoleReviewer && p.External != nil && p.Run == "" { return nil }
 	var prior factory.Assignment
 	if role == project.RoleCoder {
 		var ok bool
@@ -482,6 +490,7 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 		tuple = *p.Tuple
 	}
 	plan.reviewContext = &factory.CurrentReviewContext{Publication: factory.CurrentPublicationContext{ID: p.ID, AssignmentID: p.AssignmentID, Revision: p.Revision, PRID: p.PRID, PRNumber: p.PRNumber, Stage: p.Stage}, AdmittedTuple: tuple, Cycle: cycle, CarriedFindings: carried}
+	plan.reviewContext.External=p.External
 	// A phased corrector executes the controller-derived singleton plan,
 	// never a rebuilt or agent-selected one. An accepted-policy gap is a
 	// visible planning blocker; any other derivation failure refuses
@@ -596,11 +605,11 @@ func (c *Coordinator) correctionPlanFor(ctx context.Context, plan *attemptPlan, 
 		origin.Result.PhaseResult.Output == nil || origin.Result.PhaseResult.Output.Plan == nil {
 		return nil, &correctionPlanBlocked{reason: "correction_plan_unavailable", detail: "publication owner carries no recorded investigation plan"}
 	}
-	if cycle.CorrectionAssignment == "" || cycle.Head != p.Candidate || cycle.BaseOID != p.PRCreate.BaseOID {
+	if cycle.CorrectionAssignment == "" || cycle.Head != p.Candidate || cycle.BaseOID != p.PullTarget().BaseOID {
 		return nil, &correctionPlanBlocked{reason: "correction_plan_unavailable", detail: "correction answers another round"}
 	}
 	return deriveCorrectionPlan(plan.acceptance, *origin.Result.PhaseResult.Output.Plan,
-		owner.AttemptRoot, origin.AttemptRoot, p.Candidate, p.PRCreate.BaseOID, plan.prep.Preparation.ID,
+		owner.AttemptRoot, origin.AttemptRoot, p.Candidate, p.PullTarget().BaseOID, plan.prep.Preparation.ID,
 		cycle.ID, cycle.FindingDigest, correctionFindingKeys(review), plan.policy.Checks)
 }
 
@@ -646,13 +655,18 @@ func correctionFindingKeys(review ResolvedReviewVerdict) []string {
 // changed candidate, fenced publication, replaced acceptance, retired
 // allowance or rebound reviewer waits instead of launching.
 func (c *Coordinator) recheckPublicationChild(ctx context.Context, p factory.Publication, owner factory.Assignment, plan *attemptPlan, phasedChild bool, parentAssignment string) (*planWait, error) {
+	if p.External!=nil {
+		if c.Reviews==nil || plan.policy.Revision!=p.External.Policy { return waitFor("child_dispatch_inputs_changed","external adoption policy changed before launch"),nil }
+		t:=p.PullTarget()
+		if _,err:=c.Reviews.ObserveReview(ctx,factory.ReviewWork{Repository:p.Repository,ActorID:plan.policy.Review.ActorID,PRNumber:p.PRNumber,PRID:p.PRID,IssueID:t.IssueID,PRAuthorID:t.AuthorID,HeadRef:t.HeadRef,BaseRef:t.BaseRef,HeadOID:p.Candidate,BaseOID:t.BaseOID}); err!=nil { return waitFor("child_dispatch_inputs_changed","external PR identity, head, base or permission changed before launch"),nil }
+	}
 	fresh, err := c.Store.PublicationByAssignment(ctx, owner.ID)
 	if err != nil {
 		return nil, err
 	}
 	if fresh.Stage != factory.PublicationPublished || fresh.WithdrawRequested ||
 		fresh.Candidate != p.Candidate || fresh.PRNumber != p.PRNumber || fresh.PRID != p.PRID ||
-		fresh.PRCreate.BaseOID != p.PRCreate.BaseOID {
+		fresh.PullTarget().BaseOID != p.PullTarget().BaseOID {
 		return waitFor("child_dispatch_inputs_changed", "published candidate changed before launch"), nil
 	}
 	head, err := c.Store.AcceptanceHead(ctx, p.Repository, p.Issue)
@@ -691,7 +705,7 @@ func currentReviewOpReady(p factory.Publication, op factory.ReviewOperation) boo
 	if op.Work.HeadOID != p.Candidate {
 		return false
 	}
-	if op.Work.BaseOID != p.PRCreate.BaseOID {
+	if op.Work.BaseOID != p.PullTarget().BaseOID {
 		return false
 	}
 	if op.Outcome.Effect == factory.OpEffectPending || op.Outcome.Effect == factory.OpEffectIndeterminate ||
@@ -736,7 +750,7 @@ func (c *Coordinator) currentReviewerForCorrection(ctx context.Context, p factor
 // head/base/cycle/reviewer/carried binding enforced before it routes any
 // further work.
 func currentReviewOpCurrent(p factory.Publication, op factory.ReviewOperation) (settled, pending bool) {
-	if op.Work.BaseOID != p.PRCreate.BaseOID {
+	if op.Work.BaseOID != p.PullTarget().BaseOID {
 		return false, false
 	}
 	if op.Outcome.Effect == factory.OpEffectPending || op.Outcome.Effect == factory.OpEffectIndeterminate ||
@@ -814,9 +828,9 @@ func (c *Coordinator) currentChildCheckAssessment(ctx context.Context, p factory
 		return nil, false
 	}
 	if assessment.Repository != p.Repository || assessment.PRNumber != p.PRNumber || assessment.PRID != p.PRID ||
-		assessment.IssueID != p.PRCreate.IssueID || assessment.HeadOID != p.Candidate ||
-		assessment.BaseOID != p.PRCreate.BaseOID || assessment.HeadRef != p.PRCreate.HeadRef ||
-		assessment.BaseRef != p.PRCreate.BaseRef || assessment.PolicyRevision != policy.Revision ||
+		assessment.IssueID != p.PullTarget().IssueID || assessment.HeadOID != p.Candidate ||
+		assessment.BaseOID != p.PullTarget().BaseOID || assessment.HeadRef != p.PullTarget().HeadRef ||
+		assessment.BaseRef != p.PullTarget().BaseRef || assessment.PolicyRevision != policy.Revision ||
 		!slices.Equal(assessment.Checks, policy.Checks) || assessment.ChecksDigest != factory.ChecksDigest(policy.Checks) ||
 		(assessment.Verdict != factory.CheckPass && assessment.Verdict != factory.CheckFailed) {
 		return nil, false
@@ -849,7 +863,9 @@ func (c *Coordinator) admitReviewCandidatePrep(ctx context.Context, plan *attemp
 		Authority: plan.effective.Authority, GateRevision: plan.gateRev, Control: plan.control,
 		RequestedNotAfter: requested,
 	}
-	if prep.Role == project.RoleCoder {
+	if p.External != nil {
+		registration.SourcePull=p.PullSource()
+	} else if prep.Role == project.RoleCoder {
 		run, err := c.Store.FactoryRun(ctx, p.Run)
 		if err != nil || run.Native == nil {
 			return execution.PreparationRecord{}, false, errors.New("native correction candidate run unavailable")
@@ -917,11 +933,21 @@ func (c *Coordinator) prepareReviewCandidate(ctx context.Context, p factory.Publ
 	if err := c.verifyStoredReviewCandidatePrep(ctx, p, prep, stored, report); err != nil {
 		return project.Preparation{}, false, err
 	}
+	admitted, err := c.Store.CandidatePreparation(ctx, prep.ID)
+	if err != nil {
+		return project.Preparation{}, false, err
+	}
+	if !stored.State.Ready && admitted.NotAfter <= time.Now().Unix() {
+		// The original send deadline is immutable. Fence and retire its exact
+		// receiver identity rather than retrying it or extending its authority.
+		c.fenceChildPublication(ctx, p, report)
+		return project.Preparation{}, false, errors.New("review preparation deadline elapsed")
+	}
 	if out, ready, err, proceed := c.reconcileStoredReviewCandidatePrep(ctx, p, prep, stored, created, report); !proceed {
 		return out, ready, err
 	}
 	var bundle []byte
-	if prep.Role == project.RoleReviewer {
+	if prep.Role == project.RoleReviewer && p.External == nil {
 		bundle, err = c.provePublishedCandidateForReview(ctx, p, owner, report)
 		if err != nil {
 			return project.Preparation{}, false, err
@@ -1006,13 +1032,14 @@ func (c *Coordinator) launchReviewCandidatePrep(ctx context.Context, p factory.P
 		return project.Preparation{}, false, errors.New("review preparation deadline elapsed")
 	}
 	input := project.FactoryCandidate{Preparation: prep, SourcePreparation: source.ID, Bundle: bundle, Deadline: deadline}
-	if prep.Role == project.RoleCoder {
+	if prep.Role == project.RoleCoder || p.External != nil {
 		admitted, err := c.Store.CandidatePreparation(ctx, prep.ID)
 		if err != nil {
 			return project.Preparation{}, false, err
 		}
 		input.SourceRun = admitted.Admission.SourceRun
-		if input.SourceRun == nil {
+		input.SourcePull = admitted.Admission.SourcePull
+		if input.SourceRun == nil && input.SourcePull == nil {
 			return project.Preparation{}, false, errors.New("native correction candidate source missing")
 		}
 	}
@@ -1200,7 +1227,7 @@ func buildPublicationChildPrompt(plan *attemptPlan, p factory.Publication, owner
 		Phase:        phase,
 		AcceptanceID: p.Acceptance, TargetBranch: plan.policy.TargetBranch,
 		SourceCommit: p.Candidate, ApprovedBase: owner.SourceCommit, BaseCommit: p.CurrentDiffBase(),
-		PRBase:                p.PRCreate.BaseOID,
+		PRBase:                p.PullTarget().BaseOID,
 		PublicationAssignment: p.AssignmentID, Preparation: preparationID,
 		RequirementsID: plan.requirement, ApprovalID: plan.approval,
 		Harness: plan.tool.Harness + "-" + plan.tool.Version, Model: selection.Model, Role: role,

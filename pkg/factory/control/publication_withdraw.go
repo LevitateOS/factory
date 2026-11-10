@@ -38,10 +38,10 @@ func (c *Coordinator) withdrawOnePublication(ctx context.Context, p *factory.Pub
 		result.Pending = true
 		return
 	}
-	run, err := c.Store.FactoryRun(ctx, p.Run)
-	if err != nil {
-		result.Pending = true
-		return
+	var run factory.Run
+	if p.External==nil {
+		run,err=c.Store.FactoryRun(ctx,p.Run)
+		if err!=nil { result.Pending=true; return } 
 	}
 	report := PublishReport{Published: []PublishLink{}}
 	if c.Publication == nil {
@@ -178,6 +178,7 @@ func (c *Coordinator) cancelCorrectionWithdrawOps(ctx context.Context, p *factor
 				continue
 			}
 			p.Candidate = op.Work.Candidate
+			p.Run=op.RunID
 			work := op.Work.Apply(factory.PublicationWork{AssignmentID: p.AssignmentID, Publication: p.ID})
 			if _, err := c.Publication.AdoptBranch(ctx, work, operationOutcomeOf(*op)); err != nil {
 				confirmed = false
@@ -270,6 +271,12 @@ func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignm
 	}
 	if !confirmed {
 		publicationWait(report, p.ID, "cancellation_pending")
+		return
+	}
+	if p.External!=nil {
+		// These operations own only Factory's continuation. The external PR
+		// and its human text are retained; no creation receipt/run is needed.
+		c.finishPublication(ctx,*p,factory.PublicationWithdrawn,factory.Cancelled,factory.PublishReasonWithdrawn,report)
 		return
 	}
 	if p.PRCreate.Effect == factory.OpEffectCommitted {

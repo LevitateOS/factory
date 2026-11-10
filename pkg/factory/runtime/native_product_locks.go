@@ -128,14 +128,18 @@ func nativeLockRecord(c factory.HumanLockCapture) collaboration.OperationRecord 
 }
 func (s nativeHumanLocks) LookupHumanLock(ctx context.Context, c factory.HumanLockCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil { return empty, err }
+	return s.recoverFountainIssue(ctx,cmd,p.NotAfter,p.Lock.Repository,prior,nativeLockRecord(c),c.ProviderIntent,p.Account,"lock",p.Lock,
+		func(o collaboration.OperationLookup)(collaboration.OperationLookup,error){return s.store.ObserveHumanLock(ctx,c,o)})
 }
 func (s nativeHumanLocks) SubmitHumanLock(ctx context.Context, c factory.HumanLockCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -169,6 +173,9 @@ func (s nativeHumanLocks) SubmitHumanLock(ctx context.Context, c factory.HumanLo
 		return empty, err
 	}
 	r := nativeLockRecord(c)
+	if s.binding.Host.Provider == collaboration.Fountain {
+		return fountainIssueOutcome(r,c.ProviderIntent,p.Account,p.Lock.Repository,"lock",p.Lock,outcome)
+	}
 	switch outcome.State {
 	case "applied":
 		var receipt nativeLockReceipt

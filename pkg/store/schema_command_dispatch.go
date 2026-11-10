@@ -37,6 +37,8 @@ func commandPayloadExpression(version int) (string, error) {
 		history = HumanPullCreateJournalUpgradeDDL
 	case version >= 90 && version <= 103:
 		history = HumanBranchCreateDispatchUpgradeDDL
+	case version == 104 || version == 105:
+		history = reviewRetryCommandUpgradeDDL
 	default:
 		return "", fmt.Errorf("command payload constraint has no schema %d contract", version)
 	}
@@ -222,4 +224,15 @@ var IssueDependencyDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='issue.graph.mutate' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=95)`,
 	`UPDATE schema_version SET version=96 WHERE version=95`,
+}
+
+// A fresh review submission retry captures the completed review verbatim, but
+// dispatch still belongs to its separate native review command. This widens no
+// other command and does not release or reclassify any historical reservation.
+const reviewRetryCommandPayloadCheck = `(type IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create','retry-unsent-review') AND octet_length(payload)<=2097152) OR (type IN ('pull_request.review.thread.resolve','pull_request.review.request') AND octet_length(payload)<=131072) OR (type='git.branch.create' AND octet_length(payload)<=32768) OR (type NOT IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create','retry-unsent-review','pull_request.review.thread.resolve','pull_request.review.request','git.branch.create') AND char_length(payload)<=8192)`
+
+var reviewRetryCommandUpgradeDDL = []string{
+	`ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check`,
+	`ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK(` + reviewRetryCommandPayloadCheck + `)`,
+	`UPDATE schema_version SET version=104 WHERE version=103`,
 }

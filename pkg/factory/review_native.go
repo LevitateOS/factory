@@ -48,6 +48,8 @@ type ReviewWork struct {
 // The work itself is the native tuple; this wrapper owns only its run binding
 // and reconciliation state.
 type ReviewOperation struct {
+	RetryCommand string      `json:"retry_command,omitempty"`
+	RetryOf string           `json:"retry_of,omitempty"`
 	RunID   string           `json:"run_id"`
 	Work    ReviewWork       `json:"work"`
 	Outcome OperationOutcome `json:"outcome"`
@@ -58,19 +60,26 @@ type ReviewOperation struct {
 // deadline values remain immutable when current policy or publication state
 // later changes.
 func (op ReviewOperation) validateReviewWork(p Publication) error {
-	if !ValidID(op.RunID) || op.Work.OperationID != "review-"+op.RunID {
+	if !ValidID(op.RunID) {
 		return errors.New("invalid review run operation identity")
+	}
+	if op.RetryOf == "" {
+		if op.RetryCommand != "" || op.Work.OperationID != "review-"+op.RunID {
+			return errors.New("invalid original review operation identity")
+		}
+	} else if !ValidID(op.RetryCommand) || !ValidPublicationOperationID(op.RetryOf) || op.Work.OperationID != "review-retry-"+op.RetryCommand {
+		return errors.New("invalid fresh review retry identity")
 	}
 	if err := op.Work.Validate(); err != nil {
 		return err
 	}
 	if op.Work.Repository != p.Repository || op.Work.PRNumber != p.PRNumber || op.Work.PRID != p.PRID ||
-		op.Work.IssueID != p.PRCreate.IssueID || op.Work.PRAuthorID != p.PRCreate.Work.ActorID ||
-		op.Work.HeadRef != p.PRCreate.HeadRef || op.Work.BaseRef != p.PRCreate.BaseRef || op.Work.BaseOID != p.PRCreate.BaseOID ||
+		op.Work.IssueID != p.PullTarget().IssueID || op.Work.PRAuthorID != p.PullTarget().AuthorID ||
+		op.Work.HeadRef != p.PullTarget().HeadRef || op.Work.BaseRef != p.PullTarget().BaseRef || op.Work.BaseOID != p.PullTarget().BaseOID ||
 		op.Work.AuthRevision != ReviewAuthRevision(p.AssignmentID, op.RunID) {
 		return errors.New("review work differs from its linked publication")
 	}
-	knownHead := p.Publish.Work != nil && op.Work.HeadOID == p.Publish.Work.Candidate
+	knownHead := op.Work.HeadOID == p.InitialCandidate()
 	for _, correction := range p.Corrections {
 		if correction.Effect == OpEffectCommitted && correction.Work != nil && op.Work.HeadOID == correction.Work.Candidate {
 			knownHead = true

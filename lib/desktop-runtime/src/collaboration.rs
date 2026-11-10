@@ -1421,7 +1421,7 @@ async fn observe_scope(
     scope: Arc<Scope>,
     effect: &Operation,
 ) -> std::result::Result<Value, Failure> {
-    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..) | Operation::Receipt(..) | Operation::Mutation(Command{operation:WriteOperation::PublishBranch(_) | WriteOperation::CreatePull(_) | WriteOperation::CreateReview(_) | WriteOperation::MergePull(_),..})) {
+    if scope.fountain.is_some() && !matches!(effect, Operation::Current | Operation::Read(..) | Operation::Receipt(..) | Operation::Mutation(Command{operation:WriteOperation::PublishBranch(_) | WriteOperation::CreatePull(_) | WriteOperation::CreateReview(_) | WriteOperation::MergePull(_) | WriteOperation::CreateIssue(_) | WriteOperation::CreateComment(_) | WriteOperation::EditDiscussion(_) | WriteOperation::SetDiscussionState(_) | WriteOperation::SetDiscussionLock(_),..})) {
         return Err(Failure::new(503, "fountain_product_write_unavailable"));
     }
     if let Operation::Mutation(command) = effect {
@@ -1457,6 +1457,11 @@ async fn observe_scope(
                     let prior=receipts::lookup(state,&scope,descriptor)?;
                     if !prior.is_null() && prior["state"]!="indeterminate" {return Ok(prior);}
                     let profile=state.channel.socket.parent().ok_or_else(Failure::unavailable)?;
+                    if client.issue_collaboration_only() {
+                        return match client.recover_issue_collaboration(profile,&descriptor.command_id,&descriptor.digest,descriptor.not_after).await.map_err(|e|Failure::new(e.status,e.code))? {
+                            Some((success,outcome))=>Ok(write_reply(descriptor,success,outcome.into())),None=>Ok(prior),
+                        };
+                    }
                     match client.recover_publication(profile,&descriptor.command_id,&descriptor.digest,descriptor.not_after).await.map_err(|e|Failure::new(e.status,e.code))? {
                         Some(crate::fountain_provider::PublicationOutcome::Ref(outcome))=>Ok(write_reply(descriptor,"applied",outcome)),
                         Some(crate::fountain_provider::PublicationOutcome::Merge(outcome))=>Ok(write_reply(descriptor,"applied",outcome)),
@@ -1473,6 +1478,8 @@ async fn observe_scope(
                         WriteOperation::CreatePull(pull)=>("created",client.create_pull(profile,&d.command_id,&d.digest,d.not_after,pull).await),
                         WriteOperation::CreateReview(review)=>("created",client.create_review(profile,&d.command_id,&d.digest,d.not_after,review).await),
                         WriteOperation::MergePull(merge)=>("applied",client.merge_pull(profile,&d.command_id,&d.digest,d.not_after,merge).await),
+                        WriteOperation::CreateIssue(_) | WriteOperation::CreateComment(_)=>("created",client.collaborate_issue(profile,&d.command_id,&d.digest,d.not_after,&command.operation).await.into()),
+                        WriteOperation::EditDiscussion(_) | WriteOperation::SetDiscussionState(_) | WriteOperation::SetDiscussionLock(_)=>("applied",client.collaborate_issue(profile,&d.command_id,&d.digest,d.not_after,&command.operation).await.into()),
                         _=>unreachable!()
                     };
                     return attempt.finish(write_reply(d,success,result));

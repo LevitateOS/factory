@@ -155,6 +155,7 @@ function mergeCopy(detail: FactoryIssueDetail): string {
 function attemptCopy(detail: FactoryIssueDetail): string {
   if (!detail.attempt) return 'No attempt recorded.';
   const outcome = detail.attempt.outcome ? `, ${detail.attempt.outcome}` : '';
+	if (detail.publication?.origin === 'external' && detail.attempt.stage === 'retained' && detail.attempt.run === '') return 'External PR adoption retained; no initial Builder run.';
   return `Attempt ${detail.attempt.attempts}: ${detail.attempt.role} ${detail.attempt.stage}${outcome}.`;
 }
 
@@ -162,7 +163,7 @@ function publicationCopy(detail: FactoryIssueDetail): string {
   if (!detail.publication) return 'Nothing published yet.';
   const pr = detail.publication.pr_number ? `PR #${detail.publication.pr_number}` : 'no pull request yet';
   return (
-    `Publication ${detail.publication.stage}: candidate ${detail.publication.candidate.slice(0, 12)} on ` +
+	`${detail.publication.origin === 'external' ? 'External PR' : 'Publication'} ${detail.publication.stage}: candidate ${detail.publication.candidate.slice(0, 12)} on ` +
     `${detail.publication.target_branch}, ${pr}. ${detail.publication.corrections_total} ` +
     `correction${detail.publication.corrections_total === 1 ? '' : 's'}, ${detail.publication.reviews_total} ` +
     `review${detail.publication.reviews_total === 1 ? '' : 's'}.`

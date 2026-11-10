@@ -8,6 +8,33 @@ import (
 
 const CommandPublishRetained = "publish-retained-candidate"
 const CommandFundRetained = "fund-retained-candidate"
+const CommandRetryReview = "retry-unsent-review"
+
+// ReviewRetry authorizes a provider submission of an existing reviewer result.
+// It has no model allowance and cannot replace an uncertain send.
+type ReviewRetry struct {
+	Publication string `json:"publication"`
+	Run string `json:"run"`
+	Operation string `json:"operation"`
+	Head string `json:"head"`
+	Base string `json:"base"`
+	Policy int64 `json:"policy"`
+}
+
+func (r ReviewRetry) Validate() error {
+	if !ValidID(r.Publication) || !ValidID(r.Run) || !ValidPublicationOperationID(r.Operation) ||
+		!ValidCommit(r.Head) || !ValidCommit(r.Base) || r.Head == r.Base || r.Policy < 1 {
+		return errors.New("invalid unsent review retry scope")
+	}
+	return nil
+}
+
+func (op ReviewOperation) DefinitiveNoSend() bool {
+	o := op.Outcome
+	return !o.NotObserved && o.OperationID == op.Work.OperationID && o.InstallationID != "" &&
+		o.Kind == OpReviewSubmit && o.RepositoryID == op.Work.Repository && o.ActorID == op.Work.ActorID &&
+		o.Effect == OpEffectNotCommitted && o.Completion == OpCompletionComplete
+}
 
 // RetainedCandidateFunding authorizes only subsequent review/correction on the
 // original selected source. It never renews publication or replays execution.
@@ -35,8 +62,8 @@ func (f RetainedCandidateFunding) Validate() error {
 	if f.CarryUnused && f.PreviousRoot == "" {
 		return errors.New("unused review budget requires its prior owner")
 	}
-	if f.PreviousRoot != "" && f.PreviousRoot != f.Publication {
-		return errors.New("continuation must capture its previous publication owner")
+	if f.PreviousRoot != "" && !ValidID(f.PreviousRoot) {
+		return errors.New("continuation must capture a valid previous owner")
 	}
 	if !ValidID(f.Publication) || !ValidCommit(f.Candidate) || !ValidCommit(f.Base) || f.Candidate == f.Base || !project.ValidDecisionID(f.Acceptance) || f.Connection == "" || len(f.Connection) > 128 || f.Policy < 1 {
 		return errors.New("invalid retained candidate funding scope")
@@ -64,7 +91,7 @@ type RetainedCandidateFundingReceipt struct {
 // PublicationOwnerReady recognizes an explicit non-executing owner without
 // inventing a successful run. Dispatch still requires its separate allowance.
 func (a Assignment) PublicationOwnerReady() bool {
-	return a.RetainedPublication != nil && a.validateRetainedPublication() == nil || a.Stage == AssignmentFinished && a.Outcome == Succeeded
+	return a.ExternalPublication != nil && a.validateExternalPublicationOwner() == nil || a.RetainedPublication != nil && a.validateRetainedPublication() == nil || a.Stage == AssignmentFinished && a.Outcome == Succeeded
 }
 
 // RetainedPublication identifies the original execution without pretending it
@@ -87,7 +114,7 @@ func (a Assignment) validateRetainedPublication() error {
 	if r != nil && (r.AdoptedFrom == "" && (r.NotAfter <= a.CreatedUnix || r.NotAfter > a.CreatedUnix+300) || r.AdoptedFrom != "" && (!ValidID(r.AdoptedFrom) || r.AdoptedFrom == a.ID || r.NotAfter != 0)) {
 		return errors.New("invalid retained publication send authority")
 	}
-	if r == nil || !ValidID(r.Publication) || !ValidID(r.Assignment) || !ValidID(r.Run) ||
+	if a.ExternalPublication != nil || r == nil || !ValidID(r.Publication) || !ValidID(r.Assignment) || !ValidID(r.Run) ||
 		!ValidCommit(r.Candidate) || r.Candidate == a.SourceCommit || r.Connection == "" || len(r.Connection) > 128 ||
 		!ValidID(a.ID) || a.AttemptRoot != a.ID || a.PublicationAssignment != a.ID || a.ParentAssignment != "" ||
 		a.ID == r.Assignment || a.Stage != AssignmentRetained || a.Revision != 0 || a.ActorID <= 0 || a.CreatedUnix <= 0 ||

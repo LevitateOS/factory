@@ -335,6 +335,15 @@ impl Client {
             {
                 return Err(invalid());
             }
+            if let Some(correction) = &q.pull_request {
+                if p["pr_id"].as_i64() != Some(correction.expected_pr_id)
+                    || p["issue_id"].as_i64() != Some(correction.expected_issue_id)
+                {
+                    return Err(invalid());
+                }
+            } else if !p["pr_id"].is_null() || !p["issue_id"].is_null() {
+                return Err(invalid());
+            }
         }
         Ok(())
     }
@@ -347,13 +356,18 @@ impl Client {
         if self.check_publication_record(c, g, r).is_err() {
             return WriteOutcome::Indeterminate(unknown());
         }
+        // A known effect does not prove that the host released its execution
+        // owner. Preserve the hold until both effect and cleanup are terminal.
+        if r.completion_state != "complete" {
+            return WriteOutcome::Indeterminate(unknown());
+        }
         if r.effect_state == "not_committed" {
             return WriteOutcome::NotSent(NativeFailure::new(
                 409,
                 "fountain_publication_not_committed",
             ));
         }
-        if r.effect_state != "committed" || r.completion_state != "complete" {
+        if r.effect_state != "committed" {
             return WriteOutcome::Indeterminate(unknown());
         }
         let response = match serde_json::to_vec(r) {
@@ -462,8 +476,11 @@ impl Client {
         {
             Request::Ref(mut q) => {
                 q.bundle.clear();
-                let payload = json!({"ref":format!("refs/heads/{}",q.branch),"expected_old":if q.expected_old.is_empty(){"absent"}else{&q.expected_old},
+                let mut payload = json!({"ref":format!("refs/heads/{}",q.branch),"expected_old":if q.expected_old.is_empty(){"absent"}else{&q.expected_old},
                     "new_oid":q.candidate,"comparison_ref":format!("refs/heads/{}",q.comparison_branch),"expected_comparison_oid":q.comparison_oid});
+                if let Some(correction) = &q.pull_request {
+                    payload["pull_request"] = serde_json::to_value(correction).map_err(|_| invalid())?;
+                }
                 (
                     q.repository.clone(),
                     q.controller_grant_id.clone(),

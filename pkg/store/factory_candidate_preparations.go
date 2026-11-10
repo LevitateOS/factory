@@ -33,6 +33,7 @@ type CandidatePreparationRegistration struct {
 	RequestedNotAfter int64
 	SourceRun         *project.FactoryExport
 	SourceMerge       *project.FactoryMergedSource
+	SourcePull        *project.FactoryPullSource
 }
 
 // CandidatePreparationRecord joins the public preparation view with its
@@ -122,6 +123,7 @@ type candidatePreparationRegistration struct {
 	Control         factory.IssueControl         `json:"control"`
 	SourceRun       *project.FactoryExport       `json:"source_run,omitempty"`
 	SourceMerge     *project.FactoryMergedSource `json:"source_merge,omitempty"`
+	SourcePull      *project.FactoryPullSource `json:"source_pull,omitempty"`
 	NotAfter        int64                        `json:"not_after_unix"`
 	Stopped         bool                         `json:"stopped,omitempty"`
 	Retirement      string                       `json:"retirement,omitempty"`
@@ -177,7 +179,7 @@ func insertCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparation e
 		OwnerAssignment: registration.OwnerAssignment, ChildAssignment: registration.ChildAssignment,
 		AttemptRoot: registration.AttemptRoot, PublicationID: registration.PublicationID,
 		Connection: registration.Connection, Authority: registration.Authority,
-		GateRevision: registration.GateRevision, Control: registration.Control, NotAfter: deadline, SourceRun: registration.SourceRun, SourceMerge: registration.SourceMerge,
+		GateRevision: registration.GateRevision, Control: registration.Control, NotAfter: deadline, SourceRun: registration.SourceRun, SourceMerge: registration.SourceMerge, SourcePull: registration.SourcePull,
 	}
 	data, err := marshalCandidatePreparation(preparation, meta)
 	if err != nil {
@@ -502,7 +504,7 @@ func validateCandidatePreparationControl(preparation execution.PreparationRecord
 		r.Control.Readiness != factory.ReadinessQueued || r.Authority.RequirementsID != preparation.Preparation.Requirements.ID ||
 		r.Authority.ApprovalID != preparation.Preparation.Approval.ID || r.Authority.SponsorshipConnection != r.Connection ||
 		(r.PublicationID != "" && preparation.Preparation.Role != project.RoleReviewer &&
-			(preparation.Native == nil || preparation.Preparation.Role != project.RoleCoder || r.SourceRun == nil ||
+			(preparation.Native == nil || preparation.Preparation.Role != project.RoleCoder || r.SourceRun == nil && r.SourcePull == nil ||
 				preparation.Preparation.ID != factory.NativeCorrectionPreparationID(r.ChildAssignment))) ||
 		(r.PublicationID == "" && (preparation.Preparation.Role != project.RoleCoder ||
 			r.OwnerAssignment != r.ChildAssignment || r.AttemptRoot != r.OwnerAssignment)) {
@@ -519,7 +521,7 @@ func validateCandidatePreparationRegistration(preparation execution.PreparationR
 		return err
 	}
 	if r.SourceRun != nil {
-		if r.SourceMerge != nil {
+		if r.SourceMerge != nil || r.SourcePull != nil {
 			return errors.New("candidate preparation has conflicting sources")
 		}
 		input := project.FactoryCandidate{Preparation: preparation.Preparation, SourcePreparation: r.SourceRun.Preparation, SourceRun: r.SourceRun, Deadline: time.Unix(r.RequestedNotAfter, 0)}
@@ -530,9 +532,12 @@ func validateCandidatePreparationRegistration(preparation execution.PreparationR
 		}
 	}
 	if r.SourceMerge != nil {
-		if preparation.Native == nil || r.SourceMerge.Validate() != nil || r.SourceMerge.Repository != r.Repository || r.SourceMerge.Export.Project != r.Project || r.SourceMerge.Commit != preparation.Preparation.SourceCommit || preparation.Preparation.Role != project.RoleCoder || r.PublicationID != "" {
+		if r.SourcePull != nil || preparation.Native == nil || r.SourceMerge.Validate() != nil || r.SourceMerge.Repository != r.Repository || r.SourceMerge.Workspace() != r.Project || r.SourceMerge.Commit != preparation.Preparation.SourceCommit || preparation.Preparation.Role != project.RoleCoder || r.PublicationID != "" {
 			return errors.New("invalid merged preparation source")
 		}
+	}
+	if r.SourcePull != nil && (preparation.Native == nil || r.SourcePull.Validate() != nil || r.PublicationID != r.SourcePull.Publication || r.Repository != r.SourcePull.Repository || r.SourcePull.HeadRepository != r.Repository || r.SourcePull.Head != preparation.Preparation.SourceCommit) {
+		return errors.New("external PR preparation source is unavailable or unbound")
 	}
 	return nil
 }
@@ -582,8 +587,8 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 			if err = json.Unmarshal(publicationData, &publication); err != nil {
 				return empty, err
 			}
-			run, ok := newestCommittedReviewRun(publication, assignment.SourceCommit, publication.PRCreate.BaseOID)
-			if !ok || r.SourceRun == nil || r.SourceRun.ID != publication.Run || r.SourceRun.Candidate != publication.Candidate {
+			run, ok := newestCommittedReviewRun(publication, assignment.SourceCommit, publication.PullTarget().BaseOID)
+			if !ok || r.SourcePull == nil && (r.SourceRun == nil || r.SourceRun.ID != publication.Run || r.SourceRun.Candidate != publication.Candidate) {
 				return empty, ErrAttemptRootMismatch
 			}
 			if err = tx.QueryRowContext(ctx, `SELECT id FROM factory_assignments WHERE run=$1`, run).Scan(&assignment.ParentAssignment); err != nil {
@@ -619,6 +624,10 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 		}
 		if publication.ID != r.PublicationID || publication.Candidate != preparation.Preparation.SourceCommit ||
 			publication.ProjectID != r.Project || publication.Stage != factory.PublicationPublished || publication.WithdrawRequested {
+			return empty, ErrAttemptRootMismatch
+		}
+		if publication.External!=nil && (grants.policy.Revision!=publication.External.Policy || grants.policy.Review.NativeProfile!=publication.External.Profile || grants.policy.Review.NativeConnection!=publication.External.Connection) { return empty,ErrAdmissionChanged }
+		if !reflect.DeepEqual(r.SourcePull,publication.PullSource()) && (r.SourcePull != nil || publication.External != nil && publication.Run == "") {
 			return empty, ErrAttemptRootMismatch
 		}
 	}
@@ -785,7 +794,7 @@ func registrationFromMeta(m candidatePreparationRegistration) CandidatePreparati
 		Repository: m.Repository, Issue: m.Issue, ActorID: m.ActorID, Project: m.Project, OwnerAssignment: m.OwnerAssignment,
 		ChildAssignment: m.ChildAssignment, AttemptRoot: m.AttemptRoot, PublicationID: m.PublicationID,
 		Connection: m.Connection, Authority: m.Authority, GateRevision: m.GateRevision,
-		Control: m.Control, RequestedNotAfter: m.NotAfter, SourceRun: m.SourceRun, SourceMerge: m.SourceMerge,
+		Control: m.Control, RequestedNotAfter: m.NotAfter, SourceRun: m.SourceRun, SourceMerge: m.SourceMerge, SourcePull: m.SourcePull,
 	}
 }
 

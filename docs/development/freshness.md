@@ -57,8 +57,12 @@ for Bun/workspace libraries, Cargo/workspace libraries, Go modules, the Rust
 toolchain and GitHub Actions, with no cooldown or major-release exclusion.
 The dependency workflow selects current stable Go/Bun/Rust, then runs the existing
 locked UI/analyzer/native configurations and real PostgreSQL/Go checks. These
-remote jobs still require publication to the default branch; local configuration
-is not evidence of deployed automation. The explicitly separate classic analyzer
+remote source job has retained default-branch publication evidence at
+`3afe351d99b0dd58bbe5065f958459e6ba4e2f2e` and passing
+[run42742502789](https://github.com/LevitateOS/factory/actions/runs/42742502789).
+The scheduled run42789329677/574182f is also retained in Q30. These historical
+runs qualify source-job activation, not current inputs, product release or
+installed update delivery. Local configuration alone is insufficient. The explicitly separate classic analyzer
 compiler follows the current classic API channel; the product compiler stays TS7.
 Every new container fixture refreshes the official PostgreSQL stable image and
 captures its immutable image ID. Desktop packaging checks the supplied native

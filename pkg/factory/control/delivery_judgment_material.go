@@ -95,11 +95,11 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	var emptyCycle factory.ReviewCycle
 	var emptyPolicy factory.RepositoryPolicy
 	source, ok := c.Merges.(deliveryMaterialSource)
-	if !ok || c.Host == nil || review.Review == nil || p.PRCreate.Work == nil {
+	if !ok || c.Host == nil || review.Review == nil || !p.HasPullTarget() {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
 	cycle, ok := findReviewCycle(p, review.Review.CycleID)
-	if !ok || cycle.Head != p.Candidate || cycle.BaseOID != p.PRCreate.BaseOID {
+	if !ok || cycle.Head != p.Candidate || cycle.BaseOID != p.PullTarget().BaseOID {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
 	owner, err := c.Store.Assignment(ctx, p.AssignmentID)
@@ -110,10 +110,10 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
-	merge := factory.Merge{Authority: p.Authority, ID: p.ID, ProjectID: p.ProjectID, AssignmentID: p.AssignmentID, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: p.PRCreate.Work.ActorID, ReviewerID: policy.Review.ActorID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID}
+	merge := factory.Merge{Authority: p.Authority, ID: p.ID, ProjectID: p.ProjectID, AssignmentID: p.AssignmentID, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID, ReviewerID: policy.Review.ActorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID}
 	if owner.RetainedPublication != nil {
 		merge, err = c.Store.MergeByPublication(ctx, p.ID)
-		if err != nil || merge.AssignmentID != owner.ID || merge.HeadOID != p.Candidate || merge.BaseOID != p.PRCreate.BaseOID {
+		if err != nil || merge.AssignmentID != owner.ID || merge.HeadOID != p.Candidate || merge.BaseOID != p.PullTarget().BaseOID {
 			return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 		}
 	}
@@ -172,11 +172,13 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 		return nil, emptyCycle, emptyPolicy, err
 	}
 	carried = collector.snapshot()
-	preparation, err := c.Store.Preparation(ctx, owner.Preparation)
+	preparationID,contextRole:=owner.Preparation,project.RoleCoder
+	if p.External!=nil { preparationID,contextRole=reviewer.Preparation,project.RoleReviewer }
+	preparation, err := c.Store.Preparation(ctx, preparationID)
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
-	repository, err := readRepositoryContext(ctx, c.Host, attempt, preparation, project.RoleCoder, owner.SourceCommit, p.CurrentDiffBase(), p.Candidate, false)
+	repository, err := readRepositoryContext(ctx, c.Host, attempt, preparation, contextRole, owner.SourceCommit, p.CurrentDiffBase(), p.Candidate, p.External!=nil)
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
@@ -230,22 +232,26 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	for _, file := range repository.Files {
 		material.Source.Files = append(material.Source.Files, deliveryTextFile{Path: file.Path, Content: string(file.Content)})
 	}
-	run, err := c.Store.FactoryRun(ctx, p.Run)
-	if err != nil || !run.Reconciled || run.Outcome != factory.Succeeded {
-		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
-	}
-	if len(run.ExecutionManifest) != 0 && (run.FinalCheckpoint == nil || run.FinalCheckpoint.Status != "committed" || run.FinalCheckpoint.Candidate != p.Candidate) {
-		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
+	if p.Run!="" {
+		run, err := c.Store.FactoryRun(ctx, p.Run)
+		if err != nil || !run.Reconciled || run.Outcome != factory.Succeeded {
+			return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
+		}
+		if len(run.ExecutionManifest) != 0 && (run.FinalCheckpoint == nil || run.FinalCheckpoint.Status != "committed" || run.FinalCheckpoint.Candidate != p.Candidate) {
+			return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
+		}
+		material.Final=run.FinalCheckpoint
+	} else if p.External==nil {
+		return nil,emptyCycle,emptyPolicy,ErrDeliveryUnavailable
 	}
 	if origin.AttemptRoot != owner.AttemptRoot {
 		material.PlanOrigin = origin.AttemptRoot
 	}
-	material.Final = run.FinalCheckpoint
 	// Poll time/revision fields are mutation guards, not semantic changes.
 	semanticChecks := material.Checks
 	semanticChecks.NativeRev, semanticChecks.Revision, semanticChecks.AssessedUnix = 0, 0, 0
 	material.Input = factory.DeliveryFingerprintInput{
-		AttemptRoot: owner.AttemptRoot, PublicationID: p.ID, Round: cycle.Round, Head: p.Candidate, Base: p.PRCreate.BaseOID, ScopeDigest: plan.ScopeDigest, Reviews: []string{cycle.ReviewerAssignment}, PolicyRevision: policy.Revision, Model: model, Rubric: factory.DeliveryRubric,
+		AttemptRoot: owner.AttemptRoot, PublicationID: p.ID, Round: cycle.Round, Head: p.Candidate, Base: p.PullTarget().BaseOID, ScopeDigest: plan.ScopeDigest, Reviews: []string{cycle.ReviewerAssignment}, PolicyRevision: policy.Revision, Model: model, Rubric: factory.DeliveryRubric,
 		FixDigest: deliveryContentDigest(material.Corrections), DiffDigest: deliveryContentDigest(material.Source.Diff), CheckDigest: deliveryContentDigest(semanticChecks), TreeDigest: deliveryContentDigest(struct {
 			Head  string
 			Final *execution.CheckpointReceipt

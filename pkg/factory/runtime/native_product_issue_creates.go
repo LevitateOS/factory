@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -99,17 +101,27 @@ func nativeIssueCreateRecord(c factory.HumanIssueCreateCapture) collaboration.Op
 }
 func (s nativeHumanIssueCreates) LookupHumanIssueCreate(ctx context.Context, c factory.HumanIssueCreateCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil { return empty, err }
+	return s.recoverFountainIssue(ctx,cmd,p.NotAfter,p.Issue.Repository,prior,nativeIssueCreateRecord(c),c.ProviderIntent,p.Account,"create",p.Issue,
+		func(o collaboration.OperationLookup)(collaboration.OperationLookup,error){return s.store.ObserveHumanIssueCreate(ctx,c,o)})
 }
 func validateNativeIssueCreateReceipt(c factory.HumanIssueCreateCapture, p nativeIssueCreatePreparation, raw json.RawMessage) (nativeIssueCreateReceipt, error) {
 	var r nativeIssueCreateReceipt
+	if strings.HasPrefix(c.Authority,"native-fountain:") {
+		result,err:=validateFountainIssueReceipt(raw,c.Authority,c.OperationID,p.Account,p.Issue.Repository,"create",p.Issue)
+		if err!=nil { return r,err }
+		r.Issue.ExternalID,r.Issue.Number=strconv.FormatInt(result.IssueID,10),result.Index
+		return r,nil
+	}
 	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Issue.Repository || !nativeObservedText(r.RepositoryNodeID, 1024, false) || !nativeRemoteID(r.Issue.ExternalID) || !nativeObservedText(r.Issue.NodeID, 1024, false) || r.Issue.Number <= 0 || r.Issue.Author == nil || !nativeActor(*r.Issue.Author) || r.Issue.Author.ExternalID != p.Account || !nativeObservedText(r.Issue.AuthorNodeID, 1024, false) || r.Issue.TitleSHA256 != nativeCreationSHA([]byte(c.Request.Title)) || r.Issue.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || r.ProviderResponse.Protocol != "github_graphql_create_issue" || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) {
 		return r, factoryservice.ErrHumanIssueCreateConflict
 	}
@@ -150,6 +162,9 @@ func (s nativeHumanIssueCreates) SubmitHumanIssueCreate(ctx context.Context, c f
 		return empty, err
 	}
 	r := nativeIssueCreateRecord(c)
+	if s.binding.Host.Provider == collaboration.Fountain {
+		return fountainIssueOutcome(r,c.ProviderIntent,p.Account,p.Issue.Repository,"create",p.Issue,outcome)
+	}
 	switch outcome.State {
 	case "created":
 		if outcome.Failure != nil {

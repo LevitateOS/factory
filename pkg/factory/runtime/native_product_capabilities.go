@@ -18,6 +18,7 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 		return result, err
 	}
 	var facts struct {
+		IssuesOnly   bool   `json:"issues_only"`
 		Repository   string `json:"repository"`
 		Name         string `json:"name"`
 		Archived     bool   `json:"archived"`
@@ -64,13 +65,18 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 	writes := []collaboration.Action{collaboration.CreateIssue, collaboration.EditIssue, collaboration.CommentIssue, collaboration.CreatePull, collaboration.EditPull, collaboration.CommentPull, collaboration.ReviewPull, collaboration.CommentReview, collaboration.ApproveReview, collaboration.RequestChangesReview, collaboration.ResolveThread, collaboration.MergePull}
 	set(collaboration.Unknown, "requires_target_preparation", writes...)
 	set(collaboration.Allowed, "", collaboration.ReadIssues, collaboration.ReadPulls, collaboration.ReadChecks, collaboration.ReadCheckJobs)
+	if facts.IssuesOnly {
+		set(collaboration.Denied, "issue_only_scope", collaboration.ReadPulls, collaboration.ReadChecks, collaboration.ReadCheckJobs,
+			collaboration.CreatePull, collaboration.EditPull, collaboration.CommentPull, collaboration.ReviewPull, collaboration.CommentReview,
+			collaboration.ApproveReview, collaboration.RequestChangesReview, collaboration.ResolveThread, collaboration.MergePull)
+	}
 	write := facts.Writer
 	if facts.Issues && facts.CreateIssues {
 		set(collaboration.Allowed, "", collaboration.CreateIssue)
 	} else {
 		set(collaboration.Denied, "issues_unavailable", collaboration.CreateIssue)
 	}
-	if write {
+	if write && !facts.IssuesOnly {
 		set(collaboration.Allowed, "", collaboration.CreatePull)
 	}
 	if target := facts.Subject; target != nil {

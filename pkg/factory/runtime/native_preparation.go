@@ -35,7 +35,7 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 	}
 	actual, wanted := request.Input.Preparation, stored.Preparation.Preparation
 	actual.Revision, wanted.Revision = 0, 0
-	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) || !reflect.DeepEqual(request.Input.SourceMerge, stored.Admission.SourceMerge) {
+	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) || !reflect.DeepEqual(request.Input.SourceMerge, stored.Admission.SourceMerge) || !reflect.DeepEqual(request.Input.SourcePull,stored.Admission.SourcePull) {
 		return empty, execution.ErrPreparation
 	}
 	source, err := p.Store.Preparation(ctx, request.Input.SourcePreparation)
@@ -55,10 +55,13 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 	}
 	bounded, cancel := context.WithDeadline(ctx, request.Input.Deadline)
 	defer cancel()
-	if request.Input.SourceMerge != nil {
+	if request.Input.SourcePull != nil {
+		request.Input.Bundle,err=p.externalPullBundle(bounded,*request.Input.SourcePull,base.SourceCommit)
+		if err!=nil { return empty,err }
+	} else if request.Input.SourceMerge != nil {
 		merged := request.Input.SourceMerge
 		bound, err := p.Store.MergedPreparationSource(bounded, stored.Admission.Repository, wanted.Project, merged.Target, wanted.SourceCommit)
-		if err != nil || bound != *merged {
+		if err != nil || !reflect.DeepEqual(bound,*merged) {
 			return empty, execution.ErrPreparation
 		}
 		account, err := (NativeInputSource{p}).account(bounded, strconv.FormatInt(merged.Repository, 10), factory.OpMerge)
@@ -265,7 +268,17 @@ func nativePreparationAdmission(p NativeExecution) http.Handler {
 			err = p.Store.AuthorizeStandingPreparation(r.Context(), record)
 		case "candidate":
 			var request execution.CandidatePreparationRequest
-			if strictjson.Decode(bytes.NewReader(input.Request), &request) != nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) {
+			if strictjson.Decode(bytes.NewReader(input.Request), &request) != nil {
+				err=execution.ErrPreparation
+				break
+			}
+			// This callback receives the complete, previously fetched native
+			// payload. Validate its typed source separately from transported
+			// bundle bytes; the public preparation entry still forbids a
+			// caller-supplied coder archive.
+			shape:=request
+			if shape.Input.SourceRun!=nil || shape.Input.SourceMerge!=nil || shape.Input.SourcePull!=nil { shape.Input.Bundle=nil }
+			if shape.Validate() != nil || !p.currentPreparationAddress(request.Address()) || len(request.Input.Bundle)>project.MaxSourceBundle {
 				err = execution.ErrPreparation
 				break
 			}
@@ -277,7 +290,7 @@ func nativePreparationAdmission(p NativeExecution) http.Handler {
 			record = stored.Preparation
 			actual, wanted := request.Input.Preparation, record.Preparation
 			actual.Revision, wanted.Revision = 0, 0
-			if !reflect.DeepEqual(actual, wanted) || !reflect.DeepEqual(record.Native, request.Native) || !reflect.DeepEqual(stored.Admission.SourceRun, request.Input.SourceRun) || !reflect.DeepEqual(stored.Admission.SourceMerge, request.Input.SourceMerge) {
+			if !reflect.DeepEqual(actual, wanted) || !reflect.DeepEqual(record.Native, request.Native) || !reflect.DeepEqual(stored.Admission.SourceRun, request.Input.SourceRun) || !reflect.DeepEqual(stored.Admission.SourceMerge, request.Input.SourceMerge) || !reflect.DeepEqual(stored.Admission.SourcePull,request.Input.SourcePull) {
 				err = execution.ErrPreparation
 				break
 			}

@@ -169,6 +169,7 @@ const maxWorkHistoryEntries = 20
 // PR once creation commits, the candidate and base it binds, and the
 // bounded correction and review history behind it.
 type workPublicationView struct {
+	Origin string `json:"origin,omitempty"`
 	PublicationOperations
 	Corrections      []workCorrectionView `json:"corrections,omitempty"`
 	Reviews          []workReviewView     `json:"reviews,omitempty"`
@@ -191,6 +192,7 @@ func workPublicationDTO(p factory.Publication) *workPublicationView {
 		CorrectionsTotal: len(p.Corrections), ReviewsTotal: len(p.ReviewOperations),
 		CreatedUnix: p.CreatedUnix, FinishedUnix: p.FinishedUnix,
 	}
+	if p.External!=nil { view.Origin="external" }
 	corrections := p.Corrections
 	if len(corrections) > maxWorkHistoryEntries {
 		corrections = corrections[len(corrections)-maxWorkHistoryEntries:]
@@ -226,8 +228,8 @@ func workPublicationDTO(p factory.Publication) *workPublicationView {
 // are superseded.
 func workCandidateHistory(p factory.Publication) map[string]bool {
 	history := map[string]bool{}
-	if p.Publish.Work != nil {
-		history[p.Publish.Work.Candidate] = true
+	if p.InitialCandidate() != "" {
+		history[p.InitialCandidate()] = true
 	} else if p.Candidate != "" {
 		history[p.Candidate] = true
 	}

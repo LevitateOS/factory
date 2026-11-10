@@ -53,7 +53,7 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	}
 	if a.Phase == project.ExecutionCorrect && (meta == nil || meta.PublicationID == "" ||
 		meta.OwnerAssignment != a.PublicationAssignment || meta.ChildAssignment != a.ID || meta.AttemptRoot != a.AttemptRoot ||
-		meta.SourceRun == nil || meta.SourceRun.Candidate != a.SourceCommit) {
+		(meta.SourceRun == nil || meta.SourceRun.Candidate != a.SourceCommit) && (meta.SourcePull==nil || meta.SourcePull.Head!=a.SourceCommit)) {
 		return refuse()
 	}
 	// Use store-observed grants for the admission, then capture the exact intent

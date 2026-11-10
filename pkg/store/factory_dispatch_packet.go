@@ -175,6 +175,9 @@ func writeDispatchPacketRowsTx(ctx context.Context, tx *sql.Tx, a factory.Assign
 }
 
 func fundDispatchPacketAttemptTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, grants admissionGrants, run factory.Run, now time.Time, freshAttempt bool) error {
+	if a.ExternalPlanning!=nil {
+		return insertAttemptAllowanceTx(ctx,tx,a.Repository,a.Issue,a.ID,a.ExternalPlanning.Request.Limits,run.Deadline,now)
+	}
 	if freshAttempt {
 		return startFreshAttemptAllowanceTx(ctx, tx, a.Repository, a.Issue, a.AttemptRoot, grants.policy.AttemptLimits, run.Deadline, now)
 	}
@@ -292,6 +295,7 @@ func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.Is
 	if err = run.Validate(); err != nil {
 		return err
 	}
+	if err=recordExternalPlanningCommandTx(ctx,tx,a,time.Now()); err!=nil { return err }
 	if err = writeDispatchPacketRowsTx(ctx, tx, a, r, run, view); err != nil {
 		return err
 	}
@@ -528,7 +532,7 @@ func reviewCycleBound(publication factory.Publication, a factory.Assignment) boo
 	for _, cycle := range publication.ReviewCycles {
 		if cycle.ReviewerAssignment == a.ID && cycle.PublicationID == publication.ID &&
 			cycle.AttemptRoot == a.AttemptRoot && cycle.Head == a.SourceCommit &&
-			cycle.BaseOID == publication.PRCreate.BaseOID {
+			cycle.BaseOID == publication.PullTarget().BaseOID {
 			return true
 		}
 	}
@@ -539,7 +543,7 @@ func correctionCycleBound(publication factory.Publication, a factory.Assignment)
 	for _, cycle := range publication.ReviewCycles {
 		if cycle.CorrectionAssignment == a.ID && cycle.PublicationID == publication.ID &&
 			cycle.AttemptRoot == a.AttemptRoot && cycle.Head == a.SourceCommit &&
-			cycle.BaseOID == publication.PRCreate.BaseOID {
+			cycle.BaseOID == publication.PullTarget().BaseOID {
 			return true
 		}
 	}
@@ -822,7 +826,7 @@ func checkCorrectionCurrency(publication factory.Publication, parent, owner, a f
 	// Currency: the newest committed verdict on this exact head and base
 	// must be the parent's run. A superseded reviewer, a pending
 	// submission, or a correction that landed first all refuse.
-	current, ok := newestCommittedReviewRun(publication, a.SourceCommit, publication.PRCreate.BaseOID)
+	current, ok := newestCommittedReviewRun(publication, a.SourceCommit, publication.PullTarget().BaseOID)
 	if !ok || current != parent.Run {
 		return fmt.Errorf("%w: correction answers a superseded review", ErrAttemptRootMismatch)
 	}

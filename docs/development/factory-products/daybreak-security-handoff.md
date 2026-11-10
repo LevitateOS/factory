@@ -15,6 +15,15 @@ closure tasks are consolidated in the
 including a [mapping of all 13 gates](implementation-tasks.md#security-closure-coverage).
 Keep this handoff as the evidence register; update task status/order there.
 
+2026-11-10 reconciliation: the [Q30 recovery/completion ledger](implementation-tasks.md#q30)
+supersedes the dated active/pending summaries below without replacing their
+original evidence. Source-only Q15–Q29 changes remain unverified/uncommitted;
+all13 broad gates stay Open. Q18 configured-host and Q20 actual host issue-only
+scope are qualified in their existing task records; installed desktop/appliance
+scope remains open. Dependency source-job publication is recorded in Q30, while
+installed update delivery remains unfinished. No whole gate is Daybreak-only,
+and no new execution or Daybreak session ran in this reconciliation.
+
 The complete prior handoff, including all original requirements, attempts,
 uncertain outcomes and evidence paths, is retained in exact Factory Git object
 `fe40c5ef51d1f6be0b541efa1a9d8f723d7092da:docs/development/factory-products/daybreak-security-handoff.md`.

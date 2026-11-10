@@ -77,6 +77,89 @@ func publicationTestRecord() factory.Publication {
 
 func TestRecordPublicationRoundTrip(t *testing.T) {
 	t.Run("fresh retained publication preserves uncertain original and paid work", func(t *testing.T) {
+		// An ordinary publication has a different ID from its execution owner.
+		// Review recovery must preserve that original identity and both receipts.
+		{
+			ctx, db := context.Background(), dispatchStoreFixture(t)
+			sponsor, err := db.Sponsorship(ctx, 7, "conn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			sponsor.Roles = append(sponsor.Roles, project.RoleReviewer)
+			if err = db.SaveSponsorship(ctx, sponsor); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now()
+			origin := recordFinishedAssignment(t, db, now, 3, true, "completed")
+			p := publicationTestRecord()
+			p.Authority, p.AssignmentID, p.Run, p.ProjectID = origin.Authority, origin.ID, origin.Run, origin.ProjectID
+			p.BaseSHA, p.Candidate, p.Preparation = origin.SourceCommit, origin.Result.Candidate, origin.Preparation
+			if err = db.RecordPublication(ctx, p); err != nil {
+				t.Fatal(err)
+			}
+			p.Comparison, p.NativeRev, p.ObservedUnix = p.BaseSHA, 9, now.Unix()
+			p.Publish = publishedStoreOperation(p, factory.OpRefPublish, 1, "ordinary-branch-receipt")
+			p.PRCreate = publishedStoreOperation(p, factory.OpPRCreate, 1, "ordinary-pr-receipt")
+			p.PRNumber, p.PRID = 19, 190
+			p.PRCreate.PRNumber, p.PRCreate.PRID, p.PRCreate.IssueID = 19, 190, p.Issue
+			p.PRCreate.HeadRef, p.PRCreate.BaseRef = factory.PublishBranchName(origin.ID), p.TargetBranch
+			p.PRCreate.HeadOID, p.PRCreate.BaseOID = p.Candidate, p.BaseSHA
+			p.Stage, p.Outcome, p.Reason, p.FinishedUnix = factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, now.Unix()
+			p.Revision++
+			if err = p.Validate(); err != nil {
+				t.Fatal("ordinary published fixture", err)
+			}
+			raw, _ := json.Marshal(p)
+			if _, err = db.db.ExecContext(ctx, `UPDATE factory_publications SET stage=$1,revision=$2,data=$3 WHERE assignment=$4`, p.Stage, p.Revision, string(raw), origin.ID); err != nil {
+				t.Fatal(err)
+			}
+			before, err := db.AttemptAllowance(ctx, 7, 3)
+			if err != nil {
+				t.Fatal(err)
+			}
+			offer, err := db.RetainedCandidateFundingOffer(ctx, p.ID)
+			if err != nil || offer.PreviousRoot != origin.ID || offer.CarryUnused {
+				t.Fatal("ordinary candidate funding offer", err)
+			}
+			changed := offer
+			changed.PreviousRoot = p.ID
+			if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", changed, now); err == nil {
+				t.Fatal("wrong previous owner funded")
+			}
+			command := factory.NewID()
+			if _, err = db.FundRetainedCandidate(ctx, command, "owner", offer, now); err != nil {
+				t.Fatal("ordinary review continuation", err)
+			}
+			adopted, err := db.PublicationByID(ctx, command)
+			if err != nil || !reflect.DeepEqual(adopted.Publish, p.Publish) || !reflect.DeepEqual(adopted.PRCreate, p.PRCreate) || adopted.Run != p.Run {
+				t.Fatal("ordinary publication receipts changed", err)
+			}
+			owner, err := db.Assignment(ctx, command)
+			if err != nil || owner.Run != "" || owner.RetainedPublication.AdoptedFrom != p.ID || owner.RetainedPublication.NotAfter != 0 {
+				t.Fatal("ordinary continuation obtained execution/send authority", err)
+			}
+			tx, err := db.db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, grants, err := retainedFundingScopeTx(ctx, tx, command)
+			if err == nil {
+				owner.Connection = origin.Connection
+				err = checkRetainedContinuationTx(ctx, tx, owner, grants)
+			}
+			_ = tx.Rollback()
+			if err != nil {
+				t.Fatal("ordinary continuation source admission", err)
+			}
+			var after factory.AttemptAllowance
+			if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, origin.ID).Scan(&raw); err != nil || json.Unmarshal(raw, &after) != nil || !reflect.DeepEqual(before, after) {
+				t.Fatal("ordinary original allowance changed", err)
+			}
+			original, err := db.PublicationByID(ctx, p.ID)
+			if err != nil || !reflect.DeepEqual(original, p) {
+				t.Fatal("ordinary original publication changed", err)
+			}
+		}
 		ctx, db := context.Background(), dispatchStoreFixture(t)
 		sponsor, err := db.Sponsorship(ctx, 7, "conn")
 		if err != nil {

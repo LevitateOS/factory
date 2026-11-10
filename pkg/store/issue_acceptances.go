@@ -31,9 +31,12 @@ func replayAcceptanceHeadTx(ctx context.Context, tx *sql.Tx, id string, data []b
 	return tx.Commit()
 }
 
-func (s *Store) AdmitAcceptanceDecision(ctx context.Context, d factory.Acceptance) error {
+func (s *Store) AdmitAcceptanceDecision(ctx context.Context, d factory.Acceptance, policyRevision ...int64) error {
 	if err := d.Validate(); err != nil {
 		return err
+	}
+	if len(policyRevision) > 1 || len(policyRevision) == 1 && (!d.Initial || policyRevision[0] < 1) {
+		return ErrAdmissionChanged
 	}
 	issue, err := strconv.ParseInt(d.IssueIndex, 10, 64)
 	if err != nil || issue <= 0 {
@@ -59,6 +62,11 @@ func (s *Store) AdmitAcceptanceDecision(ctx context.Context, d factory.Acceptanc
 	}
 	if current == d.ID {
 		return replayAcceptanceHeadTx(ctx, tx, d.ID, data)
+	}
+	if len(policyRevision) == 1 {
+		if err = admitCreationPolicyTx(ctx, tx, d.Repository, policyRevision[0]); err != nil {
+			return err
+		}
 	}
 	if current != d.Predecessor {
 		return ErrStaleRevision

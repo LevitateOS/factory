@@ -17,6 +17,7 @@ import (
 // re-exported from the retained native run and checked against this digest.
 type nativeBranchTransfer struct {
 	nativePublicationAuthority
+	PullRequest      *nativeBranchCorrection `json:"pull_request,omitempty"`
 	Base             string `json:"base"`
 	ComparisonBranch string `json:"comparison_branch"`
 	ComparisonOID    string `json:"comparison_oid"`
@@ -24,9 +25,19 @@ type nativeBranchTransfer struct {
 	ExpectedOld      string `json:"expected_old,omitempty"`
 }
 
+type nativeBranchCorrection struct {
+	Number           int64 `json:"number"`
+	ExpectedAuthorID int64 `json:"expected_author_id"`
+	ExpectedPRID     int64 `json:"expected_pr_id"`
+	ExpectedIssueID  int64 `json:"expected_issue_id"`
+}
+
 func (t nativeBranchTransfer) valid(q factory.HumanBranchCreateCommand) bool {
 	comparison := q
 	comparison.Name, comparison.Commit = t.ComparisonBranch, collaboration.CommitID(t.Base)
+	if c := t.PullRequest; c != nil && (t.ControllerGrantID == "" || t.ExpectedOld == "" || c.Number <= 0 || c.ExpectedAuthorID <= 0 || c.ExpectedPRID <= 0 || c.ExpectedIssueID <= 0) {
+		return false
+	}
 	return comparison.Validate() == nil && t.ComparisonBranch != q.Name && factory.ValidCommit(t.ComparisonOID) && factory.ValidDigest(t.BundleSHA256) && (t.ExpectedOld == "" || factory.ValidCommit(t.ExpectedOld) && t.ExpectedOld != string(q.Commit))
 }
 
@@ -84,6 +95,8 @@ func validateNativeBranchTransferReceipt(q factory.HumanBranchCreateCommand, p n
 			New           string `json:"new_oid"`
 			ComparisonRef string `json:"comparison_ref"`
 			Comparison    string `json:"comparison_oid"`
+			PRID          int64  `json:"pr_id,omitempty"`
+			IssueID       int64  `json:"issue_id,omitempty"`
 		}
 		if nativeDecode(h.Receipt, &v) != nil {
 			return r, errNativeRead
@@ -93,6 +106,13 @@ func validateNativeBranchTransferReceipt(q factory.HumanBranchCreateCommand, p n
 			expectedOld = strings.Repeat("0", 40)
 		}
 		if strconv.FormatInt(v.Repository, 10) != r.Repository || strconv.FormatInt(v.Actor, 10) != p.Account || v.Ref != r.Branch || v.Old != expectedOld || v.New != r.New || v.ComparisonRef != r.ComparisonBranch || v.Comparison != r.Comparison {
+			return r, errNativeRead
+		}
+		if c := p.Transfer.PullRequest; c != nil {
+			if v.PRID != c.ExpectedPRID || v.IssueID != c.ExpectedIssueID {
+				return r, errNativeRead
+			}
+		} else if v.PRID != 0 || v.IssueID != 0 {
 			return r, errNativeRead
 		}
 	}

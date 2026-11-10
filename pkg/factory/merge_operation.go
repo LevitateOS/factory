@@ -827,7 +827,7 @@ func checkUnionHeadCurrency(in MergeUnionBindingInput) error {
 	// Current applicability: the acceptance must still answer the
 	// publication's exact current candidate over its recorded base. A
 	// superseded acceptance never rides a new mutation.
-	if in.Acceptance.Tuple.Head != in.Publication.Candidate || in.Acceptance.Tuple.Base != in.Publication.PRCreate.BaseOID {
+	if in.Acceptance.Tuple.Head != in.Publication.Candidate || in.Acceptance.Tuple.Base != in.Publication.PullTarget().BaseOID {
 		return errors.New("delivery acceptance answers a superseded tuple")
 	}
 	return nil

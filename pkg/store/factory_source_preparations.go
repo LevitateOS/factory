@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -17,9 +18,9 @@ import (
 // squash/rebase/merge result. It does not manufacture export bytes for that result.
 func (s *Store) MergedPreparationSource(ctx context.Context, repository int64, projectID, target, tip string) (project.FactoryMergedSource, error) {
 	var publicationData, mergeData, runData []byte
-	err := s.db.QueryRowContext(ctx, `SELECT p.data,m.data,r.data FROM factory_publications p
+	err := s.db.QueryRowContext(ctx, `SELECT p.data,m.data,COALESCE(r.data,'null'::jsonb) FROM factory_publications p
  JOIN factory_merges m ON m.publication=p.data->>'id'
- JOIN factory_runs r ON r.id=p.data->>'run'
+ LEFT JOIN factory_runs r ON r.id=p.data->>'run'
  WHERE p.repository=$1 AND m.stage='merged' AND m.data->>'project_id'=$2
  AND m.data->>'base_ref'=$3 AND m.data->>'merged_commit'=$4
  ORDER BY m.seq DESC LIMIT 1`, repository, projectID, target, tip).Scan(&publicationData, &mergeData, &runData)
@@ -60,6 +61,10 @@ func mergedPreparationSource(publicationData, mergeData, runData []byte, reposit
 	if err := json.Unmarshal(mergeData, &m); err != nil {
 		return project.FactoryMergedSource{}, err
 	}
+	if p.External!=nil && p.Run=="" {
+		if p.Validate()!=nil || p.ProjectID!=projectID || p.Repository!=repository || p.Candidate!=m.HeadOID || admitMergedSource(m,p,repository,projectID,target,tip)!=nil { return project.FactoryMergedSource{},ErrCandidatePreparationConflict }
+		return project.FactoryMergedSource{Pull:p.PullSource(),Project:projectID,MergeID:m.ID,Commit:tip,Repository:repository,Target:target},nil
+	}
 	if err := json.Unmarshal(runData, &run); err != nil {
 		return project.FactoryMergedSource{}, err
 	}
@@ -79,9 +84,9 @@ func mergedPreparationSource(publicationData, mergeData, runData []byte, reposit
 // performs no commit and owns no other query.
 func mergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, repository int64, projectID, target, tip string) (project.FactoryMergedSource, error) {
 	var publicationData, mergeData, runData []byte
-	err := tx.QueryRowContext(ctx, `SELECT p.data,m.data,r.data FROM factory_publications p
+	err := tx.QueryRowContext(ctx, `SELECT p.data,m.data,COALESCE(r.data,'null'::jsonb) FROM factory_publications p
 	 JOIN factory_merges m ON m.publication=p.data->>'id'
-	 JOIN factory_runs r ON r.id=p.data->>'run'
+	 LEFT JOIN factory_runs r ON r.id=p.data->>'run'
 	 WHERE p.repository=$1 AND m.stage='merged' AND m.data->>'project_id'=$2
 	 AND m.data->>'base_ref'=$3 AND m.data->>'merged_commit'=$4
 	 ORDER BY m.seq DESC LIMIT 1`, repository, projectID, target, tip).Scan(&publicationData, &mergeData, &runData)
@@ -92,6 +97,13 @@ func mergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, repository int64
 }
 
 func checkMergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, r CandidatePreparationRegistration, tip, target string) error {
+	if r.SourceMerge!=nil && r.SourceMerge.Pull!=nil {
+		if r.SourceRun!=nil || r.SourceMerge.Validate()!=nil || r.SourceMerge.Workspace()!=r.Project { return ErrCandidatePreparationConflict }
+		bound,err:=mergedPreparationSourceTx(ctx,tx,r.Repository,r.Project,target,tip)
+		if err!=nil { return err }
+		if !reflect.DeepEqual(bound,*r.SourceMerge) { return ErrCandidatePreparationConflict }
+		return nil
+	}
 	source := r.SourceRun
 	if r.SourceMerge != nil {
 		source = &r.SourceMerge.Export
@@ -113,7 +125,7 @@ func checkMergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, r Candidate
 	if err != nil {
 		return err
 	}
-	if r.SourceMerge != nil && bound != *r.SourceMerge || r.SourceMerge == nil && (bound.Export != *source || bound.Commit != source.Candidate) {
+	if r.SourceMerge != nil && !reflect.DeepEqual(bound,*r.SourceMerge) || r.SourceMerge == nil && (bound.Export != *source || bound.Commit != source.Candidate) {
 		return ErrCandidatePreparationConflict
 	}
 	return nil

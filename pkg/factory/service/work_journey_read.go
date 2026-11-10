@@ -385,7 +385,7 @@ func (s WorkJourneys) journeyPhaseSection(ctx context.Context, view *IssueJourne
 	current := make(map[string]factory.Assignment, len(journeyCanonicalPhases))
 	for _, group := range groups {
 		assignment := group.Assignment
-		if assignment.RetainedPublication != nil && assignment.Validate() == nil {
+		if (assignment.RetainedPublication != nil || assignment.ExternalPublication != nil) && assignment.Validate() == nil {
 			continue // This publication command made no execution phase or run.
 		}
 		if !project.ValidExecutionPhase(assignment.Phase) {
@@ -521,7 +521,7 @@ func applyJourneyPublicationSections(view *IssueJourney, publication *factory.Pu
 		return
 	}
 	if publication.PRNumber > 0 {
-		commit, err := journeyCommitDTO(publication.Candidate, publication.PRCreate.BaseOID,
+		commit, err := journeyCommitDTO(publication.Candidate, publication.PullTarget().BaseOID,
 			strconv.FormatInt(publication.PRNumber, 10), strconv.FormatInt(publication.PRID, 10))
 		if err != nil {
 			view.Reasons = addJourneyReason(view.Reasons, journeyReasonCommitsInvalidRow)

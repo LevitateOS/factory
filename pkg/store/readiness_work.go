@@ -68,6 +68,15 @@ func enqueueReadinessWorkTx(ctx context.Context, tx *sql.Tx, id, delivery string
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM factory_readiness_budget WHERE id=1 FOR UPDATE`).Scan(&locked); err != nil {
 		return err
 	}
+	if delivery!="" {
+		var repository,issue int64
+		err:=tx.QueryRowContext(ctx,`SELECT repository,issue FROM intake_deliveries WHERE delivery=$1`,delivery).Scan(&repository,&issue)
+		if err==nil {
+			if repository!=root.Repository || issue!=root.Issue { return ErrCommandConflict }
+			return nil
+		}
+		if !errors.Is(err,sql.ErrNoRows) { return err }
+	}
 	var existingDelivery string
 	var repository, issue int64
 	err := tx.QueryRowContext(ctx, `SELECT delivery,repository,issue FROM factory_readiness_sources WHERE id=$1 FOR UPDATE`, id).Scan(&existingDelivery, &repository, &issue)

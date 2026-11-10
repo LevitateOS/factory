@@ -9,7 +9,14 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-09, Factory `55c5adc`):** Q09–Q14, Q18 and Q20
+**Current snapshot (2026-11-10): INCOMPLETE, implementation-only.** Q15–Q17,
+Q19 and Q21–Q29 remain outstanding. Source-only changes do not qualify these
+requests or the 13 open security gates. The owner has deferred execution; no
+builds, tests, installs, inference, provider effects or commits ran in this pass.
+Use [Q30's single recovery/completion ledger](#q30) for the current remaining
+work, retained evidence boundaries and next action. No Daybreak session started.
+
+**Earlier scoped snapshot (2026-11-09, Factory `55c5adc`):** Q09–Q14, Q18 and Q20
 are complete within their recorded ordinary scopes. Q15–Q17, Q19 and Q21–Q29
 remain outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
 instruction replaces blanket numeric sequencing: implement ready work while
@@ -48,7 +55,11 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q16/Q26 installed automatic issue intake.** Actual current49
+Current continuation is the source-only Q30 ledger below. The following retained
+Q16/Q26 checkpoint predates the later successful delivery and source-only edits;
+it is preserved as history, not the latest installed state.
+
+**Earlier work: Q16/Q26 installed automatic issue intake.** Actual current49
 from clean `6301fde7baea4b528a63244cf1ea747ee260f845` qualifies idle polling and
 51-issue authenticated pagination without dispatch or spending. All locked
 fixtures are closed with causal receipts. Installed manual creation command
@@ -195,13 +206,13 @@ store migration or unrelated GitHub/Fountain code.
 
 | Scope | Concrete requirement for its full qualification | Work that can proceed independently |
 | --- | --- | --- |
-| Q15 | Owner authorization for fresh paid Retry after the preserved failed Builder; working GitHub publication/review/check/merge composition. | Original-receipt recovery and unrelated product work. |
+| Q15 | Working GitHub publication/review/correction/check/merge composition with exact current-source admission; recover original operations before effects and respect existing owner authorizations. | Retained-review recovery and unrelated source work do not need a new paid planning run. |
 | Q16–Q17 | Admitted GitHub policy, exact issue/PR provenance and fork authority; functioning delivery phases for their full journeys. | Polling/cursors, admission, withdrawal and adoption implementation do not require the Q15 label to close. |
 | Q18 | Actual configured Fountain host OAuth/enrollment/refresh and immutable profile proof. | Canonical host/desktop implementation and authorized host checks do not depend on GitHub. |
 | Q19–Q21 | Current Fountain enrollment, central placement and per-operation grants; issue-only scope needs an actual issue-only fixture; publication needs a native candidate. | Host grant/journal/read/UI and transfer implementation can progress before any GitHub journey. |
 | Q22–Q23 | Fountain policy/source consent, admitted execution/publication and host review/check/merge or fork authority. | Issue intake and external-PR adoption are separate entry paths; neither needs the other’s task completion. |
 | Q24 | A current authorized installed appliance and its actual installation owners. Retired soda is forbidden. | Its absence blocks that installed appliance journey and shared Project stop/start only. |
-| Q25 | Fresh matching payloads, production UI/notices/integrity and actual supported-host installer checks. | Ready now; no Q15 or Q24 dependency. |
+| Q25 | Fresh matching payloads, production UI/notices/integrity and actual supported-host installer checks. The latest Q25 request explicitly keeps fresh qualification pending on Q24's appliance. | Packaging source work remains independent; historical Linux installer qualification is preserved. Do not infer permission to rerun it from queued requests. |
 | Q26–Q27 | Actual installed Q25 assets; provider authority and implemented delivery/adoption for full journeys. | Installed sign-in/UI/lifecycle checks can proceed before provider delivery is complete. |
 | Q28 | Disposable retained profiles and actual known-prior/current installed assets for upgrade/activation. | Store migration/refusal/reconciliation and installer recovery do not require completed CI/merge journeys. |
 | Q29 | Both installed consumers of the same shared presentation owner and current selected-repository permissions. | Shared UI fixes/builds do not need appliance stop/start or all provider journeys to close. |
@@ -800,6 +811,42 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
+**Implementation-only owner override (2026-11-10), UNVERIFIED.** The owner now
+requests source reading/editing only, starting at Q15, with all execution and
+qualification deferred. No tests, builds, formatters, apps, provider requests or
+inference were run for this pass. Earlier connected evidence below stays scoped;
+Q15 is not marked complete. Source edits extend the existing explicit review
+continuation to ordinary publications with distinct publication/root identities,
+preserve the exact original execution and branch/PR receipts, retain current-source
+admission and finite bounds, and align the shared UI decoder. Pending expired
+review preparation is fenced without expiring an already-ready checkout.
+
+The existing command/publication journal now also admits `retry-unsent-review`:
+the API and shared retained-request UI capture an exact published head/base,
+reviewer run, definitive no-send predecessor and current policy. The coordinator
+requires the exact native no-send outcome before recording a distinct five-minute
+submission; the original typed report, operation and deadline remain unchanged.
+Command and new operation are recorded atomically through the existing publication
+transaction, current grant/setup/acceptance gates and settled custody. The normal
+native reconciliation owner performs any later send. API replay recovers the
+same registration without extending it; missing/uncertain evidence refuses.
+It adds no model allowance, review round or source charge. Initial review sends
+also use the native five-minute ceiling. No effect was attempted in this pass.
+
+Owned source edits are in the existing `pkg/factory/{retained_publication,
+review_native,publication,grants,types}.go`, `control/{publication_retained,
+publication_children,review_cycle}.go`, `service/{interventions,work_controls,
+work_capabilities_view}.go`, `pkg/store/{factory_retained_publication,
+factory_publications}.go` and shared `frontend/factory/{api/work-response,
+work/retained-publication}.ts`. Prior unverified fixture edits in
+`pkg/store/factory_publications_test.go` are preserved and were not run or changed
+in this pass. Changes are uncommitted and unverified. No new process was started;
+previous installed/host owners and uncertain outcomes remain as recorded in Q27,
+without a new process inspection. Next: continue source implementation only under
+the owner's override; runtime/connected qualification requires a later testing
+phase, including correction, paid delivery acceptance, human/race gates and
+retained review-retry adoption. Preserve all original Q15 receipts and charges.
+
 The owner has authorized separate finite review/correction continuation for retained
 publication `15151515151515151515151515151505` on original source
 `4c823041ad0ba064c4f974399b0e3a2a`. The new explicit
@@ -1177,6 +1224,34 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q16 — GitHub automatic own-issue intake
 
+Additional source-only correction (2026-11-10): readiness enqueue now checks the
+existing completed-delivery receipt under the same budget lock used by work
+completion. This closes the check/enqueue race after a completed delivery and
+preserves conflicting root refusal. The existing bounded receipt-retention
+window remains unchanged. No check or effect was run for this edit.
+
+**Implementation-only continuation (2026-11-10), UNVERIFIED.** Q16 was resumed
+before Q17 under the owner's no-execution instruction. Source edits bind each
+polled page and fresh initial acceptance to the policy revision captured before
+provider I/O. The existing Store transaction locks/rechecks that policy and the
+dispatch gate before publishing observations, moving the cursor or admitting
+the acceptance; pause/replacement/withdrawal refuses the old admission. Current
+creator permission loss and policy withdrawal remain retryable so queued
+original work is not permanently consumed during an I/O race. Native discovery
+also respects paused policy, and an empty configured-repository set returns idle.
+Original/unedited evidence, canonical creator mapping, causal Factory-origin
+holds, same-account human eligibility, page bounds, durable cursor/restart,
+deduplication and pre-spend dispatch gates continue through their existing owners.
+
+Owned edits: `pkg/factory/control/{creation_recovery,acceptance_initial}.go`,
+`pkg/factory/runtime/native_creation_discovery.go` and
+`pkg/store/{readiness_creations,issue_acceptances}.go`. No test, build, formatter,
+app, provider request, inference, process inspection or new effect ran for this
+pass. Changes remain uncommitted/unverified; prior Q15 edits and all retained
+state/stashes are preserved. Full Q16 completion still requires its affected
+connected withdrawal/wake journey and the outstanding Q15 qualification. Q17
+source work remains outstanding and has no edits yet at this checkpoint.
+
 **INCOMPLETE — installed intake (2026-11-10):** current49 from clean
 `6301fde7baea4b528a63244cf1ea747ee260f845` (inventory
 83c353eed9729f7b5242ae6d7c01be3b85be291794baf972926afac9427cb019,
@@ -1350,6 +1425,59 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q17 — GitHub external PR adoption
 
+**INCOMPLETE — source implementation (2026-11-10), unverified.** Shared
+`external_publication.go`, `control/publication_external.go` and
+`store/factory_external_publications.go` now compose explicit same-repository PR
+selection/admission, a distinct non-executing owner, current accepted issue/real
+completed plan, exact native PR/issue/author/head/base/profile/connection, current
+policy, selected source and a finite review/correction allowance. The existing
+command journal replays admission without a new observation or model. Own PRs,
+duplicate heads, active/unsettled runs/preparations and uncertain sends refuse.
+`FactoryCandidate.SourcePull` and `native_external_source.go` fetch authenticated
+exact-head bytes between matching PR observations, then use the existing
+preparation/custody owners. Review/correction/check/merge consumers distinguish
+external target identity from Factory creation receipts. Paid delivery material
+and merged-result preparation permit an external candidate without inventing an
+initial Builder/export/checkpoint. The shared work panel retains the exact
+adoption command across lost replies and labels its external origin.
+
+In this source implementation, a current completed investigation at the exact
+base is reused when available. When none exists, `ExternalPullPlanning` now
+records a real bounded Architect packet and command in the same transaction,
+holds initial Builder advancement, admits the completed plan/completeness
+opinion, reobserves the original PR and promotes it under the same charged root.
+Lost replies recover that assignment/run; generic Retry cannot discard its
+external purpose. No additional allowance is created at promotion. The selected
+policy revision binds model choices before packet admission. This path requires
+the ordinary approved source preparation at the captured base; it does not send
+unowned setup work. Both roles and delivery judgments currently require the same
+explicitly selected inference source.
+Fork execution stays unavailable even with captured consent because the native
+source adapters support only same-repository PRs. Automatic discovery of new
+external PRs is not established by the explicit selection path. No tests,
+builds, apps, migrations, network effects, inference, process inspection or Git
+commands ran; these changes are uncommitted and do not close Q17/Q23.
+
+Recovery/withdrawal uses the same publication owner for external candidates
+without requiring an initial Builder run. Published external continuations now
+participate in ordinary withdrawal selection; confirmed withdrawal retires only
+Factory's continuation and retains the external PR/human text. Correction
+receipt adoption keeps its actual run when cancellation races commitment.
+Unknown native outcomes remain pending. Fresh planning's command receipt is a
+typed planning/publication admission; its retained UI verifies the original
+policy/source/target request before releasing the local capture.
+
+`control/external_pull_events.go` and `store/factory_external_events.go` now
+translate PR-number or exact check-commit hints only into existing readiness
+work for admitted external publications. They cannot create an adoption,
+allowance or worker; normal serving rechecks provider facts and current selected
+runtime authority. Canonical SodaOS `internal/web/api/factory_pull_intake.go`
+and the existing intake route pass signed PR/sync/review/comment/check locators
+through this wake path after HMAC verification. Factory-created and unselected
+PRs remain ineligible here. These consumer edits are also unverified and
+uncommitted; the retired appliance was not contacted. General discovery/adoption
+of an unselected external PR still requires explicit policy/source admission.
+
 Outstanding. Exact PR/head/base/policy/fork admission and adoption implementation can proceed independently. Full correction/review/CI progression needs those delivery phases, not blanket Q01–Q16 completion.
 
 ```text
@@ -1429,6 +1557,30 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q19"></a>
 
 ### Q19 — Fountain placement and authenticated operations
+
+**Implementation-only continuation (2026-11-10), UNVERIFIED.** The owner’s
+no-execution instruction remains in force. Source reading of canonical Fountain
+`services/nativeoperation/controller.go` confirms that controller selection uses
+current repository administration, while desktop operation authorization uses
+current code-write permission on the selected controller. The shared controller
+UI now treats these capabilities separately; an explicit `canAuthorize` no longer
+inherits a selection-only refusal. Older consumers without that capability retain
+their prior `canSelect` fallback. Native `OperationGrant::allows_current` also
+checks its original expiry locally so a previously active observation cannot
+authorize work after that deadline. Journal lookup and physical retirement keep
+their existing separate paths and remain available for expired authority.
+
+Owned edits: `frontend/factory/work/runtime-controller.ts` and
+`lib/desktop-runtime/src/fountain_provider/controller.rs`. Canonical Fountain
+authority remains unchanged; no engine-owned host selection or new grants were
+introduced. Existing exact captures, claim/operation journals, generation checks,
+same-command recovery and competing-controller refusal stay with their original
+owners. No tests, builds, formatters, app launches, provider calls, inference,
+process inspection or Git ancestry checks ran in this pass. Changes remain
+uncommitted/unverified. Existing Q15/Q16 edits and retained state are preserved;
+Q17 remains outstanding. Q19’s full connected/installed qualification is still
+incomplete, including the affected writer/admin UI and expiry journeys. No new
+process or effect was started; retained owners remain as last recorded in Q27.
 
 Installed control/preparation increment (2026-11-10): actual clean787a15bc976f
 current37 bundle, inventoryf6942ddb52ac60a4e8ca1f87d04518656d2473866b0ca849e34ea2474295f254,
@@ -1814,6 +1966,23 @@ Final reply: requested Q20, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q21 — Fountain candidate transfer and conditional publication
 
+**INCOMPLETE — implementation-only, unverified (2026-11-10).**
+`lib/desktop-runtime/src/fountain_provider/publication.rs` now requires host
+completion `complete` before translating a `not_committed` publication into a
+definitive native no-send result. Partial-transfer cleanup or retirement that
+still needs intervention remains indeterminate; both original send fences,
+captured authority/deadlines and lookup-only recovery remain unchanged.
+The later actual worker→candidate→transfer→PR3 evidence is retained in Q27's
+`fountain-installed58` record; earlier declared candidates below retain their
+original scope. No tests, builds, applications, provider effects, inference or
+commits ran for this source-only change. Owned edits are that Rust file and the
+existing task/decision records, alongside the preserved Q15/Q16/Q19 edits.
+Full Q21 qualification remains open, including interrupted/partial transfer,
+expiry/withdrawal and restart at the relevant revisions. When execution resumes,
+recover original operations first and exercise the existing conditional-publication
+journey with unfinished host cleanup; never resend an uncertain transfer or infer
+no-send from lookup absence. No process retirement is claimed. Q17 remains queued.
+
 The same original-operation journal now also carries native COMMENT reviews.
 Canonical Fountain `e61341b76f` and `q19-authority/product48d-connected.log`
 pass changed-file transfer→PR→same-account COMMENT, each original reply lost,
@@ -1953,6 +2122,27 @@ Final reply: requested Q21, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q22 — Fountain automatic issue intake
 
+**INCOMPLETE — implementation-only, unverified (2026-11-10).** Background
+creation discovery, initial creator admission, acceptance evidence and dispatch
+inputs now revalidate the original Fountain operation grant after provider I/O,
+including its runtime, placement generation and original expiry. This check
+cannot select a replacement grant and does not apply to historical receipt lookup.
+New Fountain creation delivery IDs include the canonical host, avoiding collisions
+between host-local issue IDs. The existing enqueue transaction preserves matching
+queued creation identities and checks their original facts instead of forking work.
+GitHub delivery IDs are unchanged. Owned source edits:
+`pkg/factory/runtime/native_background.go`, `native_creation_discovery.go` and
+`pkg/store/readiness_creations.go`, plus these existing task/decision records;
+earlier Q15/Q16/Q19/Q21 edits remain preserved. No tests, builds, applications,
+inference, remote effects or commits ran. Retained `fountain-installed58` work
+and all original grants/charges/uncertain sends remain untouched; no current
+process state or retirement is inferred. Full qualification remains open for
+automatic review/correction/check/merge, controller withdrawal during I/O,
+cross-host delivery collision, legacy queued-work recovery and exact charges.
+When execution resumes, recover the retained operations and run these cases
+through the existing connected intake/delivery owner without replaying inference
+or uncertain sends. Q17 remains outstanding; Q24's appliance blocker is separate.
+
 Shared delivery observations (2026-11-10): `q19-authority/product50-connected.log`
 passes the existing actual-host native branch/PR/review/Actions/merge journey with
 two additional ordinary inline comments. Complete native review opinions,
@@ -2049,6 +2239,47 @@ Final reply: requested Q22, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q23 — Fountain external PR adoption
 
+The active Q17 source implementation above is shared with Fountain's native
+connector and existing Q19 controller/preparation grants. Its same-repository,
+real-plan and single-source limitations apply here as well. Current public
+issue-only enrollment cannot select PR/code/controller operations. The original
+Fountain correction intent encodings and uncertain review remain retained;
+connected, restart and installed qualification remain open.
+
+**INCOMPLETE — implementation-only, unverified (2026-11-10).** New Fountain
+correction captures carry the exact PR number, native PR/issue IDs and immutable
+author, in addition to the existing head/base/source/grant tuple. Rust sends this
+binding to the existing conditional receive owner; canonical Fountain checks it
+at launch, prepared-ref admission and restart recovery. Native receipt adoption
+checks the same PR/issue IDs. Historical captures remain unchanged; a delayed
+first send cannot acquire missing correction authority. Old host/SDK correction
+intents retain their original optional-ID encoding. Review and CI observations
+also recheck their original admitted controller after provider I/O, reusing Q22's
+owner. No execution, inference, remote effects, process inspection or commits ran.
+
+Owned Factory edits: `pkg/factory/runtime/native_branch_transfer.go`,
+`native_ref_publication.go`, `native_reviews.go`, `native_checks.go`,
+`lib/desktop-runtime/src/github_provider/git_publish.rs`,
+`lib/desktop-runtime/src/fountain_provider/publication.rs` and existing records.
+Canonical Fountain edits: `sdk/publish.go` and
+`services/nativeoperation/{publish_exact,guard,publish,admission,recovery}.go`.
+Prior Q15/Q16/Q19/Q21/Q22 edits and all original operations/receipts are preserved;
+no process retirement or installed revision is inferred.
+
+Concrete remaining implementation prerequisite shared with Q17: an external PR
+needs durable origin/admission and candidate preparation from its captured head.
+The current workflow requires a completed Builder run and its own branch/PR
+creation receipts; provider reads cannot substitute for those facts. Shared
+external adoption and correction/review/check dispatch are therefore unfinished,
+not enabled by this correction transport change. Fork execution remains
+unavailable without exact explicit source authority; issue-only enrollment grants
+none. Next implement that shared external-origin/preparation path and wire its
+current-policy/funding/withdrawal admission into the existing workflow without
+inventing publication receipts. Once execution resumes, recover retained work
+before qualifying exact-head/base correction, stale/withdrawn refusal, duplicate
+adoption, restart and real review/check progression. Hacking-like adversarial
+checks remain reserved for a user-started Daybreak session.
+
 Basic enrolled PR reads are implemented and verified (2026-11-10): Rust projects
 bounded list/detail/conversation observations through the existing canonical Go
 reads and shared UI, checking base repository identity and exact head/base OIDs.
@@ -2106,6 +2337,13 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q25"></a>
 
 ### Q25 — Fresh Linux distribution and installers
+
+**Current request PENDING:** the latest Q25 instruction explicitly requires the
+Q24 appliance prerequisite, whose existing blocker remains unresolved. Earlier
+package/installer evidence below retains its recorded scope; it does not close
+this request or qualify the current unverified edits. No new build, installation,
+check, provider effect or commit ran. Resume when a current authorized appliance
+is available and that prerequisite is satisfied.
 
 **COMPLETE — Linux x86_64 package/installer qualification (2026-11-09).** Independent of the
 missing Q24 appliance. Fresh official selection in
@@ -2298,6 +2536,26 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q26"></a>
 
 ### Q26 — Installed GitHub desktop product journey
+
+**INCOMPLETE — source-only continuation (2026-11-10), unverified.** GitHub login
+refresh now rejects a reply from an older runtime generation before replacing
+the displayed sign-in state. Runtime-status failure also retires the Fountain
+login presentation alongside GitHub/Muse. The shared retained-publication panel
+renders only available offers in the same priority as submission, preserves a
+saved command's action, and refuses malformed candidate lengths without altering
+the saved record. Owned edits: `frontend/desktop/{accounts,main}.ts` and
+`frontend/factory/work/retained-publication.ts`, plus these existing task/decision
+records. All earlier edits, installed profiles and receipts remain preserved.
+No checks, builds, installations, launches, inference, provider effects or commits
+ran; old process-state statements below are historical, not current observations.
+The retained installed merge/closure evidence below is unchanged and does not
+qualify these edits. Full installed scope remains open, including correction,
+external adoption, withdrawal and remaining lifecycle cases. The concrete shared
+external-origin/preparation prerequisite is recorded in Q23; it is not supplied
+by these UI fixes. Next implement that owner, then, when execution resumes,
+recover original operations and qualify the actual installed current bundle
+without replaying uncertain sends or completed inference. Q25's latest request
+remains pending on its explicitly required Q24 prerequisite.
 
 Owner authorization (2026-11-10): standing Muse use, fresh explicit commands and
 allowance increases on the selected source are authorized until10:00 Europe/
@@ -3051,6 +3309,54 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q27 — Installed Fountain desktop product journey
 
+**Active implementation (2026-11-10), unverified:** the desktop now has explicit
+issue-only OAuth consent/refresh and a distinct retained profile-proof enrollment.
+Canonical Fountain adds `Grant.Kind` (legacy default unchanged), migration
+`v17g_add-desktop-issue-grant-kind.go`, separate public issue-grant routes and
+`desktop_issue_collaboration.go`. These routes expose only plain-issue snapshots,
+prepared human create/comment/edit/state/lock operations and original journal
+lookup/cancel; existing native transaction services recheck current OAuth,
+enrollment and issue-unit permission. They expose no controller/source/PR routes.
+Factory's `fountain_provider/{enrollment,product,issues}.rs`, `fountain_provider.rs`,
+`fountain_oauth.rs`, desktop `fountain_signin.rs`, login UI and Go
+`native_fountain_issues.go`/the five existing human writers bind captured request,
+original deadline, host digest and causal receipt. Existing captures permit
+lookup only; missing remote rows never authorize another send. Issue-only
+capabilities deny PR/check/code authority. All edits are source-only, uncommitted;
+no process inspection, execution, network, inference, build, test or install ran.
+Dependency snapshots now carry an explicit issue-only decision through the native
+loader, hiding PR dependency targets even when the account has broader access.
+Withdrawal permits original journal lookup but refuses new preparation facts.
+The Q17 shared external-adoption source path is now present with its recorded
+limitations; installed issue-only qualification and the complete Q27 journey
+remain open. Older notes below that
+say the public issue-only binding is absent describe the preceding checkpoint.
+
+**INCOMPLETE — source-only continuation (2026-11-10), unverified.**
+`frontend/desktop/fountain-login.ts` now rejects stale sign-in, refresh,
+enrollment and account-read replies after runtime/interaction/visibility changes.
+Unknown account status disables enrollment/controller actions; expired, locked
+and withdrawn accounts cannot enroll. Read logins disable controller selection
+and operation authorization. Account removal cannot silently select another
+account; refresh choices reflect current state, and repository edits clear the
+old enrollment message. Native host authority and retained commands are unchanged.
+Owned edits are that UI file and these existing task/decision records, alongside
+all prior unverified Factory/Fountain edits. No checks, builds, installations,
+launches, inference, provider effects, process inspection or commits ran. The
+installed current59 inventory, stopped profile archive, original PR3/candidate,
+eight Fountain minutes and uncertain operations below retain their existing
+scope; no current process state is inferred.
+
+Remaining implementation includes native desktop issue-only authorization and
+transport (Q20's private host capability is not desktop authority), plus Q23's
+shared external-origin/preparation workflow. Full review/correction/check/merge
+and installed lifecycle qualification remain open. Next implement the public
+issue-only native binding through the canonical capability/journal owners with
+code/execution/publication still unavailable to that grant; preserve old
+enrollment identities. When execution resumes, recover the existing profile,
+grants/preparations and original operations before the installed journey. Do not
+repeat planning, candidate transfer or uncertain writes to replace evidence.
+
 **Active installed execution recovery (2026-11-10), INCOMPLETE.** Current57
 (`6dd064f6a05590a83b194cb94c80f5efbb21aedb`, inventory
 `de9cc15829fb08dcc7230d03359cf2a3d7da0f0adeb92d37ea8c5cf327279dd9`)
@@ -3090,6 +3396,33 @@ original waiting preparation without renewing it. Current57 and the host/runner
 fixture remain running idle; preserve original publication and eight charged
 Fountain minutes. Review-only continuation for ordinary published candidates
 still needs the existing explicit funding owner extended before fresh review.
+
+**Recovery checkpoint after owner cost concern (2026-11-10):** no further paid
+inference or long qualification runs started. Verified native fixes committed
+as `21c581a` and `5147a4e`; current59 from clean `5147a4e` is actually installed
+(inventory `646f35bd1dc352b71aa28387bbf5b7bf766e99086b3eee3109ae264319ad72da`).
+Reopen retains 26 reconciled runs and zero pending judgment commands. The
+confirmed stopped profile archive is
+`q25-package/fountain-installed58/current59-stopped-profile.tar.gz`, SHA256
+`cf8e3ef2b91266aed294840c721854c5015b61e318672e3fdabd7b5f7a538d81`;
+the earlier current57 archive overlapped reopen and is explicitly unqualified.
+Actual Actions task58 log is retained in that directory's `ci/task58.log`:
+it fetches/detaches exact candidate `97c80b7` and the greeting check succeeds.
+Ordinary-publication review continuation remains an **unverified owned edit**
+in `pkg/factory/{retained_publication.go,control/publication_retained.go,
+control/publication_children.go,service/work_controls.go}` and
+`pkg/store/{factory_retained_publication.go,factory_publications_test.go}`.
+Compilation passes; existing disposable PostgreSQL integration check fails
+(`review-continuation-pg4.log`): ordinary fixture allowance/publication remains
+active. Its PG is stopped. Next executable action: settle the ordinary fixture
+through the existing lifecycle, rerun this affected check, then qualify the
+explicit review-only continuation against the retained installed PR without
+replanning, rebuilding its candidate or republishing. Do not treat these edits
+as verified or extend old grant/preparation deadlines. Installed current59 is
+idle; Fountain host check session44503 and runner33777/tunnel remain owned by
+`fountain-installed58/{host-check.sh,runner.sh,ci/process.pid}`; recover before
+effects. Q24 still lacks its authorized appliance; other outstanding scopes
+and Q30 completion criteria remain unchanged.
 
 Actual installed control/preparation/restart/withdrawal now passes current37 in
 `q25-package/fountain-ui37c-journey.log`; exact inputs, original native and host
@@ -3188,6 +3521,30 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+**INCOMPLETE — source-only continuation (2026-11-10), unverified.** Format104
+adds the missing database payload contract for Q15's captured review submission
+retry (2 MiB for that command only). Fresh schema and transactional103→104
+migration share one constraint; historical bounds are checked first. The marker
+also refuses older writers that would ignore new continuation/retry meanings.
+No historical command, reservation, outcome, deadline or authority is rewritten.
+Native PostgreSQL startup now reuses a valid retained password when interruption
+preceded cluster creation; password reads are bounded/private, absent retained
+credentials are not recreated for an existing cluster, and existing partial or
+symlink data paths are refused without reinitialization.
+
+Owned edits: `pkg/store/{schema.go,schema_command_dispatch.go,README.md}`,
+`lib/desktop-runtime/src/database.rs` and existing task/decision records, alongside
+all earlier unverified changes. No checks, migrations, profile opens/copies,
+builds, installs, processes, inference, provider effects or commits ran. Existing
+schema93/standalone/installed evidence below retains its original scope and does
+not qualify format104. Active-run/update activation and whole Q28 remain open.
+Next, when execution resumes, recover existing owners/receipts and use disposable
+copies for the existing concurrent migration/current reopen/exact prior103 and
+unknown105 refusal journey, unchanged row/profile hashes, and interrupted
+password-before-initdb recovery. Then qualify actual installed active-run,
+provider freshness/download/status activation and uninstall preservation; do not
+replay uncertain effects or inference to supply missing evidence.
 
 Current45's actual101→102→103 retained activation preserves all19 runs,
 67 judgments,121 minutes and original uncertain outcomes. Exact prior installed
@@ -3409,6 +3766,24 @@ Final reply: requested Q28, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q29 — Installed shared-component and host parity
 
+**INCOMPLETE — source-only continuation (2026-11-10), unverified.** A concrete
+shared policy confirmation gap is corrected in
+`frontend/factory/work/role-settings.ts`: actor equality now includes the captured
+Fountain operation grant, and save readback checks every submitted execution,
+publication, creation, review, merge and resolution actor binding. A concurrent
+grant/binding change therefore cannot be presented as confirmation of the
+requested policy. Both consumers retain this one defining Lit owner; no cosmetic
+fork or consumer patch was added. Owned edits are that file and the existing
+task/decision records, alongside preserved prior unverified edits.
+No builds, installs, checks, launches, inference, remote effects or commits ran;
+no current process state is inferred. The current51 desktop and Fountain source
+build evidence below remains historical and does not qualify this correction.
+Next, when execution resumes, recover retained builds/installations, rebuild and
+install the same shared source in both actual consumers, then demonstrate exact
+grant confirmation/refusal, selected-repository navigation and current policy
+options. Full installed parity remains open; no appliance stop/start requirement
+is inferred for this shared UI correction.
+
 Current correction (2026-11-10): the actual installed role settings still say
 queue comparisons are unavailable despite Q13's verified same-repository owner.
 The single shared Lit presentation now names same-repository comparisons and
@@ -3444,6 +3819,113 @@ Final reply: requested Q29, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q30"></a>
 
 ### Q30 — Full finalization of non-Daybreak Factory work
+
+**INCOMPLETE — source-only finalization/recovery ledger (2026-11-10).** Requested
+ceiling Q30; actual work reached the source audit and Q15/shared-UI recovery
+correction. This is a coverage audit of the current code and retained records,
+not reverification of D1–D8/Q01–Q29 or a fresh release. The owner's implementation-
+only restriction still defers execution and qualification. No formatter, test,
+build, application, installation, process/Git inspection, inference, provider
+request or commit ran. No new process or uncertain effect was created.
+
+**Source correction in this pass:** `frontend/factory/work/retained-publication.ts`
+now compares validated funding, merge-preparation and unsent-review receipts by
+their fields, including nested source/limits, rather than JSON key order. The
+same comparison keeps an equivalent saved request recoverable without changing
+its command. `frontend/factory/api/work-response.ts` admits only exact 40- or
+64-character hex commit encodings and the Go funding contract's 128-byte connection
+bound. Neither change renews authority, retries a send or runs a model. Both
+edits remain unverified and uncommitted with the earlier source-only work.
+
+**Retained evidence boundary:** Q09–Q14, Q18 and Q20 retain their recorded
+ordinary-scope results; Q01–Q08/D1–D8 retain their prerequisite scopes. Those
+results are not broad product/security closure and were not rerun or checked
+against Git objects here. The installed GitHub issue54/PR55 journey in Q26
+retains candidate `54b82ef2a3f36bf767a463facaaa55e2cbbf007f`, independent COMMENT,
+real CI, merge result `0954a2d9ef2f6a9343b20e178c3c224d49b5f28d` and its exact
+153-minute ledger; it does not prove the outstanding correction/external/lifecycle
+cases. Q27 retains Fountain worker→candidate→PR3/real check evidence at canonical
+Fountain `53b44129f29ed99c8a92bf63f52cb9deb2a1897d` and installed current59
+inventory `646f35bd1dc352b71aa28387bbf5b7bf766e99086b3eee3109ae264319ad72da`.
+That build predates the unverified source edits; no reviewer run or full Fountain
+merge is inferred. Canonical gateway `2e57559c0e4844baba861a86632d083192537ff3`,
+ownership `e88b50dadb91b5ea4bb39dcf80307939d3270fed` and both original gateway
+ancestors retain their existing Q18 references. SodaOS consumer
+`af73c91d283deeadcf67f0b4a44a3de2610671a2` was not changed or contacted.
+
+All **15 milestone outcomes remain pending**, with these concrete remaining
+requirements; their original rows/history below remain intact:
+
+| Milestone outcomes | Remaining ordinary work |
+| --- | --- |
+| T12-PLACEMENT | Q19's complete current-grant/competing-controller journey; Q04's local scope stays separate. |
+| T09-NATIVE-EXECUTOR, T09-EXECUTION | Complete production/installed isolation, scoped custody, interruption/retirement and reconciliation evidence; source-only fixes cannot close them. |
+| T10-GATEWAY, T10-PUBLISH, T10-INTAKE | Qualify Q19/Q21/Q22 changes through complete admitted Fountain work/review/correction/check/merge and recovery. |
+| T11-INTAKE | Qualify Q16's post-I/O/policy races and the complete automatic GitHub delivery/correction journey. |
+| T12-GITHUB-PRS, T12-FOUNTAIN-PRS | Q17/Q23 now contain unverified explicit same-repository admission, real fresh planning without an initial Builder, external origin and exact-head preparation source. Broader source/fork adapters and automatic new-PR discovery remain open; qualify actual review/correction/CI/merge and retained recovery. No fabricated creation/Builder receipts. |
+| T14-PACKAGE | Reconcile and qualify a fresh bundle with exact inputs/notices/integrity; latest Q25 request retains Q24's prerequisite. Older Debian13.7/Rocky10.2 x86_64 systemd evidence is historical. |
+| T13-FORGE | Q24 is genuinely BLOCKED: owner confirms no replacement appliance. This prevents its installed appliance journey and shared Project stop/start. Never contact retired soda. |
+| T13-GITHUB, T13-FOUNTAIN | Finish Q26/Q27 installed correction/external/lifecycle/refusal journeys. Public separately scoped issue-only login/enrollment/snapshots/writes/journal transport is now source-implemented and unverified; Q20 host evidence alone is not desktop parity. |
+| T14-UPGRADE | Q28 format105 (external origins/typed source semantics, preserving the format104 command bound) and native PostgreSQL startup edits need disposable-copy migration/refusal/reopen proof. Existing desktop uninstall/upgrade code retains payload paths, and execution-service upgrade refuses active services; qualify active-run preservation and installed freshness/download/status activation using those owners. |
+| T14-PARITY | Rebuild/install both actual consumers of the same Q29 shared policy source and prove selected-repository navigation, exact-grant confirmation/refusal and policy options. Appliance stop/start is not a prerequisite for the shared source fix. |
+
+All **13 security gates remain Open**. Gates1/4 still need full Q15–Q17/Q26
+workflow/automation evidence; gates2/3 need installed auth/IPC/custody/revocation;
+gate5 needs complete Fountain placement/operation/installed lifecycle; gates6–12
+need the production and installed recovery, isolation, tools, proxy, MCP/signing
+and other-boundary evidence individually listed in the existing gate register;
+gate13 needs the installed issue-only consumers. Ordinary gaps are not Daybreak
+deferrals. No exact hacking-like check has been newly qualified or waived; this
+is **not READY FOR DAYBREAK**.
+
+**Release/decisions:** the dependency workflow source still schedules hourly
+validation. Retained published run42742502789 at
+`3afe351d99b0dd58bbe5065f958459e6ba4e2f2e` qualifies that source job only;
+later scheduled run42789329677/574182f remains recorded below. These do not prove
+current dependency freshness or installed release delivery. Existing production
+packaging still owns architecture, PostgreSQL selection, notices/covered sources,
+build inputs and bundle inventories; installers retain exact-prior activation
+and user state. No new bundle, license inventory or update was generated or
+promoted. Mixed-repository judgment funding remains unresolved/unavailable;
+unsupported rules/providers and absent fork authority stay unavailable. Human
+CONNECT history, accepted unknown historical causes and Q14's append-only
+refinement decision remain unchanged.
+
+**Recovery/next action:** owned edits are the Q15/Q16/Q19/Q21–Q23/Q26–Q29 paths
+already itemized in their active records, the two shared UI files above and these
+existing documentation records. Canonical Fountain's Q23 SDK/host edits remain
+unverified; stashes (including `56669001735070eec7e9b381e6ac9e08ad3e3d4c` and its
+unrelated README edit) are untouched. Original unknown GitHub publication
+`0bc012940c247259280c0c90166c388c` and Fountain review
+`f017525f77fd27f3aec3fa1a6811ec7a` remain fenced. No current process state was
+observed: use Q27's retained owner/session/receipt record and stopped-profile
+archive before any effects. When execution is permitted, first recover those
+owners and run the existing no-model PostgreSQL retained-review continuation
+check, correcting its fixture through the normal publication/root retirement
+path instead of direct SQL fencing; then qualify saved-request/receipt adoption
+in the existing shared DOM journey, followed by only the affected native and
+connected checks. Do not repeat a model or uncertain send for missing evidence.
+The active source implementation adds Q17/Q23 domain/control/store/admission,
+typed native PR/merged preparation and shared selection UI, plus Q27's public
+host/native issue-only binding. No processes or effects were started in this
+continuation. Fresh external planning now uses the ordinary Architect packet and
+original root allowance, with no initial Builder; recovery/withdrawal also
+handles the absence of an initial Builder run. New owned paths include
+`external_publication.go`, `control/publication_external*.go`,
+`store/factory_external*.go`, `native_external_source.go`, typed candidate/merged
+source and their existing consumers, `frontend/factory/{api,work}/external-pull.ts`,
+plus Q27's host/native issue-only paths. Canonical SodaOS additionally owns the
+new `internal/web/api/factory_pull_intake.go` and its existing intake dispatch
+hook; Factory owns the matching event locator and durable readiness enqueue.
+No owned checks/processes were launched, and earlier retained process state
+remains uninspected. Next source action: address fork-scoped source/publication
+admission at its native/host grant owners; a local consent flag cannot substitute
+for exact head-repository read/write/execution grants. Keep those unsupported
+actions unavailable. Q28's existing installer/tool retention owners
+already supply source behavior; installed qualification requires execution,
+which remains prohibited by the current instruction.
+These are independent of the absent appliance. Preserve this queue; no
+resubmission is needed to retain it.
 
 Dependency publication increment (2026-11-10): verified commits through
 `0c6f4d1c4526d8ea33c8a73ef62bf1b28c16348c` were published without force to

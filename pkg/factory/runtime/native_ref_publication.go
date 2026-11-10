@@ -32,7 +32,7 @@ func (p NativePublication) observeCorrectionPull(ctx context.Context, account *n
 	if err != nil {
 		return err
 	}
-	if raw.Repository != account.repository.ExternalID || raw.Number != publication.PRNumber || raw.PullID != strconv.FormatInt(publication.PRID, 10) || raw.IssueID != strconv.FormatInt(publication.PRCreate.IssueID, 10) || raw.Author.ExternalID != actor.ExternalID || raw.HeadRef != factory.PublishBranchName(publication.AssignmentID) || raw.BaseRef != w.ComparisonRef || raw.HeadTip != refs.Tip || raw.BaseTip != refs.Comparison {
+	if raw.Repository != account.repository.ExternalID || raw.Number != publication.PRNumber || raw.PullID != strconv.FormatInt(publication.PRID, 10) || raw.IssueID != strconv.FormatInt(publication.PullTarget().IssueID, 10) || raw.Author.ExternalID != actor.ExternalID || raw.HeadRef != publication.PublicationRef() || raw.BaseRef != w.ComparisonRef || raw.HeadTip != refs.Tip || raw.BaseTip != refs.Comparison {
 		return errNativeRead
 	}
 	return nil
@@ -54,6 +54,29 @@ func nativeRefPublicationRecord(c factory.RefPublicationCapture) collaboration.O
 	cmd, _ := c.Command()
 	return collaboration.OperationRecord{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, Binding: &collaboration.OperationBinding{Repository: c.Request.Repository, Actor: c.Request.Actor, Kind: collaboration.PublishRef, Atomicity: collaboration.Atomic, IntentDigest: cmd.Digest}, Effect: collaboration.EffectIndeterminate, Cancellation: collaboration.CancellationNone, Completion: collaboration.CompletionNeedsIntervention, Reason: "dispatch_history_unresolved"}
 }
+
+func (p NativePublication) correctionBinding(ctx context.Context, account *nativeProductAccount, w factory.PublicationWork) (*nativeBranchCorrection, error) {
+	if account.binding.Host.Provider != collaboration.Fountain {
+		return nil, nil
+	}
+	publication, err := p.Store.PublicationByAssignment(ctx, w.AssignmentID)
+	if err != nil {
+		return nil, err
+	}
+	if publication.ID != w.Publication || publication.PRNumber != w.CorrectionNumber || publication.PRID <= 0 || publication.PullTarget().IssueID <= 0 {
+		return nil, errNativeReadScope
+	}
+	author, err := p.Store.CollaborationActor(ctx, collaboration.ActorID(w.CorrectionAuthor))
+	if err != nil {
+		return nil, err
+	}
+	id, err := strconv.ParseInt(author.ExternalID, 10, 64)
+	if err != nil || id <= 0 || author.Host != account.binding.Host.ID {
+		return nil, errNativeReadScope
+	}
+	return &nativeBranchCorrection{Number: w.CorrectionNumber, ExpectedAuthorID: id, ExpectedPRID: publication.PRID, ExpectedIssueID: publication.PullTarget().IssueID}, nil
+}
+
 func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.PublicationWork) (factory.OperationOutcome, error) {
 	var empty factory.OperationOutcome
 	prior, err := p.LookupOp(ctx, w.OperationID)
@@ -65,6 +88,10 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 		return empty, err
 	}
 	q, err := p.branchRequest(ctx, w)
+	if err != nil {
+		return empty, err
+	}
+	correction, err := p.correctionBinding(ctx, account, w)
 	if err != nil {
 		return empty, err
 	}
@@ -89,6 +116,7 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 		if err = prep.Transfer.captureController(account, &prep.NotAfter); err != nil {
 			return empty, err
 		}
+		prep.Transfer.PullRequest = correction
 		encoded, e := json.Marshal(prep)
 		if e != nil {
 			return empty, e
@@ -120,6 +148,11 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 	prep, err := p.decodeRefCapture(ctx, account, c)
 	if err != nil {
 		return empty, err
+	}
+	// Old captures retain their original meaning. Missing correction authority
+	// cannot be added to a historical command before a delayed first dispatch.
+	if correction != nil && (prep.Transfer.PullRequest == nil || *prep.Transfer.PullRequest != *correction) || correction == nil && prep.Transfer.PullRequest != nil {
+		return empty, errNativeReadScope
 	}
 	if err = prep.Transfer.admitController(ctx, account, factory.OpRefPublish); err != nil {
 		return empty, err

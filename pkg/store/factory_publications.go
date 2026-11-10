@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -25,6 +26,9 @@ var ErrPublicationConflict = errors.New("publication immutable input changed")
 // assignment publishes at most once: a second record for the assignment
 // refuses instead of publishing twice.
 func (s *Store) RecordPublication(ctx context.Context, p factory.Publication) error {
+	// External origin requires its separate explicit command admission. This
+	// ordinary Builder-completion entrypoint can never manufacture it.
+	if p.External!=nil { return ErrPublicationConflict }
 	if err := p.Validate(); err != nil {
 		return err
 	}
@@ -267,6 +271,12 @@ func admitPublicationRegistrationTx(ctx context.Context, tx *sql.Tx, previous, p
 		}
 		return nil
 	}
+	if len(p.ReviewOperations) == len(previous.ReviewOperations)+1 {
+		op := p.ReviewOperations[len(previous.ReviewOperations)]
+		if op.RetryOf != "" {
+			return admitReviewRetryRegistrationTx(ctx, tx, previous, p, op)
+		}
+	}
 	return ensureAttemptDeadlineForRegistrationTx(ctx, tx, p.AssignmentID, newDeadlines...)
 }
 
@@ -279,6 +289,16 @@ func (s *Store) UpdatePublication(ctx context.Context, p factory.Publication) er
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err = updatePublicationTx(ctx, tx, p); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func updatePublicationTx(ctx context.Context, tx *sql.Tx, p factory.Publication) error {
+	if err := p.Validate(); err != nil {
+		return err
+	}
 	previous, err := loadPreviousPublicationTx(ctx, tx, p)
 	if err != nil {
 		return err
@@ -376,7 +396,7 @@ func (s *Store) UpdatePublication(ctx context.Context, p factory.Publication) er
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 // publicationTupleTransitionAllowed pins the current-tuple lifecycle for
@@ -517,7 +537,7 @@ func publicationStageAllowed(old, next factory.Publication) bool {
 	case old.Stage == factory.PublicationOpen || old.Stage == factory.PublicationFenced:
 		return true
 	case old.Stage == factory.PublicationPublished &&
-		(next.Stage == factory.PublicationPublished || next.Stage == factory.PublicationFenced):
+		(next.Stage == factory.PublicationPublished || next.Stage == factory.PublicationFenced || old.External!=nil && next.Stage==factory.PublicationWithdrawn):
 		return true
 	default:
 		return false
@@ -525,6 +545,7 @@ func publicationStageAllowed(old, next factory.Publication) bool {
 }
 
 func publicationUpdateAllowed(old, next factory.Publication) error {
+	if !reflect.DeepEqual(old.External,next.External) { return ErrPublicationConflict }
 	if !publicationIdentityStable(old, next) || !publicationRunAdvanced(old, next) {
 		return ErrPublicationConflict
 	}
@@ -624,7 +645,7 @@ func deliveryAcceptanceEqual(old, next factory.DeliveryAcceptance) bool {
 }
 
 func reviewOperationIdentityStable(old, next factory.ReviewOperation) bool {
-	if old.RunID != next.RunID || !factory.ReviewWorkEqual(old.Work, next.Work) {
+	if old.RunID != next.RunID || old.RetryOf != next.RetryOf || old.RetryCommand != next.RetryCommand || !factory.ReviewWorkEqual(old.Work, next.Work) {
 		return false
 	}
 	prior, updated := old.Outcome, next.Outcome
@@ -666,7 +687,7 @@ func (s *Store) OutstandingPublications(ctx context.Context, repository int64, l
 	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_publications
 		WHERE repository=$1 AND (
 			stage IN ('open','fenced') OR
-			(stage='published' AND (EXISTS (
+			(stage='published' AND (data ? 'external' OR EXISTS (
 				SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'corrections')='array' THEN data->'corrections' ELSE '[]'::jsonb END) AS correction
 				WHERE COALESCE(correction->>'effect','') IN ('','pending','indeterminate')
 				   OR COALESCE(correction->>'cancellation','') IN ('pending','indeterminate')
@@ -709,7 +730,7 @@ func requestPublicationWithdrawalsTx(ctx context.Context, tx *sql.Tx, repository
 	rows, err := tx.QueryContext(ctx, `SELECT assignment,revision,COALESCE((data->>'withdraw_requested')::boolean,FALSE) FROM factory_publications
 		WHERE repository=$1 AND (
 			stage IN ('open','fenced') OR
-			(stage='published' AND (EXISTS (
+			(stage='published' AND (data ? 'external' OR EXISTS (
 				SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'corrections')='array' THEN data->'corrections' ELSE '[]'::jsonb END) AS correction
 				WHERE COALESCE(correction->>'effect','') IN ('','pending','indeterminate')
 				   OR COALESCE(correction->>'cancellation','') IN ('pending','indeterminate')
@@ -814,7 +835,7 @@ func (s *Store) OpenPublications(ctx context.Context, limit int) ([]factory.Publ
 		return nil, errors.New("invalid publication listing limit")
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_publications
-		WHERE stage IN ('open','fenced') OR (stage='published' AND (EXISTS (
+		WHERE stage IN ('open','fenced') OR (stage='published' AND (COALESCE((data->>'withdraw_requested')::boolean,FALSE) OR EXISTS (
 			SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'corrections')='array' THEN data->'corrections' ELSE '[]'::jsonb END) AS correction
 			WHERE COALESCE(correction->>'effect','') IN ('','pending','indeterminate')
 			   OR COALESCE(correction->>'cancellation','') IN ('pending','indeterminate')

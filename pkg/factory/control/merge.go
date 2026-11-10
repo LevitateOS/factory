@@ -145,7 +145,7 @@ func mergeWait(report *MergeReport, id, reason string) {
 }
 
 func (c *Coordinator) mergeOne(ctx context.Context, p factory.Publication, report *MergeReport) {
-	if p.Stage != factory.PublicationPublished || p.PRNumber <= 0 || p.PRID <= 0 || p.PRCreate.Work == nil {
+	if p.Stage != factory.PublicationPublished || !p.HasPullTarget() {
 		return
 	}
 	if _, err := c.Store.MergeByPublication(ctx, p.ID); err == nil {
@@ -163,13 +163,13 @@ func (c *Coordinator) mergeOne(ctx context.Context, p factory.Publication, repor
 		Operation: factory.MergeOperation{Kind: factory.OpMerge},
 		Authority: p.Authority, ID: factory.NewID(), PublicationID: p.ID,
 		AssignmentID: p.AssignmentID, ProjectID: p.ProjectID, Role: p.Role,
-		Acceptance: p.Acceptance, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef,
+		Acceptance: p.Acceptance, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef,
 		// The merge follows the latest published head: the creation tip
 		// before any correction, the newest correction after one.
-		HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID,
+		HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID,
 		Stage: factory.MergeOpen, Repository: p.Repository, Issue: p.Issue,
-		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID,
-		PRAuthorID: p.PRCreate.Work.ActorID, ReviewerID: policy.Review.ActorID,
+		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID,
+		PRAuthorID: p.PullTarget().AuthorID, ReviewerID: policy.Review.ActorID,
 		CreatedUnix: time.Now().Unix(),
 	}
 	if err := c.Store.RecordMerge(ctx, m); err != nil {

@@ -82,8 +82,9 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
         remove.type = 'button';
         refresh.type = 'button';
         refresh.textContent = 'Refresh login';
-        refresh.addEventListener('click', () => void action(async () => {
-          view = await core.invoke<SignIn>('github_refresh', {connection: account.connection});
+        refresh.addEventListener('click', () => void action(async (captured) => {
+          const next = await core.invoke<SignIn>('github_refresh', {connection: account.connection});
+          if (captured === generation && ready) view = next;
         }));
         remove.textContent = 'Remove from Factory';
         remove.addEventListener(

@@ -57,10 +57,12 @@ pub struct OperationGrant {
     pub active: bool,
 }
 impl OperationGrant {
-    /// The host's current controller activity uses its common permission gate;
-    /// the immutable operation list separately limits the named capability.
+    /// Host activity, the captured expiry and the named capability must all
+    /// remain current. History lookup and retirement do not use this predicate.
     pub fn allows_current(&self, kind: &str) -> bool {
-        self.active && self.operations.iter().any(|value| value == kind)
+        self.active
+            && self.not_after > time::OffsetDateTime::now_utc().unix_timestamp()
+            && self.operations.iter().any(|value| value == kind)
     }
 }
 

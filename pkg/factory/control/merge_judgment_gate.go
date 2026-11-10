@@ -88,8 +88,8 @@ type MergeJudgmentGateInput struct {
 // mergeGateBase returns the publication's verified base: the recorded PR
 // creation base when linked, else the accepted base SHA.
 func mergeGateBase(p factory.Publication) string {
-	if p.PRCreate.Work != nil && factory.ValidCommit(p.PRCreate.BaseOID) {
-		return p.PRCreate.BaseOID
+	if p.HasPullTarget() && factory.ValidCommit(p.PullTarget().BaseOID) {
+		return p.PullTarget().BaseOID
 	}
 	return p.BaseSHA
 }

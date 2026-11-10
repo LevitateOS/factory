@@ -31,7 +31,7 @@ func (c *Coordinator) recordCleanDeliveryAcceptance(ctx context.Context, publica
 	if err != nil || !run.Reconciled || run.Outcome != factory.Succeeded {
 		return publication, nil, errors.New("clear delivery reviewer retirement is unconfirmed")
 	}
-	if publication.Tuple == nil || publication.Tuple.Validate() != nil || publication.Tuple.Head != publication.Candidate || publication.Tuple.Base != publication.PRCreate.BaseOID {
+	if publication.Tuple == nil || publication.Tuple.Validate() != nil || publication.Tuple.Head != publication.Candidate || publication.Tuple.Base != publication.PullTarget().BaseOID {
 		return publication, nil, errors.New("clear delivery lacks its observed current candidate tuple")
 	}
 	owner, err := c.Store.Assignment(ctx, publication.AssignmentID)

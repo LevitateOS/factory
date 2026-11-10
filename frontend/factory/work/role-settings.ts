@@ -90,7 +90,7 @@ function policyActor(value: unknown) {
 function samePolicyActor(left: unknown, right: unknown) {
 	if (left == null || right == null) return false;
 	const a = object(left), b = object(right);
-	return ['actor_id', 'token_id', 'native_profile', 'native_connection'].every((key) => a[key] === b[key]);
+	return ['actor_id', 'token_id', 'native_profile', 'native_connection', 'controller_grant_id'].every((key) => a[key] === b[key]);
 }
 
 function settings(statusValue: unknown, accessValue: unknown, repository: string): Settings {
@@ -524,6 +524,10 @@ export class SodaFactoryRoleSettings extends LitElement {
       check(
         confirmed.policy && Number(confirmed.policy.revision) > Number(payload.expected_revision) && confirmed.roles
       );
+      const submitted = object(payload);
+      for (const slot of ['publish_actor', 'create_actor', 'review_actor', 'merge_actor', 'execution_actor', 'resolve_actor']) {
+        if (submitted[slot] != null) check(samePolicyActor(confirmed.policy[slot], submitted[slot]));
+      }
       check(automationReviewer
         ? samePolicyActor(confirmed.policy.automation_reviewer, reviewIdentity)
         : confirmed.policy.automation_reviewer == null);

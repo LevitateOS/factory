@@ -29,6 +29,13 @@ func (c *Coordinator) AdmitInitialAcceptance(ctx context.Context, hint IntakeHin
 	if decision, done, err := c.replayInitialAcceptance(bounded, hint); done || err != nil {
 		return decision, err
 	}
+	policy, err := c.Store.RepositoryPolicy(bounded, hint.Repository)
+	if err != nil {
+		return factory.Acceptance{}, err
+	}
+	if !policy.Enabled || policy.Paused {
+		return factory.Acceptance{}, store.ErrAdmissionChanged
+	}
 	evidence, err := c.readInitialAcceptanceEvidence(bounded, hint)
 	if err != nil {
 		return factory.Acceptance{}, err
@@ -42,7 +49,7 @@ func (c *Coordinator) AdmitInitialAcceptance(ctx context.Context, hint IntakeHin
 			return factory.Acceptance{}, err
 		}
 	}
-	if err := c.Store.AdmitAcceptanceDecision(bounded, decision); err != nil {
+	if err := c.Store.AdmitAcceptanceDecision(bounded, decision, policy.Revision); err != nil {
 		return factory.Acceptance{}, err
 	}
 	return decision, nil
@@ -106,12 +113,15 @@ func (c *Coordinator) readInitialAcceptanceEvidence(ctx context.Context, hint In
 // verified evidence with an authorized creator and independent origin evidence.
 func (c *Coordinator) buildInitialAcceptance(ctx context.Context, hint IntakeHint, evidence AcceptanceEvidence) (factory.Acceptance, error) {
 	var empty factory.Acceptance
-	_, err := c.Store.RepositoryPolicy(ctx, hint.Repository)
+	policy, err := c.Store.RepositoryPolicy(ctx, hint.Repository)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return empty, refuseAcceptance(RefusalCreationUnauthorized)
 		}
 		return empty, err
+	}
+	if !policy.Enabled || policy.Paused {
+		return empty, store.ErrAdmissionChanged
 	}
 	if hint.Creator <= 0 {
 		return empty, refuseAcceptance(RefusalCreationUnverified)

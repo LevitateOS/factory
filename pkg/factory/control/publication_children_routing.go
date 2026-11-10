@@ -166,14 +166,14 @@ func missingPolicyApproval(p factory.Publication, reviewerActor int64) bool {
 	// A self-authored PR cannot receive this account's provider approval.
 	// Branch rules can still require somebody else's approval; another agent
 	// run under this account cannot supply it.
-	if p.PRCreate.Work != nil && p.PRCreate.Work.ActorID == reviewerActor {
+	if p.HasPullTarget() && p.PullTarget().AuthorID == reviewerActor {
 		return false
 	}
 	for _, op := range p.ReviewOperations {
 		if op.Work.ActorID != reviewerActor || op.Work.Event != "APPROVED" {
 			continue
 		}
-		if op.Work.HeadOID != p.Candidate || op.Work.BaseOID != p.PRCreate.BaseOID {
+		if op.Work.HeadOID != p.Candidate || op.Work.BaseOID != p.PullTarget().BaseOID {
 			continue
 		}
 		if op.Outcome.Effect != factory.OpEffectCommitted || op.Outcome.Completion != factory.OpCompletionComplete {

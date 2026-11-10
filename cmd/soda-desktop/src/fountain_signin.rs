@@ -50,8 +50,12 @@ pub(super) async fn fountain_sign_in(
     app: tauri::AppHandle,
     origin: String,
     control: Option<bool>,
+    issues_only: Option<bool>,
 ) -> Result<View, String> {
     caller(&window)?;
+    if control.unwrap_or(false) && issues_only.unwrap_or(false) {
+        return Err("Choose issue collaboration or automation control access.".into());
+    }
     let desktop = app.state::<Desktop>();
     let store: Arc<Credentials> = desktop.credentials()?;
     let _saving = desktop.fountain_signin.saving.lock().await;
@@ -62,7 +66,9 @@ pub(super) async fn fountain_sign_in(
         .start(window.label(), move |attempt| {
             tauri::async_runtime::spawn(async move {
                 let result = async {
-                    let client = if control.unwrap_or(false) {
+                    let client = if issues_only.unwrap_or(false) {
+                        Client::configured_issues(&origin).await?
+                    } else if control.unwrap_or(false) {
                         Client::configured_control(&origin).await?
                     } else {
                         Client::configured(&origin).await?
@@ -162,6 +168,9 @@ pub(super) async fn fountain_refresh(
                         .find(|value| value.connection == cap.account().connection)
                         .ok_or(Error::Reauthorize)?;
                     let client = match saved.grant.as_ref().map(|grant| grant.scope.as_str()) {
+                        Some("write:issue") => {
+                            Client::configured_issues(&cap.account().origin).await?
+                        }
                         Some("read:repository" | "read:repository read:issue") => {
                             Client::configured(&cap.account().origin).await?
                         }

@@ -150,7 +150,7 @@ func (c *Coordinator) admitCorrectionRequest(ctx context.Context, runID string, 
 // corrector's reported candidate behind one correction.
 func checkCorrectionPublished(admission *correctionAdmission, report *CorrectionReport) bool {
 	p, assignment := admission.p, admission.assignment
-	if p.Stage != factory.PublicationPublished || p.PRNumber <= 0 || p.PRID <= 0 || p.PRCreate.Work == nil || p.Publish.Work == nil {
+	if p.Stage != factory.PublicationPublished || !p.HasPullTarget() || p.InitialCandidate()=="" {
 		correctionWait(report, p.ID, "publication_unpublished")
 		return false
 	}
@@ -309,7 +309,7 @@ func correctionAttemptWork(admission *correctionAdmission, p factory.Publication
 		PRTitle:    factory.PRTitleFor(a.Issue),
 		PRBody:     factory.PRBodyFor(a.Issue, a.ID, a.Acceptance, a.Run, p.Candidate, a.SourceCommit),
 		Repository: p.Repository, Issue: p.Issue, ActorID: policy.Publish.ActorID,
-		CorrectionNumber: p.PRNumber, CorrectionAuthor: p.PRCreate.Work.ActorID,
+		CorrectionNumber: p.PRNumber, CorrectionAuthor: p.PullTarget().AuthorID,
 	}
 }
 
@@ -352,7 +352,7 @@ func (c *Coordinator) checkCorrectionObservation(ctx context.Context, admission 
 		correctionWait(report, admission.p.ID, "native_inputs_changed")
 		return false
 	}
-	if observation.TargetRef != factory.PublishBranchName(admission.a.ID) || !factory.ValidCommit(observation.Comparison) {
+	if observation.TargetRef != admission.p.PublicationRef() || !factory.ValidCommit(observation.Comparison) {
 		correctionWait(report, admission.p.ID, "observation_invalid")
 		return false
 	}
@@ -576,7 +576,7 @@ func findCorrectionCycle(p factory.Publication, assignmentID string, served *Cor
 			// because the eventual ref push would refuse. Already-recorded
 			// operations keep their replay recovery above; only first effects
 			// wait here.
-			if cycle.Head != p.Candidate || cycle.BaseOID != p.PRCreate.BaseOID {
+			if cycle.Head != p.Candidate || cycle.BaseOID != p.PullTarget().BaseOID {
 				correctionWait(served, p.ID, "correction_cycle_superseded")
 				return none, false
 			}

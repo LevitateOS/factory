@@ -95,6 +95,9 @@ func (c Command) Validate() error {
 	if c.Type == CommandHumanReview {
 		payloadLimit = MaxHumanReviewCaptureBytes
 	}
+	if c.Type == CommandRetryReview {
+		payloadLimit = MaxHumanReviewCaptureBytes
+	}
 	if c.Type == CommandHumanInline {
 		payloadLimit = MaxHumanInlineCaptureBytes
 	}

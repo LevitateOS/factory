@@ -37,6 +37,7 @@ func executeFreshAttempt(ctx context.Context, deps DispatchDeps, occupancy *pass
 	publication := assignmentID
 	authority.RequirementsID, authority.ApprovalID = plan.requirement, plan.approval
 	assignment := factory.Assignment{
+		ExternalPlanning: plan.externalPlanning,
 		AcceptedContext: plan.acceptedContext,
 		Authority:       authority,
 		ID:              assignmentID, AttemptRoot: attemptRoot, PublicationAssignment: publication,
@@ -1032,7 +1033,7 @@ func resolvePhasedRetryLineage(ctx context.Context, deps DispatchDeps, a, owner 
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "corrector lineage no longer holds", report)
 		return none, false
 	}
-	current, ok := newestCommittedCorrectionRunID(p, a.SourceCommit, p.PRCreate.BaseOID)
+	current, ok := newestCommittedCorrectionRunID(p, a.SourceCommit, p.PullTarget().BaseOID)
 	if !ok || current != reviewer.Run {
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "correction answers a superseded review", report)
 		return none, false
@@ -1069,7 +1070,7 @@ func stageCorrectionRetryManifest(ctx context.Context, deps DispatchDeps, plan *
 	verdict := reviewer.Result.PhaseResult.Output
 	keys := correctionFindingKeys(ResolvedReviewVerdict{Review: verdict.Review, Clear: verdict.Clear})
 	derived, err := deriveCorrectionPlan(plan.acceptance, *origin.Result.PhaseResult.Output.Plan,
-		owner.AttemptRoot, origin.AttemptRoot, a.SourceCommit, p.PRCreate.BaseOID, a.Preparation,
+		owner.AttemptRoot, origin.AttemptRoot, a.SourceCommit, p.PullTarget().BaseOID, a.Preparation,
 		cycle.ID, cycle.FindingDigest, keys, plan.policy.Checks)
 	if err != nil {
 		if reason, blocked := correctionPlanWaitReason(err); blocked {

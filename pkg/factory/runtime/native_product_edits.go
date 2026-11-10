@@ -142,14 +142,18 @@ func nativeEditRecord(c factory.HumanEditCapture) collaboration.OperationRecord 
 }
 func (s nativeHumanEdits) LookupHumanEdit(ctx context.Context, c factory.HumanEditCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil { return empty, err }
+	return s.recoverFountainIssue(ctx,cmd,p.NotAfter,p.Edit.Repository,prior,nativeEditRecord(c),c.ProviderIntent,p.Account,"edit",p.Edit,
+		func(o collaboration.OperationLookup)(collaboration.OperationLookup,error){return s.store.ObserveHumanEdit(ctx,c,o)})
 }
 func (s nativeHumanEdits) SubmitHumanEdit(ctx context.Context, c factory.HumanEditCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -190,6 +194,9 @@ func (s nativeHumanEdits) SubmitHumanEdit(ctx context.Context, c factory.HumanEd
 		return empty, err
 	}
 	r := nativeEditRecord(c)
+	if s.binding.Host.Provider == collaboration.Fountain {
+		return fountainIssueOutcome(r,c.ProviderIntent,p.Account,p.Edit.Repository,"edit",p.Edit,outcome)
+	}
 	switch outcome.State {
 	case "applied":
 		var receipt nativeEditReceipt

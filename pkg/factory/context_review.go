@@ -6,6 +6,7 @@ import "errors"
 // recorded cycle. Carried findings come from the existing canonical collector;
 // no coding conversation or earlier worker prompt is an input.
 type CurrentReviewContext struct {
+	External            *ExternalPublicationOrigin `json:"external,omitempty"`
 	Publication         CurrentPublicationContext  `json:"publication"`
 	AdmittedTuple       CandidateTuple             `json:"admitted_tuple"`
 	CurrentTuple        *CandidateTuple            `json:"current_tuple"`
@@ -65,6 +66,7 @@ type CurrentPublicationContext struct {
 }
 
 func (c CurrentReviewContext) ValidateFor(a Assignment) error {
+	if c.External!=nil && (c.External.Validate(a.Repository)!=nil || c.External.CommandID!=a.PublicationAssignment || c.External.Target.BaseOID!=c.Cycle.BaseOID || c.Implementation!=nil) { return errors.New("external review context invents implementation evidence or changes its admitted origin") }
 	if c.Publication.AssignmentID != a.PublicationAssignment || c.Cycle.PublicationID != c.Publication.ID || c.Cycle.AttemptRoot != a.AttemptRoot || c.Cycle.Validate() != nil || c.AdmittedTuple.Validate() != nil || c.AdmittedTuple.Head != a.SourceCommit || c.Cycle.Head != a.SourceCommit || len(c.CarriedFindings) > MaxOutstandingFindings {
 		return errors.New("required review context differs from assigned cycle")
 	}

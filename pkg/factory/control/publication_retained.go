@@ -14,6 +14,47 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
+func (c *Coordinator) RetryUnsentReview(ctx context.Context, command, principal string, retry factory.ReviewRetry) (any, error) {
+	if c.Store == nil || c.Reviews == nil || retry.Validate() != nil || !factory.ValidID(command) {
+		return nil, store.ErrRetainedPublicationIneligible
+	}
+	receipt := struct {
+		CommandID string `json:"command_id"`
+		Retry factory.ReviewRetry `json:"review_retry"`
+	}{command, retry}
+	if prior, err := c.Store.FactoryCommand(ctx, command); err == nil {
+		var capture struct { Retry factory.ReviewRetry `json:"retry"` }
+		if prior.Type != factory.CommandRetryReview || prior.Principal != principal || prior.Target != "publication/"+retry.Publication ||
+			prior.Finished == "" || json.Unmarshal([]byte(prior.Payload), &capture) != nil || capture.Retry != retry {
+			return nil, store.ErrCommandConflict
+		}
+		return receipt, nil
+	} else if !errors.Is(err, store.ErrNotFound) { return nil, err }
+	offer, err := c.Store.ReviewRetryOffer(ctx, retry.Publication)
+	if err != nil { return nil, err }
+	if offer != retry { return nil, store.ErrAdmissionChanged }
+	p, prior, err := c.Store.PublicationReviewOperation(ctx, retry.Operation)
+	if err != nil { return nil, err }
+	if p.ID != retry.Publication || prior.RunID != retry.Run || !prior.DefinitiveNoSend() {
+		return nil, store.ErrRetainedPublicationIneligible
+	}
+	// A causal native no-send is required. Missing journal/lookup evidence is
+	// never permission to replace the original command or repeat its model.
+	observed, err := c.Reviews.LookupOp(ctx, prior.Work.OperationID)
+	if err != nil { return nil, err }
+	if !sameOperationOutcome(prior.Outcome, observed) { return nil, store.ErrAdmissionChanged }
+	w := prior.Work
+	w.OperationID = "review-retry-"+command
+	target, err := c.Reviews.ObserveReview(ctx, w)
+	if err != nil { return nil, err }
+	now := time.Now()
+	w.NativeRev, w.NotAfter = target.NativeRev, now.Add(5*time.Minute).Unix()
+	if _, err = c.Store.RecordReviewRetry(ctx, command, principal, retry, w, now); err != nil { return nil, err }
+	// The ordinary reconciliation owner dispatches this registered operation.
+	// Lost API replies return this same admission; they never extend its clock.
+	return receipt, nil
+}
+
 func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, principal string, funding factory.RetainedCandidateFunding) (factory.RetainedCandidateFundingReceipt, error) {
 	if c.Store == nil || c.Publication == nil || c.Host == nil || c.Broker == nil {
 		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
@@ -39,7 +80,7 @@ func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, princi
 		return factory.RetainedCandidateFundingReceipt{}, err
 	}
 	owner, err := c.Store.Assignment(ctx, p.AssignmentID)
-	if err != nil || owner.RetainedPublication == nil {
+	if err != nil || !owner.PublicationOwnerReady() {
 		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
 	}
 	if funding.PreviousRoot != "" {
@@ -54,16 +95,25 @@ func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, princi
 		// Head, base, canonical PR identity and author must still match the
 		// retained complete creation receipt before fresh inference is funded.
 		_, err = c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, ActorID: policy.Review.ActorID,
-			PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: p.PRCreate.Work.ActorID,
-			HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID})
+			PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID,
+			HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID})
 		if err != nil {
 			return factory.RetainedCandidateFundingReceipt{}, err
 		}
 	}
 	// Retire the original known custody before the new allowance can admit
 	// work. Lost replies resume these same native tombstones, never a new send.
-	if err = c.stopCandidatePreparationsForRoot(ctx, p.Repository, p.ProjectID, p.Issue, owner.RetainedPublication.Assignment); err != nil {
+	origin, err := c.Store.PublicationExecutionOwner(ctx, p, owner)
+	if err != nil {
 		return factory.RetainedCandidateFundingReceipt{}, err
+	}
+	if err = c.stopCandidatePreparationsForRoot(ctx, p.Repository, p.ProjectID, p.Issue, origin.ID); err != nil {
+		return factory.RetainedCandidateFundingReceipt{}, err
+	}
+	if owner.ID != origin.ID {
+		if err = c.stopCandidatePreparationsForRoot(ctx, p.Repository, p.ProjectID, p.Issue, owner.ID); err != nil {
+			return factory.RetainedCandidateFundingReceipt{}, err
+		}
 	}
 	return c.Store.FundRetainedCandidate(ctx, command, principal, funding, time.Now())
 }

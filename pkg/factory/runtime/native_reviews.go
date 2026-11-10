@@ -70,11 +70,27 @@ func (p NativeReviews) ObserveReview(ctx context.Context, w factory.ReviewWork) 
 	if len(w.Comments) != 0 {
 		return empty, &factory.PublicationWait{Reason: "native_review_inline_unavailable"}
 	}
-	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpReviewSubmit)
+	observed,err:=p.ReadExternalPullTarget(ctx,w.Repository,w.PRNumber)
+	if err!=nil { return empty,err }
+	policy,err:=p.Store.RepositoryPolicy(ctx,w.Repository)
+	if err!=nil || policy.Review.ActorID!=w.ActorID { return empty,&factory.PublicationRefusal{Reason:"authority_lost"} }
+	if observed.PRID!=w.PRID || observed.IssueID!=w.IssueID || observed.PRAuthorID!=w.PRAuthorID || observed.HeadRef!=w.HeadRef || observed.BaseRef!=w.BaseRef || observed.HeadOID!=w.HeadOID || observed.BaseOID!=w.BaseOID { return empty,&factory.PublicationRefusal{Reason:"pr_mismatch"} }
+	return observed,nil
+}
+
+// ReadExternalPullTarget is an authenticated, non-executing selection read.
+// Native connectors currently admit only same-repository, open, non-draft PRs.
+// The explicit command must subsequently reobserve every returned identity.
+func (p NativeReviews) ReadExternalPullTarget(ctx context.Context,repository,number int64) (factory.ReviewObservation,error) {
+	var empty factory.ReviewObservation
+	if !nativeIndex(number) || repository<1 { return empty,errNativeReadScope }
+	policy,err:=p.Store.RepositoryPolicy(ctx,repository)
+	if err!=nil { return empty,err }
+	account, err := p.account(ctx, strconv.FormatInt(repository, 10), factory.OpReviewSubmit)
 	if err != nil {
 		return empty, err
 	}
-	if int64(account.binding.Actor.ID) != w.ActorID {
+	if int64(account.binding.Actor.ID) != policy.Review.ActorID {
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
 	var raw struct {
@@ -88,25 +104,29 @@ func (p NativeReviews) ObserveReview(ctx context.Context, w factory.ReviewWork) 
 		HeadTip    string                      `json:"head_tip"`
 		BaseTip    string                      `json:"base_tip"`
 	}
-	if err = account.read(ctx, nativeRead{Kind: "automation_review", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber)}, &raw); err != nil {
+	if err = account.read(ctx, nativeRead{Kind: "automation_review", Repository: account.repository.ExternalID, Number: uint32(number)}, &raw); err != nil {
 		return empty, err
 	}
-	if raw.Repository != account.repository.ExternalID || raw.Number != w.PRNumber || raw.PullID != strconv.FormatInt(w.PRID, 10) || raw.IssueID != strconv.FormatInt(w.IssueID, 10) || raw.HeadRef != w.HeadRef || raw.BaseRef != w.BaseRef || raw.HeadTip != w.HeadOID || raw.BaseTip != w.BaseOID || !nativeActor(raw.Author) {
+	if raw.Repository != account.repository.ExternalID || raw.Number != number || !nativeActor(raw.Author) {
 		return empty, &factory.PublicationRefusal{Reason: "pr_mismatch"}
 	}
 	mapping, err := account.mapRead(ctx, raw.Repository, account.repository.Name, []collaboration.ObservedActor{raw.Author}, nil)
 	if err != nil {
 		return empty, err
 	}
-	if int64(mapping.Actors[raw.Author.ExternalID].ID) != w.PRAuthorID {
-		return empty, &factory.PublicationRefusal{Reason: "pr_author_mismatch"}
-	}
+	pullID,pullErr:=strconv.ParseInt(raw.PullID,10,64)
+	issueID,issueErr:=strconv.ParseInt(raw.IssueID,10,64)
+	w:=factory.ReviewWork{Repository:repository,ActorID:policy.Review.ActorID,PRNumber:number,PRID:pullID,IssueID:issueID,PRAuthorID:int64(mapping.Actors[raw.Author.ExternalID].ID),HeadRef:raw.HeadRef,BaseRef:raw.BaseRef,HeadOID:raw.HeadTip,BaseOID:raw.BaseTip}
+	if pullErr!=nil || issueErr!=nil || w.ValidateTarget()!=nil { return empty,errNativeRead }
 	encoded, err := json.Marshal(raw)
 	if err != nil {
 		return empty, err
 	}
-	revision, err := p.Store.ObserveNativeReview(ctx, w.Repository, w.PRNumber, inputDigest(encoded))
+	revision, err := p.Store.ObserveNativeReview(ctx, repository, number, inputDigest(encoded))
 	if err != nil {
+		return empty, err
+	}
+	if err := account.currentBackground(ctx, factory.OpReviewSubmit); err != nil {
 		return empty, err
 	}
 	return factory.ReviewObservation{NativeRev: revision, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: raw.HeadTip, BaseOID: raw.BaseTip}, nil

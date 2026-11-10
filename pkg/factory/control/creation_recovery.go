@@ -40,6 +40,9 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if repository == 0 {
+		return nil
+	}
 	after, err := c.Store.CreationRecoveryCursor(ctx, repository)
 	if err != nil {
 		return err
@@ -48,7 +51,7 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !policy.Enabled {
+	if !policy.Enabled || policy.Paused {
 		delete(c.creationIdlePolls, repository)
 		return nil
 	}
@@ -78,7 +81,7 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	if !page.ProvenanceComplete {
 		checkpoint = after
 	}
-	if err := c.Store.EnqueueReadinessCreationPage(ctx, repository, after, checkpoint, works); err != nil {
+	if err := c.Store.EnqueueReadinessCreationPage(ctx, repository, after, checkpoint, works, policy.Revision); err != nil {
 		return err
 	}
 	if !page.ProvenanceComplete {

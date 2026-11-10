@@ -74,7 +74,7 @@ func currentReviewTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, out 
 		if err := contextJSONRow(ctx, tx, &policy, `SELECT data FROM factory_policies WHERE repository=$1`, p.Repository); err != nil {
 			return err
 		}
-		if assessment.Repository == p.Repository && assessment.PRNumber == p.PRNumber && assessment.PRID == p.PRID && assessment.IssueID == p.PRCreate.IssueID && assessment.HeadOID == current.AdmittedTuple.Head && assessment.HeadOID == p.Candidate && assessment.BaseOID == p.PRCreate.BaseOID && assessment.HeadRef == p.PRCreate.HeadRef && assessment.BaseRef == p.PRCreate.BaseRef && assessment.PolicyRevision == policy.Revision && slices.Equal(assessment.Checks, policy.Checks) && assessment.ChecksDigest == factory.ChecksDigest(policy.Checks) && (assessment.Verdict == factory.CheckPass || assessment.Verdict == factory.CheckFailed) {
+		if assessment.Repository == p.Repository && assessment.PRNumber == p.PRNumber && assessment.PRID == p.PRID && assessment.IssueID == p.PullTarget().IssueID && assessment.HeadOID == current.AdmittedTuple.Head && assessment.HeadOID == p.Candidate && assessment.BaseOID == p.PullTarget().BaseOID && assessment.HeadRef == p.PullTarget().HeadRef && assessment.BaseRef == p.PullTarget().BaseRef && assessment.PolicyRevision == policy.Revision && slices.Equal(assessment.Checks, policy.Checks) && assessment.ChecksDigest == factory.ChecksDigest(policy.Checks) && (assessment.Verdict == factory.CheckPass || assessment.Verdict == factory.CheckFailed) {
 			current.CheckAssessment = &assessment
 		}
 	}

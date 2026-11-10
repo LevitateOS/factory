@@ -34,6 +34,7 @@ func (c *Coordinator) RetryRun(ctx context.Context, commandID, principal, runID 
 	if err != nil {
 		return factory.RetryDecision{}, retryOwnershipError(err)
 	}
+	if assignment.ExternalPlanning!=nil { return factory.RetryDecision{},store.ErrExplicitRetryIneligible }
 	implementation := assignment.Phase == project.ExecutionImplement && run.ContextPending &&
 		run.Outcome == factory.Cancelled && run.Summary == "stop-before-start" &&
 		!run.HasExecutionIdentity()

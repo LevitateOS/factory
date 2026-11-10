@@ -38,6 +38,8 @@
       <form id="fountain-login">
         <label>Fountain address <input id="fountain-origin" type="url" placeholder="https://fountain.example" required /></label>
         <label><input id="fountain-control-consent" type="checkbox" /> Request automation control access</label>
+        <label><input id="fountain-issues-consent" type="checkbox" /> Issue collaboration only</label>
+        <p>Issue-only access permits supported issue reads and writes. It grants no code access, execution, PR publication or merge authority.</p>
         <p>Control access permits a separate repository authorization. It does not select a runtime, authorize work or fund inference.</p>
         <button id="fountain-sign-in" type="submit" disabled>Sign in to Fountain</button>
       </form>

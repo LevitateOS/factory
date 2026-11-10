@@ -18,11 +18,22 @@ use std::time::Instant;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct BranchCorrection {
+    pub number: u32,
+    pub expected_author_id: i64,
+    pub expected_pr_id: i64,
+    pub expected_issue_id: i64,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct BranchPublish {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub controller_grant_id: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub source_connection: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pull_request: Option<BranchCorrection>,
     pub repository: String,
     pub branch: String,
     pub expected_old: String,
@@ -44,6 +55,11 @@ impl BranchPublish {
             || !commit(&self.comparison_oid)
             || !(self.expected_old.is_empty() || commit(&self.expected_old))
             || self.expected_old == self.candidate
+            || self.pull_request.as_ref().is_some_and(|c| {
+                self.controller_grant_id.is_empty() || self.expected_old.is_empty()
+                    || c.number == 0 || c.expected_author_id <= 0
+                    || c.expected_pr_id <= 0 || c.expected_issue_id <= 0
+            })
         {
             return Err(Failure::new(400, "invalid_native_write"));
         }
@@ -146,7 +162,7 @@ impl Client {
         deadline: Option<Instant>,
     ) -> WriteOutcome {
         self.run_mutation(deadline, |mutation| async move {
-            if !q.controller_grant_id.is_empty() || !q.source_connection.is_empty() { return Err(Failure::invalid()); }
+            if !q.controller_grant_id.is_empty() || !q.source_connection.is_empty() || q.pull_request.is_some() { return Err(Failure::invalid()); }
             q.validate()?;
             let pack = q.pack()?;
             let (mut permit, actor) = mutation.admit(self, token, expected).await?;

@@ -57,5 +57,8 @@ func (p NativeInputSource) ObserveChecks(ctx context.Context, target factory.Che
 	if err != nil {
 		return empty, err
 	}
+	if err := account.currentBackground(ctx, factory.OpMerge); err != nil {
+		return empty, err
+	}
 	return observed, nil
 }

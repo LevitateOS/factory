@@ -492,7 +492,7 @@ func resolveVerdictCycleID(p factory.Publication, assignment factory.Assignment,
 	if verdict.Review != nil {
 		return verdict.Review.CycleID, nil
 	}
-	if verdict.Clear.Head != head || verdict.Clear.BaseOID != p.PRCreate.BaseOID {
+	if verdict.Clear.Head != head || verdict.Clear.BaseOID != p.PullTarget().BaseOID {
 		return "", errors.New("clear review answers another candidate")
 	}
 	return verdict.Clear.CycleID, nil
@@ -517,7 +517,7 @@ func (c *Coordinator) bindPhasedReviewVerdict(ctx context.Context, p factory.Pub
 		return "", "", errors.New("review verdict consumes an unrecorded cycle")
 	}
 	if cycle.PublicationID != p.ID || cycle.ReviewerAssignment != assignment.ID ||
-		cycle.Head != head || cycle.BaseOID != p.PRCreate.BaseOID {
+		cycle.Head != head || cycle.BaseOID != p.PullTarget().BaseOID {
 		return "", "", errors.New("review verdict answers another round")
 	}
 	carried, err := c.reviewCarriedFindings(ctx, p, cycle)
@@ -577,7 +577,7 @@ func renderTypedReviewBody(head, base string, verdict ResolvedReviewVerdict) str
 // reviewer is wired, submission reports unavailable instead of guessing.
 func (c *Coordinator) replaySubmittedReview(ctx context.Context, p *factory.Publication, run factory.Run) (factory.ReviewOutcome, bool, error) {
 	var empty factory.ReviewOutcome
-	for i := range p.ReviewOperations {
+	for i := len(p.ReviewOperations)-1; i >= 0; i-- {
 		op := p.ReviewOperations[i]
 		if op.RunID != run.ID {
 			continue
@@ -651,7 +651,7 @@ func (c *Coordinator) SubmitReviewForRun(ctx context.Context, runID string) (fac
 	} else if replayed {
 		return adopted, nil
 	}
-	if p.Stage != factory.PublicationPublished || p.PRNumber <= 0 || p.PRID <= 0 || p.PRCreate.Work == nil {
+	if p.Stage != factory.PublicationPublished || !p.HasPullTarget() {
 		return empty, errors.New("review target is not published")
 	}
 	head := run.InputSHA
@@ -688,8 +688,8 @@ func (c *Coordinator) buildReviewWork(ctx context.Context, p factory.Publication
 	w := factory.ReviewWork{
 		OperationID: "review-" + run.ID, AuthRevision: factory.ReviewAuthRevision(owner.ID, run.ID),
 		Repository: p.Repository, ActorID: policy.Review.ActorID,
-		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: p.PRCreate.Work.ActorID,
-		HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: head, BaseOID: p.PRCreate.BaseOID,
+		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID,
+		HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: head, BaseOID: p.PullTarget().BaseOID,
 		Event: event, Body: body,
 	}
 	if policy.AutomaticReviewEvent(w.PRAuthorID, event) == "COMMENT" {
@@ -702,7 +702,7 @@ func (c *Coordinator) buildReviewWork(ctx context.Context, p factory.Publication
 	if err != nil {
 		return empty, err
 	}
-	notAfter, err := c.Store.CapAttemptDeadline(ctx, owner.ID, time.Now().Add(10*time.Minute).Unix())
+	notAfter, err := c.Store.CapAttemptDeadline(ctx, owner.ID, time.Now().Add(5*time.Minute).Unix())
 	if err != nil {
 		return empty, err
 	}
@@ -775,7 +775,7 @@ func (c *Coordinator) recordReviewCandidateTuple(ctx context.Context, p *factory
 	if !factory.ValidCommit(adopted.HeadOID) || !factory.ValidCommit(adopted.BaseOID) || !factory.ValidCommit(adopted.MergeBaseOID) {
 		return nil
 	}
-	if adopted.HeadOID != p.Candidate || adopted.BaseOID != p.PRCreate.BaseOID {
+	if adopted.HeadOID != p.Candidate || adopted.BaseOID != p.PullTarget().BaseOID {
 		return nil
 	}
 	if p.Tuple != nil && p.Tuple.Head == adopted.HeadOID && p.Tuple.Base == adopted.BaseOID && p.Tuple.DiffBase == adopted.MergeBaseOID {
@@ -845,7 +845,7 @@ func (c *Coordinator) reconcileRecordedReviews(ctx context.Context, p *factory.P
 		if prior.Effect == factory.OpEffectCommitted && prior.Completion == factory.OpCompletionComplete {
 			// A crash can persist the completed review before its candidate tuple.
 			// Reuse that receipt; never submit another review to fill the gap.
-			if c.Reviews != nil && op.Work.HeadOID == p.Candidate && op.Work.BaseOID == p.PRCreate.BaseOID &&
+			if c.Reviews != nil && op.Work.HeadOID == p.Candidate && op.Work.BaseOID == p.PullTarget().BaseOID &&
 				(p.Tuple == nil || p.Tuple.Head != op.Work.HeadOID || p.Tuple.Base != op.Work.BaseOID) {
 				adopted, err := c.Reviews.AdoptReview(ctx, op.Work, prior)
 				if err != nil || adopted.ReviewerID != op.Work.ActorID || adopted.Event != op.Work.Event || adopted.HeadOID != op.Work.HeadOID {
@@ -1035,7 +1035,7 @@ func replayReviewCycle(p *factory.Publication, owner factory.Assignment, role, d
 	var empty factory.ReviewCycle
 	if n := len(p.ReviewCycles); n > 0 {
 		last := p.ReviewCycles[n-1]
-		if last.Head == p.Candidate && last.BaseOID == p.PRCreate.BaseOID && last.FindingDigest == digest && last.InputDigest == inputDigest {
+		if last.Head == p.Candidate && last.BaseOID == p.PullTarget().BaseOID && last.FindingDigest == digest && last.InputDigest == inputDigest {
 			var childID, prepID string
 			if role == project.RoleReviewer {
 				childID = last.ReviewerAssignment
@@ -1144,7 +1144,7 @@ func (c *Coordinator) ensureReviewCycle(ctx context.Context, p *factory.Publicat
 	cycle := factory.ReviewCycle{
 		PublicationID: p.ID, AttemptRoot: owner.AttemptRoot, ID: cycleID, Phase: reviewCyclePhase,
 		TriggerDecision: triggerDecision, TriggerReason: triggerReason,
-		Head: p.Candidate, BaseOID: p.PRCreate.BaseOID, FindingDigest: digest, InputDigest: inputDigest,
+		Head: p.Candidate, BaseOID: p.PullTarget().BaseOID, FindingDigest: digest, InputDigest: inputDigest,
 		ReviewerAssignment: reviewerAssignment, CorrectionAssignment: correctionAssignment, Round: round,
 	}
 	if err := cycle.Validate(); err != nil {

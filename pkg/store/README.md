@@ -55,6 +55,13 @@ encrypted credential fixtures; the production identity broker uses its separate
 Rust store. `SchemaVersion()` reports the source's current schema format without
 connecting.
 
+Format 104 preserves explicit review-only continuations and completed-review
+submission retries. Its transactional 103→104 migration extends only the
+`retry-unsent-review` command's payload bound to 2 MiB; fresh databases use the
+same constraint. Historical constraints are checked before replacement. Command
+payloads, outcomes, dispatch reservations and uncertain effects are not rewritten,
+and an older application must refuse the new marker before opening adapters.
+
 ## Consume typed records
 
 | API area | Examples |

@@ -2728,6 +2728,36 @@ needed no Daybreak session; Q24's shared-appliance deferral is unchanged.
 
 ### Q15 progress: native coordinator startup and diagnosis (2026-11-09)
 
+2026-11-10 implementation-only continuation: ordinary publication IDs and their
+execution-owner IDs are distinct; the existing retained funding owner and shared
+UI now preserve that distinction while adopting the original candidate. A
+definitively unsent review is also distinct from an incomplete reviewer model:
+the existing publication journal now retains an explicit `retry-unsent-review`
+command and a new bounded submission of the exact completed report. Its previous
+operation stays immutable; uncertain lookup absence never supplies authority.
+The shared API/UI retain the exact fresh request and recover its registration;
+the existing native reconciler owns later effects. There is no new model
+allowance or parallel recovery journal. These are source edits only, unverified
+and uncommitted under the owner's explicit no-execution instruction. Q15's
+connected completion requirements remain open in the task record.
+
+Q16 source continuation now pins poll-page and initial-acceptance publication
+to the policy read before I/O, using the existing Store transaction and dispatch
+gate. A paused/replaced policy cannot move the cursor or admit a new initial
+acceptance from the old read; loss of current creator permission retains queued
+work for reconciliation rather than consuming its original creation delivery.
+The empty repository set is idle. Existing causal-origin and original-input
+owners stay in place. Source edits only: no execution or qualification occurred,
+and Q16 precedes the still-outstanding Q17 implementation.
+
+Q19 implementation-only continuation separates shared controller-selection and
+operation-authorization capabilities to match the canonical host’s existing
+admin/code-writer distinction. The native current-grant predicate now checks
+the captured expiry as well as host activity and operation membership; lookup
+and retirement do not acquire that dispatch authority. Host placement, grants
+and journals remain canonical Fountain owners. Source edits only, unverified
+and uncommitted; no execution or new qualification evidence was produced.
+
 Q30 reached Q15 after Q14's connected completion. The real fresh native profile
 `58dbb6051262e8a338cb861e359a0ac5` retained issue #18, command
 `15151515151515151515151515151502`, acceptance `d151515151515151515151515`
@@ -3365,6 +3395,67 @@ pass without execution or inference. Original Markdown and fixture permissions
 are preserved. Check processes joined. This closes ordinary Q20; installed
 consumer/native desktop enrollment and broad D5 stay open in Q27/Q29/Q24.
 
+Q30 source-only finalization (2026-11-10, unverified): retained funding,
+merge-preparation and unsent-review confirmations now compare validated fields,
+including nested source/limits, independent of JSON key order; saved commands
+keep their identity. Their shared decoders match Go's exact commit/connection
+bounds. No execution or commit. The single current Q30 task ledger maps all15
+milestone outcomes, all13 open gates, missing external/issue-only implementation,
+the appliance blocker, historical release evidence and exact recovery order.
+Neither full completion nor READY FOR DAYBREAK is claimed.
+
+Q29 source-only shared policy confirmation (2026-11-10, unverified): the shared
+role settings compare exact submitted actor bindings, including Fountain grant
+identity, before reporting a save as confirmed. Both consumers keep one Lit
+owner; no cosmetic/consumer fork. No builds, installations, checks or commit;
+actual installed navigation/policy parity remains open in Q29's active record.
+
+Q28 source-only retained-format/startup recovery (2026-11-10, unverified):
+format104 shares fresh/migrated review-retry payload bounds and fences older
+writers without rewriting command history or releasing reservations. Native
+PostgreSQL reuses a valid saved pre-initdb password and refuses partial/symlink
+cluster paths; reading a missing retained password no longer creates a file.
+No execution, migration or commit; exact owned paths, disposable-copy checks and
+remaining installed activation gates are in Q28's active task record.
+
+Q27 source-only Fountain login recovery (2026-11-10, unverified): asynchronous
+UI replies obey runtime/interaction/visibility ownership. Unknown or unusable
+accounts disable enrollment/controller actions; read logins cannot request
+control, and account removal cannot select a replacement implicitly. Native
+authority and retained installed evidence are unchanged. No execution or commit;
+native desktop issue-only support, external adoption and full installed
+qualification remain open in Q27's active record.
+
+Q26 source-only UI recovery (2026-11-10, unverified): GitHub refresh replies obey
+the existing runtime-generation guard, failed runtime status retires all login
+presentations, and retained-publication descriptions select the same available
+action as submission. Saved command identity retains priority; malformed commit
+lengths stay held. No execution or commit; installed qualification and the shared
+external-adoption prerequisite remain open in Q26/Q23.
+
+Q23 source-only correction binding (2026-11-10, unverified): the native Go/Rust
+transfer now carries exact correction PR/issue/author identity to canonical
+Fountain's existing conditional receive. The host/SDK carry optional identity
+pins, with host enforcement at launch, prepared admission and recovery; receipt
+adoption checks those pins. Historical commands gain no authority. Review/check
+observations reuse the final controller recheck. No execution or commit. The
+shared external-origin/candidate-preparation workflow is still missing; its
+concrete dependency, owned cross-repository paths and next action are in Q23.
+
+Q22 source-only intake corrections (2026-11-10, unverified): background input
+reads recheck the original admitted Fountain grant/placement after I/O without
+renewing authority or gating historical lookup. Fountain delivery keys include
+the canonical host; enqueue preserves an existing queued creation's original
+identity and facts. No execution or commit; full connected qualification and
+recovery details remain in Q22's active task record.
+
+Q21 source-only recovery correction (2026-11-10, unverified): the existing Rust
+publication owner requires host completion before exposing definitive no-send,
+so a not-committed transfer with unresolved host cleanup cannot be promoted into
+completed product history. Original journal/receive fences and lookup-only
+recovery are preserved. No execution or commit; current recovery and remaining
+qualification are recorded once in Q21's active task record.
+
 Q21 public conditional transport (2026-11-09): Fountainb44c7f5331 authenticates
 desktop OAuth/native profile proof and the exact registered operation grant at
 the existing conditional receive seam; appliance admission is a separate path.
@@ -3664,6 +3755,40 @@ existing real preparation check passes 64 fences, scoped refusal, actual setup
 with retained history and lookup across restart without replay
 (`q25-package/fountain-installed58/preparation-fences3.log`). No model or provider
 write ran; installed original-preparation settlement remains next.
+
+### External adoption and public issue-only composition (2026-11-10, unverified)
+
+Implementation-only continuation: shared explicit same-repository external PR
+admission now retains native target identity separately from creation effects,
+uses a non-executing allowance owner referencing a real completed issue plan,
+and prepares authenticated exact-head bytes through existing native custody.
+Review/correction/check/merge and merged-result preparation consume that origin;
+no initial Builder/export/checkpoint is invented. Shared UI retains the command
+and captured source/limits. Format105 fences old writers without changing the
+format104 command bound. Fresh planning now uses the ordinary Architect packet:
+its command/run/reservation/finite allowance commit together, initial Builder
+advancement is held, and completed plan/completeness evidence promotes the exact
+captured PR under the same charged root. Command replay recovers the original
+assignment/run; broader source/fork adapters and new-PR discovery remain open.
+External continuation recovery/withdrawal handles an absent initial Builder run;
+confirmed withdrawal retains the human PR, while an observed correction commit
+retains its actual correction run. Unknown original outcomes stay fenced.
+Canonical SodaOS now forwards signed PR/sync/review/comment/check locators to
+Factory's admitted-publication wake path. The existing readiness journal owns
+dedupe/restart; enqueue also observes completed receipts under its budget lock.
+Events create no source consent, allowance, execution or new adoption. The two
+SodaOS intake source edits are unverified alongside the Factory/Fountain edits;
+no appliance was contacted.
+
+Canonical Fountain's separate issue-only OAuth/enrollment and public snapshot/
+human-operation routes now compose with native login, the five Go writers and
+original host journal recovery. Explicit loader consent hides PR dependency
+targets; withdrawn enrollment permits lookup, not new preparation. Existing
+repo/control scopes, old grants and receipts keep their semantics. No builds,
+tests, migrations, applications, inference, remote effects, process inspection
+or Git commands ran; edits in both repositories remain uncommitted. Q24 still
+has no replacement appliance. Q30 remains INCOMPLETE; use its single recovery
+record and Q17/Q27 active records rather than replaying any original effect.
 
 ## Verification and completion
 

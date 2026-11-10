@@ -8,9 +8,10 @@ import (
 	"sync"
 )
 
-// Schema 103 preserves expired, unallocated merge authorizations in history.
-// Older writers must refuse rather than reinterpret those local retirements.
-const schemaFormatVersion = 103
+// Schema 105 retains external publication origins, non-executing allowance
+// owners and authenticated PR preparation sources. Older writers must refuse
+// rather than erase these meanings or reinterpret them as own publication.
+const schemaFormatVersion = 105
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -43,7 +44,7 @@ data JSONB NOT NULL)`,
 	`CREATE INDEX factory_unsettled_runs ON factory_runs(id) WHERE active OR NOT settled OR COALESCE(data->>'reconciled','false') <> 'true'`,
 	`CREATE TABLE factory_commands(
 id TEXT PRIMARY KEY, type TEXT NOT NULL, target TEXT NOT NULL DEFAULT '',
-principal TEXT NOT NULL, digest TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '' CONSTRAINT factory_commands_payload_check CHECK((type IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create') AND octet_length(payload)<=2097152) OR (type IN ('pull_request.review.thread.resolve','pull_request.review.request') AND octet_length(payload)<=131072) OR (type='git.branch.create' AND octet_length(payload)<=32768) OR (type NOT IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create','pull_request.review.thread.resolve','pull_request.review.request','git.branch.create') AND char_length(payload)<=8192)),
+principal TEXT NOT NULL, digest TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '' CONSTRAINT factory_commands_payload_check CHECK(` + reviewRetryCommandPayloadCheck + `),
 outcome TEXT NOT NULL DEFAULT '' CHECK(char_length(outcome)<=65536),
 created TEXT NOT NULL, finished TEXT NOT NULL DEFAULT '',
 dispatch_state TEXT NOT NULL DEFAULT 'unclaimed' CHECK(dispatch_state IN ('unclaimed','reserved','legacy_unknown')))`,
@@ -703,6 +704,25 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=103 WHERE version=102`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate unallocated merge retirement format: %w", err))
+		}
+		version = 103
+	}
+	if version == 103 {
+		for _, statement := range reviewRetryCommandUpgradeDDL {
+			if _, err = t.ExecContext(ctx, statement); err != nil {
+				rollback()
+				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate captured review retry format: %w", err))
+			}
+		}
+		version=104
+	}
+	if version==104 {
+		// The JSON contracts changed; their command payload bound did not.
+		// Preserve every command/receipt and refuse any unknown prior shape.
+		if err=verifyCommandPayloadCheck(ctx,t,104); err!=nil { return err }
+		if _,err=t.ExecContext(ctx,`UPDATE schema_version SET version=105 WHERE version=104`); err!=nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx,db,fmt.Errorf("migrate external publication contract: %w",err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

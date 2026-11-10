@@ -650,7 +650,7 @@ func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Pu
 	retry := mergeNoSendRecovery(m)
 	expiredUnallocated := retry && m.Stage == factory.MergeWithdrawn && pristineMergeOperation(m.Operation) && m.RetryCommand != "" && time.Now().Unix() >= m.RetryNotAfter
 	if m.Validate() != nil || m.WithdrawRequested && !expiredUnallocated ||
-		m.AssignmentID != a.ID || m.PublicationID != p.ID || m.Repository != p.Repository || m.Issue != p.Issue || m.PRID != p.PRID || m.PRNumber != p.PRNumber || m.HeadOID != p.Candidate || m.BaseOID != p.PRCreate.BaseOID || m.BaseRef != g.policy.TargetBranch || m.ReviewerID != g.policy.Review.ActorID {
+		m.AssignmentID != a.ID || m.PublicationID != p.ID || m.Repository != p.Repository || m.Issue != p.Issue || m.PRID != p.PRID || m.PRNumber != p.PRNumber || m.HeadOID != p.Candidate || m.BaseOID != p.PullTarget().BaseOID || m.BaseRef != g.policy.TargetBranch || m.ReviewerID != g.policy.Review.ActorID {
 		return ErrMergeConflict
 	}
 	if !retry && ((m.Stage != factory.MergeOpen && m.Stage != factory.MergeFenced) || m.Authorization.Bound() || len(m.History) != 0 || !pristineMergeOperation(m.Operation)) {

@@ -104,6 +104,7 @@ export interface WorkReview {
   reason?: string;
 }
 export interface WorkPublication {
+	origin?: 'external';
   candidate: string;
   base_sha: string;
   target_branch: string;
@@ -181,17 +182,18 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
     Object.keys(r).length !==
       (n === undefined ? 9 : 10) + (r.previous_root === undefined ? 0 : 1) + (r.carry_unused === undefined ? 0 : 1) + (r.requirements === undefined && r.approval === undefined ? 0 : 2) ||
     ((r.requirements !== undefined || r.approval !== undefined) && !['requirements', 'approval'].every((k) => typeof r[k] === 'string' && /^d[a-f0-9]{24}$/.test(r[k] as string))) ||
-    (r.previous_root !== undefined && r.previous_root !== r.publication) ||
+    (r.previous_root !== undefined &&
+      (typeof r.previous_root !== 'string' || !/^[a-f0-9]{32}$/.test(r.previous_root))) ||
     (r.carry_unused !== undefined && (r.carry_unused !== true || r.previous_root === undefined)) ||
     !source ||
     typeof r.publication !== 'string' ||
     !/^[a-f0-9]{32}$/.test(r.publication) ||
-    !['candidate', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||
+    !['candidate', 'base'].every((k) => typeof r[k] === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(r[k] as string)) ||
     r.candidate === r.base ||
     typeof r.acceptance !== 'string' ||
     !/^d[a-f0-9]{24}$/.test(r.acceptance) ||
     !['connection'].every(
-      (k) => typeof r[k] === 'string' && (r[k] as string).length > 0 && (r[k] as string).length <= 256
+      (k) => typeof r[k] === 'string' && (r[k] as string).length > 0 && new TextEncoder().encode(r[k] as string).length <= 128
     ) ||
     !integer(r.policy, 1) ||
     !l ||
@@ -226,7 +228,7 @@ export function mergePreparation(value: unknown): MergePreparation | undefined {
     (setup && !['requirements_id', 'approval_id'].every(k => typeof r[k] === 'string' && /^d[a-f0-9]{24}$/.test(r[k] as string))) ||
     (r.retry_no_send !== undefined && r.retry_no_send !== true) ||
     !['publication', 'merge_id'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) ||
-    !['head', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||
+    !['head', 'base'].every((k) => typeof r[k] === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(r[k] as string)) ||
     typeof r.revision !== 'number' ||
     !Number.isSafeInteger(r.revision) ||
     r.revision < 0 ||
@@ -238,6 +240,8 @@ export function mergePreparation(value: unknown): MergePreparation | undefined {
   return value as MergePreparation;
 }
 export interface WorkCapabilities {
+	adopt_external?: WorkCapability;
+  retry_review?: WorkCapability & {review_retry: ReviewRetry};
   prepare_merge?: WorkCapability & {merge_preparation: MergePreparation};
   fund_retained?: WorkCapability & {funding: RetainedCandidateFunding};
   /** Older hosts keep this action unavailable. */
@@ -248,6 +252,25 @@ export interface WorkCapabilities {
   takeover: WorkCapability;
   pause: WorkCapability;
   resume: WorkCapability;
+}
+
+export interface ReviewRetry {
+  publication: string;
+  run: string;
+  operation: string;
+  head: string;
+  base: string;
+  policy: number;
+}
+export function reviewRetry(value: unknown): ReviewRetry | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const r = value as Record<string, unknown>;
+  if (Object.keys(r).length !== 6 ||
+    !['publication', 'run'].every(k => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) ||
+    typeof r.operation !== 'string' || !/^[a-zA-Z0-9._:-]{1,128}$/.test(r.operation) ||
+    !['head', 'base'].every(k => typeof r[k] === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(r[k] as string)) ||
+    r.head === r.base || typeof r.policy !== 'number' || !Number.isSafeInteger(r.policy) || r.policy < 1) return undefined;
+  return value as ReviewRetry;
 }
 export interface RequestedRetry {
   command_id: string;
@@ -413,6 +436,7 @@ function workPublication(value: unknown): WorkPublication {
   const raw = record(value);
   const reason = nonEmpty(raw.reason);
   return {
+	...(raw.origin === 'external' ? {origin: 'external' as const} : {}),
     candidate: text(raw.candidate),
     base_sha: text(raw.base_sha),
     id: text(raw.id),
@@ -447,9 +471,12 @@ function workCapability(value: unknown): WorkCapability {
 }
 function workCapabilities(value: unknown): WorkCapabilities {
   const raw = record(value);
+  const retry = reviewRetry(record(raw.retry_review).review_retry);
   const funding = retainedCandidateFunding(record(raw.fund_retained).funding);
   const preparation = mergePreparation(record(raw.prepare_merge).merge_preparation);
   return {
+	...(present(raw.adopt_external) ? {adopt_external: workCapability(raw.adopt_external)} : {}),
+    ...(retry ? {retry_review: {...workCapability(raw.retry_review), review_retry: retry}} : {}),
     ...(preparation ? {prepare_merge: {...workCapability(raw.prepare_merge), merge_preparation: preparation}} : {}),
     ...(funding ? {fund_retained: {...workCapability(raw.fund_retained), funding}} : {}),
     ...(present(raw.publish_retained) ? {publish_retained: workCapability(raw.publish_retained)} : {}),

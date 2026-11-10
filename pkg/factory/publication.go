@@ -104,6 +104,7 @@ const (
 // the current attempt bound, and the exact linked PR once creation commits.
 // Finished work keeps its receipts for inspection.
 type Publication struct {
+	External             *ExternalPublicationOrigin    `json:"external,omitempty"`
 	WithdrawRequested    bool                          `json:"withdraw_requested,omitempty"`
 	Publish              PublicationOperation          `json:"publish"`
 	PRCreate             PublicationOperation          `json:"pr_create"`
@@ -145,6 +146,7 @@ type Publication struct {
 // finished work carries its outcome, reason and finish time. A published
 // publication links exactly the PR its own creation receipt proved.
 func (p Publication) Validate() error {
+	if err:=p.validateExternalOrigin(); err!=nil { return err }
 	if err := checkPublicationIdentity(p); err != nil {
 		return err
 	}
@@ -202,7 +204,7 @@ func checkPublicationScope(p Publication) error {
 	if !ValidPreparationRef(p.Preparation) {
 		return errors.New("invalid publication preparation")
 	}
-	if !ValidID(p.Run) {
+	if !ValidID(p.Run) && !(p.External!=nil && p.Run=="") {
 		return errors.New("invalid publication run")
 	}
 	return nil
@@ -261,12 +263,13 @@ func checkPublicationOperations(p Publication) error {
 func checkPublicationCorrections(p Publication) (string, error) {
 	initial := p.Candidate
 	if len(p.Corrections) == 0 {
+		if p.External!=nil && p.Run!="" { return "",errors.New("external origin has no Builder run") }
 		return initial, nil
 	}
-	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced) || p.PRNumber <= 0 || p.PRCreate.Work == nil || p.Publish.Work == nil {
+	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced && !(p.External!=nil && p.Stage==PublicationWithdrawn)) || !p.HasPullTarget() || p.InitialCandidate()=="" {
 		return "", errors.New("corrections require a published linked PR")
 	}
-	initial = p.Publish.Work.Candidate
+	initial = p.InitialCandidate()
 	head := initial
 	committedRun := ""
 	runs := make(map[string]bool, len(p.Corrections))
@@ -283,6 +286,7 @@ func checkPublicationCorrections(p Publication) (string, error) {
 	if committedRun != "" && p.Run != committedRun {
 		return "", errors.New("publication run differs from its committed correction")
 	}
+	if committedRun=="" && p.External!=nil && p.Run!="" { return "",errors.New("external candidate has no correction run") }
 	return initial, nil
 }
 
@@ -305,7 +309,7 @@ func checkPublicationCorrection(p Publication, i int, head, committedRun string,
 	if work == nil {
 		return head, committedRun, errors.New("correction lacks its recorded intent")
 	}
-	if work.CorrectionNumber != p.PRNumber || work.CorrectionAuthor != p.PRCreate.Work.ActorID {
+	if work.CorrectionNumber != p.PRNumber || work.CorrectionAuthor != p.PullTarget().AuthorID {
 		return head, committedRun, errors.New("correction does not bind the linked PR")
 	}
 	if work.Repository != p.Repository || work.TargetBranch != p.TargetBranch {
@@ -322,6 +326,10 @@ func checkPublicationCorrection(p Publication, i int, head, committedRun string,
 }
 
 func checkPublicationPRLinks(p Publication, initial string) error {
+	if p.External!=nil {
+		if initial!=p.External.Target.HeadOID { return errors.New("external publication origin head changed") }
+		return nil
+	}
 	for _, op := range []PublicationOperation{p.Publish, p.PRCreate} {
 		if op.Work != nil && (op.Work.Candidate != initial || op.Work.Repository != p.Repository || op.Work.TargetBranch != p.TargetBranch) {
 			return errors.New("publication operation intent differs from its publication")
@@ -359,6 +367,7 @@ func checkPublishedPublicationOutcome(p Publication) error {
 	if p.PRNumber <= 0 || p.PRID <= 0 {
 		return errors.New("published publication lacks its PR links")
 	}
+	if p.External!=nil { return nil }
 	if p.PRCreate.Effect != OpEffectCommitted || p.PRCreate.PRNumber != p.PRNumber || p.PRCreate.PRID != p.PRID {
 		return errors.New("published PR is not the recorded creation effect")
 	}
@@ -414,13 +423,14 @@ func (p Publication) validateReviewOperations(additional *ReviewOperation) error
 	if count == 0 {
 		return nil
 	}
-	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced) || p.PRCreate.Work == nil || p.PRCreate.Effect != OpEffectCommitted {
+	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced) || !p.HasPullTarget() {
 		return errors.New("review operations require a linked publication")
 	}
 	if count > MaxPublicationReviewOperations {
 		return errors.New("publication review history exceeds its record bound")
 	}
-	seen := make(map[string]bool, count)
+	seen := make(map[string]ReviewOperation, count)
+	operations := make(map[string]bool, count)
 	retained := 0
 	for i := 0; i < count; i++ {
 		var op ReviewOperation
@@ -436,10 +446,19 @@ func (p Publication) validateReviewOperations(additional *ReviewOperation) error
 		if retained > MaxPublicationReviewBytes {
 			return errors.New("publication review history exceeds its byte bound")
 		}
-		if seen[op.RunID] {
-			return errors.New("duplicate review run operation")
+		if operations[op.Work.OperationID] {
+			return errors.New("duplicate review operation")
 		}
-		seen[op.RunID] = true
+		if prior, exists := seen[op.RunID]; exists {
+			retained := op.Work
+			retained.OperationID, retained.NativeRev, retained.NotAfter = prior.Work.OperationID, prior.Work.NativeRev, prior.Work.NotAfter
+			if op.RetryOf != prior.Work.OperationID || !prior.DefinitiveNoSend() || !ReviewWorkEqual(retained, prior.Work) {
+				return errors.New("review retry lacks its exact definitive no-send predecessor")
+			}
+		} else if op.RetryOf != "" {
+			return errors.New("review retry predecessor is missing")
+		}
+		seen[op.RunID], operations[op.Work.OperationID] = op, true
 	}
 	return nil
 }
@@ -591,7 +610,7 @@ func (p Publication) CurrentDiffBase() string {
 	if p.Tuple != nil && p.Tuple.Head == p.Candidate && ValidCommit(p.Tuple.DiffBase) {
 		return p.Tuple.DiffBase
 	}
-	return p.PRCreate.BaseOID
+	return p.PullTarget().BaseOID
 }
 
 // RefHead returns the branch name without its refs/heads/ prefix, or empty

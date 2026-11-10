@@ -19,6 +19,7 @@ const SCOPE: &str = "read:repository";
 const CONTROL_SCOPE: &str = "write:repository";
 const COLLABORATION_SCOPE: &str = "read:repository read:issue";
 const COLLABORATION_CONTROL_SCOPE: &str = "write:repository write:issue";
+const ISSUES_SCOPE: &str = "write:issue";
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -120,14 +121,17 @@ async fn json<T: serde::de::DeserializeOwned>(request: reqwest::RequestBuilder) 
 }
 impl Client {
     pub async fn configured(origin: &str) -> Result<Self> {
-        Self::configured_for(origin, false).await
+        Self::configured_for(origin, false, false).await
     }
     /// Only an explicit user choice requests privileged OAuth consent. It
     /// still creates no repository controller, operation grant or funding.
     pub async fn configured_control(origin: &str) -> Result<Self> {
-        Self::configured_for(origin, true).await
+        Self::configured_for(origin, true, false).await
     }
-    async fn configured_for(origin: &str, control: bool) -> Result<Self> {
+    pub async fn configured_issues(origin: &str) -> Result<Self> {
+        Self::configured_for(origin, false, true).await
+    }
+    async fn configured_for(origin: &str, control: bool, issues_only: bool) -> Result<Self> {
         Account::new(Provider::Fountain, origin, "origin-validation")
             .map_err(|_| Error::Invalid)?;
         let origin = url::Url::parse(origin).map_err(|_| Error::Invalid)?;
@@ -146,7 +150,9 @@ impl Client {
         let configured: Config = json(
             http.get(
                 origin
-                    .join(if control {
+                    .join(if issues_only {
+                        "api/v1/factory/desktop/oauth/issues"
+                    } else if control {
                         "api/v1/factory/desktop/oauth/control"
                     } else {
                         "api/v1/factory/desktop/oauth"
@@ -155,11 +161,12 @@ impl Client {
             ).header("X-Factory-Desktop-Protocol", "2"),
         )
         .await?;
-        let scope = match (control,configured.scope.as_str()) {
-            (false,SCOPE)=>SCOPE,
-            (true,CONTROL_SCOPE)=>CONTROL_SCOPE,
-            (false,COLLABORATION_SCOPE)=>COLLABORATION_SCOPE,
-            (true,COLLABORATION_CONTROL_SCOPE)=>COLLABORATION_CONTROL_SCOPE,
+        let scope = match (issues_only,control,configured.scope.as_str()) {
+            (true,false,ISSUES_SCOPE)=>ISSUES_SCOPE,
+            (false,false,SCOPE)=>SCOPE,
+            (false,true,CONTROL_SCOPE)=>CONTROL_SCOPE,
+            (false,false,COLLABORATION_SCOPE)=>COLLABORATION_SCOPE,
+            (false,true,COLLABORATION_CONTROL_SCOPE)=>COLLABORATION_CONTROL_SCOPE,
             _=>return Err(Error::Invalid),
         };
         if !client_id(&configured.client_id) {

@@ -80,7 +80,7 @@ func (s *nativeProductAccount) creatorPermission(ctx context.Context, number int
 	return result, err
 }
 
-// ReadCreations discovers visible original issues. Positions are stable GitHub
+// ReadCreations discovers visible original issues. Positions are stable provider
 // issue numbers, not webhook/event history or a global provider revision.
 func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after int64, limit int) (factory.CreationRecoveryBatch, error) {
 	var empty factory.CreationRecoveryBatch
@@ -94,7 +94,7 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 		return empty, err
 	}
 	page := factory.CreationRecoveryBatch{Repository: repository, Events: []factory.OriginalCreationEvent{}, NextPosition: after, RetentionLimited: true, ProvenanceComplete: true, ReachedRetainedEnd: true}
-	if !policy.Enabled {
+	if !policy.Enabled || policy.Paused {
 		return page, nil
 	}
 	account, err := s.account(ctx, strconv.FormatInt(repository, 10), factory.OpRefPublish)
@@ -157,7 +157,13 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 		if e != nil {
 			return empty, errNativeRead
 		}
-		page.Events = append(page.Events, factory.OriginalCreationEvent{Position: i.Number, Delivery: "github-original-issue:" + i.ID, Repository: repository, Issue: i.Number, OriginalIssueID: id, Creator: int64(creator.ID), CreatorWrite: *permission.Write, CreatedUnix: i.CreatedAt.Unix(), TitleDigest: inputDigest([]byte(i.Title)), ContentDigest: inputDigest([]byte(i.Body)), Verified: true})
+		delivery := "github-original-issue:" + i.ID
+		if account.binding.Host.Provider == collaboration.Fountain {
+			// Native issue IDs are local to one Fountain host. Preserve GitHub's
+			// existing global IDs while keeping separate hosts' deliveries distinct.
+			delivery = "fountain-original-issue:" + strconv.FormatInt(int64(account.binding.Host.ID), 10) + ":" + i.ID
+		}
+		page.Events = append(page.Events, factory.OriginalCreationEvent{Position: i.Number, Delivery: delivery, Repository: repository, Issue: i.Number, OriginalIssueID: id, Creator: int64(creator.ID), CreatorWrite: *permission.Write, CreatedUnix: i.CreatedAt.Unix(), TitleDigest: inputDigest([]byte(i.Title)), ContentDigest: inputDigest([]byte(i.Body)), Verified: true})
 	}
 	confirm, err := account.openIssues(ctx)
 	if err != nil {
@@ -177,10 +183,13 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 	if err != nil {
 		return empty, err
 	}
-	if current.Revision != policy.Revision {
+	if !current.Enabled || current.Paused || current.Revision != policy.Revision {
 		return empty, errNativeReadScope
 	}
-	return page, account.current(ctx)
+	if err := account.currentBackground(ctx, factory.OpRefPublish); err != nil {
+		return empty, err
+	}
+	return page, nil
 }
 
 func (s NativeInputSource) CheckInitialCreator(ctx context.Context, hint control.IntakeHint) error {
@@ -188,8 +197,8 @@ func (s NativeInputSource) CheckInitialCreator(ctx context.Context, hint control
 	if err != nil {
 		return err
 	}
-	if !policy.Enabled {
-		return &control.AcceptanceRefusal{Reason: control.RefusalCreationUnauthorized}
+	if !policy.Enabled || policy.Paused {
+		return store.ErrAdmissionChanged
 	}
 	account, err := s.account(ctx, strconv.FormatInt(hint.Repository, 10), factory.OpRefPublish)
 	if err != nil {
@@ -206,15 +215,18 @@ func (s NativeInputSource) CheckInitialCreator(ctx context.Context, hint control
 	if err != nil {
 		return err
 	}
-	if permission.IssueID != strconv.FormatInt(hint.NativeIssueID, 10) || !*permission.Write {
-		return &control.AcceptanceRefusal{Reason: control.RefusalCreationUnauthorized}
+	if permission.IssueID != strconv.FormatInt(hint.NativeIssueID, 10) {
+		return errNativeReadScope
+	}
+	if !*permission.Write {
+		return store.ErrAdmissionChanged
 	}
 	current, err := s.Store.RepositoryPolicy(ctx, hint.Repository)
 	if err != nil {
 		return err
 	}
-	if !current.Enabled || current.Revision != policy.Revision {
-		return &control.AcceptanceRefusal{Reason: control.RefusalCreationUnauthorized}
+	if !current.Enabled || current.Paused || current.Revision != policy.Revision {
+		return store.ErrAdmissionChanged
 	}
-	return account.current(ctx)
+	return account.currentBackground(ctx, factory.OpRefPublish)
 }

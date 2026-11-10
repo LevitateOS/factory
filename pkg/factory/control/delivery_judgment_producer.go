@@ -102,8 +102,8 @@ func (c *Coordinator) plannedDeliveryResolutions(ctx context.Context, p factory.
 				return nil, errors.New("finding has more than one native resolution root")
 			}
 		}
-		request := factory.ResolveRequest{Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, RootCommentID: root, ActorID: binding.ActorID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID, Digest: thread.Digest, Resolved: true}
-		planned = append(planned, factory.DeliveryResolutionOperation{FindingKey: key, ResolvedDigest: resolved, Work: factory.ResolveWork{Request: request, Binding: binding, PRAuthorID: p.PRCreate.Work.ActorID, OperationID: id}})
+		request := factory.ResolveRequest{Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, RootCommentID: root, ActorID: binding.ActorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID, Digest: thread.Digest, Resolved: true}
+		planned = append(planned, factory.DeliveryResolutionOperation{FindingKey: key, ResolvedDigest: resolved, Work: factory.ResolveWork{Request: request, Binding: binding, PRAuthorID: p.PullTarget().AuthorID, OperationID: id}})
 	}
 	return planned, nil
 }

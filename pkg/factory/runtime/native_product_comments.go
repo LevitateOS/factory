@@ -128,14 +128,18 @@ func (s nativeHumanComments) decode(ctx context.Context, c factory.HumanCommentC
 }
 func (s nativeHumanComments) LookupHumanComment(ctx context.Context, c factory.HumanCommentCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil { return empty, err }
+	return s.recoverFountainIssue(ctx,cmd,p.NotAfter,p.Comment.Repository,prior,nativeCommentRecord(c),c.ProviderIntent,p.Account,"comment",p.Comment,
+		func(o collaboration.OperationLookup)(collaboration.OperationLookup,error){return s.store.ObserveHumanComment(ctx,c,o)})
 }
 func nativeCommentRecord(c factory.HumanCommentCapture) collaboration.OperationRecord {
 	cmd, _ := c.Command()
@@ -173,6 +177,9 @@ func (s nativeHumanComments) SubmitHumanComment(ctx context.Context, c factory.H
 		return empty, err
 	}
 	r := nativeCommentRecord(c)
+	if s.binding.Host.Provider == collaboration.Fountain {
+		return fountainIssueOutcome(r,c.ProviderIntent,p.Account,p.Comment.Repository,"comment",p.Comment,outcome)
+	}
 	switch outcome.State {
 	case "created":
 		if outcome.Failure != nil || len(outcome.Receipt) > 4096 {

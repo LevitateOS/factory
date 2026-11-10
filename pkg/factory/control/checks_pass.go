@@ -88,7 +88,7 @@ func (c *Coordinator) assessPublicationChecksOne(ctx context.Context, assessor C
 		}
 		return
 	}
-	if p.Stage != factory.PublicationPublished || p.PRNumber <= 0 || p.PRID <= 0 || p.PRCreate.Work == nil {
+	if p.Stage != factory.PublicationPublished || !p.HasPullTarget() {
 		checkWait(report, p.ID, "publication_unpublished")
 		return
 	}
@@ -106,9 +106,9 @@ func (c *Coordinator) assessPublicationChecksOne(ctx context.Context, assessor C
 		return
 	}
 	target := factory.CheckTarget{
-		Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID,
-		HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef,
-		HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID,
+		Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID,
+		HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef,
+		HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID,
 	}
 	adopted := factory.AdoptedChecks{
 		Checks:         append([]string(nil), policy.Checks...),

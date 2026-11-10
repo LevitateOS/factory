@@ -99,12 +99,48 @@ func (p NativeInputSource) ReadAcceptanceEvidence(ctx context.Context, repositor
 	if err != nil {
 		return control.AcceptanceEvidence{}, err
 	}
-	return (nativeIssueInputs{source}).ReadAcceptanceEvidence(ctx, repository, issue, comments)
+	evidence, err := (nativeIssueInputs{source}).ReadAcceptanceEvidence(ctx, repository, issue, comments)
+	if err == nil {
+		err = source.currentBackground(ctx, factory.OpRefPublish)
+	}
+	if err != nil {
+		return control.AcceptanceEvidence{}, err
+	}
+	return evidence, nil
 }
 func (p NativeInputSource) ReadDispatchInputs(ctx context.Context, repository, issue string, comments []string, target string) (control.DispatchInputs, error) {
 	source, err := p.account(ctx, repository, factory.OpRefPublish)
 	if err != nil {
 		return control.DispatchInputs{}, err
 	}
-	return (nativeIssueInputs{source}).ReadDispatchInputs(ctx, repository, issue, comments, target)
+	inputs, err := (nativeIssueInputs{source}).ReadDispatchInputs(ctx, repository, issue, comments, target)
+	if err == nil {
+		err = source.currentBackground(ctx, factory.OpRefPublish)
+	}
+	if err != nil {
+		return control.DispatchInputs{}, err
+	}
+	return inputs, nil
+}
+
+// Background inputs must still belong to the originally admitted controller
+// after provider I/O. Historical receipt lookup intentionally does not use this
+// check: expired or withdrawn grants still own their original operations.
+func (b *nativeProductAccount) currentBackground(ctx context.Context, kind string) error {
+	if err := b.current(ctx); err != nil {
+		return err
+	}
+	if b.binding.Host.Provider == collaboration.Fountain {
+		if b.controller == nil || b.repository == nil {
+			return errNativeReadScope
+		}
+		grant, err := b.controllerGrant(ctx, b.repository.ID, b.controller.GrantID, kind)
+		if err != nil {
+			return err
+		}
+		if grant.Runtime != b.controller.Runtime || grant.Generation != b.controller.Generation || grant.NotAfter != b.controller.NotAfter {
+			return errNativeReadScope
+		}
+	}
+	return ctx.Err()
 }

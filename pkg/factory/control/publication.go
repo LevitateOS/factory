@@ -269,6 +269,10 @@ func (c *Coordinator) resolvePublicationOwner(ctx context.Context, a factory.Ass
 }
 
 func (c *Coordinator) publishOne(ctx context.Context, a factory.Assignment, report *PublishReport) {
+	if a.ExternalPlanning!=nil {
+		c.adoptCompletedExternalPlan(ctx,a,report)
+		return
+	}
 	if a.PublicationAssignment != a.ID || a.Role != project.RoleCoder || a.Result == nil || !a.Result.Reported || a.Result.Status != "completed" {
 		return
 	}

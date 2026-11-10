@@ -124,14 +124,18 @@ func nativeStateRecord(c factory.HumanStateCapture) collaboration.OperationRecor
 }
 func (s nativeHumanStates) LookupHumanState(ctx context.Context, c factory.HumanStateCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil { return empty, err }
+	return s.recoverFountainIssue(ctx,cmd,p.NotAfter,p.State.Repository,prior,nativeStateRecord(c),c.ProviderIntent,p.Account,"state",p.State,
+		func(o collaboration.OperationLookup)(collaboration.OperationLookup,error){return s.store.ObserveHumanState(ctx,c,o)})
 }
 func (s nativeHumanStates) SubmitHumanState(ctx context.Context, c factory.HumanStateCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -165,6 +169,9 @@ func (s nativeHumanStates) SubmitHumanState(ctx context.Context, c factory.Human
 		return empty, err
 	}
 	r := nativeStateRecord(c)
+	if s.binding.Host.Provider == collaboration.Fountain {
+		return fountainIssueOutcome(r,c.ProviderIntent,p.Account,p.State.Repository,"state",p.State,outcome)
+	}
 	switch outcome.State {
 	case "applied":
 		var receipt nativeStateReceipt
