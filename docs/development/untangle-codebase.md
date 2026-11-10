@@ -1,5 +1,21 @@
 # Factory untangling decisions
 
+Installed expired retry follow-through (2026-11-10): current44/3eb4004 admits
+UI command451912fde3174524a90467007ad1d892, preserves original generation1 and
+binds a distinct generation2. Its finite grant expires with zero sends while
+protection evidence is hidden. Native reads prove the fixture's writer cannot
+establish full protection, whereas temporary admin on this repository alone
+observes complete/eligible current rules and CI. The fixture now requires its
+existing GitHub Actions15368/q15-note-example check; no required-review policy
+was introduced. Restore the fixture team's original push permission after the
+installed merge check. Withdrawal pauses an open inference allowance, so fresh
+merge-only recovery must accept that settled, expired, unallocated case without
+requiring or changing its active flag. Preserve each expired binding in history,
+exact prior command outcomes and unchanged accounting. Read-only
+`q28-format102/merge-expired-offer45.log` passes that actual paused state;
+`merge-admin-confirmed44.log` records complete/eligible native evidence. No model
+or merge effect has been repeated. Actual current45 integration is next.
+
 Expired unallocated merge (2026-11-10): actual installed current43 retains a
 clear typed reviewer, COMMENT receipt and green CI, but its bound merge
 authorization expired with zero attempts and no operation identity. Extend the

@@ -603,10 +603,11 @@ func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Pu
 		if err != nil || !settled {
 			return ErrAttemptRunsPending
 		}
-		// Closed is the authority fence. Retained closed rows can carry a
-		// frozen active checkpoint; settled run receipts, not that bookkeeping
-		// flag, prove custody ended. Preserve the row byte for byte.
-		if !allowance.Closed && (!expiredUnallocatedMerge(m) || !allowance.Active) {
+		// A definitive native no-send uses the closed inference fence. An
+		// expired unallocated authorization can also leave an open, paused
+		// allowance. Settled run receipts prove custody ended in both cases;
+		// the merge-only command preserves this row byte for byte.
+		if !allowance.Closed && !(expiredUnallocatedMerge(m) || expiredUnallocated) {
 			return ErrMergeConflict
 		}
 	} else if allowance.Closed || !allowance.Active {
@@ -733,7 +734,8 @@ func mergeNoSendRecovery(m factory.Merge) bool {
 // Only the durable pre-send state proves that no operation was allocated.
 // An expired binding is retired by a fresh explicit command, never extended.
 func expiredUnallocatedMerge(m factory.Merge) bool {
-	return (m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced) && !m.WithdrawRequested &&
+	retiredRetry := m.Stage == factory.MergeWithdrawn && m.RetryCommand != "" && time.Now().Unix() >= m.RetryNotAfter
+	return ((m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced) && !m.WithdrawRequested || retiredRetry) &&
 		m.Authorization.Bound() && time.Now().Unix() >= m.Authorization.Generation.NotAfter &&
 		len(m.History)+1 < factory.MaxMergeGenerations && pristineMergeOperation(m.Operation)
 }

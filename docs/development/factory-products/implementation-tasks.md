@@ -2167,7 +2167,30 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE (2026-11-10,09:31UTC):** actual current43
+**Active recovery — INCOMPLETE (2026-11-10,09:48UTC):** actual current44
+(clean3eb40045db935eed56ec5ece0422ef09e5c293c5, inventory
+e62b5e36d08892e5c05d34ba5e9b25cb271db63afa7605a4dd456b7826b6b117,
+archivef252e1b20a2f075e78e4ff129e02fb384dd94e2df2fe9afa80097c20e9559181)
+runs on `/home/factory/q28-format102` (PID in app.pid), format103, zero active
+runs. Real UI command451912fde3174524a90467007ad1d892 archived original
+2aac7f0a's expired authorization, bound generation2, then safely expired/withdrew
+with zero native attempts. Original branch3ddb87ba remains unknown/fenced;
+19 runs/67 finished judgments/121 minutes unchanged. Native merge observation
+is incomplete under writer permission; temporary admin on this fixture repository
+alone proves complete/eligible current CI/rules (`merge-admin-confirmed44.log`).
+Fixture main now requires Actions15368/q15-note-example; all other supported
+requirements are off. **Fixture team factory-team-check-20261106 currently has
+temporary admin here; restore its original push permission after this check.**
+No human text or other repository permission changed. Owned edit fixes the
+expired merge-only retry's paused/open allowance case; no allowance mutation.
+Actual read-only offer passes (`merge-expired-offer45.log`); current45 production
+package/install and one fresh explicit merge command are next. Local existing
+PG checks are being rerun; dependency job42791548557/3eb4004 passed all checks.
+Current app/backend/PG and the two KVM recipients remain; no model or uncertain
+send is running/replayed. Q24 still lacks its appliance; all independent queued
+work and Q30 completion gates stay outstanding.
+
+Prior recovery (09:31UTC): actual current43
 (`574182f1393fb291f1a8c5b98c91d6316747f047`, inventory
 86c9ec5f9b24b42c21151ac8f4400f1aa2a89d6f7826820e5839970b9da99d95,
 archive8c763ab00ef98db3d84f8a719900227347ce32862f25eee244398681e795cca9)
