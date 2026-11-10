@@ -1259,6 +1259,12 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let issue=product_read(format!("{base}/issues/{number}")).await?;
     ensure(issue["ref"]==first["items"][0]["ref"],"native Fountain issue detail changed identity")?;
     product_read(format!("{base}/issues/{number}/comments?limit=1")).await?;
+    let pulls=product_read(format!("{base}/pulls?limit=1&state=all")).await?;
+    ensure(pulls["items"].as_array().is_some_and(|items|items.len()==1),"native Fountain pull page absent")?;
+    let pull_number=pulls["items"][0]["ref"]["number"].as_str().ok_or("native Fountain pull number absent")?;
+    let pull=product_read(format!("{base}/pulls/{pull_number}")).await?;
+    ensure(pull["ref"]==pulls["items"][0]["ref"]&&pull["base"]==pulls["items"][0]["base"]&&pull["head"]==pulls["items"][0]["head"],"native Fountain pull detail changed repository/head/base identity")?;
+    product_read(format!("{base}/pulls/{pull_number}/comments?limit=1")).await?;
     println!("PASS: actual enrolled Fountain shared Go product identity, exact canonical repository, two native authenticated issue pages, detail and comments; read enrollment grants no provider writes or execution");
     // Use the host's current code-read enrollment, not a declared local source
     // or a private appliance callback. Setup/funding remain explicit fixtures.

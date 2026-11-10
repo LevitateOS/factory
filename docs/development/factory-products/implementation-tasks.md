@@ -1663,6 +1663,16 @@ Final reply: requested Q22, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q23 — Fountain external PR adoption
 
+Basic enrolled PR reads are implemented and verified (2026-11-10): Rust projects
+bounded list/detail/conversation observations through the existing canonical Go
+reads and shared UI, checking base repository identity and exact head/base OIDs.
+Mergeability remains unknown; read access supplies no execution or publication.
+`q19-authority/product35-connected.log` passes actual host list/detail/comments
+and the existing finite worker/recovery journey, with all owners joined and no
+models. Installed evidence and exact current35 inputs are in Q27. Full adoption,
+current privileged policy/launch binding, correction/review/check progression,
+withdrawal and restart remain unfinished; this increment does not close Q23.
+
 Outstanding. External Fountain PR adoption needs exact current host/fork/head/base authority and working review/correction/check phases. It does not require automatic own-issue intake to finish first.
 
 ```text
@@ -2479,6 +2489,25 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q27 — Installed Fountain desktop product journey
 
+The installed PR reader also passes `q25-package/fountain-ui36e-journey.log`:
+canonical Fountain132fbe0d8bbe7ecd8d1279f022f2cd2bb8d8a9de creates a separate
+repository, file/branch commit and PR through authenticated APIs and its real
+hook server. No Factory phase facts are seeded. The app selects that enrolled
+repository, lists PR1 and preserves its body/conversation; privileged actions stay
+held (`pulls-current.png`, `pull-detail.png`). Repository1060, actor2, PR id13,
+base6da7bbc5eb951b3bc416e52a24b5032da28320c8 and
+heada943d3782556be9b2758c06b82422f9aa0c3b465 are retained in `reader-fixture.json`.
+Refresh, exact enrollment replay, withdrawal/inactive replay, credential removal
+and final Quit pass; every owner joined. Actual assets are current35, input
+cbd065b plus `current35-source.patch`
+(53072a0b75a618ba2dc35074d6f53864ec9cd3213eac49b8e7205cc6ec690ff0), inventory
+159ec61f08cbac83b9e853630255e1c967aab3b63547b33b4d04fc02d3974f83.
+Current35's original repo1 list correctly refused contradictory merged/open
+fixture facts. Attempts36–36d retain authentication/permission/status/hook
+refusals; no old effect was adopted or replayed. The fresh fixture leaves that
+history intact. This qualifies installed basic PR browsing, not a full delivery,
+installed appliance, issue-only scope or security closure.
+
 Installed shared-reader increment (2026-11-10): production current34 and
 canonical Fountain `a08934cf0e2ba3421532c37eaee9754cd4f06e15` pass
 `q25-package/fountain-ui34-journey.log`. The installed executable, bundled Go/
@@ -2763,8 +2792,11 @@ exact charge before advancement; the production admission gate is unchanged.
 checks in local `go-all.log` pass; its aggregate fails only because the supplied
 native DSN also selects the separate three-lifetime PostgreSQL driver without a
 phase. That invocation error is retained, not a native recovery qualification.
-Next: publish the verified fixture correction and run the actual configured
-dependency job again. This does not close product or broad security gates.
+Correction3afe351d99b0dd58bbe5065f958459e6ba4e2f2e was committed and published;
+actual [run42742502789](https://github.com/LevitateOS/factory/actions/runs/42742502789)
+passes UI/analyzer, all native configurations and the Go/PostgreSQL suite.
+The owning dependency job is now published and qualified at that exact source.
+This does not close product or broad security gates.
 
 ```text
 Execute through Q30 — Full finalization of non-Daybreak Factory work. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q30 despite the document's historical paused snapshot; it does not authorize work beyond Q30 or resuming the old product queue.

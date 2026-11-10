@@ -65,6 +65,56 @@ fn issue(value: &Value, number: Option<u32>) -> Result<Value> {
     )
 }
 
+fn branch(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::Null);
+    }
+    let commit = text(value, "sha", 64)?;
+    let name = text(value, "ref", 512)?;
+    if !matches!(commit.len(), 40 | 64)
+        || !commit.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || name.is_empty() || name.chars().any(char::is_control)
+    {
+        return Err(invalid());
+    }
+    let repository = if value["repo"].is_null() {
+        Value::Null
+    } else {
+        let repository = &value["repo"];
+        if id(&repository["id"])? != id(&value["repo_id"])? {
+            return Err(invalid());
+        }
+        json!({"external_id":id(&repository["id"])?,"name":text(repository,"full_name",512)?})
+    };
+    Ok(json!({"repository":repository,"name":name,"commit":commit}))
+}
+fn pull(value: &Value, number: Option<u32>, repository: &str) -> Result<Value> {
+    let mut record = issue(value, number)?;
+    let merged = value["merged"].as_bool().ok_or_else(invalid)?;
+    let merged_at = date(value, "merged_at")?;
+    if merged || !merged_at.is_null() {
+        if !merged || value["state"] != "closed" {
+            return Err(invalid());
+        }
+        record["state"] = json!("merged");
+    }
+    let base = branch(&value["base"])?;
+    if base["repository"]["external_id"] != repository {
+        return Err(invalid());
+    }
+    record["base"] = base;
+    record["head"] = branch(&value["head"])?;
+    record["draft"] = json!(value["draft"].as_bool().ok_or_else(invalid)?);
+    record["merged"] = json!(merged);
+    record["merged_at"] = merged_at;
+    // Host mergeability has different semantics from GitHub's automatic merge
+    // gate. These views grant no check, fork-execution or merge authority.
+    record["mergeable"] = Value::Null;
+    record["mergeable_state"] = Value::Null;
+    record["rebaseable"] = Value::Null;
+    Ok(record)
+}
+
 impl Client {
     pub(crate) async fn product_current(&self, repository: &str) -> Result<()> {
         let current = self.status().await?;
@@ -131,13 +181,36 @@ impl Client {
                 let value = self.product_issue(*number).await?;
                 json!({"kind":"issue","account":account,"issues":{"repository":repository,"name":format!("{}/{}",current.repository.owner,current.repository.name),"items":[value],"next_page":0}})
             }
+            Read::Pulls { repository: selected, page, limit, state } if selected == repository => {
+                let (raw, next) = self.product_page(&["pulls"], *page, *limit, &[("state", state)]).await?;
+                let mut seen = BTreeSet::new();
+                let mut numbers = BTreeSet::new();
+                let mut items = Vec::new();
+                for value in raw {
+                    if state != "all" && value["state"] != *state {
+                        return Err(invalid());
+                    }
+                    let value = pull(&value, None, repository)?;
+                    if !seen.insert(value["external_id"].as_str().ok_or_else(invalid)?.to_owned())
+                        || !numbers.insert(value["number"].as_u64().ok_or_else(invalid)?) {
+                        return Err(invalid());
+                    }
+                    items.push(value);
+                }
+                json!({"kind":"pulls","account":account,"pulls":{"repository":repository,"name":format!("{}/{}",current.repository.owner,current.repository.name),"items":items,"next_page":next}})
+            }
+            Read::Pull { repository: selected, number } if selected == repository => {
+                let value = self.product_pull(*number, repository).await?;
+                json!({"kind":"pull","account":account,"pulls":{"repository":repository,"name":format!("{}/{}",current.repository.owner,current.repository.name),"items":[value],"next_page":0}})
+            }
             Read::IssueComments {
                 repository: selected,
                 number,
                 page,
                 limit,
-            } if selected == repository => {
-                let before = self.product_issue(*number).await?;
+            } | Read::PullComments { repository: selected, number, page, limit } if selected == repository => {
+                let is_pull = matches!(query, Read::PullComments { .. });
+                let before = if is_pull { self.product_pull(*number, repository).await? } else { self.product_issue(*number).await? };
                 let (raw, next) = self
                     .product_page(
                         &["issues", &number.to_string(), "comments"],
@@ -155,10 +228,11 @@ impl Client {
                     }
                     items.push(json!({"external_id":id,"author":actor(&value["user"])?,"body":text(&value,"body",128*1024)?,"created_at":date(&value,"created_at")?,"updated_at":date(&value,"updated_at")?,"minimized_reason":null}));
                 }
-                if self.product_issue(*number).await? != before {
+                let after = if is_pull { self.product_pull(*number, repository).await? } else { self.product_issue(*number).await? };
+                if after != before {
                     return Err(invalid());
                 }
-                json!({"kind":"issue_comments","account":account,"discussion":{"repository":repository,"name":format!("{}/{}",current.repository.owner,current.repository.name),"subject":{"kind":"issue","external_id":before["external_id"],"number":number},"items":items,"next_page":next}})
+                json!({"kind":if is_pull {"pull_comments"} else {"issue_comments"},"account":account,"discussion":{"repository":repository,"name":format!("{}/{}",current.repository.owner,current.repository.name),"subject":{"kind":if is_pull {"pull"} else {"issue"},"external_id":before["external_id"],"number":number},"items":items,"next_page":next}})
             }
             _ => {
                 return Err(super::Failure {
@@ -190,6 +264,12 @@ impl Client {
             )
             .await?;
         issue(&value, Some(number))
+    }
+    async fn product_pull(&self, number: u32, repository: &str) -> Result<Value> {
+        let (value, _): (Value, _) = self.request_url(
+            reqwest::Method::GET, self.product_url(&["pulls", &number.to_string()])?, None, 512 * 1024,
+        ).await?;
+        pull(&value, Some(number), repository)
     }
     async fn product_page(
         &self,

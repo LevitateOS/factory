@@ -1,5 +1,16 @@
 # Factory untangling decisions
 
+Fountain native PR reader (2026-11-10): reuse the admitted Rust provider scope,
+canonical Go read services and shared PR presentation for bounded list/detail/
+conversation reads. Bind the base repository and exact branch commits; leave
+unsupported mergeability and all privileged effects unavailable. Actual
+`product35-connected.log` passes; installed current35 passes
+`fountain-ui36e-journey.log` with canonical host132fbe0d8b. That host fixture
+uses normal authenticated repository/file/PR APIs and the existing live hook
+server, leaving contradictory old fixture history intact. Exact source/asset/
+head/base captures and scoped limitations are in Q23/Q27. All owners joined;
+no inference, synthetic Factory phases or full adoption claim.
+
 Q26 workflow permission (2026-11-10): new GitHub device grants must request
 `workflow` alongside existing repository/account scopes. GitHub documents it as
 required for workflow changes; `repo` alone is insufficient. Display the saved
