@@ -1276,13 +1276,41 @@ remain unchanged. Existing ordinary/retained PostgreSQL cases, setup race,
 withdrawal, command replay and no-send checks pass (`intake49-fixture/merge55-pg.log`,
 `merge55-capture-pg.log`); Go/typecheck/Lit pass. Next: install current55 and use
 the actual fresh merge control, then qualify current provider rules and causal
-merge/issue-closure receipts. Full merge/journey remains incomplete.
+merge/issue-closure receipts. Current55/ea7ebff1b0a89ee71fdb191bcb4a615a4adf1452
+is now installed (inventory2ad342df9380908cb906d4c03fadfe53192e0c3b5258f1f143b0867735964ca9,
+archive093650618c47f3274c09c69af4aa3bb3ad8fdbf41c03501f29d514e592ec3db2).
+Actual UI command2cb02c1842c34bcc9dd0f6ca7fc19fc9 archives pristine17d79620,
+captures current approved setup and admits native merge1a0e5e6668cafa4847d5d15ce65a21b4
+once. Result0954a2d9ef2f6a9343b20e178c3c224d49b5f28d is causally committed
+14:10:19UTC; original issue#54 closure14:10:21 is confirmed. Reviewed candidate54b82ef2,
+test-merge evaluation51eef7fa and resulting merge0954a2d9 remain distinct.
+Actual UI reads Delivered; current native provider observation is complete,
+eligible and method-available. Temporary fixture-only admin is restored to
+original push and its timed restore is inactive. No human text changes.
+Retained ledger `q25-package/current55-delivery-ledger.json`, SHA256
+5709d01b2840b8dda7b62011ac60c492cb7730ccb29516939643cb78542a9313, contains
+causal review/merge receipts and the prior unsent row. Happy-path automatic
+entry→plan→Builder→PR→independent review→CI→merge/closure passes with retained
+restart and explicit fresh merge recovery; full remaining scopes stay open.
+
+Post-completion dfac09904f6fda2639024cea0992649a selects continue/.92 but holds
+on scope change. One explicit UI Retry696ed44d68a44383ba416e26832a3b18 completes
+1a916c3f0313e509da896c331b8cb5ca with the same hold. All24 runs/88 judgments
+are settled; exact source usage152/180 minutes. Read-only material comparison
+proves only original fenced0bc01294's revision changes1610→1678; source, model,
+all operation semantics, material and receipts otherwise match. Withdrawal
+reconciliation repeatedly writes identical state. Preserve its unknown outcome
+and historical churn; persist only real withdrawal/outcome changes. Go compilation
+passes. Next: install current56, verify this original document stays unchanged
+across actual polls, then issue one fresh completion-only command. No inference
+or uncertain send is active. Shared Fountain assets build from55; installed
+parity remains open. Full correction/external/withdrawal journeys remain incomplete.
 Existing real PostgreSQL allowance, publication,
 review/correction and merge checks pass (`intake49-fixture/idle53-pg.log`), as does
 the existing candidate-owner/read-failure check (`idle53-owner-pg.log`); affected
 Go compilation passes. No fresh Retry, new publication or replay is needed. The existing
 dispatch diagnostic now retains publication wait reasons without raw Detail;
-affected Go checks pass. Current53 app/backend/PG remain under
+affected Go checks pass. Current55 app/backend/PG remain under
 `/home/factory/q28-format102`; no new provider write/model is pending beyond the
 separately fenced original3ddb87ba.
 no fixture cleanup or diagnostic process remains. Original unknown publication

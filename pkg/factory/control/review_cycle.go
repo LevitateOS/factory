@@ -598,7 +598,7 @@ func (c *Coordinator) replaySubmittedReview(ctx context.Context, p *factory.Publ
 		if err != nil {
 			return empty, false, err
 		}
-		if !sameReviewOperationOutcome(op.Outcome, updated.Outcome) {
+		if !sameOperationOutcome(op.Outcome, updated.Outcome) {
 			p.ReviewOperations[i] = updated
 			p.Revision++
 			if err := c.Store.UpdatePublication(ctx, *p); err != nil {
@@ -802,7 +802,7 @@ func (c *Coordinator) recordReviewCandidateTuple(ctx context.Context, p *factory
 	return nil
 }
 
-func sameReviewOperationOutcome(a, b factory.OperationOutcome) bool {
+func sameOperationOutcome(a, b factory.OperationOutcome) bool {
 	return a.OperationID == b.OperationID && a.InstallationID == b.InstallationID && a.Kind == b.Kind &&
 		a.ActorID == b.ActorID && a.RepositoryID == b.RepositoryID && bytes.Equal(a.Receipt, b.Receipt) &&
 		a.Effect == b.Effect && a.Cancellation == b.Cancellation && a.Completion == b.Completion &&
@@ -879,7 +879,7 @@ func (c *Coordinator) reconcileRecordedReviews(ctx context.Context, p *factory.P
 			publicationError(report, op.Work.OperationID, "review_outcome_unattributed")
 			continue
 		}
-		if !sameReviewOperationOutcome(prior, updated.Outcome) {
+		if !sameOperationOutcome(prior, updated.Outcome) {
 			p.ReviewOperations[i] = updated
 			p.Revision++
 			if err := c.Store.UpdatePublication(ctx, *p); err != nil {

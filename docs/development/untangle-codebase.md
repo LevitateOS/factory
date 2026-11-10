@@ -1,5 +1,33 @@
 # Factory untangling decisions
 
+Stable withdrawal recovery and completion (2026-11-10): actual installed
+current55/ea7ebff1b0a89ee71fdb191bcb4a615a4adf1452 records ordinary fresh merge
+2cb02c1842c34bcc9dd0f6ca7fc19fc9 through the UI. Native command
+1a0e5e6668cafa4847d5d15ce65a21b4 commits once, resulting0954a2d9ef2f6a9343b20e178c3c224d49b5f28d
+at14:10:19UTC; issue#54 closes14:10:21. The installed UI shows delivered,
+exact-head clear COMMENT and real CI. Original team push permission is restored
+and the restore timer is inactive. Ledger `q25-package/current55-delivery-ledger.json`
+(SHA2565709d01b2840b8dda7b62011ac60c492cb7730ccb29516939643cb78542a9313)
+retains original causal receipts and prior merge. No planner/Builder replay.
+
+Completion judgmentdfac09904f6fda2639024cea0992649a selects continue/.92 but holds
+on scope change. Explicit UI Retry696ed44d68a44383ba416e26832a3b18 completes
+judgment1a916c3f0313e509da896c331b8cb5ca with the same scoped hold;24 runs/88
+finished judgments/152 minutes remain. Do not repeat again before the fix.
+Read-only sealed/current material comparison changes only original fenced
+publication0bc012940c247259280c0c90166c388c's revision1610→1678 and its resulting
+scope digest (`current55-material-{sealed,now}.json`). It is already withdrawn;
+withdrawal polling unconditionally persists identical state and timestamps.
+Keep current scope validation, unknown-send refusal and cancellation inspection;
+persist withdrawal intent once and only changed outcomes thereafter. Shared
+outcome equality now preserves unchanged observation time after full admission.
+Affected Go compilation passes. Next: install current56, prove the original
+uncertain document stays stable across real polls, then explicitly retry only
+completion under the same finite source allowance. Full correction/external/
+installed gates remain outstanding. Canonical Fountain shared assets also build
+from this source (`fountain-shared55`, repository entry SHA256eb33cf5f18a6fed50cf17c026f08c55232f6fa3babaf37dbba3cbccd5319b31c);
+this is a consumer build, not installed Fountain parity.
+
 Ordinary published merge preparation (2026-11-10): current54/e05efc54d2bbc22d358cb780d5c1210acf66227e
 automatically consumes the saved reviewer and commits COMMENT5842988198 once
 (review-cb275dee75337b93eb46fc0897391190, exact head54b82ef2/basecc3b81e9).

@@ -1,7 +1,9 @@
 package control
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"slices"
 	"time"
 
@@ -218,8 +220,15 @@ func (c *Coordinator) cancelReviewWithdrawOps(ctx context.Context, p *factory.Pu
 }
 
 func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignment, p *factory.Publication, run factory.Run, report *PublishReport) {
-	p.WithdrawRequested = true
-	if !c.storePublication(ctx, p, report) {
+	if !p.WithdrawRequested {
+		p.WithdrawRequested = true
+		if !c.storePublication(ctx, p, report) {
+			return
+		}
+	}
+	before, err := json.Marshal(p)
+	if err != nil {
+		publicationError(report, p.ID, "store_conflict")
 		return
 	}
 	primary := c.cancelPrimaryWithdrawOps(ctx, p)
@@ -236,7 +245,12 @@ func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignm
 		}
 	}
 	confirmed := primary && corrections && reviews && resolutions
-	if !c.storePublication(ctx, p, report) {
+	after, err := json.Marshal(p)
+	if err != nil {
+		publicationError(report, p.ID, "store_conflict")
+		return
+	}
+	if !bytes.Equal(before, after) && !c.storePublication(ctx, p, report) {
 		return
 	}
 	if !c.adoptPublicationReceipts(ctx, a, p, run, report) {
@@ -285,6 +299,9 @@ func (c *Coordinator) adoptObserved(op *factory.PublicationOperation, outcome fa
 	}
 	if op.Receipt != "" && op.Receipt != string(outcome.Receipt) {
 		return false
+	}
+	if sameOperationOutcome(operationOutcomeOf(*op), outcome) {
+		return true
 	}
 	op.Effect, op.Cancellation, op.Completion, op.Reason = outcome.Effect, outcome.Cancellation, outcome.Completion, outcome.Reason
 	op.Receipt, op.UpdatedUnix = string(outcome.Receipt), now.Unix()
