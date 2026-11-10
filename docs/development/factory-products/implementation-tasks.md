@@ -1301,16 +1301,27 @@ proves only original fenced0bc01294's revision changes1610→1678; source, model
 all operation semantics, material and receipts otherwise match. Withdrawal
 reconciliation repeatedly writes identical state. Preserve its unknown outcome
 and historical churn; persist only real withdrawal/outcome changes. Go compilation
-passes. Next: install current56, verify this original document stays unchanged
-across actual polls, then issue one fresh completion-only command. No inference
-or uncertain send is active. Shared Fountain assets build from55; installed
+passes. Actual current57/6dd064f6a05590a83b194cb94c80f5efbb21aedb installs after
+joined current55 Quit (56 was built but not installed), inventory
+de9cc15829fb08dcc7230d03359cf2a3d7da0f0adeb92d37ea8c5cf327279dd9,
+archive042bcdd0d8c2e6675010f03b489c3427562ae2b439ec550f9a42610954a8dc4f.
+The full original uncertain document stays byte-identical across real polls and
+completion: SHA25616141fe2a38688aa5682935cfc22198e8fcf07c49285a9c2d240262ce419966c.
+Actual UI Retry81dd99b502c747e1a2838054ce588443 runs judgment
+291aa7c5838071915b9000b08d4bc1c2, continue/.92, then releases. Earlier attention
+results are explicitly superseded, never replaced. All24 runs/89 judgments are
+settled; exact usage153/180 minutes, same source/revision6. Ledger
+`q25-package/current57-completion-ledger.json` SHA256
+f30ede0e1db880cee5c5f11621d48ebd854a61254ada4377aafccc7c4cbd6ab5 retains original
+commands, receipts and allowance. No current inference/send is active. The old
+unknown remains fenced. Shared Fountain assets build from55; installed
 parity remains open. Full correction/external/withdrawal journeys remain incomplete.
 Existing real PostgreSQL allowance, publication,
 review/correction and merge checks pass (`intake49-fixture/idle53-pg.log`), as does
 the existing candidate-owner/read-failure check (`idle53-owner-pg.log`); affected
 Go compilation passes. No fresh Retry, new publication or replay is needed. The existing
 dispatch diagnostic now retains publication wait reasons without raw Detail;
-affected Go checks pass. Current55 app/backend/PG remain under
+affected Go checks pass. Current57 app/backend/PG remain under
 `/home/factory/q28-format102`; no new provider write/model is pending beyond the
 separately fenced original3ddb87ba.
 no fixture cleanup or diagnostic process remains. Original unknown publication
@@ -2323,11 +2334,19 @@ The independent Fountain source changes are still being qualified; this installe
 refresh proves no full Q26 or Fountain delivery closure.
 
 **Active recovery — INCOMPLETE (2026-11-10):** Q16/Q26's installed fresh Retry
-f848d0a968e6437eb7a275711a1206d9 has published PR#55 in current51; exact source/build,
-preparation, original failed attempt and next action are in Q16 above. No
-uncertain effect or inference may be replaced by another attempt. Next: follow
-its existing review cycle through original receipts; finish automatic review/CI/
-merge and the remaining ordinary queued work. Q24 alone lacks its appliance.
+f848d0a968e6437eb7a275711a1206d9 now has causal PR#55, independent COMMENT5842988198,
+real CI, merge0954a2d9 and confirmed issue#54 closure; current57 releases its
+completion through explicit Retry81dd99b5. Exact source/build/receipts and the
+unchanged original uncertainty are in Q16 above.24 runs/89 judgments are settled,
+153/180 minutes charged on the same source. No new uncertain effect or inference,
+owned edit or check is running; installed app/backend/PG remain at
+`/home/factory/q28-format102`. Full Q16 withdrawal-during-I/O/wake, Q15 correction/
+paid delivery opinion, external adoption and remaining installed/Fountain gates
+remain outstanding. Next executable action: recover existing product50 Fountain
+controller/source/native journals and complete actual native worker→candidate→
+publication; its declared candidate and incomplete worker do not qualify that
+journey. Preserve product49e's uncertain review. Q24 alone lacks its appliance;
+it does not block this work. All queued scopes remain outstanding until proved.
 
 **Retained delivery evidence:** current45 from clean
 `1ab41d95adf13f9543651d6bf522e804694dac3c` (inventory

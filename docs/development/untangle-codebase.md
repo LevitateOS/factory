@@ -21,10 +21,20 @@ withdrawal polling unconditionally persists identical state and timestamps.
 Keep current scope validation, unknown-send refusal and cancellation inspection;
 persist withdrawal intent once and only changed outcomes thereafter. Shared
 outcome equality now preserves unchanged observation time after full admission.
-Affected Go compilation passes. Next: install current56, prove the original
-uncertain document stays stable across real polls, then explicitly retry only
-completion under the same finite source allowance. Full correction/external/
-installed gates remain outstanding. Canonical Fountain shared assets also build
+Affected Go compilation passes. Current57/6dd064f6a05590a83b194cb94c80f5efbb21aedb
+is installed after joined current55 Quit (current56/17c6d99 was built, not installed).
+The entire original uncertain document stays byte-identical across actual polls
+and the fresh completion command: SHA25616141fe2a38688aa5682935cfc22198e8fcf07c49285a9c2d240262ce419966c.
+Actual UI completion Retry81dd99b502c747e1a2838054ce588443 runs only judgment
+291aa7c5838071915b9000b08d4bc1c2 (continue/.92) and releases at the same source.
+Both earlier attention results become explicitly superseded;24 runs/89 finished
+judgments/153 minutes remain, allowance180/revision6 unchanged. Ledger
+`q25-package/current57-completion-ledger.json`, SHA256f30ede0e1db880cee5c5f11621d48ebd854a61254ada4377aafccc7c4cbd6ab5,
+retains the old/new commands and scoped receipts. No new uncertain effect or
+model is active. Full correction/external/installed gates remain outstanding.
+Next: recover the existing authorized Fountain controller/source fixture and
+complete actual native worker→candidate→publication, preserving product49e's
+uncertain original review and all existing receipts. Canonical Fountain shared assets also build
 from this source (`fountain-shared55`, repository entry SHA256eb33cf5f18a6fed50cf17c026f08c55232f6fa3babaf37dbba3cbccd5319b31c);
 this is a consumer build, not installed Fountain parity.
 
