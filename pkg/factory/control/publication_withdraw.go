@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -92,7 +93,32 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 			c.settleRun(bounded, run)
 		}
 	}
-	c.PublishPass(bounded)
+	publication := c.PublishPass(bounded)
+	// Keep publication holds in the same bounded, scope-filtered diagnostic as
+	// dispatch. The projector whitelists reason codes and never exposes Detail.
+	// This local copy never changes the dispatch report used by scheduling.
+	report.Waits, report.Errors = slices.Clone(report.Waits), slices.Clone(report.Errors)
+	// Resolve only immutable scope during the existing cleanup reserve, so a
+	// timed-out publication pass can still report its hold without new effects.
+	scopeContext := bounded
+	if budget := readinessBudgetFrom(bounded); budget != nil {
+		var cancel context.CancelFunc
+		scopeContext, cancel = context.WithDeadline(context.WithoutCancel(bounded), budget.outerDeadline)
+		defer cancel()
+	}
+	for _, wait := range publication.Waits {
+		p, err := c.Store.PublicationByID(scopeContext, wait.ID)
+		if err == nil {
+			report.Waits = append(report.Waits, DispatchWait{Repository: p.Repository, Issue: p.Issue, Reason: wait.Reason})
+		}
+	}
+	for _, failure := range publication.Errors {
+		p, err := c.Store.PublicationByID(scopeContext, failure.ID)
+		if err == nil {
+			report.Errors = append(report.Errors, DispatchError{Repository: p.Repository, Issue: p.Issue, Reason: failure.Reason})
+		}
+	}
+	c.observeDispatch(ctx, report)
 	c.CheckPass(bounded)
 	c.MergePass(bounded)
 }

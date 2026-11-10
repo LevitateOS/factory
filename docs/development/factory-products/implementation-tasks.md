@@ -1215,9 +1215,33 @@ native assertion is compiled, not yet executed. Next: install the correction,
 use one fresh explicit Retry under standing funding permission, and finish
 actual planning/Builder/publication/review/CI/merge, then remaining
 withdrawal/provenance/duplicate/restart gates. Do not repeat its creation or
-initial acceptance. Existing source allowance150/revision5 retains135 charged
-minutes,21 settled runs and77 finished judgment commands. Current49 app/backend/PG
-remain running under `/home/factory/q28-format102`;
+initial acceptance. Current51/5ff232665eb22137adfe589df25d4beba78da197 is installed
+(inventory480639a522c43e16caf19e9cecef2c21e49d799673a959d2d4e83e22fd6aa0d8,
+archive7584beeb0438f8953cb6ea48ff7b540941c682482c76573833dcd28034ccd5c3).
+Normal current49 GUI Quit joined app/backend/PG with21 settled runs,77 finished
+judgments/135 charged minutes. Reopen preserves those facts and cursor54. Fresh
+installed Retry f848d0a968e6437eb7a275711a1206d9 stays pending while retained
+preparations are unavailable after restart. Actual source reload and clipboard
+verification preserve the saved scripts; explicit preparation produces ready
+coderf139eba7d1dcae37d9682e80f/reviewerf77ac76063747a7dbe67adab8 oncc3b81e9.
+That same Retry then launches with fresh private preparationf53eb1260da9d8c3a5c44d941;
+no second Retry or old authority renewal. Existing allowance150/revision5 is
+unchanged. Architectd1345ff8d355a3802decd828de2801de and
+Builder57c159c10e13c682b5a4f7fcd97a04fc both settle succeeded. The actual Builder
+corrects refused edits, commits both task checks and final native integration,
+and seals54b82ef2a3f36bf767a463facaaa55e2cbbf007f. Publication
+6ca7139540319f02a9b23d7d932bba3e causally commits branchb8787ed538450394f9ef1d7a22c55d8a
+and PR-createa32d38bb673a3fa843b32e5d10544e6a once, yielding PR#55.
+Real CI42819121752/job129839777446/q15-note-example passes on that candidate.
+Review cycled1bf0bf25658e812b138d8934327d746 allocates reviewer7df478987f01a8016f224266a6cc2dd8
+but has no preparation/assignment yet. Read-only `review-source51.log` confirms
+current reviewer authority and both source preparations; no inference is replayed.
+All23 runs and84 judgments are settled,147 minutes charged. The existing
+dispatch diagnostic now retains publication wait reasons without raw Detail;
+affected Go checks pass. Next: install that correction and read the actual hold,
+then resume this original review cycle. Current51 app/backend/PG remain under
+`/home/factory/q28-format102`; no new provider write/model is pending beyond the
+separately fenced original3ddb87ba.
 no fixture cleanup or diagnostic process remains. Original unknown publication
 3ddb87ba remains fenced, independently of this fresh issue.
 
@@ -2227,7 +2251,14 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE (2026-11-10):** current45 from clean
+**Active recovery — INCOMPLETE (2026-11-10):** Q16/Q26's installed fresh Retry
+f848d0a968e6437eb7a275711a1206d9 has published PR#55 in current51; exact source/build,
+preparation, original failed attempt and next action are in Q16 above. No
+uncertain effect or inference may be replaced by another attempt. Next: follow
+its existing review cycle through original receipts; finish automatic review/CI/
+merge and the remaining ordinary queued work. Q24 alone lacks its appliance.
+
+**Retained delivery evidence:** current45 from clean
 `1ab41d95adf13f9543651d6bf522e804694dac3c` (inventory
 0544376fde2c6456425714e909c63e5829fc33379f2bc96ccf25649d61746c1b,
 archiveafab54844878a4afa5309f5aacf7367862c3fc46e0497ab44b6a49215c160fa5)
@@ -3253,8 +3284,13 @@ queue comparisons are unavailable despite Q13's verified same-repository owner.
 The single shared Lit presentation now names same-repository comparisons and
 keeps mixed-repository funding unavailable. Typecheck and Lit checks pass
 (`q25-package/intake49-fixture/shared-role-{typecheck,lit}.log`). Rebuild/install
-both consumers and verify actual navigation/policy behavior before Q29 closure;
-the running current49 intake journey still uses its original captured executable.
+both consumers and verify actual navigation/policy behavior before Q29 closure.
+Current51 now visibly shows the correction with the selected repository and
+unchanged personal COMMENT policy (`q25-package/current51-shared-policy.png`).
+Fountain consumer sourceaf73c91d283deeadcf67f0b4a44a3de2610671a2 also builds
+the same shared code in `q25-package/fountain-shared51` with unchanged owning
+repositories. Actual installed Fountain parity is still required; this build
+does not substitute for it.
 
 Outstanding. Visible parity requires both actual installed consumers and current repository permissions. Shared code/build work can proceed independently; do not invent a cosmetic correction or treat the missing appliance’s stop/start check as a UI dependency.
 

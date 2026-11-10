@@ -277,6 +277,8 @@ func dispatchObservationReason(repository, issue int64, reason, detail string) D
 		stage = "store"
 	case DispatchErrHost:
 		stage = "host"
+	case "review_preparation_pending", "review_preparation_unavailable", "review_checks_pending", "review_allowance_exhausted", "review_allowance_unavailable", "child_cycle_unrecorded", "child_dispatch_inputs_changed", "child_assignment_unavailable", "child_assignment_unrecorded", "child_producer_cancelled", "issue_readiness_not_current", "candidate_preparation_retirement_pending", "delivery_judgment_required", "delivery_judgment_unavailable":
+		stage = "publication"
 	default:
 		reason, stage = "unavailable", "unavailable"
 	}

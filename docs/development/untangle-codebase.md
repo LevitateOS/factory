@@ -1,5 +1,31 @@
 # Factory untangling decisions
 
+Publication hold visibility (2026-11-10): current51's actual automatic Retry
+completes Architect/Builder, checked candidate54b82ef2 and one causal branch/PR#55
+publication. Real CI42819121752/job129839777446 passes. Its first review cycle is
+retained but has no prepared/launched reviewer; read-only inspection proves
+current authority and source preparations. PublishPass returns the wait, but the
+serving loop discards it. Keep its scoped, whitelisted reason in the existing
+bounded dispatch observation, never raw Detail. Immutable publication scope can
+be read during the existing cleanup reserve after a deadline; no effect or
+authority extends. Affected Go compilation passes; installed hold readback is
+next. Preserve23 settled runs,84 finished judgments/147 minutes and every
+publication/review identity. No fresh Retry, inference or provider send is needed
+to investigate this hold.
+
+Installed current51 follow-through (2026-11-10): clean5ff232665eb22137adfe589df25d4beba78da197
+installs/reopens after normal joined Quit with all21 settled runs,77 finished
+judgments/135 minutes and cursor54 preserved. Retryf848d0a968e6437eb7a275711a1206d9
+is recognized but waits on unavailable standing preparations after restart.
+The actual installed source reload and clipboard verification keepcc3b81e9 and
+the saved scripts; explicit fresh preparations f139eba7d1dcae37d9682e80f and
+f77ac76063747a7dbe67adab8 become ready. That same command then launches under
+fresh private preparationf53eb1260da9d8c3a5c44d941. No second command, allowance
+increase or old authority renewal. Native invalid-field assertions remain
+compiled/unrun; actual new Builder behavior remains to qualify. Shared corrected
+policy text is visible in the installed desktop and builds in the canonical
+Fountain consumer; actual installed Fountain parity remains open.
+
 Actionable workspace refusal (2026-11-10): installed automatic issue#54 reaches
 a successful typed Architect plan, then Builderdedb187e1c39140c20a48cd0066fc38a
 ends without writes after repeated misleading `workspace edit lacks its operation
