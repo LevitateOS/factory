@@ -3655,6 +3655,16 @@ bound and all constructor, grant and deadline checks remain. Cargo check passes
 paid runs, candidate and publication; installed correction and review recovery
 remain unqualified until the new build passes that retained profile journey.
 
+The same recovery needs a receiver fence when a preparation was admitted in
+the Store but never reached its native constructor. The existing preparation
+journal now records exact stop-before-start retirement only for an absent
+original directory, under the constructor lock; a delayed original constructor
+cannot reuse that key. Existing ambiguous journals never imply no-start. The
+existing real preparation check passes 64 fences, scoped refusal, actual setup
+with retained history and lookup across restart without replay
+(`q25-package/fountain-installed58/preparation-fences3.log`). No model or provider
+write ran; installed original-preparation settlement remains next.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

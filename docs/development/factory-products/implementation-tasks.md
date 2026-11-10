@@ -3078,6 +3078,19 @@ qualification remains next. Expired host grants and original preparation
 deadlines cannot renew. Preserve the completed candidate/PR and resume only
 fresh authorized review after installation. No appliance is involved or claimed.
 
+The existing real native integration check now passes 64 exact stop-before-start
+fences, delayed-constructor refusal, different-workspace refusal, actual ready
+setup despite retained terminal history, and original-fence lookup after restart
+(`q25-package/fountain-installed58/preparation-fences3.log`). All check owners
+joined; no model or provider write ran. The receiver records a terminal journal
+only when its original request directory never existed; ambiguous existing
+journals remain refused. Current58 was built from clean `21c581a` but is not
+installed: package the additional no-start fix as current59, then settle the
+original waiting preparation without renewing it. Current57 and the host/runner
+fixture remain running idle; preserve original publication and eight charged
+Fountain minutes. Review-only continuation for ordinary published candidates
+still needs the existing explicit funding owner extended before fresh review.
+
 Actual installed control/preparation/restart/withdrawal now passes current37 in
 `q25-package/fountain-ui37c-journey.log`; exact inputs, original native and host
 receipts, joined shutdown and limits are in Q19 above. The shared UI captures

@@ -5773,6 +5773,22 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return err
 	}
 	defer db.Close()
+	if mode == "fences-retained" {
+		var addresses []execution.PreparationAddress
+		raw, err := os.ReadFile(filepath.Join(profile, "preparation-fences.json"))
+		if err != nil || json.Unmarshal(raw, &addresses) != nil || len(addresses) != 64 {
+			return errors.New("original no-start fences missing")
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		for _, address := range addresses {
+			state, err := port.InspectWorkspacePreparation(ctx, address)
+			if err != nil || address.Native.InstanceID == instance || !state.Stopped || state.Retirement != "confirmed" {
+				return fmt.Errorf("original no-start fence unavailable after reopen: %v", err)
+			}
+		}
+		fmt.Println("PASS: all original no-start preparation fences remain confirmed across native restart without setup or claim replay")
+		return nil
+	}
 	if err = db.InitializeEmptyCollaborationLedger(ctx); err != nil {
 		return err
 	}
@@ -6124,6 +6140,48 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		}
 		fmt.Println("PASS: saved human decisions grant no standing preparation after workspace withdrawal; refusal before native staging, no inference")
 		return nil
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_PREPARATION_FENCES") == "1" && mode == "ready" {
+		addresses := []execution.PreparationAddress{}
+		for index := 0; index < 64; index++ {
+			cancelled := request
+			cancelled.Input.Preparation.ID = fmt.Sprintf("f%024x", index+1)
+			ref := *request.Native
+			ref.WorktreeID = cancelled.Input.Preparation.ID
+			cancelled.Native = &ref
+			admitted, _, err := db.AdmitStandingPreparation(ctx, execution.PreparationRecord{Preparation: cancelled.Input.Preparation, Native: cancelled.Native})
+			if err != nil {
+				return err
+			}
+			cancelled.Input.Preparation = admitted.Preparation
+			address := cancelled.Address()
+			stopped, err := port.RetireWorkspacePreparation(ctx, address)
+			if err != nil || !stopped.Stopped || stopped.Retirement != "confirmed" || stopped.SourceCommit != "" {
+				return fmt.Errorf("unstarted preparation did not retain a scoped no-start fence: %v", err)
+			}
+			observed, err := port.InspectWorkspacePreparation(ctx, address)
+			if err != nil || !reflect.DeepEqual(observed, stopped) {
+				return errors.New("original no-start preparation receipt changed on lookup")
+			}
+			var ignored execution.PreparationState
+			if err := nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "prepare", "request": cancelled}, &ignored); err == nil {
+				return errors.New("no-start preparation fence admitted its delayed original constructor")
+			}
+			foreign := address
+			foreign.Workspace = "p" + strings.Repeat("e", 24)
+			if _, err := port.RetireWorkspacePreparation(ctx, foreign); err == nil {
+				return errors.New("no-start preparation receipt admitted another workspace scope")
+			}
+			addresses = append(addresses, address)
+		}
+		raw, err := json.Marshal(addresses)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(filepath.Join(profile, "preparation-fences.json"), raw, 0600); err != nil {
+			return err
+		}
+		fmt.Println("PASS: 64 exact no-start native preparation fences preserve lookup, refuse delayed constructors and reject a different workspace; ready setup must now pass without deleting history")
 	}
 	state, err := port.PrepareWorkspace(ctx, request)
 	if err != nil {

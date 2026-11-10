@@ -304,9 +304,14 @@ impl Preparations {
             {
                 return Err(denied());
             }
-            let request: Value = load(&directory.join("request.json"))?;
-            let address = json!({"id":request["input"]["preparation"]["id"],
-                "workspace":request["input"]["preparation"]["project"],"native":request["native"]});
+            let marker: Value = load(&directory.join("retired.json"))?;
+            let address = if marker["kind"] == "not_started" {
+                marker["address"].clone()
+            } else {
+                let request: Value = load(&directory.join("request.json"))?;
+                json!({"id":request["input"]["preparation"]["id"],
+                    "workspace":request["input"]["preparation"]["project"],"native":request["native"]})
+            };
             if entry.file_name().to_str() != Some(self.key(&address)?.as_str())
                 || self.retained_retirement(&address)?["stopped"] != true
             {
@@ -650,9 +655,10 @@ impl Preparations {
         let key = self.key(address)?;
         let (input, completion, cancel, mut retired) = {
             let entries = self.entries.lock().map_err(|_| denied())?;
-            let entry = entries.get(&key).ok_or_else(|| {
-                io::Error::new(io::ErrorKind::NotFound, "native preparation not observed")
-            })?;
+            let Some(entry) = entries.get(&key) else {
+                drop(entries);
+                return self.retained_retirement(address);
+            };
             if address["id"] != entry.input.id || address["workspace"] != entry.input.workspace {
                 return Err(denied());
             }
@@ -789,12 +795,15 @@ impl Preparations {
     }
     pub(crate) fn retire(&self, address: &Value) -> io::Result<Value> {
         if address["native"]["instance_id"] != self.instance {
-            return self.retained_retirement(address);
+            return self.fence_unstarted(address);
         }
         let key = self.key(address)?;
         let (input, job) = {
             let mut entries = self.entries.lock().map_err(|_| denied())?;
-            let entry = entries.get_mut(&key).ok_or_else(denied)?;
+            let Some(entry) = entries.get_mut(&key) else {
+                drop(entries);
+                return self.fence_unstarted(address);
+            };
             if address["id"] != entry.input.id || address["workspace"] != entry.input.workspace {
                 return Err(denied());
             }
@@ -812,6 +821,32 @@ impl Preparations {
         Ok(input.state(completion.as_ref(), true))
     }
 
+    fn fence_unstarted(&self, address: &Value) -> io::Result<Value> {
+        let key = self.key(address)?;
+        let entries = self.entries.lock().map_err(|_| denied())?;
+        if !self.alive.load(Ordering::SeqCst) || entries.contains_key(&key) {
+            return Err(denied());
+        }
+        let id = text(address, "id", 25)?;
+        let workspace = text(address, "workspace", 25)?;
+        if !id.starts_with('f') || !super::hex(&id[1..], 24)
+            || !workspace.starts_with('p') || !super::hex(&workspace[1..], 24)
+        {
+            return Err(denied());
+        }
+        let directory = self.directory.join(&key);
+        if !directory.try_exists()? {
+            // prepare holds this same lock and retains request.json before
+            // admitting any constructor or remote claim. This terminal journal
+            // occupies the original key, so a later identical send cannot start.
+            private_dir(&directory).map_err(|_| denied())?;
+            save(&directory.join("retired.json"),
+                &json!({"kind":"not_started","root":key,"address":address}))?;
+        }
+        drop(entries);
+        self.retained_retirement(address)
+    }
+
     // Adopt an original owner's confirmed retirement, including for storage
     // accounting. This read never opens a workspace or renews its authority.
     fn retained_retirement(&self, address: &Value) -> io::Result<Value> {
@@ -825,12 +860,21 @@ impl Preparations {
         }
         let key = digest(&serde_json::to_vec(native).map_err(io::Error::other)?)[..32].to_owned();
         let directory = self.directory.join(&key);
+        let marker: Value = load(&directory.join("retired.json"))?;
+        if marker["kind"] == "not_started" {
+            if marker["root"] != key || marker["address"] != *address
+                || directory.join("request.json").try_exists()?
+            {
+                return Err(denied());
+            }
+            return Ok(json!({"id":address["id"],"project":address["workspace"],"native":native,
+                "phase":"stopped","ready":false,"stopped":true,"retirement":"confirmed"}));
+        }
         let input = Input::decode(
             load(&directory.join("request.json"))?,
             &self.profile,
             instance,
         )?;
-        let marker: Value = load(&directory.join("retired.json"))?;
         if input.native != *native
             || address["id"] != input.id
             || address["workspace"] != input.workspace
@@ -917,6 +961,14 @@ impl Preparations {
             if result["stopped"] == true {
                 let key = self.key(&address).map_err(|_| Failure::unavailable())?;
                 let directory = self.directory.join(&key);
+                let marker: Value = load(&directory.join("retired.json"))
+                    .map_err(|_| Failure::unavailable())?;
+                if marker["kind"] == "not_started" {
+                    // The exact receiver fence proves that no request/claim was
+                    // admitted. Reading it grants no new host operation.
+                    self.retained_retirement(&address).map_err(|_| Failure::unavailable())?;
+                    return Ok(result);
+                }
                 let request: Value =
                     load(&directory.join("request.json")).map_err(|_| Failure::unavailable())?;
                 let input = Input::decode(

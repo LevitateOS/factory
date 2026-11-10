@@ -898,7 +898,10 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    let modes: &[&str] = if std::env::var("SODA_NATIVE_CHECK_STANDING_WITHDRAWAL").as_deref() == Ok("1") {
+    let fences = std::env::var("SODA_NATIVE_CHECK_PREPARATION_FENCES").as_deref() == Ok("1");
+    let modes: &[&str] = if fences {
+        &["ready"]
+    } else if std::env::var("SODA_NATIVE_CHECK_STANDING_WITHDRAWAL").as_deref() == Ok("1") {
         &["withdrawn"]
     } else if std::env::var("SODA_NATIVE_CHECK_NETWORK_INTERRUPT").as_deref() == Ok("1") {
         &["network-pending"]
@@ -931,8 +934,11 @@ fn managed_preparations(
             supervisor.stop()?;
             continue;
         }
-        let entries: Vec<_> =
+        let mut entries: Vec<_> =
             fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
+        if fences {
+            entries.retain(|entry| entry.path().join("request.json").is_file());
+        }
         if entries.is_empty() || mode == "pending" && entries.len() != 1 || mode == "network-pending" && entries.len() != 2 {
             return Err("native preparation identity missing".into());
         }
@@ -1004,6 +1010,16 @@ fn managed_preparations(
             .any(|entry| !entry.path().join("retired.json").is_file())
         {
             return Err("native preparation retirement acknowledgement missing".into());
+        }
+        if fences {
+            let restarted = NativeSupervisor::start(payload, backend, &profile)?;
+            let reopened = restarted.health()?;
+            let checked = Command::new(client).arg(&profile).arg(&reopened.instance)
+                .arg("check-native-preparation").arg("fences-retained").status()?;
+            restarted.stop()?;
+            if !checked.success() {
+                return Err("retained no-start preparation fences failed".into());
+            }
         }
         if mode == "network-pending" {
             let retired: Vec<_> = entries.iter().map(|entry| fs::read(entry.path().join("retired.json")))
