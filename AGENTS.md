@@ -44,6 +44,18 @@
   broaden testing only for a demonstrated gap or required gate. Do not repeat
   successful builds, long expiry waits or connected journeys merely to collect
   more evidence. A fixture pass does not qualify a connected or installed gate.
+- For desktop state and navigation, first read the live developer-tool guide
+  in `cmd/soda-desktop/README.md` ("Live developer inspection and control").
+  Recover the existing app/profile, release and original command receipts, then
+  prefer `factory --developer-cli --profile ABSOLUTE_PATH status`, `ui tree`
+  and `ui wait` over repeated screenshots or coordinate guessing. Use labeled
+  controls and captured scopes for authorized actions; `dispatched` alone does
+  not prove product completion. On `outcome_unknown`, inspect the original saved
+  command/receipt rather than issuing another click or replacement action ID.
+  A missing endpoint means diagnostics are unavailable, not that work stopped.
+  Preserve paused/active work when enabling diagnostics or upgrading an older
+  app. Use screenshots for concrete visual questions and direct OS input for
+  keyboard/window behavior; semantic UI checks do not establish those facts.
 - Keep evidence concise and actionable: record the result, command or retained
   artifact location, material limitations and next dependency once. Add hashes
   only where integrity or an explicit gate needs them. Preserve historical
