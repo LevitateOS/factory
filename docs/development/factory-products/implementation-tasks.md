@@ -1319,6 +1319,17 @@ This replaces the declared source limitation of checks9/10 only; shared product
 selection, real preparation-grant admission, publication/intake/external adoption
 and installed Fountain journeys remain unfinished.
 
+Standing-preparation correction (2026-11-10): saved setup decisions previously
+passed admission after the local workspace permission was withdrawn. Admission
+now reuses the existing transactional native decision check for current placement,
+generation/profile and environment grant. Disposable installed-host check
+`q25-current9/standing30-before.log` reproduces the refusal gap before native
+staging; `standing30-after.log` passes withdrawal refusal with no native job or
+inference. `standing30-positive.log` passes actual authorized native setup/check,
+exact inputs/replay/retirement and joined pending-preparer Quit. All check owners
+joined. This corrects local standing authority; Fountain's separate captured
+host preparation grant and lifetime integration remain required.
+
 **Current native claim recovery (2026-11-09):** canonical Fountain
 `b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b` adds authenticated read-only
 execution-claim lookup through the existing profile-proof/operation-grant owner.
@@ -1851,7 +1862,28 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
-**Latest recovery, INCOMPLETE:** the actual current13 UI enrolled policy revision2
+**Active recovery — INCOMPLETE, current29:** installed app260392/backend/PG is
+running with matching production helpers. Executable-bit correction48e7b9d is
+installed and its production-native check passes. The owner authorized30 additional
+minutes and one fresh Retry: UI saved sponsorship revision4,total120 on the same
+Muse connection, then command508de580c41d4a6e8add39a930069ceb once at00:06:47Z,
+targeting9b7557f2e39244432abe04c9fc3389b0. Architectc09f6ccd31e6875dc0731062d4571b2c
+succeeded; Builder3215837b733202f406bfb7f0a25a1511 committed tasks
+aa494a696a777ff438e68f63bba7982d741ad12e and
+8911ed0a4065dc0458fbad4c5804aab958a68961, then ended with a progress note
+before its documentation task or finish report. Its native process exited0 and
+retired normally; this is an incomplete delivery, not a publication. All15 runs,
+55 finished judgments and97 charged minutes remain;23 minutes are available.
+This authorization is consumed; no further paid Retry is authorized. Read original command/run and
+`q26-current29-{approved-funding,retry}-original.log` before further effects.
+Next: resolve the early model ending before seeking another paid attempt; the
+31 completed model calls are close to the captured32-step ceiling, but terminal
+reason is null and does not prove that cause. Preserve its original partial work.
+Actual window minimize, second installed launch and restore passed on the same
+app/window while the original Architect continued (`current29-minimize-restore2.log`).
+Keyboard Alt+F9 did not minimize; that failed attempt remains retained.
+
+**Retained current13 recovery:** the actual current13 UI enrolled policy revision2
 and created fresh issue #1 once, command2653c89429774dbaa331ecc0444c155a,
 external6291314439. The committed causal GitHub receipt is retained in
 `q26-current13-issue-original.log`; never recreate it. Automatic polling advanced

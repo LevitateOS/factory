@@ -643,7 +643,7 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 	if err = checkAssignmentAuthorityTx(ctx, tx, r.Authority, assignment, grants); err != nil {
 		return empty, err
 	}
-	if err = checkCandidatePreparationSetupTx(ctx, tx, preparation.Preparation); err != nil {
+	if _, err = checkCandidatePreparationSetupTx(ctx, tx, preparation.Preparation); err != nil {
 		return empty, err
 	}
 	return grants, nil
@@ -651,29 +651,29 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 
 // IDs alone cannot authorize a caller-selected effective input map. Match
 // both complete immutable references against the current human decisions.
-func checkCandidatePreparationSetupTx(ctx context.Context, tx *sql.Tx, p project.Preparation) error {
+func checkCandidatePreparationSetupTx(ctx context.Context, tx *sql.Tx, p project.Preparation) (*project.NativeEnvironment, error) {
 	var requirementData, approvalData []byte
 	var requirementDepth, approvalDepth int64
 	if err := tx.QueryRowContext(ctx, `SELECT data,(SELECT count(*) FROM project_requirement_decisions WHERE project_id=$2) FROM project_requirement_decisions WHERE id=$1`, p.Requirements.ID, p.Project).Scan(&requirementData, &requirementDepth); err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT data,(SELECT count(*) FROM project_approval_decisions WHERE project_id=$2) FROM project_approval_decisions WHERE id=$1`, p.Approval.ID, p.Project).Scan(&approvalData, &approvalDepth); err != nil {
-		return err
+		return nil, err
 	}
 	var requirement project.RequirementDecision
 	var approval project.ApprovalDecision
 	if err := json.Unmarshal(requirementData, &requirement); err != nil {
-		return err
+		return nil, err
 	}
 	if err := json.Unmarshal(approvalData, &approval); err != nil {
-		return err
+		return nil, err
 	}
 	if requirement.Validate() != nil || approval.Validate() != nil || !requirement.Ref(requirementDepth).Equal(p.Requirements) ||
 		approval.Ref(approvalDepth) != p.Approval || requirement.Project != p.Project || approval.Project != p.Project ||
 		requirement.SetupDigest != p.SetupDigest || approval.Requirement != requirement.ID || !approval.AllowsPreparation() {
-		return ErrCandidatePreparationConflict
+		return nil, ErrCandidatePreparationConflict
 	}
-	return nil
+	return requirement.Native, nil
 }
 
 func checkCandidatePreparationOwnerTx(ctx context.Context, tx *sql.Tx, preparation execution.PreparationRecord, r CandidatePreparationRegistration, actorID int64, target string) error {

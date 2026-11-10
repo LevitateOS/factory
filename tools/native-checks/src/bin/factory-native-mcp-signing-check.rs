@@ -898,7 +898,9 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    let modes: &[&str] = if std::env::var("SODA_NATIVE_CHECK_NETWORK_INTERRUPT").as_deref() == Ok("1") {
+    let modes: &[&str] = if std::env::var("SODA_NATIVE_CHECK_STANDING_WITHDRAWAL").as_deref() == Ok("1") {
+        &["withdrawn"]
+    } else if std::env::var("SODA_NATIVE_CHECK_NETWORK_INTERRUPT").as_deref() == Ok("1") {
         &["network-pending"]
     } else if std::env::var("SODA_NATIVE_CHECK_NETWORK_LIMIT").as_deref() == Ok("1") {
         &["network-limit"]
@@ -924,6 +926,10 @@ fn managed_preparations(
             .success()
         {
             return Err("Go native preparation check failed".into());
+        }
+        if mode == "withdrawn" {
+            supervisor.stop()?;
+            continue;
         }
         let entries: Vec<_> =
             fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
@@ -1014,7 +1020,9 @@ fn managed_preparations(
             restarted.stop()?;
         }
     }
-    if modes.contains(&"network-pending") {
+    if modes.contains(&"withdrawn") {
+        println!("PASS: current workspace withdrawal refuses retained standing setup before native effects; owned supervisor/database joined");
+    } else if modes.contains(&"network-pending") {
         println!("PASS: two overlapping public HTTPS preparations interrupted by joined Quit; new supervisor retains exact inputs/retirement without setup replay");
     } else if modes.contains(&"network-limit") {
         println!("PASS: aggregate encrypted setup transfer budget refused readiness and retired the exact preparation");

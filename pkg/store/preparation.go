@@ -238,14 +238,18 @@ func authorizeStandingPreparationTx(ctx context.Context, tx *sql.Tx, record exec
 		native != approvedNative || native != (record.Native != nil) {
 		return ErrStaleRevision
 	}
-	if err := checkCandidatePreparationSetupTx(ctx, tx, p); err != nil {
+	nativeDecision, err := checkCandidatePreparationSetupTx(ctx, tx, p)
+	if err != nil {
 		return err
 	}
 	if native {
-		return nil
+		if nativeDecision == nil || nativeDecision.Profile != record.Native.Profile {
+			return ErrAdmissionChanged
+		}
+		return requireNativeDecisionTx(ctx, tx, p.Project, nativeDecision)
 	}
 	var held bool
-	err := tx.QueryRowContext(ctx, `SELECT hold FROM project_maintenance WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&held)
+	err = tx.QueryRowContext(ctx, `SELECT hold FROM project_maintenance WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&held)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}

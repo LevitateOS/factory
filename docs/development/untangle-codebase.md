@@ -1,5 +1,15 @@
 # Factory untangling decisions
 
+Standing native preparation admission (2026-11-10): immutable human setup
+decisions must be paired with current workspace authority. Reuse the existing
+transactional native decision check instead of accepting a saved native decision
+alone. The disposable installed-host check reproduces withdrawal admission before
+the fix (`q25-current9/standing30-before.log`), refuses before native staging after
+it (`standing30-after.log`), and retains working authorized preparation, exact
+replay/retirement and joined pending Quit (`standing30-positive.log`). No inference
+or original profile mutation. Fountain host preparation-grant integration remains
+unfinished; a local grant does not supply it.
+
 ## Current redesign — 2026-11-08
 
 Status: D1–D8 implemented and verified within their recorded local scopes.
@@ -3123,7 +3133,8 @@ original profile/keyring/signer. The finite MCP check remains blocked at the rea
 funded plan-review gate and its failed run was recovered without replay; it is
 not a full tool or installed delivery pass. Current29 reopens with original
 accounting. Q28's separate-prefix offline-copy uninstall/refusal/replay/reinstall
-also passes without changing original profile/service state. Exact artifacts,+source/build identities and remaining ordinary gates are in the existing sections.
+also passes without changing original profile/service state. Exact artifacts,
+source/build identities and remaining ordinary gates are in the existing sections.
 
 ## Verification and completion
 

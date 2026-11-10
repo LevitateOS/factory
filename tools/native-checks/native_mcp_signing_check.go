@@ -5725,6 +5725,28 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	request := execution.StandingPreparationRequest{Input: project.Prepare{Preparation: record.Preparation, Setup: project.ApprovedSetup{Files: files, Bundle: bundle}}, Native: ref}
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	if mode == "withdrawn" {
+		current, err := db.EnvironmentGrant(ctx, grant.Repository)
+		if err != nil {
+			return err
+		}
+		current.Active = false
+		if _, err = db.ApplyFactoryGrant(ctx, "native-preparation-withdrawal", current); err != nil {
+			return err
+		}
+		if err = db.AuthorizeStandingPreparation(ctx, record); err == nil {
+			return errors.New("withdrawn workspace permission still authorizes saved standing preparation")
+		}
+		if _, err = port.PrepareWorkspace(ctx, request); err == nil {
+			return errors.New("withdrawn standing preparation reached native launch")
+		}
+		entries, err := os.ReadDir(filepath.Join(profile, "native-preparations"))
+		if err != nil && !errors.Is(err, os.ErrNotExist) || len(entries) != 0 {
+			return errors.New("withdrawn standing preparation created a native job")
+		}
+		fmt.Println("PASS: saved human decisions grant no standing preparation after workspace withdrawal; refusal before native staging, no inference")
+		return nil
+	}
 	state, err := port.PrepareWorkspace(ctx, request)
 	if err != nil {
 		return err
