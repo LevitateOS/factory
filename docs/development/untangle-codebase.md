@@ -1,5 +1,213 @@
 # Factory untangling decisions
 
+## Live desktop developer tool design (2026-11-10)
+
+Status: design only, requested by the owner. GitHub qualification remains
+paused at Q17's recovery record. No application, inference or remote operation
+was started for this design.
+
+### Outcome and chosen approach
+
+Inspect the actual running installed app, operate its rendered controls and
+wait for explicit conditions through a local `factory-dev` CLI. This replaces
+coordinate guessing and repeated screenshots during navigation and observation.
+Screenshots and OS input remain useful for appearance, focus, keyboard,
+minimize/restore and wake. A DOM action is identified as synthetic input.
+
+Use a small opt-in listener owned by the desktop process plus a bounded DOM
+driver. Reuse the existing product transport, native account/session admission
+and Go command/receipt owners. Keep ordinary UI handlers responsible for all
+mutations. The tool neither creates a workflow engine nor writes product SQL.
+The fixed `native-check` harness already executes DOM scripts; extract its
+generic control lookup/wait behavior when it can be shared without importing
+scenario setup, fixtures, seeded state or check-only product authority.
+
+```text
+factory-dev CLI
+    | private Unix HTTP, typed JSON operations
+running installed Rust desktop
+    | fixed DOM driver, scoped to one real application window
+rendered Lit controls / existing DesktopTransport reads
+    | ordinary Tauri product IPC and current native admission
+existing Go product services, journals and receipts
+```
+
+### Ownership and installation
+
+- Rust desktop owns listener lifetime, peer admission, window selection, request
+  bounds and cancellation. Rust CLI owns argument decoding and output formatting.
+  Keep both in `cmd/soda-desktop`, with a small shared protocol module and an
+  explicitly selected CLI binary. Shell/Tauri stays out of `lib/desktop-runtime`.
+- A small TypeScript driver under `frontend/desktop` owns DOM inspection,
+  control interaction and condition waiting. Shared Lit labels and controls
+  remain the presentation source; correct a missing accessible label at its
+  owning component only when an actual target needs it.
+- Go continues to own product reads, authorization, command identities,
+  spending, inference and recovery. Add a product read projection only for a
+  demonstrated missing observation; reuse existing views first.
+- Include the CLI and dormant driver in the normal release bundle. The app
+  starts with the developer listener disabled; an explicit launch option
+  selects `inspect` or `control` for that process lifetime. `inspect` permits
+  observation only; `control` additionally permits rendered-control actions.
+  Neither mode changes account, funding or provider authority. Activation is
+  visible in runtime status and a small desktop diagnostic indicator.
+- This requires one normal rebuild/install; it cannot attach to today's
+  binary without support. Preserve its profile and prior bundle using the
+  existing installer. Keep `native-check` scenario mode separate. Enabling
+  diagnostics does not by itself qualify an installed journey; evidence records
+  the exact release inventory and enabled mode, with checks of disabled behavior.
+
+### First command surface
+
+All commands take an explicit `--profile`; window-scoped commands require a
+window when more than one exists. Output is JSON by default. Names below are
+proposed, not existing commands.
+
+| Command | Meaning |
+| --- | --- |
+| `factory-dev --profile PATH status` | App/backend phase, instance/generation, release identity, windows and diagnostic mode; no launch or restart |
+| `... ui tree --window main` | Bounded semantic snapshot: current destination, selected account/repository, visible controls, labels, states, focus and alerts |
+| `... ui click --window main --scope S --within "Factory" --role button --name "Work" --action A` | Resolve exactly one current enabled control and invoke its normal DOM action once |
+| `... ui fill --window main --scope S --label "PR number" --value 56 --action A` | Set a supported text control and dispatch its normal input/change events |
+| `... ui select / ui check` | Select an option or set a checkbox to an explicit value; never toggle blindly |
+| `... read work --window main --scope S --issue 54` | Obtain the existing admitted product view through that window's selected transport |
+| `... read run --window main --scope S --run ID` | Existing run status/output projection, subject to its normal access and bounds |
+| `... read command --window main --scope S --kind KIND --owner ID --command ID` | Existing owner-specific command receipt, when supported; no invented universal command ledger |
+| `... wait --window main --scope S --role button --name "Inspect PR" --state enabled --timeout 30s` | Wait for one stated DOM condition; return matching snapshot or timeout diagnostics |
+| `... wait --window main --scope S --run ID --state settled --timeout 120s` | Wait on the existing read projection; report settled outcome, including failure |
+
+The first slice needs status, tree, click, fill, select, check and DOM wait.
+Product reads follow only where DOM observation is insufficient. Do not add a
+generic HTTP proxy, arbitrary JavaScript evaluation, SQL, shell execution,
+headless product mutations or an MCP server to this slice. A later client can
+consume this same protocol if a concrete integration requires it.
+
+### Snapshots, targeting and actions
+
+Each snapshot returns an opaque `scope` bound to the diagnostic session, app
+instance/generation, window/document lifetime and selected product session,
+account and repository. Selection or lifetime changes retire it. Before acting,
+revalidate Rust's generation and the live DOM selection; resolve the target and
+dispatch in the same JavaScript turn. Async product work still passes normal
+current-session admission. Never silently follow an account/repository change.
+
+The tree contains role, accessible label/name, short rendered text, control
+type, visible/enabled/readonly/checked/selected state, safe value and focus.
+Use native labels and ARIA relationships; start with the control types actually
+used here, including native selects and disclosure summaries. Report unsupported
+naming cases rather than claiming a complete browser accessibility tree.
+Traverse supported open shadow roots, exclude hidden/inert controls and identify
+offscreen controls separately. Require an exact, unique target within its named
+region/form. Duplicate names return candidates; they never select the first.
+For targets without a usable label, a snapshot node handle may be used while
+its document, scope and relevant element fingerprint remain current. Retain at
+most two snapshots per window, expire handles after60 seconds, and refuse stale,
+detached or changed targets. Do not silently relocate a stale handle.
+
+Clicks scroll the target into view and verify enabled/visible state before
+dispatch; fills use the native value setter and expected events, preserving
+readonly/disabled controls and normal form validation. Filling a nonempty field
+requires its expected prior value so a changed draft refuses rather than being
+overwritten. Preserve human-authored issue/PR/comment text under the existing
+editing contract; the driver never clears drafts or dismisses warnings to make
+an action succeed. These actions exercise
+rendered handlers but do not establish pointer hit testing, trusted browser
+events or physical typing. Password/file controls are unavailable initially;
+credential values and private native inputs are never serialized.
+
+Action responses distinguish dispatch from completion. `dispatched` proves
+only that the chosen DOM action was invoked. Wait for a concrete UI condition
+or read an authoritative product receipt to establish its result. A local
+action ID is correlation data, never a product command identity or authority.
+
+### Waiting, errors and uncertain effects
+
+DOM waits observe mutations and relevant input/change events, perform a fresh
+evaluation when armed, and use a bounded fallback for conditions not represented
+by mutations. They have a deadline and unsubscribe on completion or retirement.
+Avoid global network-idle assumptions: background polling is ordinary behavior.
+Await the relevant Lit render completion where available, then evaluate the
+requested condition. Existing product reads use bounded polling with one
+request at a time; they may perform admitted provider I/O and are identified as
+such. The CLI never starts a model to answer a status question.
+
+Require a caller-supplied action ID for every interaction, including edits that
+could autosave. Record its request fingerprint in a bounded in-memory desktop
+cache before dispatch. Identical retries return the same dispatch outcome;
+changed payloads conflict. Exhausted cache capacity refuses new actions rather
+than evicting IDs and risking a repeated send. A fresh diagnostic session has
+a new identity; old-session actions refuse after restart or reactivation.
+There is no durable second effect journal. The CLI writes its small request
+intent before send to its private scratch log, preserving the session and ID.
+
+Timeout/disconnect after possible dispatch returns `outcome_unknown` and never
+reclicks, constructs a replacement product command or retries a write. Where
+the normal UI exposes a saved command, inspect that exact original command and
+its receipt. Otherwise retain the uncertainty for manual/product recovery.
+Removing the developer client cancels its observations and queued undispatched
+actions; it does not imply that an already dispatched product command stopped.
+Quit/withdrawal use their existing owners. Wait timeouts neither cancel runs
+nor withdraw funding. Typed errors include `not_found`, `ambiguous_target`,
+`disabled`, `stale_scope`, `unsupported_control`, `deadline`, `retired` and
+`outcome_unknown`; callers never interpret an empty response as success.
+
+### Protocol, admission and evidence
+
+Use a versioned local `/dev/v1/call` JSON operation endpoint over a Unix socket,
+reusing `lib/unix-http` client framing and existing bounded Rust HTTP server
+patterns. The endpoint lives in a private per-profile runtime directory distinct
+from `backend.sock`; directory0700/socket0600, verified owning UID and peer UID.
+Reject browser Origin/fetch headers. Validate safe existing paths and refuse a
+foreign/stale endpoint; never unlink an unknown socket to acquire ownership.
+Remote guest access uses the existing authenticated SSH connection to run the
+CLI inside the guest, with no TCP listener or port forwarding.
+
+Bind each request and fixed-driver response to an unpredictable request nonce,
+window and session; admit driver replies only from the local app document and
+expected outstanding request. Never interpret page text or response content as
+code. Rust sends fixed operation code with serialized data; no caller-supplied
+script. App shutdown retires admission, cancels/joins observation tasks and
+removes only its own endpoint. Backend failure remains inspectable while the
+desktop is alive; desktop death yields unavailable, with no automatic relaunch.
+
+Initial limits:64KiB request,1MiB response,500 tree nodes,4KiB per text field,
+one dispatched action and at most eight observations per window. Responses
+report truncation explicitly. Ordinary calls have a five-second observation
+deadline; product reads retain their current transport bounds; waits max120s.
+No lifecycle mutex is held during webview/provider I/O. Use stable exit codes
+for success, refusal, timeout and unknown outcome; stdout is machine-readable,
+stderr is diagnostic. Version/capability negotiation refuses unsupported ops.
+
+Local structured output records release/profile reference, session/window,
+scope, action/request IDs, observed time, operation, provenance (`ui_dom`,
+`product_read`, `native_status`) and result. Keep secrets, raw request bodies,
+full documents and editable text out of default traces. Explicit field values
+and requested snippets are private developer output, not public evidence.
+Diagnostics cannot manufacture provider receipts or promote synthetic input
+into OS/visual proof. Keep artifacts outside Git in the existing private check
+directory; link necessary product receipts instead of duplicating their ledger.
+
+### Implementation and acceptance
+
+1. Add the bounded Rust listener/CLI and fixed DOM driver, integrate opt-in
+   startup/shutdown and package both through the ordinary release path. Preserve
+   the running paused app until a normal upgrade is intentionally resumed.
+2. Through the existing real native integration harness, prove status and a
+   rendered label-based navigation/fill/wait journey; include an ambiguous
+   target, disabled target, changed selection and a lost action reply. Verify
+   one dispatch and unchanged original command identity, with no paid inference.
+   Use the same driver in that harness rather than another scenario framework.
+3. Install the release through existing exact-prior custody and exercise the
+   live CLI against its actual UI/profile. Record release/mode; show normal
+   launch has no listener and retirement joins observations. Keep physical
+   keyboard/window checks separate. This qualifies the tool, not Q17 delivery.
+4. Resume Q17 only on owner instruction, using the original PR56/preparations
+   and receipts. Read existing state, operate exact current controls, and wait
+   for original command/run outcomes without screenshot loops or effect replay.
+
+The design is ready for implementation. Nothing above claims that the tool
+exists or that any outstanding product journey has passed.
+
 Stable withdrawal recovery and completion (2026-11-10): actual installed
 current55/ea7ebff1b0a89ee71fdb191bcb4a615a4adf1452 records ordinary fresh merge
 2cb02c1842c34bcc9dd0f6ca7fc19fc9 through the UI. Native command
