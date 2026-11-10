@@ -1,5 +1,14 @@
 # Factory untangling decisions
 
+Q26 installed GitHub refresh (2026-11-10): connect the missing desktop Refresh
+login action to the existing native OAuth rotation and sign-in lifetime owner.
+Keep cancellation, generation checks, immutable account identity and durable
+uncertain-rotation reservations in their existing owners. Actual installed
+current31 changes Expired→Saved and reconnects the original sodaos fixture
+without new login approval or inference (`current31-refresh-result.png`,
+`current31-repository-result3.png`). Types, language boundaries and production
+build pass. This is account lifecycle qualification; full delivery remains open.
+
 Q26 task step budget (2026-11-10): the original Builder ended after31 completed
 model calls with two tasks committed and one unfinished; terminal reason remains
 null. Raise new native task invocations from32 to128 model steps while preserving

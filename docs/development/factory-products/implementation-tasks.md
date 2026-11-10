@@ -1862,6 +1862,26 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
+Owner authorization (2026-11-10): standing Muse use, fresh explicit commands and
+allowance increases on the selected source are authorized until10:00 Europe/
+Amsterdam today (09:00UTC). No repeated permission request is needed before that
+deadline. Preserve uncertain sends/inference, exact charges and old terminal
+authority. The one fresh Retry also approved after2e1fc21 is not yet sent.
+Current31's real installed UI rotated the expired GitHub grant through the
+existing native owner: `current31-refresh-result.png` shows Saved, and
+`current31-repository-result3.png` reconnects the same sodaos account/repository.
+No source/account switch or inference occurred. The new Refresh login action
+uses the owned sign-in cancellation/generation lifecycle and native durable
+rotation; pending/locked/withdrawn grants cannot retry that exchange. Production
+build/type/boundary checks pass. Exact bundle inventory
+18b9ff834f20e700bbb3bb7018d95d5fe530b293936b1c1dd83959d9f7a75170,
+archive cca83d4a8bd476eda9e6f90b3150e435b5f9e1a56ed6401eb894db3d0a67af4c.
+Its Factory input is2e1fc21 plus `q19-authority/product31-owned.patch` and
+`product31-source.rs` (SHA25631f45f35094fa443ff4ad5e9a55f3ef9c89d8da4a22718b32bf4dde312bd05d7
+and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
+The independent Fountain source changes are still being qualified; this installed
+refresh proves no full Q26 or Fountain delivery closure.
+
 **Active recovery — INCOMPLETE, current30:** installed app283905/backend/PG is
 running with matching production helpers. Executable-bit correction48e7b9d is
 installed and its production-native check passes. The owner authorized30 additional

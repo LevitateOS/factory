@@ -201,6 +201,36 @@ pub(super) fn github_sign_in_status(
     Ok(app.state::<Desktop>().signin.view())
 }
 #[tauri::command]
+pub(super) async fn github_refresh(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    connection: String,
+) -> Result<View,String> {
+    caller(&window)?;
+    let desktop=app.state::<Desktop>();
+    let store=desktop.credentials()?;
+    let cap=store.capability(&connection).await.map_err(|e|e.to_string())?;
+    if cap.account().provider!=soda_desktop_runtime::credentials::Provider::Github {
+        return Err("Choose a GitHub account.".into());
+    }
+    let epoch=desktop.generation.load(Ordering::SeqCst);
+    let worker=app.clone();
+    let _saving=desktop.signin.saving.lock().await;
+    desktop.signin.start(window.label(),move |attempt|tauri::async_runtime::spawn(async move {
+        let result=async {
+            update(&worker,attempt,epoch,"verifying",None)?;
+            let owner=worker.state::<Desktop>();
+            let refresh={
+                let runtime=owner.runtime.lock().unwrap();
+                runtime.as_ref().ok_or(Error::Unavailable)?.github_refresh(&store,&cap)
+            };
+            refresh.await?;
+            update(&worker,attempt,epoch,"complete",None)
+        }.await;
+        if let Err(error)=result { worker.state::<Desktop>().signin.failed(attempt,message(error)); }
+    }))
+}
+#[tauri::command]
 pub(super) async fn github_sign_in(
     window: WebviewWindow,
     app: tauri::AppHandle,

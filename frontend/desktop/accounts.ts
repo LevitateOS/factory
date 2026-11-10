@@ -5,6 +5,7 @@ export interface Account {
   account: string;
   label?: string;
   state: 'stored' | 'expired' | 'refresh_pending' | 'locked' | 'withdrawn';
+  grant?: {refresh_available: boolean};
 }
 interface SignIn {
   attempt: number;
@@ -26,7 +27,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
   const code = document.querySelector<HTMLElement>('#github-user-code')!;
   const expiry = document.querySelector<HTMLElement>('#github-expiry')!;
   const list = document.querySelector<HTMLUListElement>('#github-accounts')!;
-  const rows = new Map<string, {row: HTMLLIElement; name: HTMLSpanElement; remove: HTMLButtonElement}>();
+  const rows = new Map<string, {row: HTMLLIElement; name: HTMLSpanElement; refresh: HTMLButtonElement; remove: HTMLButtonElement}>();
   let generation = -1,
     ready = false,
     reading = false,
@@ -75,9 +76,15 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       if (!value) {
         const row = document.createElement('li'),
           name = document.createElement('span'),
+          refresh = document.createElement('button'),
           remove = document.createElement('button');
         row.dataset.connection = account.connection;
         remove.type = 'button';
+        refresh.type = 'button';
+        refresh.textContent = 'Refresh login';
+        refresh.addEventListener('click', () => void action(async () => {
+          view = await core.invoke<SignIn>('github_refresh', {connection: account.connection});
+        }));
         remove.textContent = 'Remove from Factory';
         remove.addEventListener(
           'click',
@@ -87,9 +94,9 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
               await core.invoke('credential_withdraw', {connection: account.connection});
             })
         );
-        row.append(name, remove);
+        row.append(name, refresh, remove);
         list.append(row);
-        value = {row, name, remove};
+        value = {row, name, refresh, remove};
         rows.set(account.connection, value);
       }
       const state = {
@@ -101,6 +108,8 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       }[account.state];
       value.name.textContent = `${account.label ?? account.account} · ${state}`;
       value.remove.disabled = busy || !ready || !accountsCurrent;
+      value.refresh.hidden = !account.grant?.refresh_available;
+      value.refresh.disabled = busy || !ready || !accountsCurrent || active || !['stored','expired'].includes(account.state);
     }
   }
   async function read() {

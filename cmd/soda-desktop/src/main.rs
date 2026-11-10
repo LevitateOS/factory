@@ -7,7 +7,7 @@ use product::{
     factory_repositories,
 };
 mod signin;
-use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
+use signin::{github_refresh, github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
 mod fountain_signin;
 mod muse_signin;
 use fountain_signin::{
@@ -521,6 +521,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
+        github_refresh,
         fountain_sign_in,
         fountain_sign_in_status,
         fountain_sign_in_cancel,
@@ -560,6 +561,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
+        github_refresh,
         fountain_sign_in,
         fountain_sign_in_status,
         fountain_sign_in_cancel,
