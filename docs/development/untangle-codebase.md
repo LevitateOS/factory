@@ -1,5 +1,15 @@
 # Factory untangling decisions
 
+Installed Fountain control (2026-11-10): keep read enrollment, privileged host
+grant, local workspace consent and funding separate in the existing shared UI.
+Current37 clean787a15bc976f and canonical Fountain27074cd5dd pass actual installed
+two-role preparation, withdrawal/physical and host retirement, inactive controller,
+Quit/reopen, login refresh and enrollment/credential retirement. Original native
+request/completion hashes survive; zero runs/charges and all owners joined.
+`q25-package/fountain-ui37c-journey.log` retains the real UI/host journey. Native
+execution used the normal host session; the compiler-hidden PID namespace was
+browsing-only. This does not qualify clean-guest execution or full delivery.
+
 Fountain PR creation (2026-11-10): extend the same native publication journal
 with a typed PR variant, preserving version1 branch captures. Share grant capture,
 registration/lookup and host receipt identity across the two effects; only refs

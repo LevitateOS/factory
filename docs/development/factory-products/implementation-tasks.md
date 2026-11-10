@@ -1264,6 +1264,25 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+Installed control/preparation increment (2026-11-10): actual clean787a15bc976f
+current37 bundle, inventoryf6942ddb52ac60a4e8ca1f87d04518656d2473866b0ca849e34ea2474295f254,
+and canonical Fountain27074cd5dd pass
+`q25-package/fountain-ui37c-journey.log`. A distinct public control OAuth client,
+read enrollment, desktop generation1 and explicit operation grant were selected
+through real keyboard/UI. Disabled/unfunded policy and exact clipboard-verified
+setup/check scripts prepared both roles at source28ff702d84c024b15f2620c5d0a9a0a50fa8a94b.
+Both setup/check exits are0; original requests/completions remain byte-identical.
+Withdrawal physically retired both roots and host claims; Finish retirement
+made the controller inactive. Root `host-retirement-receipts.log` retains both
+manifest/retirement digests. Normal Quit/reopen, refresh, exact enrollment replay,
+withdrawal/inactive replay, credential removal and final Quit pass; app/PG/host/
+keyring/compositor owners joined. Zero runs/charges. Execution used the actual
+installed launcher in the ordinary host user session; the compiler-hidden
+recipient view remained browsing-only because its PID namespace could not
+authenticate the privileged broker. This does not qualify a clean guest or
+appliance, active expiry during blocked I/O, or funded delivery. Earlier37/37b
+fixture-discovery/port failures remain preserved; neither dispatched work.
+
 **Current preparation increment verified (2026-11-10); Q19 remains INCOMPLETE.**
 Native workspace consent and immutable setup decisions now capture the selected
 host operation grant. Go re-admits the exact approved request after host claim
@@ -2621,6 +2640,13 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q27"></a>
 
 ### Q27 — Installed Fountain desktop product journey
+
+Actual installed control/preparation/restart/withdrawal now passes current37 in
+`q25-package/fountain-ui37c-journey.log`; exact inputs, original native and host
+receipts, joined shutdown and limits are in Q19 above. The shared UI captures
+separate host control, local workspace consent and role scripts without funding
+inference. Full paid work→candidate→publication→review/check/merge and adoption
+remain unfinished; this preparation evidence does not close Q27.
 
 The installed PR reader also passes `q25-package/fountain-ui36e-journey.log`:
 canonical Fountain132fbe0d8bbe7ecd8d1279f022f2cd2bb8d8a9de creates a separate
