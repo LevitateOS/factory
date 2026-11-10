@@ -133,6 +133,7 @@ func (s nativeCollaborationReads) ReadReviews(ctx context.Context, actor collabo
 	items := make([]collaboration.Review, 0, len(raw.Items))
 	for _, review := range raw.Items {
 		item := collaboration.Review{ExternalID: review.ExternalID, Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Observation: s.observation(review), Author: nativeActorRef(mapping, review.Author), Body: review.Body, State: review.State, SubmittedAt: review.SubmittedAt}
+		item.Official, item.Stale = review.Official, review.Stale
 		if review.Commit != nil {
 			item.Commit = *review.Commit
 		}

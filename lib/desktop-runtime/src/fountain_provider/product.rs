@@ -124,7 +124,7 @@ fn review(value:&Value)->Result<Value> {
     let commit=text(value,"commit_id",64)?;
     if !commit.is_empty() && !super::hex(commit,40) {return Err(invalid());}
     Ok(json!({"external_id":id(&value["id"])?,"author":actor(&value["user"])?,"body":text(value,"body",128*1024)?,"state":state,"provider_state":provider,
-        "commit":if commit.is_empty(){Value::Null}else{json!(commit)},"submitted_at":if provider=="PENDING" || provider=="REQUEST_REVIEW" {Value::Null}else{date(value,"submitted_at")?}}))
+        "commit":if commit.is_empty(){Value::Null}else{json!(commit)},"official":value["official"].as_bool().ok_or_else(invalid)?,"stale":value["stale"].as_bool().ok_or_else(invalid)?,"submitted_at":if provider=="PENDING" || provider=="REQUEST_REVIEW" {Value::Null}else{date(value,"submitted_at")?}}))
 }
 
 impl Client {
@@ -146,6 +146,14 @@ impl Client {
         }
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
+            Read::PullRequiredChecks {repository:selected,number,head,base} if selected==repository=>json!({"kind":"pull_required_checks","account":account,"required_checks":self.visible_required_checks(repository,*number,head,base).await?}),
+            Read::DeliveryOpinions {repository:selected,number} if selected==repository=>json!({"kind":"delivery_opinions","account":account,"delivery_opinions":self.delivery_opinions(repository,*number).await?}),
+            Read::PullThreads {repository:selected,number,page,limit,thread_id} if selected==repository=>json!({"kind":"pull_threads","account":account,"threads":self.discussion_threads(repository,*number,*page,*limit,thread_id).await?}),
+            Read::PullCheckRuns {repository:selected,number,page,limit,head} | Read::PullCommitStatuses {repository:selected,number,page,limit,head} if selected==repository=>{
+                let runs=matches!(query,Read::PullCheckRuns {..});
+                let value=self.visible_checks(repository,*number,*page,*limit,head,runs).await?;
+                if runs {json!({"kind":"pull_check_runs","account":account,"checks":value})}else{json!({"kind":"pull_commit_statuses","account":account,"statuses":value})}
+            }
             Read::AutomationChecks {repository:selected,number} if selected==repository=>json!({"kind":"automation_checks","account":account,"automation_checks":self.automation_checks(repository,*number).await?}),
             Read::MergePreparation {repository:selected,number} if selected==repository=>json!({"kind":"merge_preparation","account":account,"preparation":self.merge_facts(repository,*number).await?}),
             Read::MergeCompletion {repository:selected,number} if selected==repository=>json!({"kind":"merge_completion","account":account,"publication":self.merge_completion(repository,*number).await?}),
@@ -416,7 +424,7 @@ impl Client {
         ).await?;
         pull(&value, Some(number), repository)
     }
-    async fn product_page(
+    pub(super) async fn product_page(
         &self,
         parts: &[&str],
         page: u32,

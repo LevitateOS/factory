@@ -92,6 +92,15 @@ impl Client {
     pub(super) async fn automation_checks(&self,repository:&str,number:u32)->Result<Value> {
         let before=self.review_facts(repository,number,false).await?;
         let head=before["head_tip"].as_str().ok_or_else(invalid)?.to_owned();
+        let observed=self.current_checks(&head).await?;
+        if self.review_facts(repository,number,false).await?!=before {return Err(invalid());}
+        let mut result=before;
+        result.as_object_mut().ok_or_else(invalid)?.remove("author");
+        result["evaluation_commit"]=json!(head);result["checks"]=observed["checks"].clone();result["sources"]=observed["sources"].clone();
+        Ok(result)
+    }
+
+    pub(super) async fn current_checks(&self,head:&str)->Result<Value> {
         let selection=json!({"families":["checks"],"sha":head,"limit":50});
         let (revision,snapshot)=self.snapshot(selection.clone()).await?;
         let set=&snapshot["checks"];
@@ -123,11 +132,8 @@ impl Client {
             sources.push(json!({"kind":"fountain_commit_status","id":row["id"],"index":row["index"],"creator":row["creator_id"],"commit":head,"context":context,"state":row["state"]}));
         }
         let (after_revision,after)=self.snapshot(selection).await?;
-        if revision!=after_revision || snapshot!=after || self.review_facts(repository,number,false).await?!=before {return Err(invalid());}
-        let mut result=before;
-        result.as_object_mut().ok_or_else(invalid)?.remove("author");
-        result["evaluation_commit"]=json!(head);result["checks"]=json!(checks);result["sources"]=json!(sources);
-        Ok(result)
+        if revision!=after_revision || snapshot!=after {return Err(invalid());}
+        Ok(json!({"checks":checks,"sources":sources}))
     }
 
     pub(super) async fn merge_facts(&self,repository:&str,number:u32)->Result<Value> {

@@ -3270,6 +3270,23 @@ func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntim
 	if !observed.MethodAvailable || !observed.ProviderComplete || !observed.ProviderEligible {
 		return fmt.Errorf("native merge evidence unavailable: method=%v complete=%v eligible=%v", observed.MethodAvailable, observed.ProviderComplete, observed.ProviderEligible)
 	}
+	if os.Getenv("FACTORY_FOUNTAIN_CONTROLLER_MERGE") == "1" {
+		material, e := port.ReadDeliveryMaterial(ctx, w)
+		if e != nil {
+			return fmt.Errorf("actual native delivery discussion: %w", e)
+		}
+		if !material.Eligible || len(material.Reviews) == 0 || material.Head != w.HeadOID || material.Base != w.BaseOID {
+			return errors.New("actual native delivery material omitted the reviewed candidate")
+		}
+		raw, e := json.Marshal(material)
+		if e != nil {
+			return e
+		}
+		if e = os.WriteFile(filepath.Join(filepath.Dir(path), "native-delivery-material.json"), raw, 0600); e != nil {
+			return e
+		}
+		fmt.Println("PASS: actual public Fountain discussion and current review opinions feed the canonical delivery material owner before merge; no model verdict declared as inference")
+	}
 	w.NativeRev = observed.NativeRev
 	target := factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}
 	assessment, err := factory.VerifyChecks(target, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, observed.Checks, time.Now().Unix())

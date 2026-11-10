@@ -16,6 +16,7 @@ mod source;
 mod snapshot;
 mod publication;
 mod product;
+mod discussion;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
 pub use publication::PublicationOutcome;

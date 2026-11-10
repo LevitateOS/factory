@@ -1787,6 +1787,32 @@ Final reply: requested Q21, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q22 — Fountain automatic issue intake
 
+Shared delivery observations (2026-11-10): `q19-authority/product50-connected.log`
+passes the existing actual-host native branch/PR/review/Actions/merge journey with
+two additional ordinary inline comments. Complete native review opinions,
+official/stale state and digest-checked thread bodies now reach Go's existing
+delivery-material owner before merge. The shared API exposes issuer-bound Actions
+statuses on the exact candidate and nonempty thread/member pagination after
+merge, preserving both comment bodies verbatim. Required-rule enumeration remains
+explicitly unknown; this display grants no merge authority. Thread mutation and
+unproved original diff pairs remain unavailable; native recorded coordinates
+are retained. Review/thread enumeration is bounded and refuses incomplete data.
+Canonical Fountain's accompanying commit only extends its existing integration
+fixture; host authority remains at `d1aff71b8aa275a4c0f0441b4878be28a9b62d22`.
+Material: `product50-native/profile/native-delivery-material.json`; PR8/id13,
+review23/24, thread2103 with members2103/2104; candidate/result
+c8a1d8da65fae8d6ef7b509379153ce18d575072, old base
+b7f28a175fb0ec93f5194b849a5079f810b9369d, original merge command
+2e3a3cf7f97f7180607ad8324246ac76. All four effects retain lost-initial-reply
+adoption and one send each; cancellation, restart/withdrawal, both preparations,
+the separate finite worker and physical/host retirement pass. Every owner joined
+(`product50-host/pg-stop.log`). Existing declared candidate/run/verdict inputs
+remain explicit: this is no paid/full coordinator/intake/installed qualification.
+Dependency validation of published Factory `7e1248b` is run42776020117; inspect
+its final result before claiming release qualification. Clean production bundle
+current38 from that source finished in `q25-package/current38-build.log` and is
+not yet an installed/active-worker upgrade.
+
 Connected native delivery increment (2026-11-10): canonical Fountain
 `d1aff71b8a` and `q19-authority/product49g-connected.log` pass real native
 branch→PR→COMMENT→Forgejo Actions→conditional fast-forward merge, original PR/

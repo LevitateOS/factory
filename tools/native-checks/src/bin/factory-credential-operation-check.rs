@@ -1349,11 +1349,28 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
             let number=state["Review"]["pr_number"].as_u64().ok_or("original review PR number absent")?;
             let list=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/reviews?limit=50")).await?;
             let items=list["items"].as_array().ok_or("shared review list absent")?;
-            ensure(items.len()==1&&items[0]["state"]=="commented"&&items[0]["body"]==state["Review"]["body"]&&items[0]["commit"]==state["Review"]["head_oid"],"shared Go review list changed native COMMENT/body/candidate")?;
-            let id=items[0]["external_id"].as_str().ok_or("shared review identity absent")?;
+            let original=items.iter().find(|item|item["body"]==state["Review"]["body"]).ok_or("shared original review absent")?;
+            ensure(original["state"]=="commented"&&original["commit"]==state["Review"]["head_oid"],"shared Go review list changed native COMMENT/body/candidate")?;
+            let id=original["external_id"].as_str().ok_or("shared review identity absent")?;
             let detail=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/reviews/{id}")).await?;
             ensure(detail["external_id"]==id&&detail["body"]==state["Review"]["body"]&&detail["commit"]==state["Review"]["head_oid"]&&detail["state"]=="commented","shared review detail did not preserve its original native text")?;
             println!("PASS: actual public Fountain review list/detail through shared Go presentation API retain COMMENT, exact candidate, author and verbatim original body");
+            if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some() {
+                let checks=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/checks?limit=50")).await?;
+                let rows=checks["checks"]["items"].as_array().ok_or("shared native check items absent")?;
+                ensure(rows.iter().any(|row|row["name"]=="actions:Native CI / exact-candidate (pull_request)"&&row["conclusion"]=="success"&&row["commit"]==state["Review"]["head_oid"]),"shared native Actions check missing or bound to another candidate")?;
+                ensure(checks["status_gate"]=="unknown"&&checks["protection"]["requirements_complete"]==false,"visible CI claimed complete policy authority")?;
+                let threads=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/threads?limit=20")).await?;
+                let items=threads["items"].as_array().ok_or("shared native threads absent")?;
+                ensure(items.len()==1&&items[0]["resolution"]=="unresolved","native thread catalogue lost its original unresolved conversation")?;
+                let thread=items[0]["external_id"].as_str().ok_or("native thread identity absent")?;
+                let members=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/threads/{thread}/comments?limit=1")).await?;
+                let next=members["next"].as_str().filter(|v|!v.is_empty()).ok_or("native member cursor absent")?;
+                let next=url::form_urlencoded::Serializer::new(String::new()).append_pair("cursor",next).finish();
+                let rest=product_read(format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/threads/{thread}/comments?limit=1&{next}")).await?;
+                ensure(members["items"][0]["comment"]["body"]=="First recorded native observation.\n"&&rest["items"][0]["comment"]["body"]=="Second recorded native observation.\n"&&rest["complete"]==true,"native thread member pagination changed exact recorded text")?;
+                println!("PASS: actual shared Go CI/status and nonempty native conversation/member pagination retain exact candidate and verbatim text; unknown policy and unavailable resolution stay explicit");
+            }
         }
     }
     let lost_preparation=std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PREPARATION_LOST").is_some();

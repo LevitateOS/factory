@@ -87,6 +87,8 @@ type nativeReview struct {
 	ProviderState string                       `json:"provider_state"`
 	Commit        *collaboration.CommitID      `json:"commit"`
 	SubmittedAt   *time.Time                   `json:"submitted_at"`
+	Official      *bool                        `json:"official,omitempty"`
+	Stale         *bool                        `json:"stale,omitempty"`
 }
 type nativeReviewComment struct {
 	ExternalID        string                       `json:"external_id"`

@@ -1,5 +1,18 @@
 # Factory untangling decisions
 
+Fountain delivery observations (2026-11-10): reuse public host snapshots and
+authenticated review reads for complete current opinions, native official/stale
+state, digest-checked conversations and issuer-bound CI presentation. Go's
+existing delivery-material and shared presentation owners consume them; reads
+never grant thread mutation or merge authority. Preserve unknown original pairs
+and rule enumeration instead of synthesizing GitHub policy facts.
+`product50-connected.log` passes real nonempty inline discussion/member paging,
+exact-candidate Actions display, pre-merge delivery material, all original
+lost-reply journals/one send per phase, conditional merge, closure and retained
+restart/withdrawal. All owners joined. Candidate/run/verdict remain declared
+fixtures; paid/coordinator/intake/installed outcomes remain open. Exact evidence
+and bounds are in Q22; earlier49e's unknown review remains fenced.
+
 Fountain checks and merge (2026-11-10): retain authenticated CI issuer identity
 (including the built-in Actions actor-2), exact evaluated head/base and complete
 latest statuses in the native connector. Go applies the existing check verdict.
