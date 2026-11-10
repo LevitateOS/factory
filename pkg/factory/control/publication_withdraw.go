@@ -300,12 +300,13 @@ func (c *Coordinator) adoptObserved(op *factory.PublicationOperation, outcome fa
 	if op.Receipt != "" && op.Receipt != string(outcome.Receipt) {
 		return false
 	}
-	if sameOperationOutcome(operationOutcomeOf(*op), outcome) {
-		return true
-	}
+	prior := operationOutcomeOf(*op)
 	op.Effect, op.Cancellation, op.Completion, op.Reason = outcome.Effect, outcome.Cancellation, outcome.Completion, outcome.Reason
-	op.Receipt, op.UpdatedUnix = string(outcome.Receipt), now.Unix()
+	op.Receipt = string(outcome.Receipt)
 	op.InstallationID, op.ActorID, op.RepositoryID = outcome.InstallationID, outcome.ActorID, outcome.RepositoryID
+	if !sameOperationOutcome(prior, operationOutcomeOf(*op)) {
+		op.UpdatedUnix = now.Unix()
+	}
 	return true
 }
 
