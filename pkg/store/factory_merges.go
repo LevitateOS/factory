@@ -606,7 +606,7 @@ func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Pu
 		// Closed is the authority fence. Retained closed rows can carry a
 		// frozen active checkpoint; settled run receipts, not that bookkeeping
 		// flag, prove custody ended. Preserve the row byte for byte.
-		if !allowance.Closed {
+		if !allowance.Closed && (!expiredUnallocatedMerge(m) || !allowance.Active) {
 			return ErrMergeConflict
 		}
 	} else if allowance.Closed || !allowance.Active {
@@ -673,6 +673,8 @@ func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal strin
 	if r.RetryNoSend {
 		if m.Operation.Work != nil {
 			m.History = append(m.History, factory.SnapshotMergeGeneration(m.Authorization, m.Operation, m.Stage, m.Outcome, m.Reason, m.FinishedUnix))
+		} else if expiredUnallocatedMerge(m) {
+			m.History = append(m.History, factory.SnapshotMergeGeneration(m.Authorization, m.Operation, factory.MergeWithdrawn, factory.Cancelled, factory.MergeReasonWithdrawn, now.Unix()))
 		}
 		m.Authorization, m.Operation = factory.MergeAuthorization{}, factory.MergeOperation{Kind: factory.OpMerge}
 		m.NativeRev, m.ObservedUnix = 0, 0
@@ -715,6 +717,9 @@ func retainedMergeAuthority(a factory.Assignment, g admissionGrants) factory.Aut
 }
 
 func mergeNoSendRecovery(m factory.Merge) bool {
+	if expiredUnallocatedMerge(m) {
+		return true
+	}
 	if m.Stage == factory.MergeFailed && m.Reason == factory.MergeReasonRefused && m.Authorization.Bound() && m.Operation.Work != nil && m.Operation.Attempts == 1 && m.Operation.Completion == factory.OpCompletionComplete && len(m.History)+1 < factory.MaxMergeGenerations {
 		_, err := factory.MergePredecessorProofOf(m.Authorization.Generation.Generation, m.Operation)
 		return err == nil
@@ -723,6 +728,14 @@ func mergeNoSendRecovery(m factory.Merge) bool {
 	// expiry or policy withdrawal; it never extends the earlier command.
 	unallocated := m.RetryCommand != "" && len(m.History) > 0 && pristineMergeOperation(m.Operation)
 	return unallocated && (m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced || m.Stage == factory.MergeWithdrawn && time.Now().Unix() >= m.RetryNotAfter)
+}
+
+// Only the durable pre-send state proves that no operation was allocated.
+// An expired binding is retired by a fresh explicit command, never extended.
+func expiredUnallocatedMerge(m factory.Merge) bool {
+	return (m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced) && !m.WithdrawRequested &&
+		m.Authorization.Bound() && time.Now().Unix() >= m.Authorization.Generation.NotAfter &&
+		len(m.History)+1 < factory.MaxMergeGenerations && pristineMergeOperation(m.Operation)
 }
 
 // MergeSendDeadline admits only the finite merge grant. It never opens an

@@ -2167,7 +2167,31 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE (2026-11-10,09:06UTC):** Q26/Q28 reached real
+**Active recovery — INCOMPLETE (2026-11-10,09:31UTC):** actual current43
+(`574182f1393fb291f1a8c5b98c91d6316747f047`, inventory
+86c9ec5f9b24b42c21151ac8f4400f1aa2a89d6f7826820e5839970b9da99d95,
+archive8c763ab00ef98db3d84f8a719900227347ce32862f25eee244398681e795cca9)
+passes installed101→102, exact prior installed101 backend refusal without table
+changes, and current reopen on disposable `/home/factory/q28-format102`.
+Source-copy file hashes remain unchanged. Current app PID is retained in
+`q28-format102/app.pid`; app/backend/PG are running, with zero active runs.
+No inference after09:00UTC. Exact installed Work detail confirms typed clear
+COMMENT, passing real CI and open merge with zero attempts. Current grants are
+effective; no preparation bypass is needed. Its original bound authorization
+expired before allocating an operation; the existing fresh-merge offer refuses
+this case (`merge-authority43.log`). Owned implementation extends only the
+existing explicit unsent-merge command: preserve the expired local authorization,
+native-journal absence plus pristine product state, distinct bounded generation,
+and unchanged inference allowance. Format103 fences older writers. Existing
+disposable migration passes102→103 with75 tables unchanged and exact102/unknown104
+refusal. Typecheck/Lit pass; affected existing PostgreSQL checks and production
+current44 qualification are next. Do not replay any original model or send.
+Both dependency jobs42786932574/a89a50a and42788652296/574182f passed all source,
+native and PostgreSQL checks. Q24 lacks its appliance; further paid correction/
+adoption needs an authorized time window and finite allowance. The independent
+queue and Q30's full completion criteria remain outstanding.
+
+Prior recovery (09:06UTC): Q26/Q28 reached real
 installed publication, independent typed review and CI; full delivery is pending.
 Production current42 is clean`a89a50a28a86667d69589deffabcb748d6377ca1`,
 inventory82aae5f81df2db11a22153b887d99e3fea01a0c0f693ef435f4b9e7bdef8312c,
@@ -2880,6 +2904,17 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Actual installed current43 on the offline `/home/factory/q28-format102` copy
+qualifies101→102, exact prior installed current42 backend refusal and current
+reopen. `prior-installed-result.log` and before/after table fingerprints prove
+refusal unchanged; source-copy file hashes are unchanged after both opens.
+All19 runs/67 judgments/121 minutes and the original unknown branch remain.
+The copied PG used for prior-writer refusal joined; current app/backend/PG remain
+open for Q26's non-inference merge recovery. Format103's disposable concurrent
+102→103/prior102/unknown104 check also passes with all75 table hashes unchanged;
+installed activation is pending. These are retained-store checks, not active-run
+upgrade or full update-delivery qualification.
 
 Format102 now fences writers that would ignore the setup decisions captured by
 fresh retained-review funding. `q28-migrate/retained102/check.log` passes actual

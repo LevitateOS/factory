@@ -410,6 +410,13 @@ func (s MergeGenerationSnapshot) Validate() error {
 	default:
 		return errors.New("merge history snapshot is not a finalized predecessor")
 	}
+	// A locally retired authorization may expire before allocating any native
+	// operation. Preserve that absence as absence, never a fabricated provider
+	// no-send receipt. Its explicit replacement still checks the native journal.
+	if s.Stage == MergeWithdrawn && s.Operation == (MergeOperation{Kind: OpMerge}) &&
+		s.FinishedUnix >= s.Authorization.Generation.NotAfter {
+		return nil
+	}
 	if _, err := MergePredecessorProofOf(s.Authorization.Generation.Generation, s.Operation); err != nil {
 		return err
 	}

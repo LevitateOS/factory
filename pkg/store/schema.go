@@ -8,9 +8,9 @@ import (
 	"sync"
 )
 
-// Schema 102 binds fresh retained-review funding to its approved setup. Older
-// writers must refuse rather than ignore that captured authority boundary.
-const schemaFormatVersion = 102
+// Schema 103 preserves expired, unallocated merge authorizations in history.
+// Older writers must refuse rather than reinterpret those local retirements.
+const schemaFormatVersion = 103
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -696,6 +696,13 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=102 WHERE version=101`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate retained review setup capture format: %w", err))
+		}
+		version = 102
+	}
+	if version == 102 {
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=103 WHERE version=102`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate unallocated merge retirement format: %w", err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

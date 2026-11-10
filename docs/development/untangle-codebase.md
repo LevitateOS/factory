@@ -1,5 +1,20 @@
 # Factory untangling decisions
 
+Expired unallocated merge (2026-11-10): actual installed current43 retains a
+clear typed reviewer, COMMENT receipt and green CI, but its bound merge
+authorization expired with zero attempts and no operation identity. Extend the
+existing explicit unsent-merge command rather than renew that authorization or
+repeat inference. A pristine product operation and absent native command are both
+required; unknown/pending sends remain ineligible. Preserve the exact prior row
+in the command receipt and the expired authorization as a locally withdrawn
+history generation, without fabricating a provider no-send receipt. The fresh
+command has a distinct generation and five-minute deadline; current grants,
+accepted inputs, reviewer and CI still gate the send. Leave inference allowance
+and all charges untouched. Format103 fences readers that cannot interpret this
+local retirement. Disposable102→103 concurrency/current reopen and prior102/
+unknown104 refusal preserve75 table hashes. Installed end-to-end qualification
+remains the next action in Q26.
+
 Retained funding format fence (2026-11-10): advance to102 without rewriting any
 historical command or decision, because101 constructors could ignore the new
 setup capture. Existing disposable migration owner passes concurrent101→102,
