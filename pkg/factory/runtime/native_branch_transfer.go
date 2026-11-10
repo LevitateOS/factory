@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"strconv"
 	"strings"
 
@@ -17,46 +16,12 @@ import (
 // Only metadata enters the existing command capture; candidate bytes are
 // re-exported from the retained native run and checked against this digest.
 type nativeBranchTransfer struct {
-	ControllerGrantID string                     `json:"controller_grant_id,omitempty"`
-	SourceConnection  collaboration.ConnectionID `json:"source_connection,omitempty"`
-	Base              string                     `json:"base"`
-	ComparisonBranch  string                     `json:"comparison_branch"`
-	ComparisonOID     string                     `json:"comparison_oid"`
-	BundleSHA256      string                     `json:"bundle_sha256"`
-	ExpectedOld       string                     `json:"expected_old,omitempty"`
-}
-
-func (t *nativeBranchTransfer) captureController(s *nativeProductAccount, deadline *int64) error {
-	if s.binding.Host.Provider != collaboration.Fountain {
-		return nil
-	}
-	if s.controller == nil {
-		return errors.New("native publication controller is not selected")
-	}
-	t.ControllerGrantID, t.SourceConnection = s.controller.GrantID, s.binding.Connection.ID
-	*deadline = min(*deadline, s.controller.NotAfter)
-	return nil
-}
-
-func (t nativeBranchTransfer) controllerMatches(s *nativeProductAccount) bool {
-	if s.binding.Host.Provider == collaboration.Fountain {
-		return factory.ValidID(t.ControllerGrantID) && t.SourceConnection == s.binding.Connection.ID
-	}
-	return t.ControllerGrantID == "" && t.SourceConnection == ""
-}
-
-func (t nativeBranchTransfer) admitController(ctx context.Context, s *nativeProductAccount) error {
-	if !t.controllerMatches(s) {
-		return errNativeReadScope
-	}
-	if s.binding.Host.Provider == collaboration.Fountain {
-		if s.controller == nil || s.controller.GrantID != t.ControllerGrantID {
-			return errNativeReadScope
-		}
-		_, err := s.controllerGrant(ctx, s.repository.ID, t.ControllerGrantID, factory.OpRefPublish)
-		return err
-	}
-	return nil
+	nativePublicationAuthority
+	Base             string `json:"base"`
+	ComparisonBranch string `json:"comparison_branch"`
+	ComparisonOID    string `json:"comparison_oid"`
+	BundleSHA256     string `json:"bundle_sha256"`
+	ExpectedOld      string `json:"expected_old,omitempty"`
 }
 
 func (t nativeBranchTransfer) valid(q factory.HumanBranchCreateCommand) bool {
@@ -81,21 +46,7 @@ type nativeBranchPublishEffect struct {
 	Branch    nativeBranchPublishWrite `json:"branch"`
 }
 type nativeBranchPublishReceipt struct {
-	HostOperation *struct {
-		GrantID        string `json:"grant_id"`
-		InstallationID string `json:"installation_id"`
-		OperationID    string `json:"operation_id"`
-		IntentDigest   string `json:"intent_digest"`
-		Receipt        struct {
-			Repository    int64  `json:"repository_id"`
-			Actor         int64  `json:"actor_id"`
-			Ref           string `json:"ref"`
-			Old           string `json:"old_oid"`
-			New           string `json:"new_oid"`
-			ComparisonRef string `json:"comparison_ref"`
-			Comparison    string `json:"comparison_oid"`
-		} `json:"receipt"`
-	} `json:"host_operation,omitempty"`
+	HostOperation          *nativeHostOperation        `json:"host_operation,omitempty"`
 	Account                collaboration.ObservedActor `json:"account"`
 	Repository             string                      `json:"repository"`
 	Name                   string                      `json:"name"`
@@ -122,10 +73,21 @@ func validateNativeBranchTransferReceipt(q factory.HumanBranchCreateCommand, p n
 		}
 	} else {
 		h := r.HostOperation
-		if h == nil || h.GrantID != p.Transfer.ControllerGrantID || !nativeObservedText(h.InstallationID, 128, false) || h.OperationID != q.ID || !factory.ValidDigest(h.IntentDigest) || r.RepositoryCondition != "current_host_permission" || r.ComparisonCondition != "atomic_comparison_oid" {
+		if !h.matches(p.Transfer.ControllerGrantID, q.ID) || r.RepositoryCondition != "current_host_permission" || r.ComparisonCondition != "atomic_comparison_oid" {
 			return r, errNativeRead
 		}
-		v := h.Receipt
+		var v struct {
+			Repository    int64  `json:"repository_id"`
+			Actor         int64  `json:"actor_id"`
+			Ref           string `json:"ref"`
+			Old           string `json:"old_oid"`
+			New           string `json:"new_oid"`
+			ComparisonRef string `json:"comparison_ref"`
+			Comparison    string `json:"comparison_oid"`
+		}
+		if nativeDecode(h.Receipt, &v) != nil {
+			return r, errNativeRead
+		}
 		expectedOld := r.Old
 		if expectedOld == "" {
 			expectedOld = strings.Repeat("0", 40)
@@ -138,7 +100,7 @@ func validateNativeBranchTransferReceipt(q factory.HumanBranchCreateCommand, p n
 }
 func (s nativeHumanBranchCreates) submitTransfer(ctx context.Context, c factory.HumanBranchCreateCapture, p nativeBranchCreatePreparation, bundle []byte) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
-	if err := p.Transfer.admitController(ctx, s.nativeProductAccount); err != nil {
+	if err := p.Transfer.admitController(ctx, s.nativeProductAccount, factory.OpRefPublish); err != nil {
 		return empty, err
 	}
 	hash := sha256.Sum256(bundle)

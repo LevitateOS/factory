@@ -1062,6 +1062,8 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
 fn creation_request(name: &str) -> soda_desktop_runtime::github_provider::PullCreate {
     use soda_desktop_runtime::github_provider::{PullBranchPin, PullCreate};
     let mut q = PullCreate {
+        controller_grant_id: String::new(),
+        source_connection: String::new(),
         repository: "123".into(),
         head_repository: "124".into(),
         base_branch: "main".into(),

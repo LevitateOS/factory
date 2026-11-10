@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -18,6 +19,7 @@ type nativePullBranchPin struct {
 	Commit           string `json:"commit"`
 }
 type nativePullCreateWrite struct {
+	nativePublicationAuthority
 	HeadRepository      string              `json:"head_repository"`
 	BaseBranch          string              `json:"base_branch"`
 	HeadBranch          string              `json:"head_branch"`
@@ -42,6 +44,7 @@ type nativePullCreateEffect struct {
 	Pull      nativePullCreateWrite `json:"pull"`
 }
 type nativePullCreateReceipt struct {
+	HostOperation  *nativeHostOperation        `json:"host_operation,omitempty"`
 	Account        collaboration.ObservedActor `json:"account"`
 	Repository     string                      `json:"repository"`
 	HeadRepository string                      `json:"head_repository"`
@@ -55,6 +58,7 @@ type nativePullCreateReceipt struct {
 	} `json:"head"`
 	BranchCondition string `json:"branch_condition"`
 	Pull            struct {
+		IssueID             string            `json:"issue_id,omitempty"`
 		ExternalID          string            `json:"external_id"`
 		NodeID              string            `json:"node_id"`
 		Number              int64             `json:"number"`
@@ -118,6 +122,9 @@ func (s nativeHumanPullCreates) PrepareHumanPullCreate(ctx context.Context, q fa
 		return empty, errNativeRead
 	}
 	p := nativePullCreatePreparation{Version: 1, Account: s.identity.Account.ExternalID, NotAfter: time.Now().Add(5 * time.Minute).Unix(), Pull: nativePullCreateWrite{Repository: s.repository.ExternalID, HeadRepository: head.ExternalID, BaseBranch: q.BaseBranch, HeadBranch: q.HeadBranch, BasePin: branches.Base.pin(), HeadPin: branches.Head.pin(), Title: q.Title, Body: q.Body, AllowMaintainerEdit: q.AllowMaintainerEdit}}
+	if err = p.Pull.captureController(s.nativeProductAccount, &p.NotAfter); err != nil {
+		return empty, err
+	}
 	raw, err := json.Marshal(p)
 	if err != nil {
 		return empty, err
@@ -143,6 +150,9 @@ func (s nativeHumanPullCreates) decode(ctx context.Context, c factory.HumanPullC
 	}
 	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || p.Version != 1 || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Pull.Repository != s.repository.ExternalID || p.Pull.HeadRepository != head.ExternalID || p.Pull.BaseBranch != c.Request.BaseBranch || p.Pull.HeadBranch != c.Request.HeadBranch || !p.Pull.BasePin.valid() || !p.Pull.HeadPin.valid() || p.Pull.BasePin.ReferenceNodeID == p.Pull.HeadPin.ReferenceNodeID || (p.Pull.Repository == p.Pull.HeadRepository) != (p.Pull.BasePin.RepositoryNodeID == p.Pull.HeadPin.RepositoryNodeID) || p.Pull.Repository == p.Pull.HeadRepository && p.Pull.BasePin.OwnerNodeID != p.Pull.HeadPin.OwnerNodeID || p.Pull.Title != c.Request.Title || p.Pull.Body != c.Request.Body || p.Pull.AllowMaintainerEdit != c.Request.AllowMaintainerEdit {
 		return p, factoryservice.ErrHumanPullCreateConflict
+	}
+	if !p.Pull.controllerMatches(s.nativeProductAccount) {
+		return p, errNativeReadScope
 	}
 	return p, nil
 }
@@ -172,8 +182,35 @@ func (s nativeHumanPullCreates) LookupHumanPullCreate(ctx context.Context, c fac
 }
 func validateNativePullCreateReceipt(c factory.HumanPullCreateCapture, p nativePullCreatePreparation, raw json.RawMessage) (nativePullCreateReceipt, error) {
 	var r nativePullCreateReceipt
-	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Pull.Repository || r.HeadRepository != p.Pull.HeadRepository || r.Base.Branch != p.Pull.BaseBranch || r.Head.Branch != p.Pull.HeadBranch || r.Base.Pin != p.Pull.BasePin || r.Head.Pin != p.Pull.HeadPin || r.BranchCondition != "preflight_and_causal_reply" || !nativeRemoteID(r.Pull.ExternalID) || !nativeObservedText(r.Pull.NodeID, 1024, false) || r.Pull.Number <= 0 || r.Pull.Author == nil || !nativeActor(collaboration.ObservedActor{ExternalID: r.Pull.Author.ExternalID, Login: r.Pull.Author.Login}) || r.Pull.Author.ExternalID != p.Account || !nativeReviewNode(r.Pull.Author.NodeID, 1024) || r.Pull.State != "open" || r.Pull.Draft == nil || *r.Pull.Draft || r.Pull.AllowMaintainerEdit == nil || *r.Pull.AllowMaintainerEdit != p.Pull.AllowMaintainerEdit || r.Pull.TitleSHA256 != nativeCreationSHA([]byte(c.Request.Title)) || r.Pull.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || r.ProviderResponse.Protocol != "github_graphql_create_pull" || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) {
+	condition, protocol := "preflight_and_causal_reply", "github_graphql_create_pull"
+	if p.Pull.ControllerGrantID != "" {
+		condition, protocol = "atomic_head_base", "fountain_native_operation"
+	}
+	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Pull.Repository || r.HeadRepository != p.Pull.HeadRepository || r.Base.Branch != p.Pull.BaseBranch || r.Head.Branch != p.Pull.HeadBranch || r.Base.Pin != p.Pull.BasePin || r.Head.Pin != p.Pull.HeadPin || r.BranchCondition != condition || !nativeRemoteID(r.Pull.ExternalID) || !nativeObservedText(r.Pull.NodeID, 1024, false) || r.Pull.Number <= 0 || r.Pull.Author == nil || !nativeActor(collaboration.ObservedActor{ExternalID: r.Pull.Author.ExternalID, Login: r.Pull.Author.Login}) || r.Pull.Author.ExternalID != p.Account || !nativeReviewNode(r.Pull.Author.NodeID, 1024) || r.Pull.State != "open" || r.Pull.Draft == nil || *r.Pull.Draft || r.Pull.AllowMaintainerEdit == nil || *r.Pull.AllowMaintainerEdit != p.Pull.AllowMaintainerEdit || r.Pull.TitleSHA256 != nativeCreationSHA([]byte(c.Request.Title)) || r.Pull.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || r.ProviderResponse.Protocol != protocol || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) {
 		return r, factoryservice.ErrHumanPullCreateConflict
+	}
+	if p.Pull.ControllerGrantID == "" {
+		if r.HostOperation != nil || r.Pull.IssueID != "" {
+			return r, errNativeRead
+		}
+	} else {
+		if !r.HostOperation.matches(p.Pull.ControllerGrantID, c.OperationID) || !nativeRemoteID(r.Pull.IssueID) {
+			return r, errNativeRead
+		}
+		var h struct {
+			PRID       int64  `json:"pr_id"`
+			IssueID    int64  `json:"issue_id"`
+			Number     int64  `json:"pr_number"`
+			Author     int64  `json:"author_id"`
+			Repository int64  `json:"repository_id"`
+			HeadRef    string `json:"head_ref"`
+			BaseRef    string `json:"base_ref"`
+			Head       string `json:"head_oid"`
+			Base       string `json:"base_oid"`
+		}
+		if nativeDecode(r.HostOperation.Receipt, &h) != nil || strconv.FormatInt(h.PRID, 10) != r.Pull.ExternalID || strconv.FormatInt(h.IssueID, 10) != r.Pull.IssueID || h.Number != r.Pull.Number || strconv.FormatInt(h.Author, 10) != p.Account || strconv.FormatInt(h.Repository, 10) != p.Pull.Repository || h.HeadRef != "refs/heads/"+p.Pull.HeadBranch || h.BaseRef != "refs/heads/"+p.Pull.BaseBranch || h.Head != p.Pull.HeadPin.Commit || h.Base != p.Pull.BasePin.Commit {
+			return r, errNativeRead
+		}
 	}
 	if r.ProviderResponse.RequestID != nil && !nativeObservedText(*r.ProviderResponse.RequestID, 256, false) {
 		return r, factoryservice.ErrHumanPullCreateConflict
@@ -184,6 +221,9 @@ func (s nativeHumanPullCreates) SubmitHumanPullCreate(ctx context.Context, c fac
 	var empty collaboration.OperationRecord
 	p, err := s.decode(ctx, c)
 	if err != nil {
+		return empty, err
+	}
+	if err = p.Pull.admitController(ctx, s.nativeProductAccount, factory.OpPRCreate); err != nil {
 		return empty, err
 	}
 	if time.Now().Unix() >= p.NotAfter {

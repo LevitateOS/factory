@@ -1629,6 +1629,30 @@ Final reply: requested Q20, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q21 — Fountain candidate transfer and conditional publication
 
+**Current PR increment verified (2026-11-10); full Q21 remains INCOMPLETE.**
+The same native operation journal now creates same-repository Fountain PRs with
+captured source connection/grant, bounded original deadline, exact head/base
+pins and title/body intent. Host atomic creation receipts supply original PR,
+issue and author identities; recovery never substitutes current target state or
+renews policy authority. Unknown owner metadata stays unknown. Fork publication
+and unsupported effects remain unavailable; GitHub wire defaults are preserved.
+`q19-authority/product46-connected.log` passes real Go/native pack transfer and
+PR creation, both original replies deliberately lost, exact receipt/link adoption,
+command replay, two-role preparation/finite worker, native restart and central
+withdrawal with exactly one receive and one PR-create send. Canonical host
+product source remainsffe374e9e0bb; fixture
+`66263eeb19a07ccbe494b9a7a793fe6e1e8e0d73` retains the changed-file candidate.
+Branch command `e1304f6d6fec3ddb12b49c408cca7378` publishes
+`ac21b5c947e0e2bb70182d0dfa5af27c532f174d` against
+`65f1bf27bc3bf70f64657658635e66094edbcb4d`. PR command
+`917067a10441f4797dc1b4daf3cf84fa`, host intent digest
+`bf63fd7f9916e7a67cad7f799023662de6b0b4bc0f055cba8e6fb1bbbff00d18`,
+creates PR8/id13/issue27, actor2, original grant123456789abcdef0123456789abcdefa.
+Owners joined; no models. The candidate/run are still declared fixture inputs,
+separate from the real finite worker. Next integrate actual native worker
+candidate export, remaining transfer/expiry/withdrawal races and independent
+review/check/merge; installed full delivery remains Q27.
+
 **Verified native publication increment (2026-11-10); Q21 remains INCOMPLETE.**
 Rust transfers the digest-checked retained bundle through the existing public
 host conditional receive, using the original locally captured operation grant,

@@ -21,7 +21,7 @@ type nativePullBranchSide struct {
 			ExternalID string `json:"external_id"`
 			NodeID     string `json:"node_id"`
 			Login      string `json:"login"`
-			Type       string `json:"type"`
+			Type       string `json:"type"` // Empty when the provider does not expose the owner category; never grants write authority.
 		} `json:"owner"`
 		Private  *bool                         `json:"private"`
 		Archived *bool                         `json:"archived"`
@@ -45,7 +45,7 @@ func (s nativePullBranchSide) pin() nativePullBranchPin {
 	return nativePullBranchPin{RepositoryNodeID: s.Repository.NodeID, OwnerNodeID: s.Repository.Owner.NodeID, ReferenceNodeID: s.Branch.NodeID, Commit: s.Branch.Commit}
 }
 func (s nativePullBranchSide) valid(repository, branch string) bool {
-	if !nativeRemoteID(repository) || s.Repository.ExternalID != repository || s.Branch.Name != branch || !s.pin().valid() || !nativeObservedText(s.Repository.Name, 512, false) || !nativeRemoteID(s.Repository.Owner.ExternalID) || !nativeObservedText(s.Repository.Owner.Login, 256, false) || s.Repository.Owner.Type != "User" && s.Repository.Owner.Type != "Organization" {
+	if !nativeRemoteID(repository) || s.Repository.ExternalID != repository || s.Branch.Name != branch || !s.pin().valid() || !nativeObservedText(s.Repository.Name, 512, false) || !nativeRemoteID(s.Repository.Owner.ExternalID) || !nativeObservedText(s.Repository.Owner.Login, 256, false) || s.Repository.Owner.Type != "" && s.Repository.Owner.Type != "User" && s.Repository.Owner.Type != "Organization" {
 		return false
 	}
 	for _, related := range []*nativePullRepositoryIdentity{s.Repository.Parent, s.Repository.Source} {

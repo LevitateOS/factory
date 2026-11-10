@@ -39,6 +39,10 @@ impl PullBranchPin {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PullCreate {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub controller_grant_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_connection: String,
     pub repository: String,
     pub head_repository: String,
     pub base_branch: String,
@@ -96,6 +100,7 @@ impl Client {
         deadline: Option<Instant>,
     ) -> CreateOutcome {
         self.run_mutation(deadline, |mutation| async move {
+            if !q.controller_grant_id.is_empty() || !q.source_connection.is_empty(){return Err(Failure::invalid());}
             let until = mutation.deadline;
             q.validate()?;
             if !remote_id(expected) {

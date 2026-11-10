@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -23,6 +24,57 @@ type nativeCreationReply struct {
 	Receipt   json.RawMessage        `json:"receipt"`
 	Failure   *nativeCreationFailure `json:"failure"`
 }
+
+// The provider grant is part of the immutable command, not a policy lookup on
+// recovery. Empty fields preserve existing GitHub command wire identities.
+type nativePublicationAuthority struct {
+	ControllerGrantID string                     `json:"controller_grant_id,omitempty"`
+	SourceConnection  collaboration.ConnectionID `json:"source_connection,omitempty"`
+}
+
+func (t *nativePublicationAuthority) captureController(s *nativeProductAccount, deadline *int64) error {
+	if s.binding.Host.Provider != collaboration.Fountain {
+		return nil
+	}
+	if s.controller == nil {
+		return errors.New("native publication controller is not selected")
+	}
+	t.ControllerGrantID, t.SourceConnection = s.controller.GrantID, s.binding.Connection.ID
+	*deadline = min(*deadline, s.controller.NotAfter)
+	return nil
+}
+func (t nativePublicationAuthority) controllerMatches(s *nativeProductAccount) bool {
+	if s.binding.Host.Provider == collaboration.Fountain {
+		return factory.ValidID(t.ControllerGrantID) && t.SourceConnection == s.binding.Connection.ID
+	}
+	return t.ControllerGrantID == "" && t.SourceConnection == ""
+}
+func (t nativePublicationAuthority) admitController(ctx context.Context, s *nativeProductAccount, kind string) error {
+	if !t.controllerMatches(s) {
+		return errNativeReadScope
+	}
+	if s.binding.Host.Provider == collaboration.Fountain {
+		if s.controller == nil || s.controller.GrantID != t.ControllerGrantID {
+			return errNativeReadScope
+		}
+		_, err := s.controllerGrant(ctx, s.repository.ID, t.ControllerGrantID, kind)
+		return err
+	}
+	return nil
+}
+
+type nativeHostOperation struct {
+	GrantID        string          `json:"grant_id"`
+	InstallationID string          `json:"installation_id"`
+	OperationID    string          `json:"operation_id"`
+	IntentDigest   string          `json:"intent_digest"`
+	Receipt        json.RawMessage `json:"receipt"`
+}
+
+func (h *nativeHostOperation) matches(grant, command string) bool {
+	return h != nil && h.GrantID == grant && nativeObservedText(h.InstallationID, 128, false) && h.OperationID == command && factory.ValidDigest(h.IntentDigest)
+}
+
 type nativeCreationResponse struct {
 	Protocol       string  `json:"protocol"`
 	Status         int     `json:"status"`

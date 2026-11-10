@@ -269,6 +269,18 @@ func (p NativePublication) LookupOp(ctx context.Context, id string) (factory.Ope
 // authority, while only admission for a new send requires an active grant.
 func (p NativePublication) lookupPublicationAccount(ctx context.Context, w factory.PublicationWork, kind string, cmd factory.Command) (*nativeProductAccount, error) {
 	var intent json.RawMessage
+	var authority nativePublicationAuthority
+	if cmd.Type == factory.CommandHumanPullCreate {
+		c, err := factory.DecodeHumanPullCreateCapture(cmd)
+		if err != nil {
+			return nil, err
+		}
+		var prep nativePullCreatePreparation
+		if nativeDecode(c.ProviderIntent, &prep) != nil {
+			return nil, errNativeRead
+		}
+		authority = prep.Pull.nativePublicationAuthority
+	}
 	if cmd.Type == factory.CommandHumanBranchCreate {
 		c, err := factory.DecodeHumanBranchCreateCapture(cmd)
 		if err != nil {
@@ -288,15 +300,18 @@ func (p NativePublication) lookupPublicationAccount(ctx context.Context, w facto
 			return nil, errNativeRead
 		}
 		if prep.Transfer != nil && prep.Transfer.ControllerGrantID != "" {
-			if !factory.ValidID(prep.Transfer.ControllerGrantID) || !collaboration.ValidID(string(prep.Transfer.SourceConnection)) {
-				return nil, errNativeReadScope
-			}
-			account, err := p.savedAccount(ctx, w.Repository, collaboration.ActorID(w.ActorID), prep.Transfer.SourceConnection)
-			if err == nil && account.binding.Host.Provider != collaboration.Fountain {
-				return nil, errNativeReadScope
-			}
-			return account, err
+			authority = prep.Transfer.nativePublicationAuthority
 		}
+	}
+	if authority.ControllerGrantID != "" {
+		if !factory.ValidID(authority.ControllerGrantID) || !collaboration.ValidID(string(authority.SourceConnection)) {
+			return nil, errNativeReadScope
+		}
+		account, err := p.savedAccount(ctx, w.Repository, collaboration.ActorID(w.ActorID), authority.SourceConnection)
+		if err == nil && account.binding.Host.Provider != collaboration.Fountain {
+			return nil, errNativeReadScope
+		}
+		return account, err
 	}
 	return p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
 }
@@ -433,7 +448,7 @@ func (p NativePublication) SubmitPRCreate(ctx context.Context, w factory.Publica
 			if nativeDecode(c.ProviderIntent, &prep) != nil || prep.Pull.BasePin.Commit != w.ComparisonOID || prep.Pull.HeadPin.Commit != w.Candidate {
 				return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 			}
-			prep.NotAfter = nativePublicationDeadline(w.NotAfter)
+			prep.NotAfter = min(prep.NotAfter, nativePublicationDeadline(w.NotAfter))
 			c.ProviderIntent, err = json.Marshal(prep)
 		}
 		if err == nil {
@@ -627,6 +642,11 @@ func (p NativePublication) AdoptPRCreation(ctx context.Context, w factory.Public
 			return empty, errNativeRead
 		}
 		return factory.PRCreationOutcome{Operation: out, HeadRef: operation.HeadRef, BaseRef: operation.BaseRef, HeadOID: operation.HeadOID, BaseOID: operation.BaseOID, PRNumber: operation.PRNumber, PRID: operation.PRID, IssueID: operation.IssueID, AuthorID: w.ActorID}, nil
+	}
+	if raw.HostOperation != nil {
+		prID, _ := strconv.ParseInt(raw.Pull.ExternalID, 10, 64)
+		issueID, _ := strconv.ParseInt(raw.Pull.IssueID, 10, 64)
+		return factory.PRCreationOutcome{Operation: out, HeadRef: "refs/heads/" + q.HeadBranch, BaseRef: "refs/heads/" + q.BaseBranch, HeadOID: prep.Pull.HeadPin.Commit, BaseOID: prep.Pull.BasePin.Commit, PRNumber: raw.Pull.Number, PRID: prID, IssueID: issueID, AuthorID: w.ActorID}, nil
 	}
 	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpPRCreate)
 	if err != nil {

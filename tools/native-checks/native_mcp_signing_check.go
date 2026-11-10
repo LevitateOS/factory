@@ -2312,13 +2312,11 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	publication := factory.Publication{ID: factory.NewID(), AssignmentID: factory.NewID(), Repository: repository, Issue: issue, Run: factory.NewID(), Stage: factory.PublicationOpen, Candidate: candidate, ProjectID: "p" + strings.Repeat("d", 24), Role: project.RoleCoder, Acceptance: "d" + strings.Repeat("a", 24), Preparation: "f" + strings.Repeat("b", 24), BaseSHA: base, TargetBranch: "refs/heads/main", CreatedUnix: now.Unix()}
-	if branchOnly {
-		policy, err := db.RepositoryPolicy(ctx, repository)
-		if err != nil {
-			return err
-		}
-		publication.TargetBranch = policy.TargetBranch
+	policyTarget, err := db.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return err
 	}
+	publication.TargetBranch = policyTarget.TargetBranch
 	publication.Publish = factory.PublicationOperation{Kind: factory.OpRefPublish}
 	publication.PRCreate = factory.PublicationOperation{Kind: factory.OpPRCreate}
 	run := factory.Run{ID: publication.Run, ProjectID: publication.ProjectID, Role: project.RoleCoder, InputSHA: base, Started: now.Add(-time.Minute), Deadline: now.Add(time.Minute), Outcome: factory.Succeeded, Reconciled: true, Image: "sha256:" + strings.Repeat("1", 64), Harness: "declared-fixture", Model: "declared-fixture"}
@@ -2393,7 +2391,9 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 		return err
 	}
-	if branchOnly {
+	if controller, err := controllerFixture(port.Config.Directory); err != nil {
+		return err
+	} else if controller != nil {
 		open, revision, withdrawal, err := db.DispatchState(ctx, repository)
 		if err != nil {
 			return err
@@ -2506,6 +2506,18 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	}
 	if err = os.WriteFile(statePath, encoded, 0600); err != nil {
 		return err
+	}
+	if controller, err := controllerFixture(port.Config.Directory); err != nil {
+		return err
+	} else if controller != nil {
+		policy, err := db.RepositoryPolicy(ctx, repository)
+		if err != nil {
+			return err
+		}
+		policy.Enabled = false
+		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return err
+		}
 	}
 	fmt.Println("PASS: actual Go/native Git pack transfer, conditional new branch, causal receipt, PR creation/identity adoption and journal replay; run and local authority declared, no model or merge")
 	return nil

@@ -136,6 +136,9 @@ impl Client {
         }
         let account = json!({"external_id":current.actor.id,"login":current.actor.username});
         let result = match query {
+            Read::PullBranches {repository:selected,head_repository,base_branch,head_branch} if selected==repository=>{
+                json!({"kind":"pull_branches","account":account,"branches":self.pull_branches(repository,head_repository,base_branch,head_branch).await?})
+            }
             Read::PublicationRefs { repository:selected,name,base_branch } if selected==repository => {
                 json!({"kind":"publication_refs","account":account,"publication":self.publication_refs(repository,name,base_branch).await?})
             }

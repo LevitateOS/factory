@@ -121,7 +121,7 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 	if err != nil {
 		return empty, err
 	}
-	if err = prep.Transfer.admitController(ctx, account); err != nil {
+	if err = prep.Transfer.admitController(ctx, account, factory.OpRefPublish); err != nil {
 		return empty, err
 	}
 	sum := sha256.Sum256(w.Bundle)

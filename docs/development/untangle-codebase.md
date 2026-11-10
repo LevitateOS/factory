@@ -1,5 +1,16 @@
 # Factory untangling decisions
 
+Fountain PR creation (2026-11-10): extend the same native publication journal
+with a typed PR variant, preserving version1 branch captures. Share grant capture,
+registration/lookup and host receipt identity across the two effects; only refs
+have a receive phase. Retain the original source/grant for historical lookup and
+never extend the preparation deadline when attaching workflow work. Host PR
+receipts give causal issue/PR identities without reading current state as history.
+`product46-connected.log` passes real changed-file branch→PR, both lost replies,
+original-command replay, native reopen/central withdrawal and one send per phase,
+canonical hostffe374e9e0bb/fixture66263eeb19a0. All owners joined; candidate/run
+declared, no models. Actual worker candidate export and full delivery remain.
+
 Fountain native publication (2026-11-10): keep candidate bundle validation in the
 existing native connector and conditional effects in the canonical host owner.
 Capture source connection and selected grant in the Go command intent. Reuse the

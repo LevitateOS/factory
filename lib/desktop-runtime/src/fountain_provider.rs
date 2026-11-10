@@ -18,6 +18,7 @@ mod publication;
 mod product;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
+pub use publication::PublicationOutcome;
 pub use controller::{
     captured_operation_grant, OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
 };
