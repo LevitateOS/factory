@@ -1484,13 +1484,16 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 task: "first".into(),
             })?;
             let pending_start = WorkspaceCommand::StartAfter { task: "second".into(), expected_head: candidate.clone() };
-            if mode == "ready" {
+            let pending_start_receipt = if mode == "ready" {
                 let pending = workspace.command(&pending_start)?;
                 if pending.status != "task_busy" || serde_json::to_vec(&workspace.command(&pending_start)?)? != serde_json::to_vec(&pending)? {
                     return Err("premature task start did not retain its exact refusal".into());
                 }
                 if workspace.command(&WorkspaceCommand::Observe)?.head != candidate { return Err("premature task start changed the candidate".into()); }
-            }
+                Some(pending)
+            } else {
+                None
+            };
             if mode == "ownership" {
                 if workspace
                     .command(&WorkspaceCommand::Edit {
@@ -1630,6 +1633,21 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 {
                     return Err("failed check advanced checkpoint".into());
                 }
+                // Failure remains terminal for this workspace; preserve readable
+                // frozen output without introducing a same-run repair path.
+                let unchanged = workspace.command(&WorkspaceCommand::Read {
+                    task: "first".into(),
+                    path: "native-task.txt".into(),
+                    offset: 0,
+                    limit: 1024,
+                })?;
+                if unchanged.head != candidate
+                    || unchanged.content != read.content
+                    || unchanged.file_digest != read.file_digest
+                    || unchanged.executable != Some(true)
+                {
+                    return Err("failed check changed its frozen output or prevented readback".into());
+                }
                 workspace.command(&WorkspaceCommand::Close)?;
                 return Ok(());
             }
@@ -1677,6 +1695,25 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             .is_ok()
             {
                 return Err("foreign checkpoint invocation accepted".into());
+            }
+            if let Some(pending) = pending_start_receipt {
+                if serde_json::to_vec(&workspace.command(&pending_start)?)?
+                    != serde_json::to_vec(&pending)?
+                {
+                    return Err("head advancement changed the retained busy start receipt".into());
+                }
+                // This differs from the earlier second-task request, so it
+                // must observe the stale head instead of replaying that receipt.
+                let stale_start = workspace.command(&WorkspaceCommand::StartAfter {
+                    task: "first".into(),
+                    expected_head: candidate.clone(),
+                })?;
+                if stale_start.status != "stale_head"
+                    || stale_start.head != first.head
+                    || workspace.command(&WorkspaceCommand::Observe)?.head != first.head
+                {
+                    return Err("stale task start changed the committed head or retired its workspace".into());
+                }
             }
             workspace.command(&WorkspaceCommand::StartAfter {
                 task: "second".into(),

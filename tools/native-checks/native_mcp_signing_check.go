@@ -33,6 +33,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory/execution"
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 	"github.com/levitateos/factory/pkg/factory/mcpserver"
+	"github.com/levitateos/factory/pkg/factory/mcpwire"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/project"
@@ -1267,6 +1268,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "offline-role-handoffs" {
+		if err := offlineRoleHandoffs(); err != nil {
+			fmt.Fprintln(os.Stderr, "offline role handoffs:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 6 && os.Args[1] == "retained-preparation-stop" {
 		if err := retainedPreparationStop(os.Args[2], os.Args[3], os.Args[4], os.Args[5]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1441,6 +1449,692 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// This scenario exercises production role-result contracts and durable terminal
+// settlement using controlled admission, judgment and checkpoint observations.
+// It does not launch a worker, execute a check, contact a provider, publish a
+// candidate or qualify native custody. Only its new native-PG driver profile is
+// used. The driver's write/restart/recover phases retain the exact proposals.
+type offlineRoleEntry struct {
+	Assignment factory.Assignment    `json:"assignment"`
+	Submission factory.MCPSubmission `json:"submission"`
+	Outcome    factory.Outcome       `json:"outcome"`
+	Candidate  string                `json:"candidate,omitempty"`
+}
+
+type offlineRoleState struct {
+	Version string             `json:"version"`
+	Entries []offlineRoleEntry `json:"entries"`
+}
+
+type offlineRoleFixture struct {
+	db    *store.Store
+	sql   *sql.DB
+	state offlineRoleState
+	path  string
+}
+
+// The current-context observation is controlled, while assignment/run and
+// terminal persistence below use the actual disposable PostgreSQL store.
+type offlineRoleCurrent struct{ db *store.Store }
+
+func (s offlineRoleCurrent) FactoryCurrentContext(ctx context.Context, cap factory.MCPCapability, _ time.Time) (factory.CurrentContext, error) {
+	a, err := s.db.Assignment(ctx, cap.AssignmentID)
+	return factory.CurrentContext{Role: factory.CurrentRoleContext{Kind: cap.Profile, Review: a.ReviewContext}}, err
+}
+
+type offlineRoleJudgment struct {
+	db  *store.Store
+	cap factory.MCPCapability
+}
+
+func (s offlineRoleJudgment) EvaluateQuestions(context.Context, string, any, map[string]factory.SystemOneWorkerQuestion) (map[string]any, error) {
+	return nil, errors.New("offline fixture supports only its single bound plan opinion")
+}
+
+func (s offlineRoleJudgment) Evaluate(ctx context.Context, kind string, state, instructions, criteria any) (map[string]any, error) {
+	if kind != "choice" {
+		return nil, errors.New("unexpected offline judgment primitive")
+	}
+	snapshot, err := factory.SystemOneWorkerSnapshot(s.cap.ID, factory.MCPToolSystemOneChoice, state, instructions, criteria)
+	if err != nil {
+		return nil, err
+	}
+	prompt, err := factory.NativeConsultationPrompt(kind, state, map[string]factory.SystemOneWorkerQuestion{"judgment": {Instructions: instructions, Criteria: criteria}})
+	if err != nil {
+		return nil, err
+	}
+	policy, err := s.db.RepositoryPolicy(ctx, s.cap.Repository)
+	if err != nil || policy.Judgments == nil {
+		return nil, errors.New("offline judgment policy missing")
+	}
+	source, err := s.db.Sponsorship(ctx, s.cap.Repository, policy.Judgments.Account)
+	if err != nil || source.Native == nil {
+		return nil, errors.New("offline judgment source missing")
+	}
+	capture := factory.NativeJudgmentCapture{Profile: source.Native.Profile, Repository: s.cap.Repository, Selection: *policy.Judgments,
+		PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OutputKind: "consultation", WorkerCapability: s.cap.ID, WorkerScope: s.cap.ScopeDigest(),
+		ToolVersion: "declared-offline-1", ToolSHA256: strings.Repeat("b", 64), DeadlineUnixMS: time.Now().Add(5 * time.Second).UnixMilli()}
+	capture.ID = factory.NativeJudgmentID(capture.Profile, capture.Repository, "consultation:"+snapshot[:32])
+	if _, fresh, err := s.db.BeginNativeJudgment(ctx, capture); err != nil || !fresh {
+		return nil, fmt.Errorf("controlled plan opinion admission: fresh=%v: %w", fresh, err)
+	}
+	answer := map[string]any{"type": "choice", "choice": "complete", "confidence": 1.0, "probabilities": map[string]any{"complete": 1.0, "replan": 0.0}}
+	outcome, _ := json.Marshal(map[string]any{"output": map[string]any{"answers": map[string]any{"judgment": answer}}, "process": map[string]any{
+		"run": capture.ID, "live": false, "finished": true, "tree_retired": true, "output_complete": true, "exit_code": 0, "executable_sha256": capture.ToolSHA256}})
+	started := time.Now().UTC()
+	if err := s.db.CompleteNativeJudgment(ctx, capture, outcome, factory.Usage{RunID: capture.ID, Repository: capture.Repository,
+		Connection: capture.Selection.Account, Minutes: 1, StartedAt: started, EndedAt: started.Add(time.Second)}); err != nil {
+		return nil, err
+	}
+	changedSource := capture
+	changedSource.Selection.Account = factory.NewID()
+	if s.db.CheckNativeJudgmentSource(ctx, changedSource) == nil {
+		return nil, errors.New("controlled opinion borrowed a different selected source")
+	}
+	return map[string]any{"native_judgment": capture.ID, "model": capture.Selection.Model, "answer": answer}, nil
+}
+
+func (f *offlineRoleFixture) results() factoryservice.WorkerResults {
+	return factoryservice.WorkerResults{Assignments: f.db, Runs: f.db, Current: offlineRoleCurrent{f.db},
+		Consultations: func(cap factory.MCPCapability, _ string) factoryservice.WorkerConsultations {
+			return factoryservice.WorkerConsultations{Provider: offlineRoleJudgment{f.db, cap}, Journal: f.db}
+		}}
+}
+
+func offlineRoleAssignment(phase, role, source string) factory.Assignment {
+	id, run := factory.NewID(), factory.NewID()
+	prompt := []byte("Controlled offline role contract observation; no worker or provider execution.")
+	return factory.Assignment{ID: id, AttemptRoot: id, PublicationAssignment: id,
+		Subject:   factory.ExecutionSubject{Kind: factory.SubjectIssue, Issue: &factory.IssueSubject{Issue: 1, Acceptance: "d" + strings.Repeat("a", 24)}},
+		ProjectID: "p" + strings.Repeat("d", 24), Repository: 714, Issue: 1, NativeRev: 1, ActorID: 7,
+		Acceptance: "d" + strings.Repeat("a", 24), Role: role, Phase: phase, Preparation: "f" + strings.Repeat("b", 24),
+		Harness: "controlled-offline-1", HarnessVers: "controlled-offline-1", Model: "controlled-no-model", Connection: strings.Repeat("c", 32),
+		SourceCommit: source, Prompt: prompt, PromptSHA: factory.MCPInputDigest(prompt), Run: run, RunHistory: []string{run},
+		Stage: factory.AssignmentAssigned, Attempts: 1, CreatedUnix: time.Now().Unix()}
+}
+
+func (f *offlineRoleFixture) admit(ctx context.Context, a factory.Assignment, profile factory.MCPProfile, plans ...factory.InvestigationPlan) (factory.MCPCapability, error) {
+	var cap factory.MCPCapability
+	if err := a.Validate(); err != nil {
+		return cap, fmt.Errorf("controlled %s input: %w", profile, err)
+	}
+	raw, _ := json.Marshal(a)
+	if _, err := f.sql.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, a.ID, a.Repository, a.Issue, a.Run, a.Stage, a.Revision, string(raw)); err != nil {
+		return cap, fmt.Errorf("%s input assignment: %w", profile, err)
+	}
+	run := factory.Run{ID: a.Run, ProjectID: a.ProjectID, Role: a.Role, InputSHA: a.SourceCommit, Started: time.Now().UTC(), Deadline: time.Now().UTC().Add(15 * time.Minute), Image: "sha256:" + strings.Repeat("b", 64), Harness: a.Harness, Model: a.Model}
+	if err := f.db.RecordFactoryRun(ctx, run); err != nil {
+		return cap, fmt.Errorf("%s controlled run admission: %w", profile, err)
+	}
+	if _, err := f.sql.ExecContext(ctx, `INSERT INTO factory_run_views(run,repository,issue,attempt) VALUES($1,$2,$3,$4)`, run.ID, a.Repository, a.Issue, a.ID); err != nil {
+		return cap, fmt.Errorf("%s controlled run view: %w", profile, err)
+	}
+	if len(plans) > 0 {
+		plan := plans[0]
+		plan.AttemptRoot, plan.SourceCommit, plan.IntegrationCommit, plan.Preparation = a.AttemptRoot, a.SourceCommit, a.SourceCommit, a.Preparation
+		var err error
+		plan.Digest, err = factory.PlanDigest(plan)
+		if err != nil {
+			return cap, err
+		}
+		if err = plan.Executable(); err != nil {
+			return cap, fmt.Errorf("%s controlled plan: %w", profile, err)
+		}
+		planRaw, _ := json.Marshal(plan)
+		manifest, err := project.MarshalExecutionManifest(project.ExecutionManifest{Plan: planRaw, PlanDigest: project.PlanDigest(planRaw), Invocation: "controlled-offline", Phase: a.Phase, Run: a.Run, Deadline: run.Deadline, Effort: project.TaskEffortHigh, MaxChildren: 0})
+		if err != nil {
+			return cap, err
+		}
+		launch := project.FactoryLaunch{Run: project.FactoryRun{ID: a.Run, Project: a.ProjectID, Role: a.Role, Preparation: a.Preparation, Harness: project.FactoryHarnessMuse, HarnessVers: a.HarnessVers, Model: a.Model, Assignment: a.PromptSHA, SourceCommit: a.SourceCommit, Connection: a.Connection, Actor: a.ActorID, Deadline: run.Deadline, ExecutionPhase: a.Phase, ManifestDigest: project.ExecutionManifestDigest(manifest)}, Prompt: a.Prompt, HarnessSHA256: strings.Repeat("b", 64), ExecutionManifest: manifest}
+		if err = f.db.BindFactoryExecutionManifest(ctx, launch); err != nil {
+			return cap, fmt.Errorf("%s exact controlled manifest admission: %w", profile, err)
+		}
+	}
+	cap = factory.MCPCapability{ID: a.Run, RunID: a.Run, AssignmentID: a.ID, Generation: 1, Profile: profile, Subject: a.Subject.SubjectKey(a.Repository),
+		Repository: a.Repository, Project: a.ProjectID, PreparationDigest: strings.Repeat("a", 64), SourceDigest: a.SourceCommit, AcceptedRevision: "1", Authority: strings.Repeat("d", 64), DeadlineUnix: run.Deadline.Unix(), State: factory.MCPCapabilityStaged}
+	if err := f.db.StageMCPCapability(ctx, cap); err != nil {
+		return cap, fmt.Errorf("%s stage controlled capability: %w", profile, err)
+	}
+	if err := f.db.ActivateMCPCapability(ctx, cap.ID, cap.Generation, cap.RunID, cap.AssignmentID, cap.Authority, time.Now().Unix(), false); err != nil {
+		return cap, fmt.Errorf("%s activate controlled capability: %w", profile, err)
+	}
+	cap.State = factory.MCPCapabilityActive
+	return cap, nil
+}
+
+func (f *offlineRoleFixture) proposal(ctx context.Context, cap factory.MCPCapability, tool factory.MCPTool, payload map[string]any) (factory.MCPSubmission, error) {
+	sub := factory.MCPSubmission{AssignmentID: cap.AssignmentID, CapabilityID: cap.ID, SubmissionID: factory.NewID(), Tool: tool}
+	if err := control.AdmitMCPCapability(cap, tool, time.Now(), control.MCPRunObservation{RunID: cap.RunID, AssignmentID: cap.AssignmentID, Authority: cap.Authority}); err != nil {
+		return sub, err
+	}
+	results := f.results()
+	results.Bind(ctx, cap, tool, payload)
+	if err := mcpwire.CheckPayload(tool, payload); err != nil {
+		return sub, err
+	}
+	var err error
+	sub.Payload, err = mcpwire.CanonicalPayload(payload)
+	if err != nil {
+		return sub, err
+	}
+	if err = results.CheckNewFinish(ctx, cap, sub, payload); err != nil {
+		return sub, err
+	}
+	sub.Payload, err = mcpwire.CanonicalPayload(payload)
+	return sub, err
+}
+
+func (f *offlineRoleFixture) post(ctx context.Context, a factory.Assignment, cap factory.MCPCapability, tool factory.MCPTool, bad, good map[string]any, candidate string) error {
+	invalid, invalidErr := f.proposal(ctx, cap, tool, bad)
+	if invalidErr == nil {
+		return fmt.Errorf("%s malformed typed result admitted", cap.Profile)
+	}
+	if _, err := f.db.MCPWorkStatus(ctx, a.ID, invalid.SubmissionID); !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("%s refused identity recorded: %w", cap.Profile, err)
+	}
+	if _, found, err := f.db.TerminalMCPProposal(ctx, a.ID); err != nil || found {
+		return fmt.Errorf("%s refusal froze terminal: %w", cap.Profile, err)
+	}
+	other := factory.MCPToolFinishReview
+	if tool == other {
+		other = factory.MCPToolFinishImplement
+	}
+	if err := control.AdmitMCPCapability(cap, other, time.Now(), control.MCPRunObservation{RunID: cap.RunID, AssignmentID: cap.AssignmentID, Authority: cap.Authority}); !errors.Is(err, control.ErrMCPCapabilityBinding) {
+		return fmt.Errorf("foreign role finish did not fail profile admission: %w", err)
+	}
+	sub, err := f.proposal(ctx, cap, tool, good)
+	if err != nil {
+		return fmt.Errorf("%s corrected result: %w", cap.Profile, err)
+	}
+	if sub.SubmissionID == invalid.SubmissionID {
+		return errors.New("corrected result reused rejected identity")
+	}
+	if tool == factory.MCPToolFinishIssuePlan {
+		var changed map[string]any
+		if err := json.Unmarshal(sub.Payload, &changed); err != nil {
+			return err
+		}
+		changed["plan_review"] = strings.Repeat("0", 64)
+		unbound := sub
+		unbound.SubmissionID = factory.NewID()
+		unbound.Payload, _ = json.Marshal(changed)
+		if _, err := f.db.RecordMCPSubmission(ctx, unbound); !errors.Is(err, store.ErrAdmissionChanged) {
+			return fmt.Errorf("unbound selected-source opinion did not refuse recording: %w", err)
+		}
+	}
+	first, err := f.db.RecordMCPSubmission(ctx, sub)
+	if err != nil {
+		return fmt.Errorf("%s record result: %w", cap.Profile, err)
+	}
+	replay, err := f.db.RecordMCPSubmission(ctx, sub)
+	if err != nil || !reflect.DeepEqual(first, replay) {
+		return errors.New("exact terminal replay changed its receipt")
+	}
+	changed := sub
+	changed.Payload = append([]byte(nil), sub.Payload...)
+	changed.Payload = append(changed.Payload, ' ')
+	if _, err = f.db.RecordMCPSubmission(ctx, changed); !errors.Is(err, store.ErrMCPSubmissionConflict) {
+		return fmt.Errorf("changed immutable terminal did not conflict: %w", err)
+	}
+	f.state.Entries = append(f.state.Entries, offlineRoleEntry{Assignment: a, Submission: sub, Outcome: factory.Succeeded, Candidate: candidate})
+	return f.save()
+}
+
+func (f *offlineRoleFixture) save() error {
+	raw, err := json.MarshalIndent(f.state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(f.path, raw, 0600)
+}
+
+func (f *offlineRoleFixture) settle(ctx context.Context, index int) (factory.Assignment, error) {
+	e := f.state.Entries[index]
+	stored, found, err := f.db.TerminalMCPSubmission(ctx, e.Assignment.ID)
+	if err != nil || !found || !reflect.DeepEqual(stored, e.Submission) {
+		return factory.Assignment{}, errors.New("retained terminal differs from original manifest")
+	}
+	prior, err := f.db.Assignment(ctx, e.Assignment.ID)
+	if err != nil {
+		return prior, err
+	}
+	priorRaw, _ := json.Marshal(prior)
+	if _, err = control.SettleMCPTerminalProposal(ctx, f.db, e.Assignment.ID, time.Now()); err != nil {
+		return factory.Assignment{}, err
+	}
+	a, err := f.db.Assignment(ctx, e.Assignment.ID)
+	if err != nil {
+		return a, err
+	}
+	if prior.Stage == factory.AssignmentFinished {
+		currentRaw, _ := json.Marshal(a)
+		if !bytes.Equal(priorRaw, currentRaw) {
+			return a, errors.New("restart settlement rewrote an already-finished assignment")
+		}
+	}
+	if a.Stage != factory.AssignmentFinished || a.Outcome != e.Outcome || a.Result == nil || !a.Result.Reported || a.Result.Candidate != e.Candidate {
+		return a, fmt.Errorf("%s typed settlement: outcome=%s reason=%s", a.Phase, a.Outcome, a.Reason)
+	}
+	before, _ := json.Marshal(a)
+	if changed, err := control.SettleMCPTerminalProposal(ctx, f.db, a.ID, time.Now()); err != nil || changed {
+		return a, errors.New("settled terminal was consumed twice")
+	}
+	status, err := f.db.RecordMCPSubmission(ctx, e.Submission)
+	if err != nil || status.State != factory.MCPWorkAccepted {
+		return a, fmt.Errorf("settled exact replay unavailable: %w", err)
+	}
+	after, err := f.db.Assignment(ctx, a.ID)
+	afterRaw, _ := json.Marshal(after)
+	if err != nil || !bytes.Equal(before, afterRaw) {
+		return a, errors.New("terminal replay rewrote assignment")
+	}
+	return a, nil
+}
+
+func (f *offlineRoleFixture) checkpoint(ctx context.Context, a factory.Assignment, plan factory.InvestigationPlan, candidate string) error {
+	run, err := f.db.FactoryRun(ctx, a.Run)
+	if err != nil {
+		return err
+	}
+	manifest, err := project.ParseExecutionManifest(run.ExecutionManifest)
+	if err != nil {
+		return fmt.Errorf("controlled checkpoint has no retained manifest: %w", err)
+	}
+	if err = json.Unmarshal(manifest.Plan, &plan); err != nil {
+		return err
+	}
+	cap, err := f.db.GetMCPCapability(ctx, a.Run)
+	if err != nil {
+		return err
+	}
+	tool := factory.MCPToolFinishImplement
+	probe := map[string]any{}
+	if a.Phase == project.ExecutionCorrect {
+		tool = factory.MCPToolFinishCorrection
+		probe["candidate"] = candidate
+		probe["dispositions"] = []any{}
+		probe["evidence_refs"] = []string{"controlled"}
+	}
+	if _, err = f.proposal(ctx, cap, tool, probe); err == nil || !strings.Contains(err.Error(), "final integration checkpoint is not committed") {
+		return fmt.Errorf("finish without final checkpoint failed outside its checkpoint gate: %w", err)
+	}
+	request := execution.CheckpointRequest{Project: a.ProjectID, ID: a.Run, Container: strings.Repeat("c", 64), Invocation: "controlled-offline", ManifestDigest: project.ExecutionManifestDigest(run.ExecutionManifest), ExpectedHead: candidate}
+	final := execution.CheckpointReceipt{Request: request, FinalCandidate: true, Status: "committed", Candidate: candidate, Tree: strings.Repeat("e", 40), ReceiptDigest: strings.Repeat("f", 64)}
+	for _, check := range plan.Checks {
+		if check.Scope == factory.CheckScopeIntegration {
+			final.Checks = append(final.Checks, project.CheckpointCheckResult{ID: check.ID, Passed: true, LogDigest: strings.Repeat("a", 64)})
+		}
+	}
+	if err = run.CheckpointBinding(request); err != nil {
+		return err
+	}
+	if err = final.ValidateFor(request, true); err != nil {
+		return err
+	}
+	wrong := request
+	wrong.ID = factory.NewID()
+	if run.CheckpointBinding(wrong) == nil {
+		return errors.New("foreign run checkpoint admitted")
+	}
+	wrong = request
+	wrong.ExpectedHead = strings.Repeat("9", 40)
+	if final.ValidateFor(wrong, true) == nil {
+		return errors.New("changed candidate checkpoint admitted")
+	}
+	return f.db.SaveFactoryFinalCheckpoint(ctx, run, final)
+}
+
+func (f *offlineRoleFixture) timeOnlyAllowance(ctx context.Context, a factory.Assignment) error {
+	allowance := factory.AttemptAllowance{RootAssignment: a.ID, Repository: a.Repository, CheckpointUnix: time.Now().Unix(), Limits: factory.AttemptLimits{ActiveMinutes: 5}}
+	switch a.Subject.Kind {
+	case factory.SubjectIntent:
+		allowance.Intent = &factory.IntentAttemptScope{IntentID: a.Subject.Intent.IntentID, OwnerID: a.Subject.Intent.OwnerID}
+	case factory.SubjectCompletion:
+		allowance.Completion = a.Subject.Completion
+	case factory.SubjectDelivery:
+		allowance.Delivery = a.Subject.Delivery
+	}
+	if err := allowance.Validate(); err != nil {
+		return err
+	}
+	raw, _ := json.Marshal(allowance)
+	_, err := f.sql.ExecContext(ctx, `INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,0,$2,0,$3)`, a.Repository, a.ID, string(raw))
+	return err
+}
+
+// These independent profiles use the same submission/settlement joint. Product
+// walkthroughs, application receipts and completion inventory are declared
+// inputs here, not evidence of model authorship, a checked app or graph adoption.
+func (f *offlineRoleFixture) remainingProfiles(ctx context.Context) error {
+	decision := func() string { return "d" + factory.NewID()[:24] }
+	for _, profile := range []factory.MCPProfile{factory.MCPProfileIssueMaker, factory.MCPProfileProductLead} {
+		a := offlineRoleAssignment(project.ExecutionDecompose, project.RoleCoder, strings.Repeat("1", 40))
+		a.Issue, a.Acceptance, a.PublicationAssignment = 0, "", ""
+		idea := factory.ProductIdea{ID: decision(), Description: "Record a personal request and read its result", Consequence: "The person sees the same request", Decision: "accept", Source: "requested", Provenance: "human", Actor: a.ActorID}
+		head := factory.IntentRevision{ID: decision(), Intent: decision(), Owner: a.ActorID, Repository: a.Repository, Objective: "One person records a personal request and sees its recorded result directly.", State: "draft", MaxIssues: 1, CreatedUnix: time.Now().Unix(), Ideas: []factory.ProductIdea{idea}, EffectiveOutcomes: []string{idea.ID}}
+		var maker *factory.IssueMakerScope
+		if profile == factory.MCPProfileIssueMaker {
+			post := factory.NewID()
+			head.Intent, head.ID = factory.PostDecisionID("intent", post, 0), factory.PostDecisionID("revision", post, 0)
+			maker = &factory.IssueMakerScope{SourcePost: post, Post: factory.IssueMakerPostID(post, 0), Issue: 81}
+		}
+		content, err := factory.ComposeProposalContent(head)
+		if err != nil {
+			return err
+		}
+		input := factory.SemanticPlannerInput{IssueMaker: maker, Operation: factory.IntentPlanningOptions, Head: head, Content: content, Alternatives: factory.DescribeAlternatives(head.Objective), Inspected: []factory.InspectedSource{{Path: "README.md", Commit: a.SourceCommit, Evidence: "controlled immutable source"}}, RequireWalkthroughs: profile == factory.MCPProfileProductLead}
+		a.Subject = factory.ExecutionSubject{Kind: factory.SubjectIntent, Intent: &factory.IntentSubject{IntentID: head.Intent, RevisionID: head.ID, ScopeDigest: head.Digest(), OwnerID: head.Owner}}
+		a.PlanningContext = &input
+		a.Prompt, err = control.StageIntentPlanningPrompt(head, input)
+		if err != nil {
+			return err
+		}
+		a.PromptSHA = factory.MCPInputDigest(a.Prompt)
+		cap, err := f.admit(ctx, a, profile)
+		if err != nil {
+			return err
+		}
+		if err = f.timeOnlyAllowance(ctx, a); err != nil {
+			return err
+		}
+		good := map[string]any{"candidates": []factory.SemanticCandidate{{Key: "controlled", Rationale: "One controlled outcome", Tasks: []factory.IntentTask{{Key: decision(), Objective: head.Objective, Outcomes: []string{head.Objective}, IdeaIDs: []string{idea.ID}}}}}, "coverage": []string{idea.ID}, "evidence_refs": []string{"controlled:README.md"}}
+		if profile == factory.MCPProfileProductLead {
+			walkthrough := content
+			walkthrough.Producer = factory.PlanningProducer
+			for i := range walkthrough.Alternatives {
+				walkthrough.Alternatives[i].IdeaIDs = []string{idea.ID}
+			}
+			good["walkthroughs"] = walkthrough
+		}
+		if err = f.post(ctx, a, cap, factory.MCPToolFinishProductPlan, map[string]any{"candidates": []string{"invalid"}, "coverage": []string{idea.ID}, "evidence_refs": []string{"controlled"}}, good, ""); err != nil {
+			return err
+		}
+		if _, err = f.settle(ctx, len(f.state.Entries)-1); err != nil {
+			return err
+		}
+	}
+	strategist := offlineRoleAssignment(project.ExecutionReassess, project.RoleCoder, strings.Repeat("3", 40))
+	strategist.Issue, strategist.Acceptance, strategist.PublicationAssignment = 0, "", ""
+	subject := factory.CompletionSubject{CompletionID: factory.NewID(), CycleID: factory.NewID(), InventoryDigest: strings.Repeat("a", 64)}
+	strategist.Subject = factory.ExecutionSubject{Kind: factory.SubjectCompletion, Completion: &subject}
+	cap, err := f.admit(ctx, strategist, factory.MCPProfileStrategist)
+	if err != nil {
+		return err
+	}
+	if err = f.timeOnlyAllowance(ctx, strategist); err != nil {
+		return err
+	}
+	reassessment := factory.ReassessmentReport{Summary: "Controlled no-change diagnosis", CompletionID: subject.CompletionID, CycleID: subject.CycleID, InventoryDigest: subject.InventoryDigest, SourceCommit: strategist.SourceCommit, PreparationDigest: cap.PreparationDigest, LocalInputDigest: strings.Repeat("b", 64), Inspected: []factory.InspectedSource{{Path: "README.md", Commit: strategist.SourceCommit, Evidence: "controlled sealed inventory"}}}
+	if err = f.post(ctx, strategist, cap, factory.MCPToolFinishReassessment, map[string]any{"subject": cap.Subject, "report": "invalid"}, map[string]any{"subject": cap.Subject, "report": reassessment}, ""); err != nil {
+		return err
+	}
+	if _, err = f.settle(ctx, len(f.state.Entries)-1); err != nil {
+		return err
+	}
+	pilot := offlineRoleAssignment(project.ExecutionVerify, project.RoleReviewer, strings.Repeat("3", 40))
+	pilot.Issue, pilot.Acceptance, pilot.PublicationAssignment = 0, "", ""
+	delivery := factory.DeliverySubject{IntentID: decision(), AcceptedRevision: decision(), ScopeDigest: strings.Repeat("a", 64), SourceCommit: pilot.SourceCommit, PreparationDigest: strings.Repeat("a", 64), VerificationManifestDigest: strings.Repeat("b", 64)}
+	delivery.DeliveryID = factory.DeliveryID(delivery)
+	pilot.Subject = factory.ExecutionSubject{Kind: factory.SubjectDelivery, Delivery: &delivery}
+	cap, err = f.admit(ctx, pilot, factory.MCPProfileTestPilot)
+	if err != nil {
+		return err
+	}
+	if err = f.timeOnlyAllowance(ctx, pilot); err != nil {
+		return err
+	}
+	coverage := []factory.ReassessmentCoverage{{IntentID: delivery.IntentID, OutcomeID: decision(), TaskKeys: []string{decision()}, DeliveredAcceptanceIDs: []string{decision()}}}
+	good := map[string]any{"outcome": factory.AppVerificationVerified, "coverage": coverage, "check_receipts": []factory.VerificationCheckReceipt{{CheckID: "controlled-check", Outcome: factory.CheckReceiptPassed, LogExcerpt: "controlled input only; no check executed"}}}
+	if err = f.post(ctx, pilot, cap, factory.MCPToolFinishAppVerify, map[string]any{"outcome": factory.AppVerificationVerified, "coverage": coverage}, good, ""); err != nil {
+		return err
+	}
+	if _, err = f.settle(ctx, len(f.state.Entries)-1); err != nil {
+		return err
+	}
+	fmt.Println("PASS: Issue Maker, Product Lead, Strategist and Test Pilot typed invalid→corrected results settle through the real PostgreSQL joint with exact time-only allowances; walkthroughs, inventory and receipt observations controlled, no issue/app/graph effects")
+	return nil
+}
+
+func offlineRoleHandoffs() error {
+	phase, path := os.Getenv("SODA_NATIVE_PG_PHASE"), os.Getenv("SODA_NATIVE_PG_POST_ID_FILE")+".role-handoffs.json"
+	if phase != "write" && phase != "restart" && phase != "recover" {
+		return errors.New("requires native PostgreSQL write/restart/recover driver")
+	}
+	dsnFile := os.Getenv("SODA_NATIVE_PG_DSN_FILE")
+	if dsnFile == "" || os.Getenv("SODA_NATIVE_PG_POST_ID_FILE") == "" {
+		return errors.New("requires new private native PostgreSQL fixture")
+	}
+	dsn, err := os.ReadFile(dsnFile)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, string(dsn))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	rawDB, err := sql.Open("pgx", string(dsn))
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	f := offlineRoleFixture{db: db, sql: rawDB, path: path, state: offlineRoleState{Version: "controlled-role-handoffs-v1"}}
+	if phase == "write" {
+		if _, err = os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			return errors.New("offline role scenario requires a new manifest")
+		}
+		selection := factory.RoleSelection{Account: strings.Repeat("c", 32), Harness: project.FactoryHarnessMuse, Model: "controlled-no-model"}
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: kind}
+		}
+		policy := factory.RepositoryPolicy{Repository: 714, GrantedBy: 7, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"controlled/check"}, Roles: map[string]factory.RoleSelection{project.RoleCoder: selection, project.RoleReviewer: selection}, Judgments: &selection, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return fmt.Errorf("controlled source policy setup: %w", err)
+		}
+		if err = db.SaveSponsorship(ctx, factory.Sponsorship{Repository: 714, GrantedBy: 7, ActorID: 7, ProjectID: "p" + strings.Repeat("d", 24), Connection: selection.Account, Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 10, Active: true, Native: &factory.NativeSponsorship{Profile: collaboration.ProfileID(strings.Repeat("a", 32)), Authentication: factory.NativeMuseLogin}}); err != nil {
+			return fmt.Errorf("controlled source sponsorship setup: %w", err)
+		}
+		a := offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, strings.Repeat("1", 40))
+		cap, err := f.admit(ctx, a, factory.MCPProfileArchitect)
+		if err != nil {
+			return err
+		}
+		plan := nativeWorkspacePlan(a.SourceCommit)
+		planRaw, _ := json.Marshal(plan)
+		var authored map[string]any
+		_ = json.Unmarshal(planRaw, &authored)
+		if err = f.post(ctx, a, cap, factory.MCPToolFinishIssuePlan, map[string]any{"approach": plan.Approach, "tasks": []any{}, "evidence_refs": []string{"controlled"}}, map[string]any{"approach": plan.Approach, "tasks": authored, "evidence_refs": []string{"controlled:README.md"}}, ""); err != nil {
+			return err
+		}
+		fmt.Println("PASS: controlled Architect invalid→corrected typed plan, exact selected-source opinion/accounting and terminal replay; recorded proposal retained for real PostgreSQL restart; no inference or check execution")
+		return nil
+	}
+	manifest, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(manifest, &f.state); err != nil || f.state.Version != "controlled-role-handoffs-v1" {
+		return errors.New("offline role manifest malformed")
+	}
+	if phase == "recover" {
+		if len(f.state.Entries) != 9 {
+			return fmt.Errorf("incomplete controlled chain: %d terminals", len(f.state.Entries))
+		}
+		for i := range f.state.Entries {
+			if _, err = f.settle(ctx, i); err != nil {
+				return fmt.Errorf("recover role %d: %w", i, err)
+			}
+		}
+		var judgments, minutes int
+		if err = rawDB.QueryRowContext(ctx, `SELECT count(*),COALESCE(sum(minutes),0) FROM factory_usage WHERE repository=714`).Scan(&judgments, &minutes); err != nil || judgments != 1 || minutes != 1 {
+			return errors.New("controlled opinion accounting changed across restart/recovery")
+		}
+		fmt.Println("PASS: all eight profiles / nine controlled typed results and exact original terminal payloads survive clean PostgreSQL restart and abrupt WAL recovery; repeated settlement/replay changes no assignment and adds no judgment/charge; no worker, provider, publication or native execution qualification")
+		return nil
+	}
+	if len(f.state.Entries) != 1 {
+		return errors.New("restart requires exactly the original recorded Architect proposal")
+	}
+	architect, err := f.settle(ctx, 0)
+	if err != nil {
+		return fmt.Errorf("restart Architect settlement: %w", err)
+	}
+	plan := *architect.Result.PhaseResult.Output.Plan
+	if err = db.SaveInvestigationPlan(ctx, plan); err != nil {
+		return err
+	}
+	if err = db.AdvancePlanHead(ctx, architect.ID, "", plan.ID); err != nil {
+		return err
+	}
+	builder := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, architect.SourceCommit)
+	builder.ID, err = factory.AdvancementID(architect.ID, factory.ResultDigest(*architect.Result), project.ExecutionImplement)
+	if err != nil {
+		return err
+	}
+	builder.AttemptRoot, builder.ParentAssignment, builder.PublicationAssignment = architect.ID, architect.ID, architect.ID
+	cap, err := f.admit(ctx, builder, factory.MCPProfileBuilder, plan)
+	if err != nil {
+		return err
+	}
+	firstCandidate := strings.Repeat("2", 40)
+	if err = f.checkpoint(ctx, builder, plan, firstCandidate); err != nil {
+		return fmt.Errorf("Builder controlled checkpoint: %w", err)
+	}
+	if err = f.post(ctx, builder, cap, factory.MCPToolFinishImplement, map[string]any{"unknown": "refuse"}, map[string]any{}, firstCandidate); err != nil {
+		return err
+	}
+	implemented, err := f.settle(ctx, 1)
+	if err != nil {
+		return err
+	}
+	inspector := offlineRoleAssignment(project.ExecutionReview, project.RoleReviewer, implemented.Result.Candidate)
+	inspector.AttemptRoot, inspector.ParentAssignment, inspector.PublicationAssignment = architect.ID, builder.ID, architect.ID
+	publication := factory.NewID()
+	cycle := factory.ReviewCycle{PublicationID: publication, AttemptRoot: architect.ID, Phase: "review", TriggerDecision: "controlled-input", TriggerReason: "controlled independent review", Head: firstCandidate, BaseOID: architect.SourceCommit, FindingDigest: strings.Repeat("a", 64), ReviewerAssignment: inspector.ID, Round: 1}
+	cycle.ID = factory.ReviewCycleID(publication, architect.ID, 1, cycle.Phase)
+	inspector.ReviewContext = &factory.CurrentReviewContext{Publication: factory.CurrentPublicationContext{ID: publication, AssignmentID: architect.ID}, AdmittedTuple: factory.CandidateTuple{Head: cycle.Head, Base: cycle.BaseOID, DiffBase: cycle.BaseOID, Revision: 1}, Cycle: cycle}
+	cap, err = f.admit(ctx, inspector, factory.MCPProfileInspector)
+	if err != nil {
+		return err
+	}
+	finding := factory.Finding{Key: strings.Repeat("f", 32), OriginRun: inspector.Run, Severity: factory.FindingSeverityMajor, Actionable: true, FixKind: factory.FindingFixCode, Defect: "Controlled output has placeholder text", Evidence: "controlled:fixture.txt", RequiredOutcome: "Replace placeholder with corrected text"}
+	if err = f.post(ctx, inspector, cap, factory.MCPToolFinishReview, map[string]any{"conclusion": "findings", "findings": "not a structured finding", "evidence_refs": []string{"controlled"}}, map[string]any{"conclusion": "findings", "findings": []factory.Finding{finding}, "evidence_refs": []string{"controlled:fixture.txt"}}, ""); err != nil {
+		return err
+	}
+	reviewed, err := f.settle(ctx, 2)
+	if err != nil {
+		return err
+	}
+	report := reviewed.Result.PhaseResult.Output.Review
+	if report.CycleID != cycle.ID || len(report.NewFindings) != 1 || report.NewFindings[0].Key != finding.Key {
+		return errors.New("Inspector finding/cycle handoff changed")
+	}
+	fixer := offlineRoleAssignment(project.ExecutionCorrect, project.RoleCoder, firstCandidate)
+	fixer.AttemptRoot, fixer.ParentAssignment, fixer.PublicationAssignment = architect.ID, inspector.ID, architect.ID
+	keys := []string{finding.Key}
+	setDigest, err := factory.FindingSetDigest(keys)
+	if err != nil {
+		return err
+	}
+	correctionCycle := cycle
+	correctionCycle.Phase = "correct"
+	correctionCycle.ID = factory.ReviewCycleID(publication, architect.ID, 1, "correct")
+	correctionCycle.CorrectionAssignment = fixer.ID
+	correctionCycle.FindingDigest = setDigest
+	fixer.ReviewContext = &factory.CurrentReviewContext{Publication: inspector.ReviewContext.Publication, AdmittedTuple: inspector.ReviewContext.AdmittedTuple, Cycle: correctionCycle, CarriedFindings: report.NewFindings}
+	correctionPlan := plan
+	correctionPlan.ID = factory.NewID()
+	correctionPlan.Tasks = []factory.PlanTask{{ID: "correct", Objective: finding.RequiredOutcome, Outputs: []string{"fixture.txt"}, AcceptanceRefs: plan.AcceptanceCoverage, Lane: "builder", OwnedPaths: []string{"fixture.txt"}}}
+	correctionPlan.Lanes = []factory.PlanLane{{ID: "builder", TaskIDs: []string{"correct"}}}
+	correctionPlan.Checks = []factory.CheckSpec{{ID: "integration", Argv: []string{"/usr/bin/true"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeIntegration, Required: true}}
+	cap, err = f.admit(ctx, fixer, factory.MCPProfileFixer, correctionPlan)
+	if err != nil {
+		return err
+	}
+	correctedCandidate := strings.Repeat("3", 40)
+	if err = f.checkpoint(ctx, fixer, plan, correctedCandidate); err != nil {
+		return fmt.Errorf("Fixer controlled checkpoint: %w", err)
+	}
+	good := map[string]any{"candidate": correctedCandidate, "dispositions": []factory.CorrectionDisposition{{Key: finding.Key, Disposition: factory.DispositionFixed}}, "fix_evidence": []factory.CorrectionFixEvidence{{Key: finding.Key, ChangedPaths: []string{"fixture.txt"}, Commits: []string{correctedCandidate}}}, "evidence_refs": []string{"controlled:fix"}}
+	bad := map[string]any{"candidate": correctedCandidate, "dispositions": []factory.CorrectionDisposition{}, "evidence_refs": []string{"controlled"}}
+	if err = f.post(ctx, fixer, cap, factory.MCPToolFinishCorrection, bad, good, correctedCandidate); err != nil {
+		return err
+	}
+	fixed, err := f.settle(ctx, 3)
+	if err != nil {
+		return err
+	}
+	if fixed.Result.PhaseResult.Output.Correction.SetDigest != setDigest {
+		return errors.New("Fixer changed input finding digest")
+	}
+	clear := offlineRoleAssignment(project.ExecutionReview, project.RoleReviewer, fixed.Result.Candidate)
+	clear.AttemptRoot, clear.ParentAssignment, clear.PublicationAssignment = architect.ID, fixer.ID, architect.ID
+	clearCycle := cycle
+	clearCycle.Round = 2
+	clearCycle.ID = factory.ReviewCycleID(publication, architect.ID, 2, "review")
+	clearCycle.Head = fixed.Result.Candidate
+	clearCycle.ReviewerAssignment = clear.ID
+	clearCycle.FindingDigest = setDigest
+	contentDigest, err := factory.FindingContentDigest(report.NewFindings)
+	if err != nil {
+		return err
+	}
+	coverage, err := factory.ClearCoverageDigest(clearCycle.Head, clearCycle.BaseOID, contentDigest)
+	if err != nil {
+		return err
+	}
+	clear.ReviewContext = &factory.CurrentReviewContext{Publication: inspector.ReviewContext.Publication, AdmittedTuple: factory.CandidateTuple{Head: clearCycle.Head, Base: clearCycle.BaseOID, DiffBase: clearCycle.BaseOID, Revision: 2}, Cycle: clearCycle, CarriedFindings: report.NewFindings, ClearCoverageDigest: coverage}
+	cap, err = f.admit(ctx, clear, factory.MCPProfileInspector)
+	if err != nil {
+		return err
+	}
+	assessment := factory.FindingAssessment{Key: finding.Key, Status: factory.FindingVerified, Evidence: "controlled exact corrected output"}
+	clearReport := factory.ClearReviewReport{Conclusion: factory.ClearReviewConclusion, CycleID: clearCycle.ID, Head: clearCycle.Head, BaseOID: clearCycle.BaseOID, CoverageDigest: coverage, Assessments: []factory.FindingAssessment{assessment}}
+	if err = clearReport.Validate(report.NewFindings); err != nil {
+		return err
+	}
+	if err = (factory.ClearReviewReport{Conclusion: factory.ClearReviewConclusion, CycleID: clearCycle.ID, Head: clearCycle.Head, BaseOID: clearCycle.BaseOID, CoverageDigest: coverage}).Validate(report.NewFindings); err == nil {
+		return errors.New("clear review omitted carried actionable finding")
+	}
+	// A model cannot replace the server-owned current tuple or finding digest.
+	// Assert the actual binding operation, rather than claiming that the finish
+	// mapper alone performs the downstream publication/base adoption check.
+	stale := map[string]any{"tuple": map[string]any{"cycle_id": cycle.ID, "head": firstCandidate, "base_oid": strings.Repeat("8", 40)}, "coverage": strings.Repeat("9", 64)}
+	f.results().Bind(ctx, cap, factory.MCPToolFinishReview, stale)
+	tuple, ok := stale["tuple"].(map[string]any)
+	if !ok || tuple["cycle_id"] != clearCycle.ID || tuple["head"] != clearCycle.Head || tuple["base_oid"] != clearCycle.BaseOID || stale["coverage"] != coverage {
+		return errors.New("stale candidate/base/coverage escaped server-owned review binding")
+	}
+	fixCap, err := f.db.GetMCPCapability(ctx, fixer.Run)
+	if err != nil {
+		return err
+	}
+	staleFinding := map[string]any{"finding_digest": strings.Repeat("0", 64)}
+	f.results().Bind(ctx, fixCap, factory.MCPToolFinishCorrection, staleFinding)
+	if staleFinding["finding_digest"] != setDigest {
+		return errors.New("stale finding digest escaped server-owned correction binding")
+	}
+	wrongSet := *fixed.Result.PhaseResult.Output.Correction
+	wrongSet.SetDigest = strings.Repeat("0", 64)
+	if wrongSet.Validate() == nil {
+		return errors.New("typed correction accepted a stale finding set")
+	}
+	staleHeadPayload, _ := json.Marshal(map[string]any{"conclusion": "clear", "tuple": map[string]any{"cycle_id": clearCycle.ID, "head": firstCandidate, "base_oid": clearCycle.BaseOID}, "coverage": coverage, "carried_assessments": []factory.FindingAssessment{assessment}, "evidence_refs": []string{"controlled"}})
+	if err = control.CheckMCPTerminalFinish(clear, factory.MCPSubmission{AssignmentID: clear.ID, CapabilityID: cap.ID, SubmissionID: factory.NewID(), Tool: factory.MCPToolFinishReview, Payload: staleHeadPayload}, time.Now()); err == nil {
+		return errors.New("typed clear finish accepted another candidate")
+	}
+	if err = f.post(ctx, clear, cap, factory.MCPToolFinishReview, map[string]any{"conclusion": "clear", "carried_assessments": "bad", "evidence_refs": []string{"controlled"}}, map[string]any{"conclusion": "clear", "carried_assessments": []factory.FindingAssessment{assessment}, "evidence_refs": []string{"controlled:corrected-output"}}, ""); err != nil {
+		return err
+	}
+	if err = f.remainingProfiles(ctx); err != nil {
+		return fmt.Errorf("remaining controlled profiles: %w", err)
+	}
+	fmt.Println("PASS: real typed Architect→Builder→Inspector findings→Fixer→Inspector proposals; bound plan/root/source, exact candidates/base, finding dispositions/coverage, invalid→corrected results and controlled final-checkpoint gates; final Inspector proposal retained for PostgreSQL crash recovery")
+	return nil
 }
 
 // Retained-copy qualification: only confirmed capability projection retirement

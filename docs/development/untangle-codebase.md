@@ -1,5 +1,66 @@
 # Factory untangling decisions
 
+## Deterministic role-contract exercise (2026-11-10)
+
+Status: typed-result and native workspace contracts verified; current automatic
+coordinator-dispatch fixture assessment remains in progress. The owner requested
+controlled role results through the existing harness, without new inference.
+Native workspace modes ready/failed/ownership/dependency/cancel pass with current
+installed helpers in the existing local Debian VM. New assertions preserve the
+original busy receipt after head advancement, refuse a distinct stale-head start
+without losing the workspace, and retain readable frozen output after a failed
+check. Both task checkpoints, final candidate, cancellation's unresolved request
+and separate-process readback after exact retirement use the existing owners.
+This does not add failed-output repair or prove actual lost transport replies.
+
+Evidence: `/home/vince/Projects/factory-contract-check/workspace.log` and VM
+`/home/factory/assembly-contract-check-20261110/workspace/`. The VM agent/broker
+hashes match the retained `factory-dev-check/stage-final` release; its paused
+app/profile and shared installed helpers were not changed. All five owned native
+roots retired. Rust checker build is `native-build.log`; the VM execution uses
+its matching current agent/broker without installing replacements.
+
+Go mode `offline-role-handoffs` now passes all eight profiles / nine terminal
+results through actual wire/profile validation, `WorkerResults` binding and
+prevalidation, PostgreSQL submission recording and production terminal
+settlement. The accepted Architect plan feeds Builder, Inspector findings feed
+Fixer, and the corrected candidate plus carried finding feeds Inspector clear.
+Issue Maker, Product Lead, Strategist and Test Pilot also produce validated,
+settled results with their proper subject/allowance shapes. Malformed results
+leave no frozen terminal; corrected commands use distinct identities. Wrong
+profile, source opinion, checkpoint run/candidate and missing-checkpoint refusals
+remain enforced. Server-owned head/base/finding/coverage fields replace stale
+worker copies; this is not downstream publication-adoption race proof.
+
+`roles2.log` passes write → clean restart → abrupt owned PostgreSQL crash → WAL
+recovery. The original Architect proposal crosses the clean restart unconsumed;
+the final Inspector proposal crosses the crash unconsumed. Recovered settlements
+and exact replay preserve already-finished assignments and immutable payloads.
+The controlled plan opinion retains one synthetic fixture minute on its selected
+dummy source, without duplication. Manifest and original commands remain under
+`factory-contract-check/roles2/proof-post-id.role-handoffs.json`. `roles1.log`
+preserves the initial fixture error (saving before run admission), and its owned
+DB is stopped. The correction uses `RecordFactoryRun`,
+`BindFactoryExecutionManifest` and `SaveFactoryFinalCheckpoint`; it does not
+weaken immutable metadata or seed finished assignments/accepted terminal rows.
+
+These are controlled admitted inputs, current-context, judgment and checkpoint
+observations; the Go scenario manually connects assignment outputs. It does not
+launch a worker, run application checks, authorize actual publication or prove
+automatic dispatch. Separate Rust workspace proof above executes real native
+checks/effects. Historical `q09-correction9.log` proves automatic controlled
+coordinator progression at its recorded revision; its old launch script must
+not be replayed because it changes shared service overrides. The current finite
+dispatch fixture needs the now-mandatory selected-source plan opinion before a
+current automatic-dispatch claim. No product implementation or live-model gate
+is closed by these checks. The frozen-failure repair limitation, prompt/catalog
+contradictions and diagnostic ambiguity from the audit remain open.
+
+Owned edits are this section plus the existing Go/Rust native MCP check files.
+No check is running. Next: resolve the bounded current automatic-fixture
+prerequisite or record its precise limit; commit only this slice's edits.
+The prior task-file pause edit remains unrelated and unstaged.
+
 ## Retained assembly-line trace audit (2026-11-10)
 
 Scope: existing GitHub/Muse runs and their owning code at
