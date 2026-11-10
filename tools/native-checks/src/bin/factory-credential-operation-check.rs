@@ -1242,6 +1242,12 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     ensure(configuration["native_bindings"].as_array().is_some_and(|refs|refs.is_empty())&&configuration["policy_options"].is_object()&&configuration["policy_options"]["native_setup"]!=true,"Fountain read enrollment offered unimplemented operation or setup authority")?;
     let setup=product_read(format!("/api/repositories/{repository}/factory/setup")).await?;
     ensure(setup["available"]==false,"Fountain read enrollment exposed preparation without captured host authority")?;
+    let placement_path=format!("/api/repositories/{repository}/factory/placement");
+    let placement=product_read(placement_path.clone()).await?;
+    ensure(placement["can_select"]==false,"Fountain connection offered standalone placement authority")?;
+    let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
+    let refused=request.request("PUT",&placement_path,br#"{"expected_revision":"","state":"active"}"#).await?;
+    ensure(refused.status==503,"Fountain standalone placement write was not refused before changing host observation")?;
     let base=format!("/api/factory/collaboration/repositories/{repository}");
     let first=product_read(format!("{base}/issues?limit=1&state=all")).await?;
     ensure(first["items"].as_array().is_some_and(|items|items.len()==1),"native Fountain first issue page absent")?;

@@ -26,6 +26,16 @@ func (b *nativeProductAccount) localResourceAccess(ctx context.Context, actor co
 	return b.visible(ctx, actor, repository)
 }
 
+// Fountain controller authority is admitted through its host gateway. A local
+// product connection cannot replace it with standalone placement or workspace
+// grants, even when the desktop owner may read the repository.
+func (b *nativeProductAccount) localExecutionSettingsAccess(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+	if b.binding.Host.Provider != collaboration.GitHub {
+		return factoryservice.ErrPlacementUnavailable
+	}
+	return b.localResourceAccess(ctx, actor, repository)
+}
+
 func (b *nativeProductAccount) repositoryViewer(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factoryservice.RepositoryViewer, error) {
 	if err := b.localOwnerAccess(ctx, actor); err != nil {
 		return factoryservice.RepositoryViewer{}, err

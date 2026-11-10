@@ -1290,6 +1290,21 @@ read/worker/revocation/recovery journey. It preserves the separately declared
 finite-worker setup fixture; real product preparation still needs its captured
 host-grant integration. All owners joined; no inference.
 
+Installed shared reads exposed a local controller button incorrectly enabled
+on Fountain connections. The native composition now refuses standalone placement
+and environment-grant admission for Fountain, preserving host-owned authority.
+`q19-authority/product34-connected2.log` passes `can_select=false`, actual PUT
+refusal before changing placement, and the existing connected read/worker/
+retirement/revocation journey; all owners joined, no models. Check1 stopped at
+an SSH fixture port collision before native admission; check2 uses its own port.
+Actual installed current34 `fountain-ui34/shared-current-controls.png` shows
+the disabled local actions while enrolled shared Feed/issue reads remain usable.
+Production build and language boundaries pass. Input0c6f4d1 plus
+`q25-package/current34-source.patch` (dbe128089e2f45dcfe16eaf9a7ac205ad6da8aa690d9feda0f15fdd510739a51);
+inventory8a8979f68f61243b429c00f81b1fbe021ae8e253b5548575992668d4c35f672a.
+This fixes presentation/admission, not the still-missing privileged preparation
+and full delivery integration.
+
 **Verified native bridge increment; full Q19 remains INCOMPLETE.**
 Factory 65f4c0ced5a9deb83aa748929ec04cf26f481dae owns this increment.
 `q19-authority/native-worker-connected9.log` passes canonical Fountain

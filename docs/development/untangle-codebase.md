@@ -23,6 +23,12 @@ integrated. Existing connected check `product32-connected2.log` verifies actual
 status/setup holds and retains the successful read/finite-worker/revocation
 journey. All owners joined, no models. Declared worker setup remains distinct
 from production preparation authority.
+The installed reader also exposed enabled standalone placement controls.
+Bind placement/environment admission to GitHub's standalone owner only;
+Fountain continues through the host controller gateway. Actual connected
+`product34-connected2.log` passes readback and PUT refusal plus the existing
+finite worker/recovery journey. Installed current34 shows those controls held
+(`fountain-ui34/shared-current-controls.png`), with shared repository reads intact.
 
 Q19 Fountain shared native reads (2026-11-10): extend the existing admitted
 native product scope with one exact enrolled Fountain client. Rust owns all
