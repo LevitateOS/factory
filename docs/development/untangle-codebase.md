@@ -1,5 +1,13 @@
 # Factory untangling decisions
 
+Fountain preparation inputs (2026-11-10): reuse semantic product selectors and
+the host source owner for authenticated target/setup/bundle observations.
+Optional absent setup files remain absent; changed tips and stale source commits
+are refused. `q19-authority/product37-connected.log` passes actual host reads,
+digest binding and existing worker/recovery checks with all owners joined and no
+models. Reads grant no setup/dispatch authority; captured host admission remains
+the next integration dependency.
+
 Fountain native PR reader (2026-11-10): reuse the admitted Rust provider scope,
 canonical Go read services and shared PR presentation for bounded list/detail/
 conversation reads. Bind the base repository and exact branch commits; leave

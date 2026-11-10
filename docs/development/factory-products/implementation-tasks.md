@@ -1264,6 +1264,15 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+Preparation source adapter (2026-11-10): the enrolled Rust connector now
+projects target-tip, bounded optional setup/selected files and exact digest-bound
+source bundles into the existing product contract. Actual canonical-host
+`q19-authority/product37-connected.log` passes these reads and stale-source
+refusal, then the retained finite-worker/withdrawal/recovery journey; all owners
+joined, no models. Source bundles retain the host source owner's default-branch
+reachability restriction. This supplies input observations only; privileged
+preparation still waits for captured operation-grant admission.
+
 Native shared-read integration (2026-11-10): the enrolled Fountain repository
 now binds through Rust custody and the existing Go product/canonical services to
 the shared desktop. Repository selection checks the exact current enrollment;

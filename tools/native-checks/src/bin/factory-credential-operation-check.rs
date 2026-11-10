@@ -1270,6 +1270,20 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     // or a private appliance callback. Setup/funding remain explicit fixtures.
     let source=client.source("",&[],&[]).await.map_err(|e|e.code)?;
     ensure(source.repository==grant.repository.id,"native Fountain source repository changed")?;
+    let target=format!("refs/heads/{}",grant.repository.default_branch);
+    use soda_desktop_runtime::github_provider::Read;
+    use base64::Engine;
+    use sha2::{Digest,Sha256};
+    let tip=client.product_read(&grant.repository.id,&Read::TargetTip{repository:grant.repository.id.clone(),target_ref:target.clone()}).await.map_err(|e|e.code)?;
+    ensure(tip["publication"]["repository"]==grant.repository.id&&tip["publication"]["tip"]==source.commit,"native Fountain target/source binding changed")?;
+    let setup=client.product_read(&grant.repository.id,&Read::SetupSource{repository:grant.repository.id.clone(),commit:source.commit.clone(),target_ref:target.clone(),paths:vec!["README.md".into()]}).await.map_err(|e|e.code)?;
+    ensure(setup["publication"]["commit"]==source.commit&&setup["publication"]["target_ref"]==target&&setup["publication"]["files"].is_object()&&setup["publication"]["source_files"].is_object(),"native Fountain approved setup source scope changed")?;
+    let captured=client.product_read(&grant.repository.id,&Read::SourceBundle{repository:grant.repository.id.clone(),base:String::new(),commit:source.commit.clone(),target_ref:target.clone()}).await.map_err(|e|e.code)?;
+    let bytes=base64::engine::general_purpose::STANDARD.decode(captured["publication"]["bundle"].as_str().ok_or("native Fountain source bundle absent")?)?;
+    let bundle_digest:String=Sha256::digest(&bytes).iter().map(|b|format!("{b:02x}")).collect();
+    ensure(!bytes.is_empty()&&captured["publication"]["sha256"]==bundle_digest&&captured["publication"]["commit"]==source.commit&&captured["publication"]["target"]==target,"native Fountain source digest/head/target changed")?;
+    ensure(client.product_read(&grant.repository.id,&Read::SetupSource{repository:grant.repository.id.clone(),commit:"0".repeat(40),target_ref:target,paths:vec![]}).await.is_err(),"native Fountain stale source passed setup selection")?;
+    println!("PASS: actual enrolled Fountain target tip, bounded optional setup/source files, exact digest-bound native source bundle and stale source refusal; no preparation authority inferred");
     let bundle=profile.join("fountain-source.bundle");
     let mut capture=fs::OpenOptions::new().create_new(true).write(true).mode(0o600).open(&bundle)?;
     capture.write_all(&source.bundle)?;capture.sync_all()?;drop(capture);

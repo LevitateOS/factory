@@ -2,7 +2,9 @@
 //! Enrollment supplies neither write permission nor native execution authority.
 use super::{invalid, Client, Result};
 use crate::github_provider::Read;
+use base64::Engine;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 fn id(value: &Value) -> Result<String> {
@@ -124,7 +126,9 @@ impl Client {
         Ok(())
     }
 
-    pub(crate) async fn product_read(&self, repository: &str, query: &Read) -> Result<Value> {
+    /// Read a bounded semantic product observation from this exact enrollment.
+    /// These observations carry neither operation nor execution authority.
+    pub async fn product_read(&self, repository: &str, query: &Read) -> Result<Value> {
         query.validate().map_err(|_| invalid())?;
         let current = self.status().await?;
         if !current.active || current.repository.id != repository {
@@ -142,6 +146,44 @@ impl Client {
                     "private":null,"default_branch":current.repository.default_branch,
                     "push":null,"admin":null
                 }})
+            }
+            Read::TargetTip { repository: selected, target_ref } if selected == repository => {
+                let tip = self.product_tip(target_ref).await?;
+                self.product_current(repository).await?;
+                if self.product_tip(target_ref).await? != tip { return Err(invalid()); }
+                json!({"kind":"target_tip","account":account,"publication":{"repository":repository,"target_ref":target_ref,"tip":tip}})
+            }
+            Read::SetupSource { repository: selected, commit, target_ref, paths } if selected == repository => {
+                if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
+                let setup = ["setup.sh", "check.sh", "setup-network.json", "setup-limits.json"];
+                let mut names: BTreeSet<&str> = setup.into_iter().collect();
+                names.extend(paths.iter().map(String::as_str));
+                let mut files = serde_json::Map::new();
+                let mut source_files = serde_json::Map::new();
+                let mut total = 0usize;
+                for name in names {
+                    if let Some(bytes) = self.product_file(commit, name).await? {
+                        let encoded = json!(base64::engine::general_purpose::STANDARD.encode(&bytes));
+                        if paths.iter().any(|path| path == name) {
+                            total += bytes.len();
+                            if total > 128 * 1024 { return Err(invalid()); }
+                            source_files.insert(name.into(), encoded.clone());
+                        }
+                        if setup.contains(&name) { files.insert(name.into(), encoded); }
+                    }
+                }
+                if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
+                json!({"kind":"setup_source","account":account,"publication":{"repository":repository,"commit":commit,"target_ref":target_ref,"files":files,"source_files":source_files}})
+            }
+            Read::SourceBundle { repository: selected, base, commit, target_ref } if selected == repository => {
+                if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
+                // The host source owner validates objects and reachability. A
+                // complete bundle is also valid when the importer knows a base.
+                let source = self.source(commit, &[], &[]).await?;
+                if source.repository != repository || source.commit != *commit
+                    || self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
+                let sha256: String = Sha256::digest(&source.bundle).iter().map(|b| format!("{b:02x}")).collect();
+                json!({"kind":"source_bundle","account":account,"publication":{"repository":repository,"base":base,"commit":commit,"target":target_ref,"sha256":sha256,"bundle":base64::engine::general_purpose::STANDARD.encode(&source.bundle)}})
             }
             Read::Issues {
                 repository: selected,
@@ -253,6 +295,32 @@ impl Client {
             .extend(["api", "v1", "repos", &self.owner, &self.repository])
             .extend(parts);
         Ok(url)
+    }
+    async fn product_tip(&self, target: &str) -> Result<String> {
+        let branch = target.strip_prefix("refs/heads/").ok_or_else(invalid)?;
+        let (raw, _): (Value, _) = self.request_url(reqwest::Method::GET,
+            self.product_url(&["branches", branch])?, None, 128 * 1024).await?;
+        let commit = text(&raw["commit"], "id", 40)?;
+        if raw["name"] != branch || !super::hex(commit, 40) { return Err(invalid()); }
+        Ok(commit.into())
+    }
+    async fn product_file(&self, commit: &str, name: &str) -> Result<Option<Vec<u8>>> {
+        let mut parts = vec!["contents"];
+        parts.extend(name.split('/'));
+        let mut url = self.product_url(&parts)?;
+        url.query_pairs_mut().append_pair("ref", commit);
+        let (raw, _): (Value, _) = match self.request_url(reqwest::Method::GET, url, None, 128 * 1024).await {
+            Ok(value) => value,
+            Err(error) if error.status == 404 => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if raw["type"] != "file" || raw["path"] != name || raw["encoding"] != "base64" { return Err(invalid()); }
+        let encoded: String = text(&raw, "content", 64 * 1024)?.chars().filter(|c| !c.is_ascii_whitespace()).collect();
+        let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).map_err(|_| invalid())?;
+        if bytes.len() > 32768 || raw["size"].as_u64() != Some(bytes.len() as u64) || std::str::from_utf8(&bytes).is_err() {
+            return Err(invalid());
+        }
+        Ok(Some(bytes))
     }
     async fn product_issue(&self, number: u32) -> Result<Value> {
         let (value, _): (Value, _) = self
