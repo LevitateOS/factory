@@ -39,7 +39,7 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Public
 		return false
 	}
 	if work.ReviewEvent == "COMMENT" {
-		if err := c.verifyCommentMergeReview(ctx, p, work, observation); err != nil {
+		if err := c.verifyCommentMergeReview(ctx, p, *m, work, observation); err != nil {
 			c.mergeCallError(report, m.ID, err)
 			return false
 		}
@@ -60,15 +60,15 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Public
 
 // A provider comment can carry the independent agent's report. It cannot
 // supply an approval required by branch rules or replace the typed review run.
-func (c *Coordinator) verifyCommentMergeReview(ctx context.Context, p factory.Publication, work factory.MergeWork, observation factory.MergeObservation) error {
+func (c *Coordinator) verifyCommentMergeReview(ctx context.Context, p factory.Publication, m factory.Merge, work factory.MergeWork, observation factory.MergeObservation) error {
 	if !observation.ProviderComplete || !observation.ProviderEligible {
 		return &factory.PublicationWait{Reason: "provider_merge_requirements_pending"}
 	}
-	if c.Reviews == nil || !c.currentPublicationApproved(ctx, p) {
+	if c.Reviews == nil || !c.currentMergeReview(ctx, p, m) {
 		return &factory.PublicationWait{Reason: "agent_review_pending"}
 	}
 	op, found := currentReviewOperation(p)
-	if !found || op.Work.ActorID != work.ReviewerID || op.Work.Event != "COMMENT" || op.Work.Disposition() != "APPROVED" || observation.ReviewEvent != op.Work.Event {
+	if !found || op.Work.ActorID != work.ReviewerID || op.Work.Event != "COMMENT" || observation.ReviewEvent != op.Work.Event {
 		return &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
 	receipt, err := c.Reviews.AdoptReview(ctx, op.Work, op.Outcome)

@@ -175,7 +175,19 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	var review factory.ReviewOutcome
 	for i := len(publication.ReviewOperations) - 1; i >= 0; i-- {
 		op := publication.ReviewOperations[i]
-		if op.Work.ActorID == w.ReviewerID && op.Work.PRID == w.PRID && op.Work.HeadOID == w.HeadOID && op.Work.BaseOID == w.BaseOID && op.Work.Disposition() == "APPROVED" {
+		if op.Work.HeadOID != w.HeadOID {
+			continue
+		}
+		if op.Work.ActorID == w.ReviewerID && op.Work.PRID == w.PRID && op.Work.BaseOID == w.BaseOID {
+			if op.Work.Disposition() != "APPROVED" {
+				merge, readErr := p.Store.MergeByPublication(ctx, publication.ID)
+				if readErr != nil {
+					return fail("funded_review", readErr)
+				}
+				if err = control.CheckFundedMergeReview(ctx, p.Store, publication, merge, op); err != nil {
+					return fail("funded_review", err)
+				}
+			}
 			if _, err = (NativeReviews{p.NativeInputSource}).ObserveReview(ctx, op.Work); err != nil {
 				return fail("review_target", err)
 			}
@@ -183,8 +195,10 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 			if err != nil {
 				return fail("review_receipt", err)
 			}
-			break
 		}
+		// A newer current-head report supersedes earlier approvals, including
+		// when its actor/base differs. Never fall back to a historical report.
+		break
 	}
 	if review.ReviewID <= 0 || review.Event != w.ReviewEvent || w.ReviewID != 0 && w.ReviewID != review.ReviewID {
 		return empty, &factory.PublicationWait{Reason: "agent_review_pending"}

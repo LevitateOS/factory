@@ -3,8 +3,10 @@ package control
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/store"
 )
 
 // AuthorizeMerge binds the first and only authorization generation to a
@@ -80,6 +82,65 @@ func journaledAcceptance(p factory.Publication, id string) (factory.DeliveryAcce
 		}
 	}
 	return factory.DeliveryAcceptance{}, false
+}
+
+// CheckFundedMergeReview admits a findings COMMENT only behind its recorded
+// funded acceptance. Both the coordinator and native merge owner use this gate;
+// the COMMENT remains a findings report and supplies no provider approval.
+// Current semantic material is additionally recomposed by merge admission.
+func CheckFundedMergeReview(ctx context.Context, db *store.Store, p factory.Publication, m factory.Merge, op factory.ReviewOperation) error {
+	wait := &factory.PublicationWait{Reason: "funded_delivery_changed"}
+	if db == nil || op.Work.Event != "COMMENT" || op.Work.Disposition() != "REQUEST_CHANGES" ||
+		!m.Authorization.Generation.UnionBound() || m.Authorization.Generation.AcceptanceKind != factory.AcceptanceJevAcceptance ||
+		m.Authorization.Validate() != nil || mergeAuthorizationGate(m, p) != nil {
+		return wait
+	}
+	c := Coordinator{Store: db}
+	review, ready, pending, refused := c.currentReviewReport(ctx, p)
+	current, found := currentReviewOperation(p)
+	if !ready || pending || refused || review.Review == nil || !found || !reflect.DeepEqual(current, op) {
+		return wait
+	}
+	generation := m.Authorization.Generation
+	acceptance, found := journaledAcceptance(p, generation.AcceptanceID)
+	cycle, recorded := findReviewCycle(p, review.Review.CycleID)
+	reviewer, err := db.AssignmentByRun(ctx, op.RunID)
+	if err != nil || !found || !recorded || cycle.Validate() != nil ||
+		cycle.AttemptRoot != generation.AttemptRoot || cycle.Round != generation.ReviewRound ||
+		cycle.Head != generation.Head || cycle.BaseOID != generation.Base ||
+		cycle.ReviewerAssignment != acceptance.OriginReceipt || reviewer.ID != acceptance.OriginReceipt ||
+		p.CurrentDiffBase() != generation.DiffBase || c.checkPriorRunJoins(ctx, p, reviewer) != nil {
+		return wait
+	}
+	policy, err := db.RepositoryPolicy(ctx, p.Repository)
+	if err != nil || policy.Revision != generation.Authority.Policy || policy.Judgments == nil {
+		return wait
+	}
+	receipt, err := db.DeliveryJudgment(ctx, generation.Fingerprint)
+	if err != nil || !receipt.CurrentFor(generation.Fingerprint) || receipt.Decision.Validate() != nil ||
+		!reflect.DeepEqual(receipt.Decision, m.Authorization.Decision) {
+		return wait
+	}
+	fingerprint, err := factory.DeliveryFingerprint(receipt.Input)
+	if err != nil || fingerprint != generation.Fingerprint || receipt.Input.PublicationID != p.ID ||
+		receipt.Input.AttemptRoot != generation.AttemptRoot || receipt.Input.Round != cycle.Round ||
+		receipt.Input.Head != generation.Head || receipt.Input.Base != generation.Base ||
+		receipt.Input.ScopeDigest != acceptance.ScopeDigest || receipt.Input.PolicyRevision != policy.Revision ||
+		receipt.Input.Model != policy.Judgments.Model || receipt.Decision.Answer.Model != receipt.Input.Model ||
+		len(receipt.Input.Reviews) != 1 || receipt.Input.Reviews[0] != reviewer.ID ||
+		acceptance.DecisionID != deliveryContentDigest("soda-funded-delivery-v1:" + fingerprint)[:32] ||
+		!deliveryResolutionsConfirmed(p, acceptance) {
+		return wait
+	}
+	return nil
+}
+
+func (c *Coordinator) currentMergeReview(ctx context.Context, p factory.Publication, m factory.Merge) bool {
+	if c.currentPublicationApproved(ctx, p) {
+		return true
+	}
+	op, found := currentReviewOperation(p)
+	return found && CheckFundedMergeReview(ctx, c.Store, p, m, op) == nil
 }
 
 // mergeAuthorizationGate enforces the common union gate before any new

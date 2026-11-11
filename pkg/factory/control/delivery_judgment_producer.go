@@ -277,18 +277,25 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 		if acceptance.Kind != factory.AcceptanceJevAcceptance || acceptance.Round != cycle.Round || acceptance.DecisionID != deliveryContentDigest("soda-funded-delivery-v1:" + fingerprint)[:32] {
 			continue
 		}
-		for _, intent := range acceptance.ResolutionIntents {
-			confirmed := false
-			for _, operation := range p.ResolutionOperations {
-				if operation.Work.OperationID == intent && operation.AcceptanceID == acceptance.ID && operation.Confirmed {
-					confirmed = true
-				}
-			}
-			if !confirmed {
-				return nil, factory.DeliveryDecision{}, &factory.PublicationWait{Reason: "resolution_pending"}
-			}
+		if !deliveryResolutionsConfirmed(p, acceptance) {
+			return nil, factory.DeliveryDecision{}, &factory.PublicationWait{Reason: "resolution_pending"}
 		}
 		return &acceptance, receipt.Decision, nil
 	}
 	return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
+}
+
+func deliveryResolutionsConfirmed(p factory.Publication, acceptance factory.DeliveryAcceptance) bool {
+	for _, intent := range acceptance.ResolutionIntents {
+		confirmed := false
+		for _, operation := range p.ResolutionOperations {
+			if operation.Work.OperationID == intent && operation.AcceptanceID == acceptance.ID && operation.Confirmed {
+				confirmed = true
+			}
+		}
+		if !confirmed {
+			return false
+		}
+	}
+	return true
 }

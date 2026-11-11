@@ -55,7 +55,7 @@ func rolePayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	case factory.MCPToolFinishReview:
 		set("coverage", serverFilled, text)
 		set("tuple", serverFilled, &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{"cycle_id": {Type: "string"}, "head": {Type: "string"}, "base_oid": {Type: "string"}}, Required: []string{"cycle_id", "head", "base_oid"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}})
-		set("findings", "Structured findings with actionable outcomes and evidence. A string summary cannot replace these records.", mcpCarrier[[]factory.Finding]())
+		set("findings", "Structured findings with evidence and required outcomes. Mark actual optional or informational findings actionable:false with an explicit no-action outcome; optional-only findings receive a delivery judgment rather than a forced correction. Use clear only when no findings remain. A string summary cannot replace these records.", mcpCarrier[[]factory.Finding]())
 		set("carried_assessments", "Disposition/evidence for each carried finding in this review cycle.", mcpCarrier[[]factory.FindingAssessment]())
 	case factory.MCPToolFinishCorrection:
 		set("finding_digest", serverFilled, text)

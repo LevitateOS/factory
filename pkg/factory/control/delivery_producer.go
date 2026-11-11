@@ -82,7 +82,7 @@ func (c *Coordinator) recordCleanDeliveryAcceptance(ctx context.Context, publica
 // reconcile through the existing receipt path.
 func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *factory.Merge, publication *factory.Publication, nativeRevision int64) error {
 	if merge.Authorization.Bound() {
-		if merge.Authorization.Generation.AcceptanceKind == factory.AcceptanceJevAcceptance && merge.Authorization.Decision.Answer.ProviderModel != "" {
+		if merge.Authorization.Generation.AcceptanceKind == factory.AcceptanceJevAcceptance {
 			acceptance, decision, err := c.currentFundedDeliveryAcceptance(ctx, *publication)
 			if err != nil || acceptance == nil || acceptance.ID != merge.Authorization.Generation.AcceptanceID || decision.Answer.Fingerprint != merge.Authorization.Generation.Fingerprint {
 				return &factory.PublicationWait{Reason: "funded_delivery_changed"}

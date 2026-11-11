@@ -145,7 +145,7 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		}
 	}
 	work = op.Work.Apply(work)
-	if work.ReviewEvent == "COMMENT" && !c.currentPublicationApproved(ctx, p) {
+	if work.ReviewEvent == "COMMENT" && !c.currentMergeReview(ctx, p, m) {
 		mergeWait(report, m.ID, "agent_review_pending")
 		return
 	}

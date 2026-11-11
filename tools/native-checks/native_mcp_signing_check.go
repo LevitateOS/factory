@@ -2403,7 +2403,114 @@ func offlineRetainedIncompleteClearRecovery(ctx context.Context, db *store.Store
 	if err != nil || !reflect.DeepEqual(storedPublication, p) {
 		return errors.New("historical recovery changed original cycles or native operations")
 	}
+	if err = offlineFundedCommentMerge(ctx, db, raw, p, first); err != nil {
+		return fmt.Errorf("funded findings COMMENT merge: %w", err)
+	}
 	fmt.Println("PASS: funded historical unsubmitted assessment-free clear carries its actionable finding without verification; current result, attributed history, tuple/coverage/content drift, partial assessments, broken run joins and absent funding provenance refuse before provider observation; original result/cycles unchanged; lineage and provider declared, no inference or send")
+	return nil
+}
+
+// Exercise the shared coordinator/native eligibility gate using the existing
+// retired Inspector and real PostgreSQL journal. Its ready answer and native
+// receipt are declared inputs; no model, provider or merge send runs here.
+func offlineFundedCommentMerge(ctx context.Context, db *store.Store, raw *sql.DB, original factory.Publication, reviewer factory.Assignment) error {
+	policy, err := db.RepositoryPolicy(ctx, original.Repository)
+	if err != nil {
+		return err
+	}
+	p := original
+	p.Candidate = reviewer.SourceCommit
+	p.Tuple = &factory.CandidateTuple{Head: p.Candidate, Base: p.BaseSHA, DiffBase: p.BaseSHA, Revision: 1}
+	external := *p.External
+	external.Target.HeadOID = p.Candidate
+	p.External = &external
+	p.Authority.Policy = policy.Revision
+	p.ReviewCycles = []factory.ReviewCycle{reviewer.ReviewContext.Cycle}
+	w := factory.ReviewWork{OperationID: "review-" + reviewer.Run, AuthRevision: factory.ReviewAuthRevision(p.AssignmentID, reviewer.Run), Repository: p.Repository, ActorID: reviewer.ActorID, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.BaseSHA, Event: "COMMENT", AgentVerdict: "REQUEST_CHANGES", Body: "Declared controlled findings receipt", NativeRev: 1, NotAfter: time.Now().Add(time.Minute).Unix()}
+	op := factory.ReviewOperation{RunID: reviewer.Run, Work: w, Outcome: factory.OperationOutcome{OperationID: w.OperationID, InstallationID: "controlled", Kind: factory.OpReviewSubmit, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, Receipt: []byte("declared controlled native receipt")}}
+	p.ReviewOperations = []factory.ReviewOperation{op}
+	digest := strings.Repeat("a", 64)
+	input := factory.DeliveryFingerprintInput{AttemptRoot: reviewer.AttemptRoot, PublicationID: p.ID, Round: p.ReviewCycles[0].Round, Head: p.Candidate, Base: p.BaseSHA, ScopeDigest: digest, FixDigest: digest, DiffDigest: digest, CheckDigest: digest, TreeDigest: digest, PolicyRevision: policy.Revision, Model: policy.Judgments.Model, Rubric: factory.DeliveryRubric, Reviews: []string{reviewer.ID}}
+	fingerprint, err := factory.DeliveryFingerprint(input)
+	if err != nil {
+		return err
+	}
+	answer := factory.DeliveryAnswer{Fingerprint: fingerprint, Model: input.Model, Selected: factory.DeliveryReadyToMerge, Probability: .9, Confidence: .9, Probabilities: map[string]float64{factory.DeliveryReadyToMerge: .9, factory.DeliveryReviewAgain: .1}}
+	receipt := factory.NewDeliveryReceipt(input, fingerprint, answer, true, 1)
+	encodedID, _ := json.Marshal("soda-funded-delivery-v1:" + fingerprint)
+	p, acceptance, err := control.AdmitJevAcceptance(control.JevAdmissionInput{Publication: p, Cycle: p.ReviewCycles[0], Carried: reviewer.Result.PhaseResult.Output.Review.NewFindings, FingerprintInput: input, Fingerprint: fingerprint, Decision: receipt.Decision, DecisionID: factory.MCPInputDigest(encodedID)[:32], ScopeDigest: digest, PolicyRevision: strconv.FormatInt(policy.Revision, 10), CheckDigest: factory.ChecksDigest(policy.Checks), DiffBase: p.BaseSHA})
+	if err != nil {
+		return err
+	}
+	if err = db.RecordDeliveryJudgment(ctx, receipt); err != nil {
+		return err
+	}
+	m := factory.Merge{Authority: p.Authority, HeadOID: p.Candidate, BaseOID: p.BaseSHA, Authorization: factory.MergeAuthorization{Generation: factory.MergeGeneration{Authority: p.Authority, PublicationID: p.ID, Generation: 1, NativeOperationID: factory.MergeGenerationOperationID(p.ID, 1), DecisionID: acceptance.DecisionID, Fingerprint: fingerprint, Head: p.Candidate, Base: p.BaseSHA, DiffBase: p.BaseSHA, ReviewRound: acceptance.Round, AssessmentRevision: 1, ChecksDigest: acceptance.CheckDigest, ObservedNativeRev: 1, NotAfter: w.NotAfter, AcceptanceID: acceptance.ID, AcceptanceKind: acceptance.Kind, AttemptRoot: acceptance.AttemptRoot, OriginReceipt: acceptance.OriginReceipt}, Decision: receipt.Decision, ResolutionsConfirmed: true}}
+	if err = p.Validate(); err != nil {
+		return err
+	}
+	encoded, _ := json.Marshal(p)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_publications SET data=$2 WHERE assignment=$1`, p.AssignmentID, string(encoded)); err != nil {
+		return err
+	}
+	defer func() {
+		encoded, _ := json.Marshal(original)
+		_, _ = raw.ExecContext(ctx, `UPDATE factory_publications SET data=$2 WHERE assignment=$1`, original.AssignmentID, string(encoded))
+	}()
+	if err = control.CheckFundedMergeReview(ctx, db, p, m, op); err != nil {
+		return fmt.Errorf("current bound findings refused: %w", err)
+	}
+	for _, change := range []struct {
+		name string
+		edit func(*factory.Publication, *factory.Merge, *factory.ReviewOperation)
+	}{
+		{"missing acceptance", func(p *factory.Publication, _ *factory.Merge, _ *factory.ReviewOperation) {
+			p.DeliveryAcceptances = nil
+		}},
+		{"different diff base", func(_ *factory.Publication, m *factory.Merge, _ *factory.ReviewOperation) {
+			m.Authorization.Generation.DiffBase = strings.Repeat("8", 40)
+		}},
+		{"different cycle", func(p *factory.Publication, _ *factory.Merge, _ *factory.ReviewOperation) { p.ReviewCycles = nil }},
+		{"unconfirmed resolutions", func(_ *factory.Publication, m *factory.Merge, _ *factory.ReviewOperation) {
+			m.Authorization.ResolutionsConfirmed = false
+		}},
+		{"native vote", func(_ *factory.Publication, _ *factory.Merge, op *factory.ReviewOperation) {
+			op.Work.Event = "REQUEST_CHANGES"
+		}},
+		{"pending receipt", func(p *factory.Publication, _ *factory.Merge, op *factory.ReviewOperation) {
+			op.Outcome.Effect = factory.OpEffectIndeterminate
+			p.ReviewOperations = []factory.ReviewOperation{*op}
+		}},
+	} {
+		changedP, changedM, changedOp := p, m, op
+		change.edit(&changedP, &changedM, &changedOp)
+		if err = control.CheckFundedMergeReview(ctx, db, changedP, changedM, changedOp); err == nil {
+			return fmt.Errorf("accepted %s", change.name)
+		}
+	}
+	changed := receipt
+	changed.Input.Head = strings.Repeat("8", 40)
+	encoded, _ = json.Marshal(changed)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_priority_judgments SET data=$2 WHERE snapshot=$1`, fingerprint, string(encoded)); err != nil {
+		return err
+	}
+	if err = control.CheckFundedMergeReview(ctx, db, p, m, op); err == nil {
+		return errors.New("accepted changed retained fingerprint evidence")
+	}
+	if _, err = raw.ExecContext(ctx, `DELETE FROM factory_priority_judgments WHERE snapshot=$1`, fingerprint); err != nil {
+		return err
+	}
+	if err = control.CheckFundedMergeReview(ctx, db, p, m, op); err == nil {
+		return errors.New("accepted missing funded receipt")
+	}
+	if err = db.RecordDeliveryJudgment(ctx, receipt); err != nil {
+		return err
+	}
+	stored, err := db.Assignment(ctx, reviewer.ID)
+	if err != nil || !reflect.DeepEqual(stored, reviewer) || op.Work.AgentVerdict != "REQUEST_CHANGES" {
+		return errors.New("funded acceptance changed the original Inspector verdict")
+	}
+	fmt.Println("PASS: shared coordinator/native gate admits the exact recorded funded findings COMMENT without changing its verdict/deadline; absent acceptance/cycle/receipt, changed fingerprint/diff base, native vote, uncertain review and unconfirmed resolutions refuse; actual PostgreSQL joins, declared judgment/native receipt, no inference/provider/merge send")
 	return nil
 }
 
