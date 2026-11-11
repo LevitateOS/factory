@@ -11,7 +11,6 @@ use soda_execution_protocol::{
     MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
     MAX_START_REPLY,
 };
-use std::collections::BTreeSet;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
@@ -717,9 +716,7 @@ impl Broker {
         }
         match (reply.run, reply.sha256, reply.launched, reply.retiring) {
             (None, None, false, false) => Ok(None),
-            (Some(run), Some(sha256), launched, retiring)
-                if id(&run, 32) && id(&sha256, 64) && !(launched && retiring) =>
-            {
+            (Some(run), Some(sha256), launched, retiring) if id(&run, 32) && id(&sha256, 64) => {
                 Ok(Some((run, sha256, launched, retiring)))
             }
             _ => Err(refused("broker profile inspection selector invalid")),
@@ -731,38 +728,6 @@ impl Broker {
     pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
         Ok(Self::next_profile_state(profile)?
             .map(|(run, sha256, launched, retiring)| (run, sha256, launched || retiring)))
-    }
-
-    /// Recover stale root staging before a new Go product incarnation starts.
-    /// Each exact retirement is separately acknowledged. A consumed launch
-    /// remains for Go outcome reconciliation; this startup path cannot safely
-    /// infer its result from a stopped process or an absent desktop owner.
-    pub fn reconcile_profile(profile: &str) -> io::Result<usize> {
-        let mut retired = BTreeSet::new();
-        for _ in 0..64 {
-            let Some((run, sha256, launched, pending)) = Self::next_profile_state(profile)? else {
-                return Ok(retired.len());
-            };
-            if launched {
-                return Err(refused(
-                    "broker launched run outcome requires reconciliation",
-                ));
-            }
-            if !retired.insert(run.clone())
-                || !(if pending {
-                    Self::finish_retiring(&run, profile, &sha256)?
-                } else {
-                    Self::retire_unlaunched(&run, profile, &sha256)?
-                })
-            {
-                return Err(refused("broker profile cleanup did not advance"));
-            }
-        }
-        if Self::next_profile_run(profile)?.is_some() {
-            Err(refused("broker profile cleanup capacity exceeded"))
-        } else {
-            Ok(retired.len())
-        }
     }
 
     pub fn preparing(cancellation: AgentCancellation) -> BrokerPreparation {
@@ -1653,17 +1618,15 @@ impl Broker {
     }
 
     /// Setup cleanup may retire only a run whose launch marker is absent.
-    /// The broker checks this under its root run lock before removing state.
+    /// The broker checks this under its root run lock before removing state,
+    /// and finishes an interrupted retirement only while the retiring run
+    /// still proves it was never launched.
     pub fn retire_unlaunched(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
         Self::retire_request("retire_unlaunched", run, profile, sha256)
     }
 
     pub(super) fn retire_launched(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
         Self::retire_request("retire_launched", run, profile, sha256)
-    }
-
-    fn finish_retiring(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
-        Self::retire_request("finish_retiring", run, profile, sha256)
     }
 
     /// After a durable receipt and credential withdrawal, retire the exact

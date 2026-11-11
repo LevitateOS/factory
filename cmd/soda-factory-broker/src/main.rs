@@ -1767,15 +1767,16 @@ fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::R
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if retiring_run(&name) == Some(run) {
-            // A partial prior retirement no longer has a preparation marker.
-            // Setup cleanup cannot prove that this run was never launched.
-            if mode == RetirementMode::Unlaunched {
-                return Err(denied("unlaunched retirement state unconfirmed"));
-            }
             if entry.path() != retiring {
                 return Err(denied("run retirement digest differs"));
             }
             verified_retiring_profile(&retiring, profile)?;
+            // A partial prior retirement no longer has a preparation marker.
+            // Only its retained unlaunched lifecycle declaration proves that
+            // the worker never received launch bytes.
+            if mode == RetirementMode::Unlaunched && !retiring_unlaunched(&retiring) {
+                return Err(denied("unlaunched retirement state unconfirmed"));
+            }
             match runs.join(run).symlink_metadata() {
                 Ok(_) => return Err(denied("run retirement state conflicts")),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -1916,6 +1917,14 @@ fn retiring_run(name: &str) -> Option<&str> {
     retiring_identity(name).map(|(run, _, _)| run)
 }
 
+// The unlaunched declaration becomes launched (durably, through a torn 0600
+// state) before any launch marker or launch bytes exist, and the retiring
+// rename happens under the run lock. A missing, torn, launched or invalid
+// declaration is not proof.
+fn retiring_unlaunched(directory: &Path) -> bool {
+    matches!(run_lifecycle(directory), Ok(Some(false)))
+}
+
 fn run_lifecycle(directory: &Path) -> io::Result<Option<bool>> {
     let file = match OpenOptions::new()
         .read(true)
@@ -2045,7 +2054,8 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, b
             if staged_digest(&path)?.is_some_and(|actual| actual != digest) {
                 return Err(denied("retiring bundle digest mismatch"));
             }
-            return Ok(Some((run.to_owned(), digest.to_owned(), false, true)));
+            let launched = !retiring_unlaunched(&path);
+            return Ok(Some((run.to_owned(), digest.to_owned(), launched, true)));
         }
         if id(&name, 32) {
             private_dir(&path, 0o555)?;

@@ -112,7 +112,9 @@ length and digest, then renames the run to a profile- and digest-bound retiring 
 before unlinking. An exact retry can finish deletion after either the rename
 or bundle unlink. An exact retry can also remove an empty tombstone after the
 profile declaration was unlinked. Staging that run is refused while retirement
-is pending.
+is pending. An unlaunched retirement retry finishes the retiring directory only
+while its retained `owner.lifecycle` still declares the run unlaunched; a
+missing, torn or launched declaration keeps the refusal.
 Before the source rename, the broker stops the reviewer service/socket and
 fixed preparer instance, then uses the exact-run cleaner to remove its checkout
 and manifest. It verifies

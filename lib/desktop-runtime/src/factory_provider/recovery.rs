@@ -587,8 +587,7 @@ pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Re
     }
     let mut seen = std::collections::BTreeSet::new();
     for _ in 0..64 {
-        let Some((run, source, launched, pending)) = super::Broker::next_profile_state(profile)?
-        else {
+        let Some((run, source, launched, _)) = super::Broker::next_profile_state(profile)? else {
             break;
         };
         if !seen.insert(run.clone()) {
@@ -602,7 +601,9 @@ pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Re
                 return Err(refused("CLI recovery source differs"));
             }
             recovered.recover_root().await?;
-        } else if !launched && !pending {
+        } else if !launched {
+            // Also finishes an interrupted retirement that still proves no
+            // launch. A launched or unproven retirement keeps Go recovery.
             if !super::Broker::retire_unlaunched(&run, profile, &source)? {
                 return Err(refused("native staging recovery did not advance"));
             }
