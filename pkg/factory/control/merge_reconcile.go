@@ -93,7 +93,7 @@ func (c *Coordinator) adoptObservedMergeOp(ctx context.Context, m *factory.Merge
 		return true
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return false
 	}
 	return c.storeMerge(ctx, m, report)
@@ -167,19 +167,19 @@ func (c *Coordinator) routeMergeEffect(ctx context.Context, m *factory.Merge, re
 		return true
 	}
 	if m.Operation.Effect == factory.OpEffectNotCommitted {
-		c.finishMerge(ctx, *m, factory.MergeFailed, factory.Failed, factory.MergeReasonRefused, report)
+		c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonRefused, report)
 		return true
 	}
 	if m.Operation.Effect == factory.OpEffectIndeterminate {
-		if m.Stage == factory.MergeFenced && m.Outcome == factory.NeedsHuman && m.Reason == factory.MergeReasonFenced {
+		// Already fenced for this reason: wait instead of rewriting the row.
+		if settled := *m; !settled.Settle(factory.MergeFenced, factory.MergeReasonFenced, 0) {
 			mergeWait(report, m.ID, factory.MergeReasonFenced)
 			return true
 		}
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonFenced, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonFenced, report)
 		return true
 	}
-	if m.Stage == factory.MergeFenced {
-		m.Stage, m.Outcome, m.Reason, m.FinishedUnix = factory.MergeOpen, "", "", 0
+	if m.Reopen() {
 		if !c.storeMerge(ctx, m, report) {
 			return true
 		}
@@ -199,7 +199,7 @@ func (c *Coordinator) reconcileMergeTarget(ctx context.Context, m *factory.Merge
 	// change, or a row that already drove, keeps the invalid
 	// failure.
 	if !mergeRebaseMatches(*m, p) {
-		c.finishMerge(ctx, *m, factory.MergeFailed, factory.Failed, factory.MergeReasonInvalid, report)
+		c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
 		return false
 	}
 	m.HeadOID = p.Candidate
@@ -226,7 +226,7 @@ func mergeRebaseMatches(m factory.Merge, p factory.Publication) bool {
 func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge, p *factory.Publication, op *factory.MergeOperation, report *MergeReport) (factory.RepositoryPolicy, int64, bool) {
 	var none factory.RepositoryPolicy
 	if p.Stage != factory.PublicationPublished {
-		c.finishMerge(ctx, *m, factory.MergeFailed, factory.Failed, factory.MergeReasonInvalid, report)
+		c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
 		return none, 0, false
 	}
 	policy, revision, allowed := c.mergeAuthority(ctx, *m, report)
@@ -287,7 +287,7 @@ func (c *Coordinator) submitMergeOp(ctx context.Context, m *factory.Merge, op *f
 		return false
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return false
 	}
 	return c.storeMerge(ctx, m, report)
@@ -299,9 +299,9 @@ func (c *Coordinator) settleMergeOp(ctx context.Context, m factory.Merge, effect
 	case factory.OpEffectCommitted:
 		c.completeMerge(ctx, &m, report)
 	case factory.OpEffectNotCommitted:
-		c.finishMerge(ctx, m, factory.MergeFailed, factory.Failed, factory.MergeReasonRefused, report)
+		c.finishMerge(ctx, m, factory.MergeFailed, factory.MergeReasonRefused, report)
 	case factory.OpEffectIndeterminate:
-		c.finishMerge(ctx, m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonFenced, report)
+		c.finishMerge(ctx, m, factory.MergeFenced, factory.MergeReasonFenced, report)
 	default:
 		mergeWait(report, m.ID, "operation_pending")
 	}
@@ -313,13 +313,13 @@ func (c *Coordinator) adoptMergeReceipt(ctx context.Context, m *factory.Merge, r
 		return true
 	}
 	if op.Work == nil {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return false
 	}
 	work := op.Work.Apply(c.mergeWork(*m, factory.RepositoryPolicy{}))
 	result, err := c.Merges.AdoptMerge(ctx, work, op.Outcome())
 	if err != nil {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return false
 	}
 	method := result.Method
@@ -329,7 +329,7 @@ func (c *Coordinator) adoptMergeReceipt(ctx context.Context, m *factory.Merge, r
 	if method != op.Work.MergeMethod() || !op.Work.AcceptsResult(result.MergedCommit) ||
 		result.PRNumber != work.PRNumber || result.PRID != work.PRID || result.IssueID != work.IssueID || result.ActorID != work.ActorID ||
 		result.HeadRef != work.HeadRef || result.BaseRef != work.BaseRef || result.HeadOID != work.HeadOID || result.BaseOID != work.BaseOID {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return false
 	}
 	op.PRNumber, op.PRID, op.IssueID = result.PRNumber, result.PRID, result.IssueID

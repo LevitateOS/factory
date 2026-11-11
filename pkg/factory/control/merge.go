@@ -201,11 +201,9 @@ func (c *Coordinator) storeMerge(ctx context.Context, m *factory.Merge, report *
 	return true
 }
 
-func (c *Coordinator) finishMerge(ctx context.Context, m factory.Merge, stage string, outcome factory.Outcome, reason string, report *MergeReport) bool {
-	if m.Stage != stage || m.FinishedUnix == 0 {
-		m.FinishedUnix = time.Now().Unix()
-	}
-	m.Stage, m.Outcome, m.Reason = stage, outcome, reason
+func (c *Coordinator) finishMerge(ctx context.Context, m factory.Merge, stage, reason string, report *MergeReport) bool {
+	// Every finish writes, even when stage and reason are unchanged.
+	m.Settle(stage, reason, time.Now().Unix())
 	if !c.storeMerge(ctx, &m, report) {
 		return false
 	}

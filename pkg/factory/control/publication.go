@@ -269,8 +269,8 @@ func (c *Coordinator) resolvePublicationOwner(ctx context.Context, a factory.Ass
 }
 
 func (c *Coordinator) publishOne(ctx context.Context, a factory.Assignment, report *PublishReport) {
-	if a.ExternalPlanning!=nil {
-		c.adoptCompletedExternalPlan(ctx,a,report)
+	if a.ExternalPlanning != nil {
+		c.adoptCompletedExternalPlan(ctx, a, report)
 		return
 	}
 	if a.PublicationAssignment != a.ID || a.Role != project.RoleCoder || a.Result == nil || !a.Result.Reported || a.Result.Status != "completed" {
@@ -334,7 +334,7 @@ func (c *Coordinator) completePublication(ctx context.Context, p *factory.Public
 		publicationWait(report, p.ID, "native_completion_pending")
 		return
 	}
-	c.finishPublication(ctx, *p, factory.PublicationPublished, factory.Succeeded, factory.PublishReasonLinked, report)
+	c.finishPublication(ctx, *p, factory.PublicationPublished, factory.PublishReasonLinked, report)
 }
 
 func (c *Coordinator) publicationCallError(report *PublishReport, id string, err error) {

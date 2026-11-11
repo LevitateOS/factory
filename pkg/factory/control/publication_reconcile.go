@@ -128,7 +128,7 @@ func (c *Coordinator) adoptObservedOperations(ctx context.Context, p *factory.Pu
 				continue
 			}
 			if !op.Adopt(outcome, time.Now().Unix()) {
-				c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
+				c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
 				return false
 			}
 			if !c.storePublication(ctx, p, report) {
@@ -200,19 +200,19 @@ func (c *Coordinator) routePublicationEffect(ctx context.Context, p *factory.Pub
 		return true
 	}
 	if terminalPublicationEffect(p.Publish) || terminalPublicationEffect(p.PRCreate) {
-		c.finishPublication(ctx, *p, factory.PublicationFailed, factory.Failed, factory.PublishReasonRefused, report)
+		c.finishPublication(ctx, *p, factory.PublicationFailed, factory.PublishReasonRefused, report)
 		return true
 	}
 	if p.Publish.Effect == factory.OpEffectIndeterminate || p.PRCreate.Effect == factory.OpEffectIndeterminate {
-		if p.Stage == factory.PublicationFenced && p.Outcome == factory.NeedsHuman && p.Reason == factory.PublishReasonFenced {
+		// Already fenced for this reason: wait instead of rewriting the row.
+		if settled := *p; !settled.Settle(factory.PublicationFenced, factory.PublishReasonFenced, 0) {
 			publicationWait(report, p.ID, factory.PublishReasonFenced)
 			return true
 		}
-		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, report)
+		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonFenced, report)
 		return true
 	}
-	if p.Stage == factory.PublicationFenced {
-		p.Stage, p.Outcome, p.Reason, p.FinishedUnix = factory.PublicationOpen, "", "", 0
+	if p.Reopen() {
 		if !c.storePublication(ctx, p, report) {
 			return true
 		}
@@ -260,7 +260,7 @@ func (c *Coordinator) resolvePublicationExport(ctx context.Context, p factory.Pu
 			publicationWait(report, p.ID, terminal.Reason)
 			return nil, true
 		}
-		c.finishPublication(ctx, p, factory.PublicationFailed, factory.Failed, terminal.Reason, report)
+		c.finishPublication(ctx, p, factory.PublicationFailed, terminal.Reason, report)
 		return nil, true
 	}
 	return bundle, false
@@ -276,7 +276,7 @@ func (c *Coordinator) observePublicationWork(ctx context.Context, a factory.Assi
 	if err != nil {
 		var refused *factory.PublicationRefusal
 		if errors.As(err, &refused) {
-			c.finishPublication(ctx, *p, factory.PublicationFailed, factory.Failed, factory.PublishReasonInvalid, report)
+			c.finishPublication(ctx, *p, factory.PublicationFailed, factory.PublishReasonInvalid, report)
 		} else {
 			c.publicationCallError(report, p.ID, err)
 		}
@@ -325,7 +325,7 @@ func (c *Coordinator) checkPublicationObservation(ctx context.Context, a factory
 		expected = p.Candidate
 	}
 	if observation.TargetTip != expected {
-		c.finishPublication(ctx, p, factory.PublicationFailed, factory.Failed, factory.PublishReasonTargetOccupied, report)
+		c.finishPublication(ctx, p, factory.PublicationFailed, factory.PublishReasonTargetOccupied, report)
 		return false
 	}
 	return true
@@ -368,7 +368,7 @@ func (c *Coordinator) submitPublicationOp(ctx context.Context, p *factory.Public
 		return false
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
+		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
 		return false
 	}
 	return c.storePublication(ctx, p, report)
@@ -390,7 +390,7 @@ func (c *Coordinator) pushPublicationBranch(ctx context.Context, p *factory.Publ
 		return false
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
+		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
 		return false
 	}
 	return c.storePublication(ctx, p, report)
@@ -410,9 +410,9 @@ func (c *Coordinator) settlePublicationOp(ctx context.Context, p factory.Publica
 			publicationWait(report, p.ID, "branch_completion_pending")
 		}
 	case factory.OpEffectNotCommitted:
-		c.finishPublication(ctx, p, factory.PublicationFailed, factory.Failed, factory.PublishReasonRefused, report)
+		c.finishPublication(ctx, p, factory.PublicationFailed, factory.PublishReasonRefused, report)
 	case factory.OpEffectIndeterminate:
-		c.finishPublication(ctx, p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, report)
+		c.finishPublication(ctx, p, factory.PublicationFenced, factory.PublishReasonFenced, report)
 	default:
 		publicationWait(report, p.ID, "operation_pending")
 	}
@@ -429,7 +429,7 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 			continue
 		}
 		if op.Work == nil {
-			c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
+			c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
 			return false
 		}
 		work := op.Work.Apply(c.publicationWork(a, *p, run, nil, factory.RepositoryPolicy{}, op.Kind))
@@ -449,7 +449,7 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 			}
 		}
 		if err != nil {
-			c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
+			c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
 			return false
 		}
 	}

@@ -279,7 +279,7 @@ func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignm
 	if p.External != nil {
 		// These operations own only Factory's continuation. The external PR
 		// and its human text are retained; no creation receipt/run is needed.
-		c.finishPublication(ctx, *p, factory.PublicationWithdrawn, factory.Cancelled, factory.PublishReasonWithdrawn, report)
+		c.finishPublication(ctx, *p, factory.PublicationWithdrawn, factory.PublishReasonWithdrawn, report)
 		return
 	}
 	if p.PRCreate.Effect == factory.OpEffectCommitted {
@@ -290,7 +290,7 @@ func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignm
 		publicationWait(report, p.ID, "branch_completion_pending")
 		return
 	}
-	c.finishPublication(ctx, *p, factory.PublicationWithdrawn, factory.Cancelled, factory.PublishReasonWithdrawn, report)
+	c.finishPublication(ctx, *p, factory.PublicationWithdrawn, factory.PublishReasonWithdrawn, report)
 }
 
 func (c *Coordinator) storePublication(ctx context.Context, p *factory.Publication, report *PublishReport) bool {
@@ -302,11 +302,9 @@ func (c *Coordinator) storePublication(ctx context.Context, p *factory.Publicati
 	return true
 }
 
-func (c *Coordinator) finishPublication(ctx context.Context, p factory.Publication, stage string, outcome factory.Outcome, reason string, report *PublishReport) {
-	if p.Stage != stage || p.FinishedUnix == 0 {
-		p.FinishedUnix = time.Now().Unix()
-	}
-	p.Stage, p.Outcome, p.Reason = stage, outcome, reason
+func (c *Coordinator) finishPublication(ctx context.Context, p factory.Publication, stage, reason string, report *PublishReport) {
+	// Every finish writes, even when stage and reason are unchanged.
+	p.Settle(stage, reason, time.Now().Unix())
 	if !c.storePublication(ctx, &p, report) {
 		return
 	}

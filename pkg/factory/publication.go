@@ -18,9 +18,12 @@ import (
 )
 
 // Publication stages. Open work reconciles its recorded operations against
-// native state and may still submit; every other stage is terminal for the
-// automatic pass. Fenced work keeps an indeterminate native effect owned by
-// offline recovery; later passes re-read it but submit nothing new.
+// native state and may still submit. Failed and withdrawn are final.
+// Published work keeps reconciling its reviews and corrections and may
+// still fence (or, for an external publication, withdraw). Fenced work keeps
+// an unknown native effect parked for a human; later passes re-read it,
+// submit nothing new, and reopen it once the effect resolves without a
+// verdict. PublicationTransitionAllowed is the stage table.
 const (
 	PublicationOpen      = "open"
 	PublicationPublished = "published"
@@ -28,6 +31,47 @@ const (
 	PublicationWithdrawn = "withdrawn"
 	PublicationFenced    = "fenced"
 )
+
+// PublicationStageOutcome is the single stage → outcome mapping for
+// publications. Open work, and an unknown stage, carry no outcome; stage
+// validity is checked separately.
+func PublicationStageOutcome(stage string) Outcome {
+	switch stage {
+	case PublicationPublished:
+		return Succeeded
+	case PublicationFailed:
+		return Failed
+	case PublicationWithdrawn:
+		return Cancelled
+	case PublicationFenced:
+		return NeedsHuman
+	default:
+		return ""
+	}
+}
+
+// Settle moves the publication to stage with the stage's outcome and the
+// bounded reason. FinishedUnix is kept while the stage is unchanged;
+// changed is false when stage and reason were already these.
+func (p *Publication) Settle(stage, reason string, now int64) (changed bool) {
+	changed = p.Stage != stage || p.Reason != reason
+	if p.Stage != stage || p.FinishedUnix == 0 {
+		p.FinishedUnix = now
+	}
+	p.Outcome = PublicationStageOutcome(stage)
+	p.Stage, p.Reason = stage, reason
+	return changed
+}
+
+// Reopen returns a fenced publication to open, clearing its outcome. It
+// reports false, changing nothing, for any other stage.
+func (p *Publication) Reopen() bool {
+	if p.Stage != PublicationFenced {
+		return false
+	}
+	p.Stage, p.Outcome, p.Reason, p.FinishedUnix = PublicationOpen, "", "", 0
+	return true
+}
 
 // MaxPublicationAttempts permits one immutable operation per kind. A
 // terminal refusal never creates a replacement identity automatically.
@@ -356,7 +400,7 @@ func checkPublicationPRLinks(p Publication, initial string) error {
 func checkPublicationStage(p Publication) error {
 	switch p.Stage {
 	case PublicationOpen:
-		if p.Outcome != "" || p.Reason != "" || p.FinishedUnix != 0 {
+		if p.Outcome != PublicationStageOutcome(p.Stage) || p.Reason != "" || p.FinishedUnix != 0 {
 			return errors.New("open publication carries no outcome")
 		}
 	case PublicationPublished:
@@ -370,7 +414,7 @@ func checkPublicationStage(p Publication) error {
 }
 
 func checkPublishedPublicationOutcome(p Publication) error {
-	if p.Outcome != Succeeded || p.Reason != PublishReasonLinked || p.FinishedUnix <= 0 {
+	if p.Outcome != PublicationStageOutcome(p.Stage) || p.Reason != PublishReasonLinked || p.FinishedUnix <= 0 {
 		return errors.New("published publication lacks its outcome")
 	}
 	if p.PRNumber <= 0 || p.PRID <= 0 {
@@ -400,11 +444,11 @@ func checkFinishedPublicationOutcome(p Publication) error {
 	}
 	switch p.Stage {
 	case PublicationFailed:
-		if p.Outcome != Failed {
+		if p.Outcome != PublicationStageOutcome(p.Stage) {
 			return errors.New("failed publication lacks its outcome")
 		}
 	case PublicationWithdrawn:
-		if p.Outcome != Cancelled {
+		if p.Outcome != PublicationStageOutcome(p.Stage) {
 			return errors.New("withdrawn publication lacks its outcome")
 		}
 		for _, op := range []PublicationOperation{p.Publish, p.PRCreate} {
@@ -413,7 +457,7 @@ func checkFinishedPublicationOutcome(p Publication) error {
 			}
 		}
 	case PublicationFenced:
-		if p.Outcome != NeedsHuman {
+		if p.Outcome != PublicationStageOutcome(p.Stage) {
 			return errors.New("fenced publication lacks its outcome")
 		}
 	}

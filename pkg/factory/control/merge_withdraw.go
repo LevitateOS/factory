@@ -85,5 +85,5 @@ func (c *Coordinator) withdrawMerge(ctx context.Context, m *factory.Merge, repor
 		c.completeMerge(ctx, m, report)
 		return
 	}
-	c.finishMerge(ctx, *m, factory.MergeWithdrawn, factory.Cancelled, factory.MergeReasonWithdrawn, report)
+	c.finishMerge(ctx, *m, factory.MergeWithdrawn, factory.MergeReasonWithdrawn, report)
 }

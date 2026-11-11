@@ -402,11 +402,11 @@ func (s MergeGenerationSnapshot) Validate() error {
 	}
 	switch s.Stage {
 	case MergeWithdrawn:
-		if s.Outcome != Cancelled || s.Reason != MergeReasonWithdrawn || s.FinishedUnix <= 0 {
+		if s.Outcome != MergeStageOutcome(s.Stage) || s.Reason != MergeReasonWithdrawn || s.FinishedUnix <= 0 {
 			return errors.New("withdrawn merge history lacks its outcome")
 		}
 	case MergeFailed:
-		if s.Outcome != Failed || s.Reason != MergeReasonRefused || s.FinishedUnix <= 0 {
+		if s.Outcome != MergeStageOutcome(s.Stage) || s.Reason != MergeReasonRefused || s.FinishedUnix <= 0 {
 			return errors.New("refused merge history lacks its outcome")
 		}
 	default:

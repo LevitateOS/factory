@@ -15,10 +15,12 @@ import (
 )
 
 // Merge stages. Open work reconciles its recorded operation against
-// native state and may still submit; every other stage is terminal for
-// the automatic pass. Fenced work keeps an indeterminate native effect
-// owned by offline recovery; later passes re-read it but submit nothing
-// new.
+// native state and may still submit. Merged is final. Fenced work keeps an
+// unknown native effect parked for a human; later passes re-read it,
+// submit nothing new, and reopen it once the effect resolves without a
+// verdict. Failed and withdrawn rows change only through an explicit new
+// generation. MergeTransitionAllowed and MergeNewGenerationAllowed are
+// the stage tables.
 const (
 	MergeOpen      = "open"
 	MergeMerged    = "merged"
@@ -26,6 +28,47 @@ const (
 	MergeWithdrawn = "withdrawn"
 	MergeFenced    = "fenced"
 )
+
+// MergeStageOutcome is the single stage → outcome mapping for merges. Open
+// work, and an unknown stage, carry no outcome; stage validity is checked
+// separately.
+func MergeStageOutcome(stage string) Outcome {
+	switch stage {
+	case MergeMerged:
+		return Succeeded
+	case MergeFailed:
+		return Failed
+	case MergeWithdrawn:
+		return Cancelled
+	case MergeFenced:
+		return NeedsHuman
+	default:
+		return ""
+	}
+}
+
+// Settle moves the merge to stage with the stage's outcome and the bounded
+// reason. FinishedUnix is kept while the stage is unchanged; changed is
+// false when stage and reason were already these.
+func (m *Merge) Settle(stage, reason string, now int64) (changed bool) {
+	changed = m.Stage != stage || m.Reason != reason
+	if m.Stage != stage || m.FinishedUnix == 0 {
+		m.FinishedUnix = now
+	}
+	m.Outcome = MergeStageOutcome(stage)
+	m.Stage, m.Reason = stage, reason
+	return changed
+}
+
+// Reopen returns a fenced merge to open, clearing its outcome. It reports
+// false, changing nothing, for any other stage.
+func (m *Merge) Reopen() bool {
+	if m.Stage != MergeFenced {
+		return false
+	}
+	m.Stage, m.Outcome, m.Reason, m.FinishedUnix = MergeOpen, "", "", 0
+	return true
+}
 
 // ValidMergeStage reports whether stage is a known merge stage.
 func ValidMergeStage(stage string) bool {
@@ -257,7 +300,7 @@ func (m Merge) validateMergeStage() error {
 
 // validateOpenMerge refuses open merges carrying any outcome.
 func validateOpenMerge(m Merge) error {
-	if m.Outcome != "" || m.Reason != "" || m.FinishedUnix != 0 || m.MergedCommit != "" || m.MergedUnix != 0 || m.ClosedUnix != 0 || m.OriginalClosingOccurrence != "" || m.OriginalClosedUnix != 0 {
+	if m.Outcome != MergeStageOutcome(m.Stage) || m.Reason != "" || m.FinishedUnix != 0 || m.MergedCommit != "" || m.MergedUnix != 0 || m.ClosedUnix != 0 || m.OriginalClosingOccurrence != "" || m.OriginalClosedUnix != 0 {
 		return errors.New("open merge carries no outcome")
 	}
 	return nil
@@ -266,7 +309,7 @@ func validateOpenMerge(m Merge) error {
 // validateMergedMerge refuses merged merges missing their confirmed
 // completion evidence.
 func validateMergedMerge(m Merge) error {
-	if m.Outcome != Succeeded || m.Reason != MergeReasonMerged || m.FinishedUnix <= 0 {
+	if m.Outcome != MergeStageOutcome(m.Stage) || m.Reason != MergeReasonMerged || m.FinishedUnix <= 0 {
 		return errors.New("merged merge lacks its outcome")
 	}
 	if m.Operation.Effect != OpEffectCommitted || m.Operation.Completion != OpCompletionComplete {
@@ -295,13 +338,13 @@ func validateFinishedMerge(m Merge) error {
 	}
 	switch m.Stage {
 	case MergeFailed:
-		if m.Outcome != Failed {
+		if m.Outcome != MergeStageOutcome(m.Stage) {
 			return errors.New("failed merge lacks its outcome")
 		}
 	case MergeWithdrawn:
 		return validateWithdrawnMerge(m)
 	case MergeFenced:
-		if m.Outcome != NeedsHuman {
+		if m.Outcome != MergeStageOutcome(m.Stage) {
 			return errors.New("fenced merge lacks its outcome")
 		}
 	}
@@ -311,7 +354,7 @@ func validateFinishedMerge(m Merge) error {
 // validateWithdrawnMerge refuses withdrawn merges with an unresolved
 // native effect.
 func validateWithdrawnMerge(m Merge) error {
-	if m.Outcome != Cancelled {
+	if m.Outcome != MergeStageOutcome(m.Stage) {
 		return errors.New("withdrawn merge lacks its outcome")
 	}
 	if op := m.Operation; op.Attempts != 0 && op.Effect != OpEffectCommitted && op.Effect != OpEffectNotCommitted {

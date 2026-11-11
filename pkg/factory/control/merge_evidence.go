@@ -24,7 +24,7 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Public
 		// A blocking independent review leaves the shared attempt open
 		// for its normal correction; no merge intent has been recorded.
 		if errors.As(err, &refused) && refused.Reason != "changes_requested" {
-			c.finishMerge(ctx, *m, factory.MergeFailed, factory.Failed, factory.MergeReasonInvalid, report)
+			c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
 		} else {
 			c.mergeCallError(report, m.ID, err)
 		}
@@ -115,7 +115,7 @@ func (c *Coordinator) verifyStoredMergeEvidence(ctx context.Context, work factor
 		// means a new publication cycle. Anything else waits for a
 		// fresh assessment on this head.
 		if assessment.Verdict == factory.CheckFailed && assessment.HeadOID == m.HeadOID && assessment.BaseOID == m.BaseOID {
-			c.finishMerge(ctx, *m, factory.MergeFailed, factory.Failed, factory.MergeReasonInvalid, report)
+			c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
 		} else {
 			mergeWait(report, m.ID, "check_evidence_stale")
 		}
@@ -140,7 +140,7 @@ func (c *Coordinator) verifyFreshMergeChecks(ctx context.Context, policy factory
 	case factory.CheckRefused:
 		mergeWait(report, m.ID, "check_evidence_hidden")
 	default:
-		c.finishMerge(ctx, *m, factory.MergeFailed, factory.Failed, factory.MergeReasonInvalid, report)
+		c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
 	}
 	return false
 }
@@ -245,7 +245,7 @@ func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, repor
 		return
 	}
 	if op.Work == nil {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return
 	}
 	work := op.Work.Apply(c.mergeWork(*m, factory.RepositoryPolicy{}))
@@ -258,14 +258,14 @@ func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, repor
 		}
 		var refused *factory.PublicationRefusal
 		if errors.As(err, &refused) {
-			c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+			c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		} else {
 			c.mergeCallError(report, m.ID, err)
 		}
 		return
 	}
 	if confirmation.MergedCommit != op.MergedCommit || !op.Work.AcceptsResult(confirmation.MergedCommit) || confirmation.BaseTip == "" || confirmation.BaseTip != confirmation.MergedCommit && !confirmation.BaseContainsMergedCommit || confirmation.MergerID != work.ActorID || !confirmation.IssueClosed || confirmation.MergedUnix <= 0 || confirmation.ClosedUnix <= 0 {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
 		return
 	}
 	if !confirmation.OriginalClosed || !factory.ValidNativeOccurrence(confirmation.OriginalClosingOccurrence) || confirmation.OriginalClosedUnix <= 0 {
@@ -274,7 +274,7 @@ func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, repor
 	}
 	m.MergedCommit, m.MergedUnix, m.ClosedUnix = confirmation.MergedCommit, confirmation.MergedUnix, confirmation.ClosedUnix
 	m.OriginalClosingOccurrence, m.OriginalClosedUnix = confirmation.OriginalClosingOccurrence, confirmation.OriginalClosedUnix
-	if !c.finishMerge(ctx, *m, factory.MergeMerged, factory.Succeeded, factory.MergeReasonMerged, report) {
+	if !c.finishMerge(ctx, *m, factory.MergeMerged, factory.MergeReasonMerged, report) {
 		return
 	}
 	// Optional lifecycle effect: completion note on the original issue.
