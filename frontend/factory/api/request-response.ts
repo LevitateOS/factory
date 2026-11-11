@@ -451,6 +451,13 @@ export interface PlanWorkOutcome {
 export const planningRunningNotice = 'Planning is running. The status below follows the run.';
 export const planningFailedNotice = 'Planning failed. Your direction is saved; try again.';
 export const planningCancelledNotice = 'Planning was cancelled before it could report.';
+// The one wording for a plan in attention: a product question, or a planner
+// that stopped without a usable answer (no question text).
+export function attentionText(attention: string | undefined): string {
+  return attention
+    ? `Planning needs a product decision: ${attention}`
+    : 'Planning stopped before it could propose work. Your request is saved.';
+}
 export async function runPlanWork(
   postPlan: () => Promise<unknown>,
   fetchPlan: () => Promise<unknown>,
@@ -476,13 +483,7 @@ export async function runPlanWork(
   if (status.state === 'failed') return {notice: planningFailedNotice, status};
   if (status.state === 'cancelled') return {notice: planningCancelledNotice, status};
   if (status.state === 'completed') return {notice: '', status};
-  if (status.state === 'attention')
-    return {
-      notice: status.attention
-        ? `Planning needs a product decision: ${status.attention}`
-        : 'Planning needs a product decision before issues can be proposed.',
-      status,
-    };
+  if (status.state === 'attention') return {notice: attentionText(status.attention), status};
   return {notice: planningRunningNotice, status};
 }
 export interface IntentPlanLaunch {
@@ -500,7 +501,9 @@ export function intentPlanLaunch(value: unknown): IntentPlanLaunch {
     ...(typeof raw.launch_confirmed === 'boolean' ? {launchConfirmed: raw.launch_confirmed} : {}),
   };
 }
-export type IntentPlanState = 'none' | 'pending' | 'completed' | 'attention' | 'failed' | 'cancelled';
+const planStates = ['none', 'pending', 'completed', 'attention', 'failed', 'cancelled'] as const;
+// 'unknown' is a state this client does not recognize; it is never success.
+export type IntentPlanState = (typeof planStates)[number] | 'unknown';
 // The server attaches a review only with its consistency report (both are
 // produced together), so a review here always carries one.
 export type PlanReview = Exploration & {consistency: ConsistencyReport};
@@ -519,7 +522,7 @@ export function intentPlanStatus(value: unknown): IntentPlanStatus {
   const raw = record(value);
   const out: IntentPlanStatus = {
     revision: text(raw.revision),
-    state: text(raw.state) as IntentPlanState,
+    state: planStates.find((state) => state === raw.state) ?? 'unknown',
     candidates: num(raw.candidates),
   };
   const assignment = nonEmpty(raw.assignment_id);

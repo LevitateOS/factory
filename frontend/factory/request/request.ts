@@ -38,6 +38,7 @@ import {
   generationWaitNotice,
   generationFailureNotice,
   planningFailedNotice,
+  attentionText,
   planningCancelledNotice,
   runPlanWork,
   newDecisionID,
@@ -58,9 +59,8 @@ import {
   reviewIntent,
   departmentDialog,
   reviewReady,
-  attentionText,
-  plannerStopped,
 } from './request-view.js';
+import {canStartAttempt, planPhase, planStage} from './plan-phase.js';
 import type {IntentView} from './request-view.js';
 
 export type IntentAPI = (path: string, body?: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
@@ -585,18 +585,19 @@ export class SodaIntent extends LitElement {
   // missing plan keeps whatever the last explicit action reported.
   private applyPolledPlanStatus(status: IntentPlanStatus, id: string) {
     if (status.revision !== id || this.revision?.id !== id) return;
-    const previous = this.plan?.revision === id ? this.plan.state : undefined;
+    const stage = planStage(planPhase(this.revision, status));
+    const previous = planStage(planPhase(this.revision, this.plan));
     this.plan = status;
     // A repeated state never erases the current guidance, so a 202 wait or
     // an explicit error survives polls. A genuine transition restates it,
     // so stale waits/failures cannot survive work starting or finishing.
-    if (status.state === 'none' || previous === status.state) return;
-    if (status.state === 'failed' || status.state === 'cancelled') {
-      this.planNotice = status.state === 'failed' ? planningFailedNotice : planningCancelledNotice;
-    } else if (status.state === 'completed') this.planNotice = '';
-    else if (status.state === 'pending')
+    if (stage === 'none' || previous === stage) return;
+    if (stage === 'failed' || stage === 'cancelled') {
+      this.planNotice = stage === 'failed' ? planningFailedNotice : planningCancelledNotice;
+    } else if (stage === 'completed') this.planNotice = '';
+    else if (stage === 'pending')
       this.planNotice = 'Your request is saved. Its planning progress and any question appear here.';
-    else if (status.state === 'attention') this.planNotice = attentionText(status);
+    else if (stage === 'attention') this.planNotice = attentionText(status.attention);
   }
   private draftAddress(): RequestDraftAddress {
     return {scope: this.draftScope, actor: this.actor, subject: this.revision?.intent || this.request || 'new'};
@@ -2326,20 +2327,16 @@ export class SodaIntent extends LitElement {
         signal.throwIfAborted();
         if (planned.revision !== current.id) throw Error('Planning status answers another draft');
         this.plan = planned;
-        if (planned.state !== 'completed') {
-          this.plan = planned;
-          if (['none', 'failed', 'cancelled'].includes(planned.state) || plannerStopped(planned))
-            await this.planLiveAttempt(current, signal);
-          else this.generationNotice = 'Your request is saved. Its planning progress and any question appear here.';
+        const phase = planPhase(current, planned);
+        if (phase.kind === 'no-walkthrough') {
+          this.planNotice = 'This saved plan has no request-specific walkthrough. Author one in a new plan before accepting.';
           return;
         }
-        if (!planned.walkthroughs) {
-          this.plan = planned;
-          this.planNotice =
-            'This saved plan has no request-specific walkthrough. Author one in a new plan before accepting.';
+        if (canStartAttempt(phase)) {
+          await this.planLiveAttempt(current, signal);
           return;
         }
-        if (planned.walkthroughs && !planned.review) {
+        if (phase.kind === 'unchecked') {
           const review = parseExploration(
             await this.call('/api/factory/intents/' + current.intent + '/plan/review', {revision: current.id, command_id: crypto.randomUUID().replaceAll('-', '')}, signal)
           );
@@ -2360,9 +2357,13 @@ export class SodaIntent extends LitElement {
           if (findings > 0) this.focusFindings();
           return;
         }
-        if (planned.review?.consistency.mismatches.length) {
+        if (phase.kind === 'findings') {
           this.planNotice =
             'The authored walkthrough needs a correction. Correct or clarify the request above (your objective and choices stay with your authorship), then plan again and check before accepting.';
+          return;
+        }
+        if (phase.kind !== 'clean') {
+          this.generationNotice = 'Your request is saved. Its planning progress and any question appear here.';
           return;
         }
       }
@@ -2560,7 +2561,7 @@ export class SodaIntent extends LitElement {
   private planWork = () => {
     const revision = this.revision;
     if (!revision || revision.state !== 'draft' || this.dirty) return;
-    if (this.plan?.revision === revision.id && this.plan.state === 'pending') return;
+    if (planPhase(revision, this.plan).kind === 'planning') return;
     void this.perform((signal) => this.planLiveAttempt(revision, signal), 'Starting planning…');
   };
   // One settled-retry contract for both planning buttons: the retry
@@ -2589,13 +2590,9 @@ export class SodaIntent extends LitElement {
       return;
     }
     this.plan = fresh;
-    if (fresh.state === 'none') return this.startPlanning(revision, signal);
-    if (
-      fresh.state === 'failed' ||
-      fresh.state === 'cancelled' ||
-      plannerStopped(fresh) ||
-      (fresh.state === 'completed' && !fresh.walkthroughs)
-    ) {
+    const phase = planPhase(revision, fresh);
+    if (phase.kind === 'none') return this.startPlanning(revision, signal);
+    if (canStartAttempt(phase)) {
       const bound = await this.save('draft', revision.repository, signal);
       signal.throwIfAborted();
       this.dirty = false;
@@ -2609,12 +2606,12 @@ export class SodaIntent extends LitElement {
       await this.startPlanning(bound, signal);
       return;
     }
-    if (fresh.state === 'pending') {
+    if (phase.kind === 'planning') {
       this.planNotice = 'Your request is saved. Its planning progress and any question appear here.';
       return;
     }
-    if (fresh.state === 'attention') {
-      this.planNotice = attentionText(fresh);
+    if (phase.kind === 'question') {
+      this.planNotice = attentionText(phase.question);
       return;
     }
     // A completed plan with walkthroughs is ready for the review flow
@@ -2692,10 +2689,7 @@ export class SodaIntent extends LitElement {
       this.planningCommandNotice = outcome.status
         ? ''
         : 'Planning is waiting for preparation. Its exact request is kept; check before explicitly resuming.';
-      this.planNotice =
-        outcome.status?.state === 'attention' && outcome.notice.startsWith('Planning needs a product decision')
-          ? attentionText(outcome.status)
-          : outcome.notice;
+      this.planNotice = outcome.notice;
       this.generationNotice = '';
       if (outcome.status !== undefined) {
         this.plan = outcome.status;
@@ -2798,15 +2792,16 @@ export class SodaIntent extends LitElement {
           if (this.revision?.id === pending.revision.id && this.revision.intent === pending.revision.intent) {
             this.plan = receipt;
             this.planIntent = pending.revision.id;
+            const stage = planStage(planPhase(this.revision, receipt));
             this.planNotice =
-              receipt.state === 'pending'
+              stage === 'pending'
                 ? 'Planning is recorded. This read does not confirm native start; check the existing run for progress.'
-                : receipt.state === 'failed'
+                : stage === 'failed'
                   ? planningFailedNotice
-                  : receipt.state === 'cancelled'
+                  : stage === 'cancelled'
                     ? planningCancelledNotice
-                    : receipt.state === 'attention'
-                      ? attentionText(receipt)
+                    : stage === 'attention'
+                      ? attentionText(receipt.attention)
                       : '';
           }
         } catch {

@@ -7,6 +7,7 @@ import type {
   IntentRevision,
   ProductIdea,
 } from '../api/request-response.js';
+import {phaseCopy, planFor, planPhase, type Readiness} from './plan-phase.js';
 import {explorationReview} from './request-walkthrough.js';
 
 export interface IntentView {
@@ -69,8 +70,15 @@ function input(event: Event): string {
     ? node.value
     : '';
 }
+const phaseOf = (view: IntentView) => planPhase(view.revision, view.plan);
+// Work readiness gates the next-step text and the primary button.
+function readiness(view: IntentView): Readiness {
+  if (!view.revision?.tasks.length) return 'no-tasks';
+  return reviewReady({...view, busy: false, blocked: false}) ? 'ready' : 'incomplete';
+}
+const copyOf = (view: IntentView) => phaseCopy(phaseOf(view), view.dirty, readiness(view));
 function bounds(view: IntentView) {
-  const locked = view.busy || view.blocked || view.plan?.state === 'pending';
+  const locked = view.busy || view.blocked || phaseOf(view).kind === 'planning';
   const issues = plural(view.maxIssues, 'work item', 'work items');
   return html`<details class="bounds">
     <summary>More options · up to ${issues}</summary>
@@ -261,41 +269,26 @@ export function reviewReady(view: IntentView) {
   const ideas = new Map(revision.ideas.map((idea) => [idea.id, idea]));
   return tasksDecided(revision, ideas) && challengesAnswered(view, ideas);
 }
-// planAcceptBlock explains why a completed plan cannot be accepted yet:
-// a request-specific authored walkthrough plus its clean check must come
-// first. It returns '' when acceptance may proceed (or when the plan is
-// not completed, which the surrounding copy already addresses).
-export function planAcceptBlock(view: IntentView) {
-  const plan = view.plan;
-  if (!plan || plan.revision !== view.revision?.id || plan.state !== 'completed') return '';
-  if (!plan.walkthroughs)
-    return 'This saved plan has no request-specific walkthrough. Author one in a new plan before accepting.';
-  if (!plan.review) return '';
-  if (plan.review.consistency.mismatches.length)
-    return 'Correct or clarify the request above for the walkthrough findings (your objective and choices stay), then plan again and check before authorizing work.';
-  return '';
-}
 function blockedCheckSummary(view: IntentView) {
-  const plan = view.plan;
-  if (!plan || plan.revision !== view.revision?.id || plan.state !== 'completed' || !plan.review) return '';
-  const block = planAcceptBlock(view);
-  if (!block) return '';
+  const plan = planFor(view.revision, view.plan);
+  if (phaseOf(view).kind !== 'findings' || !plan?.review) return '';
   const findings = plan.review.consistency.mismatches;
   return html`<p role="status">
-    ${findings.length ? `Check found ${plural(findings.length, 'walkthrough finding', 'walkthrough findings')} blocking acceptance. ${block}` : block}
-    ${findings.length ? html`<button @click=${view.focusFindings}>See findings</button>` : ''}
+    Check found ${plural(findings.length, 'walkthrough finding', 'walkthrough findings')} blocking acceptance.
+    ${copyOf(view).block}
+    <button @click=${view.focusFindings}>See findings</button>
   </p>`;
 }
 function refreshExploration(view: IntentView) {
   if (view.revision?.state !== 'draft') return '';
   // A live planning run would be superseded by re-exploring, so wait for it.
-  return html`<button ?disabled=${view.busy || view.blocked || view.plan?.state === 'pending'} @click=${view.revise}>
+  return html`<button ?disabled=${view.busy || view.blocked || phaseOf(view).kind === 'planning'} @click=${view.revise}>
     Re-explore ideas
   </button>`;
 }
 function reviewLead(view: IntentView) {
-  const plan = view.plan;
-  if (plan && plan.revision === view.revision?.id && plan.walkthroughs) {
+  const plan = planFor(view.revision, view.plan);
+  if (plan?.walkthroughs) {
     const reviewed = plan.review;
     const content = reviewed ?? {content: plan.walkthroughs, challenges: [], settled: []};
     return html`<p>Authored for this request by the planning agent.</p>
@@ -382,94 +375,32 @@ function deliveryApproach(view: IntentView, revision: IntentRevision) {
 // refusal naming the explicit retry) must stay visible beside it.
 function planNoticeText(view: IntentView): string {
   if (!view.planNotice) return '';
-  if (view.plan && view.planNotice === planText(view.plan)) return '';
+  if (view.planNotice === copyOf(view).status) return '';
   return view.planNotice;
-}
-// plannerStopped: the plan settled in attention without a product question,
-// because the planner never reported a usable answer. Nothing waits on the
-// person, so it retries like a failed plan: a successor draft, then planning.
-export function plannerStopped(status: IntentPlanStatus): boolean {
-  return status.state === 'attention' && !status.attention;
-}
-// attentionText is the one wording for a plan in attention, shared by the
-// review and the component's plan notices.
-export function attentionText(status: IntentPlanStatus): string {
-  return status.attention
-    ? `Planning needs a product decision: ${status.attention}`
-    : 'Planning stopped before it could propose work. Your request is saved.';
 }
 // planReason keeps the recorded cause of a stopped plan reachable without
 // putting internal text on the main surface.
-function planReason(status: IntentPlanStatus) {
-  if (!status.summary || !['attention', 'failed', 'cancelled'].includes(status.state)) return '';
+function planReason(view: IntentView) {
+  const status = planFor(view.revision, view.plan);
+  if (!status?.summary || !copyOf(view).reason) return '';
   return html`<details class="plan-reason">
     <summary>Technical reason</summary>
     <p>${status.summary}</p>
   </details>`;
 }
-// stateLabel is the short state chip text for the review heading; '' means
-// no chip. It never reports a state further along than the plan status.
-export function stateLabel(view: IntentView): string {
-  if (view.revision?.state === 'accepted') return 'Accepted';
-  if (!view.plan || view.plan.revision !== view.revision?.id) return '';
-  switch (view.plan.state) {
-    case 'pending':
-      return 'Planning…';
-    case 'attention':
-      return view.plan.attention ? 'Needs your decision' : 'Planning stopped';
-    case 'failed':
-      return 'Planning failed';
-    case 'cancelled':
-      return 'Planning cancelled';
-    case 'completed':
-      if (!view.plan.walkthroughs) return 'Planning complete';
-      if (!view.plan.review) return 'Ready to check';
-      return planAcceptBlock(view) ? 'Checked · needs correction' : 'Checked · ready to accept';
-    default:
-      return '';
-  }
-}
-function planText(status: IntentPlanStatus): string {
-  switch (status.state) {
-    case 'none':
-      return 'No planning attempt is recorded for this draft.';
-    case 'pending':
-      return 'Planning is recorded. Check the existing run for progress.';
-    case 'completed':
-      if (!status.walkthroughs) return 'Planning is complete, but this plan has no request-specific walkthrough.';
-      if (!status.review) return 'Planning is complete. Check the walkthrough with JEV before accepting.';
-      return 'Planning is complete. JEV checked the walkthrough; Accept and build creates its work.';
-    case 'attention':
-      return attentionText(status);
-    case 'failed':
-      return 'Planning failed. Your direction is saved; try again.';
-    case 'cancelled':
-      return 'Planning was cancelled before it could report.';
-  }
-}
-// editingRequest: a plan that asks a product question cannot continue as
-// is, so the primary becomes Edit request, which only moves focus to the
-// Desired outcome. A planner that stopped without a usable answer asked
-// nothing: its primary stays Continue to planning (see plannerStopped).
-function editingRequest(view: IntentView): boolean {
-  return !view.dirty && view.revision?.repository !== '0' && view.plan?.state === 'attention' && !!view.plan.attention;
-}
+// The primary becomes Edit request when the plan asks a product question: it
+// only moves focus to the Desired outcome. A planner that stopped without a
+// usable answer asked nothing: its primary stays Continue to planning.
 function primaryDirectionButton(view: IntentView) {
-  const editing = editingRequest(view);
-  return html`<button
-    class="primary"
-    @click=${view.dirty ? view.revise : editing ? view.editRequest : view.continue}
-    ?disabled=${view.busy || view.blocked || view.plan?.state === 'pending' || (!view.dirty && !editing && (!reviewReady(view) || !!planAcceptBlock(view)))}
-  >
-    ${continueCaption(view)}
+  const copy = copyOf(view);
+  const click = {revise: view.revise, edit: view.editRequest, continue: view.continue}[copy.action];
+  return html`<button class="primary" @click=${click} ?disabled=${view.busy || view.blocked || copy.disabled}>
+    ${copy.caption}
   </button>`;
 }
-function planStatusText(view: IntentView, plan: IntentPlanStatus): string {
-  return (plan.walkthroughs && planAcceptBlock(view)) || planText(plan);
-}
 function planNextStep(view: IntentView): string {
-  const next = reviewNextStep(view);
-  return view.plan && next === planStatusText(view, view.plan) ? '' : next;
+  const copy = copyOf(view);
+  return copy.next === copy.status ? '' : copy.next;
 }
 // The planning primary (Check walkthrough, Accept and build, ...) sits in
 // Draft planning for every bound draft, so a completed plan's decision is
@@ -483,15 +414,14 @@ function planSection(view: IntentView) {
   return html`<section aria-label="Draft planning">
     <h3>Build preparation</h3>
     ${planNoticeText(view) ? html`<p role="status">${planNoticeText(view)}</p>` : ''}
-    ${view.plan ? html`<p role="status">${planStatusText(view, view.plan)}</p>` : ''}
-    ${view.plan ? planReason(view.plan) : ''}
+    ${copyOf(view).status ? html`<p role="status">${copyOf(view).status}</p>` : ''} ${planReason(view)}
     <p class="next-step" aria-live="polite">${planNextStep(view)}</p>
     <div class="actions">${primaryDirectionButton(view)}</div>
     <div class="actions">
       <button @click=${view.prepareProject} ?disabled=${view.busy || view.blocked}>Prepare project</button>
       <button @click=${view.refreshPlanStatus} ?disabled=${view.busy || view.blocked}>Refresh status</button>
       ${
-        view.plan?.state === 'completed' && !view.plan.walkthroughs
+        copyOf(view).button === 'author'
           ? html`<button @click=${view.planWork} ?disabled=${view.busy || view.blocked || view.dirty}>
               Author walkthrough in a new plan
             </button>`
@@ -513,8 +443,8 @@ function planSection(view: IntentView) {
       >
       ${
         // Plan work only starts a run where none is live or settled; in
-        // attention, pending or completed it would duplicate the primary.
-        !view.plan || ['none', 'failed', 'cancelled'].includes(view.plan.state)
+        // a question, pending or completed it would duplicate the primary.
+        copyOf(view).button === 'plan'
           ? html`<div class="actions">
               <button @click=${view.planWork} ?disabled=${view.busy || view.blocked || view.dirty}>Plan work</button>
             </div>`
@@ -522,43 +452,6 @@ function planSection(view: IntentView) {
       }
     </details>
   </section>`;
-}
-function continueCaption(view: IntentView): string {
-  if (view.dirty) return 'Update proposal';
-  if (view.revision?.repository === '0') return 'Choose repository';
-  if (view.plan?.state === 'pending') return 'Planning…';
-  if (editingRequest(view)) return 'Edit request';
-  if (view.plan?.state === 'completed') {
-    if (!view.plan.walkthroughs) return 'Plan walkthrough first';
-    if (!view.plan.review) return 'Check walkthrough';
-    if (view.plan.review?.consistency.mismatches.length) return 'Correct walkthrough first';
-    return 'Accept and build';
-  }
-  return 'Continue to planning';
-}
-function reviewNextStep(view: IntentView): string {
-  if (view.dirty) return 'Save your changes with Update proposal before continuing.';
-  // The status line and the Planning… primary already say a run is live.
-  if (view.plan?.state === 'pending') return '';
-  if (view.plan?.state === 'attention')
-    return view.plan.attention
-      ? 'Review the planning question above and update your direction before continuing.'
-      : 'The planner stopped without a usable answer; your request needs no change. Continue to planning to try again. It uses no planning calls.';
-  if (view.plan?.review?.consistency.mismatches.length)
-    return 'Correct or clarify the request above for the walkthrough findings (your objective and choices stay), then plan again and check before authorizing work.';
-  if (!view.revision?.tasks.length)
-    return 'Explain the missing behavior in your desired outcome, then update the proposal.';
-  if (!reviewReady({...view, busy: false, blocked: false}))
-    return 'Answer the questions and choose the ideas needed for this workflow before continuing.';
-  if (view.revision?.repository === '0')
-    return 'Choose where to keep this application. Your request and choices stay together.';
-  if (view.plan?.state === 'completed') {
-    if (!view.plan.walkthroughs)
-      return 'This saved plan has no request-specific walkthrough. Author one in a new plan before accepting.';
-    if (!view.plan.review) return 'Review the walkthrough, then check it before authorizing work.';
-    return 'App delivery is tracked separately from this plan.';
-  }
-  return 'Your request and choices are saved. Continue to planning when project preparation is ready.';
 }
 export function reviewIntent(view: IntentView) {
   const revision = view.revision;
@@ -568,7 +461,7 @@ export function reviewIntent(view: IntentView) {
   const referenced = new Set(revision.tasks.flatMap((task) => task.idea_ids));
   return html`<section class="intent-review">
     <h2 tabindex="-1">Review your product direction</h2>
-    ${stateLabel(view) ? html`<p class="state-chip">${stateLabel(view)}</p>` : ''} ${blockedCheckSummary(view)}
+    ${copyOf(view).chip ? html`<p class="state-chip">${copyOf(view).chip}</p>` : ''} ${blockedCheckSummary(view)}
     <label
       >Desired outcome<textarea
         rows="3"
@@ -590,7 +483,7 @@ export function reviewIntent(view: IntentView) {
     </details>
     ${
       revision.state === 'accepted' && view.dirty
-        ? html`<p class="next-step" aria-live="polite">${reviewNextStep(view)}</p>
+        ? html`<p class="next-step" aria-live="polite">${copyOf(view).next}</p>
             <button class="primary" ?disabled=${view.busy || view.blocked} @click=${view.revise}>
               Update proposal
             </button>`
@@ -618,7 +511,7 @@ export function reviewIntent(view: IntentView) {
         return html`<div class="actions">
           <button @click=${view.decline} ?disabled=${view.busy || view.blocked}>Decline proposal</button>
         </div>`;
-      return html`<p class="next-step" aria-live="polite">${reviewNextStep(view)}</p>
+      return html`<p class="next-step" aria-live="polite">${copyOf(view).next}</p>
         <div class="actions">
           <button @click=${view.decline} ?disabled=${view.busy || view.blocked}>Decline proposal</button
           >${primaryDirectionButton(view)}
