@@ -1,5 +1,28 @@
 # Factory untangling decisions
 
+## Retained review recovery fix (2026-11-11)
+
+Implementation verified; installed continuation qualification pending. The explicit
+finite funding command now supports a settled external candidate with real review
+and correction history, including a cancelled reviewer without a verdict. It
+captures current authenticated PR/head/base and source authority under a new root;
+old allowances, effects, deadlines and model results remain unchanged. One bounded
+history reader supplies original findings/correction facts and predecessor custody
+to the existing review owners. Unknown effects still refuse; an incomplete review
+with unused budget must carry its spent ledger rather than buy a refill. Original
+Builder republication remains supported. Muse automatic provider retries are
+disabled with its verified `provider_retry.max_retries=0` configuration.
+
+Affected Go owners compile. Existing `TestRecordPublicationRoundTrip` passes on
+real disposable PostgreSQL18.6, including fresh history funding, exact command
+replay, immutable old rows, no new run/reservation/send authority, current-grant
+and uncertain-effect refusal, and the earlier continuation cases. Evidence:
+/home/vince/Projects/factory-real-cycle-20261110/retained-history-pg4.log.
+Warm release Muse helper build and current pinned CLI configuration validation
+pass without inference. Next: install the exact composite, restore normal setup,
+and run one fresh finite Inspector against PR56/e91506e9. The prior timeout and
+177-minute charge remain; no new inference has run for this fix yet.
+
 ## Bounded live GitHub/Muse correction journey (2026-11-11)
 
 **INCOMPLETE: the bounded journey ended without a re-inspection verdict.**

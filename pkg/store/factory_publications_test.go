@@ -159,6 +159,165 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(original, p) {
 				t.Fatal("ordinary original publication changed", err)
 			}
+			// Controlled typed findings and a cancelled final reviewer exercise
+			// retained history without executing a model or native provider.
+			inputOwner := owner
+			inputOwner.Connection = origin.Connection
+			reviewer, reviewReservation, reviewRun, reviewView := reviewCorrectChild(t, ctx, db, now, inputOwner, project.ExecutionReview, project.RoleReviewer, owner.ID, "f"+strings.Repeat("d", 24))
+			reviewReservation.PlannedMinutes, reviewRun.Deadline = 5, now.Add(5*time.Minute)
+			cycle := reviewCorrectCycle(t, adopted, inputOwner, 1, reviewer.ID, "")
+			adopted.ReviewCycles = append(adopted.ReviewCycles, cycle)
+			adopted.Revision++
+			if err = db.UpdatePublication(ctx, adopted); err != nil {
+				t.Fatal("retained history cycle", err)
+			}
+			if _, exhausted, err := db.ChargeReviewDispatch(ctx, owner.Repository, owner.Issue, owner.ID, reviewer.ID, adopted.Candidate, false); err != nil || exhausted {
+				t.Fatal("first retained review charge", err)
+			}
+			if err = recordDispatchTestPacket(t, ctx, db, reviewer, reviewReservation, reviewRun, reviewView); err != nil {
+				t.Fatal("retained history reviewer", err)
+			}
+			reviewer = finishReviewCorrectChild(t, ctx, db, reviewer, reviewRun, now, cycle.ID, false)
+			target := adopted.PullTarget()
+			reviewID := "review-" + reviewer.Run
+			adopted.ReviewOperations = append(adopted.ReviewOperations, factory.ReviewOperation{RunID: reviewer.Run,
+				Work: factory.ReviewWork{OperationID: reviewID, AuthRevision: factory.ReviewAuthRevision(adopted.AssignmentID, reviewer.Run), Repository: adopted.Repository, ActorID: 14,
+					PRNumber: adopted.PRNumber, PRID: adopted.PRID, IssueID: target.IssueID, PRAuthorID: target.AuthorID, HeadRef: target.HeadRef, BaseRef: target.BaseRef,
+					HeadOID: adopted.Candidate, BaseOID: target.BaseOID, NativeRev: 9, NotAfter: now.Add(5 * time.Minute).Unix(), Event: "REQUEST_CHANGES", Body: "controlled retained finding"},
+				Outcome: factory.OperationOutcome{OperationID: reviewID, InstallationID: "controlled-retained-review", Kind: factory.OpReviewSubmit, ActorID: 14, RepositoryID: adopted.Repository,
+					Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, Receipt: []byte(`{"review_id":31}`)},
+			})
+			adopted.Revision++
+			if err = db.UpdatePublication(ctx, adopted); err != nil {
+				t.Fatal("retained controlled review receipt", err)
+			}
+			last, lastReservation, lastRun, lastView := reviewCorrectChild(t, ctx, db, now, inputOwner, project.ExecutionReview, project.RoleReviewer, owner.ID, "f"+strings.Repeat("e", 24))
+			lastReservation.PlannedMinutes, lastRun.Deadline = 5, now.Add(5*time.Minute)
+			lastCycle := reviewCorrectCycle(t, adopted, inputOwner, 2, last.ID, "")
+			adopted.ReviewCycles = append(adopted.ReviewCycles, lastCycle)
+			adopted.Revision++
+			if err = db.UpdatePublication(ctx, adopted); err != nil {
+				t.Fatal("retained final review cycle", err)
+			}
+			if _, exhausted, err := db.ChargeReviewDispatch(ctx, owner.Repository, owner.Issue, owner.ID, last.ID, adopted.Candidate, false); err != nil || exhausted {
+				t.Fatal("final retained review charge", err)
+			}
+			if err = recordDispatchTestPacket(t, ctx, db, last, lastReservation, lastRun, lastView); err != nil {
+				t.Fatal("retained final reviewer", err)
+			}
+			lastRun.Outcome, lastRun.Reconciled, lastRun.Summary = factory.Cancelled, true, "cancelled before report"
+			if err = db.SaveFactoryRun(ctx, lastRun); err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ConsumeReservation(ctx, last.ID); err != nil {
+				t.Fatal(err)
+			}
+			last.Stage, last.Outcome, last.Reason, last.FinishedUnix = factory.AssignmentFinished, factory.Cancelled, factory.AssignReasonCancelled, now.Unix()
+			last.Result = &factory.AssignmentResult{AssignmentID: last.ID, RunID: last.Run, Status: "blocked", Summary: "cancelled before report", RecordedUnix: now.Unix(), Findings: []string{}}
+			if err = db.FinishAssignment(ctx, last); err != nil {
+				t.Fatal(err)
+			}
+			adopted.Stage, adopted.Outcome, adopted.Reason = factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced
+			adopted.Revision++
+			if err = db.UpdatePublication(ctx, adopted); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = db.CloseAttempt(ctx, owner.ID); err != nil {
+				t.Fatal(err)
+			}
+			spent, err := db.AttemptAllowance(ctx, owner.Repository, owner.Issue)
+			if err != nil || !spent.Closed || len(spent.Reviews) != 2 || len(spent.Corrections) != 0 {
+				t.Fatal("retained history consumption", err)
+			}
+			freshOffer, err := db.RetainedCandidateFundingOffer(ctx, adopted.ID)
+			if err != nil || freshOffer.CarryUnused || freshOffer.PreviousRoot != owner.ID || freshOffer.Limits.ReviewRounds != 2 || freshOffer.Limits.CorrectionCycles != 1 || freshOffer.Limits.ActiveMinutes > 15 {
+				t.Fatal("finite fresh history offer", err)
+			}
+			pending := adopted
+			pending.ReviewOperations = append([]factory.ReviewOperation(nil), adopted.ReviewOperations...)
+			pending.ReviewOperations[0].Outcome.NotObserved = true
+			tx, err = db.db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = admitFreshRetainedReviewTx(ctx, tx, pending, owner)
+			_ = tx.Rollback()
+			if !errors.Is(err, ErrAttemptRunsPending) {
+				t.Fatal("unknown review send admitted fresh review", err)
+			}
+			operator, err := db.OperatorGrant(ctx, owner.Repository)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operator.Active = false
+			if err = db.SaveOperatorGrant(ctx, operator); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", freshOffer, now); !errors.Is(err, ErrAdmissionChanged) {
+				t.Fatal("revoked current authority funded history", err)
+			}
+			operator, err = db.OperatorGrant(ctx, owner.Repository)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operator.Active = true
+			if err = db.SaveOperatorGrant(ctx, operator); err != nil {
+				t.Fatal(err)
+			}
+			stale := freshOffer
+			stale.Policy++
+			if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", stale, now); !errors.Is(err, ErrRetainedPublicationIneligible) {
+				t.Fatal("stale history offer admitted", err)
+			}
+			var oldRuns, oldReservations int
+			if err = db.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM factory_runs),(SELECT count(*) FROM factory_reservations)`).Scan(&oldRuns, &oldReservations); err != nil {
+				t.Fatal(err)
+			}
+			oldAssignments := make(map[string]string)
+			for _, id := range []string{origin.ID, owner.ID, reviewer.ID, last.ID} {
+				var stored string
+				if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_assignments WHERE id=$1`, id).Scan(&stored); err != nil {
+					t.Fatal(err)
+				}
+				oldAssignments[id] = stored
+			}
+			freshCommand := factory.NewID()
+			receipt, err := db.FundRetainedCandidate(ctx, freshCommand, "owner", freshOffer, now)
+			if err != nil {
+				t.Fatal("fresh funding with retained typed history", err)
+			}
+			if replay, err := db.FundRetainedCandidate(ctx, freshCommand, "owner", freshOffer, now.Add(time.Hour)); err != nil || replay != receipt {
+				t.Fatal("history funding replay changed", err)
+			}
+			freshPublication, err := db.PublicationByID(ctx, freshCommand)
+			if err != nil || freshPublication.Run != adopted.Run || len(freshPublication.ReviewCycles)+len(freshPublication.CorrectionJournals) != 0 || !reflect.DeepEqual(freshPublication.Publish, adopted.Publish) || !reflect.DeepEqual(freshPublication.PRCreate, adopted.PRCreate) {
+				t.Fatal("fresh history owner replayed execution/publication", err)
+			}
+			freshOwner, err := db.Assignment(ctx, freshCommand)
+			if err != nil || freshOwner.Run != "" || freshOwner.Model != "" || freshOwner.NativeTool != nil || freshOwner.RetainedPublication == nil || freshOwner.RetainedPublication.NotAfter != 0 {
+				t.Fatal("fresh history owner acquired execution/send authority", err)
+			}
+			var runs, reservations int
+			if err = db.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM factory_runs),(SELECT count(*) FROM factory_reservations)`).Scan(&runs, &reservations); err != nil || runs != oldRuns || reservations != oldReservations {
+				t.Fatal("history funding replayed a model reservation/run", err)
+			}
+			history, err := db.PublicationReviewHistory(ctx, freshPublication)
+			if err != nil || len(history) != 3 || !reflect.DeepEqual(history[0], p) || !reflect.DeepEqual(history[1], adopted) || !reflect.DeepEqual(history[2], freshPublication) {
+				t.Fatal("canonical finding history lost", err)
+			}
+			freshAllowance, err := db.AttemptAllowance(ctx, owner.Repository, owner.Issue)
+			if err != nil || freshAllowance.RootAssignment != freshCommand || freshAllowance.Closed || len(freshAllowance.Reviews)+len(freshAllowance.Corrections) != 0 || freshAllowance.Limits != freshOffer.Limits {
+				t.Fatal("fresh history budget was inherited or unbounded", err)
+			}
+			for id, old := range oldAssignments {
+				var stored string
+				if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_assignments WHERE id=$1`, id).Scan(&stored); err != nil || stored != old {
+					t.Fatal("history funding changed old assignment", err)
+				}
+			}
+			if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, owner.ID).Scan(&raw); err != nil || json.Unmarshal(raw, &after) != nil || !reflect.DeepEqual(spent, after) {
+				t.Fatal("history funding renewed old consumption", err)
+			}
 		}
 		ctx, db := context.Background(), dispatchStoreFixture(t)
 		sponsor, err := db.Sponsorship(ctx, 7, "conn")

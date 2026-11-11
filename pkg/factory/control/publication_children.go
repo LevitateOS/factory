@@ -57,11 +57,11 @@ func (c *Coordinator) loadPublicationChildOwner(ctx context.Context, p factory.P
 }
 
 func (c *Coordinator) gatePublicationChildAttempt(ctx context.Context, p factory.Publication, owner factory.Assignment, report *PublishReport) (factory.AttemptAllowance, bool) {
-	if p.External!=nil {
-		policy,err:=c.Store.RepositoryPolicy(ctx,p.Repository)
-		if err!=nil || policy.Revision!=p.External.Policy || policy.Review.NativeProfile!=p.External.Profile || policy.Review.NativeConnection!=p.External.Connection {
-			publicationWait(report,p.ID,"external_adoption_policy_changed")
-			return factory.AttemptAllowance{},true
+	if p.External != nil {
+		policy, err := c.Store.RepositoryPolicy(ctx, p.Repository)
+		if err != nil || policy.Revision != p.External.Policy || policy.Review.NativeProfile != p.External.Profile || policy.Review.NativeConnection != p.External.Connection {
+			publicationWait(report, p.ID, "external_adoption_policy_changed")
+			return factory.AttemptAllowance{}, true
 		}
 	}
 	latest, err := c.Store.LatestIssueAssignment(ctx, p.Repository, p.Issue)
@@ -410,7 +410,9 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 // Release that exact custody before admitting the next session, independently
 // of the retained run, report and exported candidate evidence.
 func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factory.Publication, owner factory.Assignment, role string) error {
-	if role == project.RoleReviewer && p.External != nil && p.Run == "" { return nil }
+	if role == project.RoleReviewer && p.External != nil && p.Run == "" && owner.RetainedPublication == nil {
+		return nil
+	}
 	var prior factory.Assignment
 	if role == project.RoleCoder {
 		var ok bool
@@ -420,13 +422,39 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 		}
 	} else {
 		var err error
-		prior, err = c.Store.AssignmentByRun(ctx, p.Run)
+		priorRun := p.Run
+		if priorRun == "" && owner.RetainedPublication != nil {
+			priorRun = owner.RetainedPublication.Run
+		}
+		prior, err = c.Store.AssignmentByRun(ctx, priorRun)
 		if err != nil {
 			return err
 		}
 	}
 	if prior.NativeTool == nil || prior.Phase != project.ExecutionReview && prior.Phase != project.ExecutionCorrect {
 		return nil
+	}
+	retirementPublication, retirementOwner := p, owner
+	if prior.PublicationAssignment != owner.ID {
+		history, err := c.Store.PublicationReviewHistory(ctx, p)
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, source := range history {
+			if source.AssignmentID != prior.PublicationAssignment || source.Run != prior.Run {
+				continue
+			}
+			retirementOwner, err = c.Store.Assignment(ctx, source.AssignmentID)
+			if err != nil {
+				return err
+			}
+			retirementPublication, found = source, true
+			break
+		}
+		if !found || prior.AttemptRoot != retirementOwner.AttemptRoot {
+			return errors.New("publication predecessor is outside admitted history")
+		}
 	}
 	run, err := c.Store.FactoryRun(ctx, prior.Run)
 	if err != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() || prior.Stage != factory.AssignmentFinished || prior.Outcome != factory.Succeeded {
@@ -437,7 +465,7 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 		return err
 	}
 	meta := prepared.Admission
-	if prepared.Preparation.Native == nil || meta.PublicationID != p.ID || meta.OwnerAssignment != owner.ID || meta.ChildAssignment != prior.ID || meta.AttemptRoot != owner.AttemptRoot {
+	if prepared.Preparation.Native == nil || meta.PublicationID != retirementPublication.ID || meta.OwnerAssignment != retirementOwner.ID || meta.ChildAssignment != prior.ID || meta.AttemptRoot != retirementOwner.AttemptRoot {
 		return errors.New("publication predecessor preparation differs")
 	}
 	if prepared.Stopped && prepared.Retirement == "confirmed" {
@@ -490,7 +518,7 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 		tuple = *p.Tuple
 	}
 	plan.reviewContext = &factory.CurrentReviewContext{Publication: factory.CurrentPublicationContext{ID: p.ID, AssignmentID: p.AssignmentID, Revision: p.Revision, PRID: p.PRID, PRNumber: p.PRNumber, Stage: p.Stage}, AdmittedTuple: tuple, Cycle: cycle, CarriedFindings: carried}
-	plan.reviewContext.External=p.External
+	plan.reviewContext.External = p.External
 	// A phased corrector executes the controller-derived singleton plan,
 	// never a rebuilt or agent-selected one. An accepted-policy gap is a
 	// visible planning blocker; any other derivation failure refuses
@@ -655,10 +683,14 @@ func correctionFindingKeys(review ResolvedReviewVerdict) []string {
 // changed candidate, fenced publication, replaced acceptance, retired
 // allowance or rebound reviewer waits instead of launching.
 func (c *Coordinator) recheckPublicationChild(ctx context.Context, p factory.Publication, owner factory.Assignment, plan *attemptPlan, phasedChild bool, parentAssignment string) (*planWait, error) {
-	if p.External!=nil {
-		if c.Reviews==nil || plan.policy.Revision!=p.External.Policy { return waitFor("child_dispatch_inputs_changed","external adoption policy changed before launch"),nil }
-		t:=p.PullTarget()
-		if _,err:=c.Reviews.ObserveReview(ctx,factory.ReviewWork{Repository:p.Repository,ActorID:plan.policy.Review.ActorID,PRNumber:p.PRNumber,PRID:p.PRID,IssueID:t.IssueID,PRAuthorID:t.AuthorID,HeadRef:t.HeadRef,BaseRef:t.BaseRef,HeadOID:p.Candidate,BaseOID:t.BaseOID}); err!=nil { return waitFor("child_dispatch_inputs_changed","external PR identity, head, base or permission changed before launch"),nil }
+	if p.External != nil {
+		if c.Reviews == nil || plan.policy.Revision != p.External.Policy {
+			return waitFor("child_dispatch_inputs_changed", "external adoption policy changed before launch"), nil
+		}
+		t := p.PullTarget()
+		if _, err := c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, ActorID: plan.policy.Review.ActorID, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: p.Candidate, BaseOID: t.BaseOID}); err != nil {
+			return waitFor("child_dispatch_inputs_changed", "external PR identity, head, base or permission changed before launch"), nil
+		}
 	}
 	fresh, err := c.Store.PublicationByAssignment(ctx, owner.ID)
 	if err != nil {
@@ -864,7 +896,7 @@ func (c *Coordinator) admitReviewCandidatePrep(ctx context.Context, plan *attemp
 		RequestedNotAfter: requested,
 	}
 	if p.External != nil {
-		registration.SourcePull=p.PullSource()
+		registration.SourcePull = p.PullSource()
 	} else if prep.Role == project.RoleCoder {
 		run, err := c.Store.FactoryRun(ctx, p.Run)
 		if err != nil || run.Native == nil {

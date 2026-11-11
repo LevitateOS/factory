@@ -21,53 +21,60 @@ func currentReviewSourceTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 }
 
 func currentReviewFactsTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, p factory.Publication, current *factory.CurrentReviewContext) error {
-	if len(p.ReviewCycles) > 512 || len(p.CorrectionJournals) > 512 {
-		return errors.New("current review sources exceed their finite bound")
+	history, err := publicationReviewHistory(ctx, tx, p)
+	if err != nil {
+		return err
 	}
 	carried := map[string]bool{}
 	for _, finding := range current.CarriedFindings {
 		carried[finding.Key] = true
 	}
-	for _, cycle := range p.ReviewCycles {
-		if cycle.Round > current.Cycle.Round {
-			continue
-		}
-		if cycle.PublicationID != p.ID || cycle.AttemptRoot != a.AttemptRoot {
-			return errors.New("current review source cycle is malformed")
-		}
-		// Correction rounds have a synthetic reviewer marker; they never
-		// grant a nonexistent reviewer assignment or its conversation. Current
-		// cycles share the review phase and identify correction by assignment.
-		if cycle.Phase != "correct" && cycle.CorrectionAssignment == "" {
-			if err := currentReviewAssessmentsTx(ctx, tx, a, p, cycle, carried, current); err != nil {
-				return err
-			}
-		}
-		for _, journal := range p.CorrectionJournals {
-			if journal.CycleID != cycle.ID {
+	for _, sourcePublication := range history {
+		// The history reader admits this exact old root. Retain all other
+		// source checks, including the current reader's actor and issue scope.
+		scope := a
+		scope.AttemptRoot, scope.PublicationAssignment = sourcePublication.AssignmentID, sourcePublication.AssignmentID
+		for _, cycle := range sourcePublication.ReviewCycles {
+			if sourcePublication.ID == p.ID && cycle.Round > current.Cycle.Round {
 				continue
 			}
-			if cycle.CorrectionAssignment == "" {
-				return errors.New("current correction source is malformed")
+			if cycle.PublicationID != sourcePublication.ID || cycle.AttemptRoot != scope.AttemptRoot {
+				return errors.New("current review source cycle is malformed")
 			}
-			source, err := currentReviewSourceTx(ctx, tx, a, cycle.CorrectionAssignment, journal.RunID, "correct")
-			if err != nil {
-				return err
+			// Correction rounds have a synthetic reviewer marker; they never
+			// grant a nonexistent reviewer assignment or its conversation. Current
+			// cycles share the review phase and identify correction by assignment.
+			if cycle.Phase != "correct" && cycle.CorrectionAssignment == "" {
+				if err := currentReviewAssessmentsTx(ctx, tx, scope, sourcePublication, cycle, carried, current); err != nil {
+					return err
+				}
 			}
-			if !currentReviewResultBound(source) || source.Result.PhaseResult.Output.Correction == nil {
-				return errors.New("current correction fact lacks its bound report")
-			}
-			for _, disposition := range journal.Report.Dispositions {
-				if !carried[disposition.Key] {
+			for _, journal := range sourcePublication.CorrectionJournals {
+				if journal.CycleID != cycle.ID {
 					continue
 				}
-				fact := factory.CurrentCorrectionFact{CycleID: cycle.ID, RunID: journal.RunID, SetDigest: journal.Report.SetDigest, NewCandidate: journal.Report.NewCandidate, Key: disposition.Key, Disposition: disposition.Disposition, ChangedPaths: []string{}, Commits: []string{}}
-				for _, evidence := range journal.Report.Evidence {
-					if evidence.Key == disposition.Key {
-						fact.ChangedPaths, fact.Commits = evidence.ChangedPaths, evidence.Commits
-					}
+				if cycle.CorrectionAssignment == "" {
+					return errors.New("current correction source is malformed")
 				}
-				current.Corrections = append(current.Corrections, fact)
+				source, err := currentReviewSourceTx(ctx, tx, scope, cycle.CorrectionAssignment, journal.RunID, "correct")
+				if err != nil {
+					return err
+				}
+				if !currentReviewResultBound(source) || source.Result.PhaseResult.Output.Correction == nil {
+					return errors.New("current correction fact lacks its bound report")
+				}
+				for _, disposition := range journal.Report.Dispositions {
+					if !carried[disposition.Key] {
+						continue
+					}
+					fact := factory.CurrentCorrectionFact{CycleID: cycle.ID, RunID: journal.RunID, SetDigest: journal.Report.SetDigest, NewCandidate: journal.Report.NewCandidate, Key: disposition.Key, Disposition: disposition.Disposition, ChangedPaths: []string{}, Commits: []string{}}
+					for _, evidence := range journal.Report.Evidence {
+						if evidence.Key == disposition.Key {
+							fact.ChangedPaths, fact.Commits = evidence.ChangedPaths, evidence.Commits
+						}
+					}
+					current.Corrections = append(current.Corrections, fact)
+				}
 			}
 		}
 	}

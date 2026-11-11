@@ -7,27 +7,31 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"github.com/levitateos/factory/pkg/project"
 	"slices"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 var ErrRetainedPublicationIneligible = errors.New("retained candidate publication is no longer eligible")
 
 type reviewRetryCapture struct {
 	Retry factory.ReviewRetry `json:"retry"`
-	Work factory.ReviewWork `json:"work"`
+	Work  factory.ReviewWork  `json:"work"`
 }
 
 // ReviewRetryOffer contains only an existing terminal no-send and current policy.
 // Reading this offer creates neither send authority nor inference funding.
 func (s *Store) ReviewRetryOffer(ctx context.Context, publication string) (factory.ReviewRetry, error) {
 	p, err := s.PublicationByID(ctx, publication)
-	if err != nil { return factory.ReviewRetry{}, err }
+	if err != nil {
+		return factory.ReviewRetry{}, err
+	}
 	policy, err := s.RepositoryPolicy(ctx, p.Repository)
-	if err != nil { return factory.ReviewRetry{}, err }
+	if err != nil {
+		return factory.ReviewRetry{}, err
+	}
 	if p.Stage != factory.PublicationPublished || p.WithdrawRequested || len(p.ReviewOperations) == 0 ||
 		!policy.Enabled || policy.Paused || policy.TargetBranch != p.TargetBranch {
 		return factory.ReviewRetry{}, ErrRetainedPublicationIneligible
@@ -36,7 +40,7 @@ func (s *Store) ReviewRetryOffer(ctx context.Context, publication string) (facto
 	if !op.DefinitiveNoSend() || op.Work.HeadOID != p.Candidate || op.Work.BaseOID != p.PullTarget().BaseOID || policy.Review.ActorID != op.Work.ActorID {
 		return factory.ReviewRetry{}, ErrRetainedPublicationIneligible
 	}
-	r := factory.ReviewRetry{Publication:p.ID, Run:op.RunID, Operation:op.Work.OperationID, Head:p.Candidate, Base:p.PullTarget().BaseOID, Policy:policy.Revision}
+	r := factory.ReviewRetry{Publication: p.ID, Run: op.RunID, Operation: op.Work.OperationID, Head: p.Candidate, Base: p.PullTarget().BaseOID, Policy: policy.Revision}
 	return r, r.Validate()
 }
 
@@ -51,7 +55,9 @@ func admitReviewRetryRegistrationTx(ctx context.Context, tx *sql.Tx, previous, p
 	}
 	var raw []byte
 	if err := tx.QueryRowContext(ctx, `SELECT payload FROM factory_commands WHERE id=$1 AND type=$2 AND target=$3 AND finished<>''`,
-		op.RetryCommand, factory.CommandRetryReview, "publication/"+p.ID).Scan(&raw); err != nil { return err }
+		op.RetryCommand, factory.CommandRetryReview, "publication/"+p.ID).Scan(&raw); err != nil {
+		return err
+	}
 	var capture reviewRetryCapture
 	if json.Unmarshal(raw, &capture) != nil || capture.Retry.Validate() != nil || !factory.ReviewWorkEqual(capture.Work, op.Work) ||
 		capture.Retry.Publication != p.ID || capture.Retry.Run != op.RunID || capture.Retry.Operation != prior.Work.OperationID ||
@@ -60,15 +66,23 @@ func admitReviewRetryRegistrationTx(ctx context.Context, tx *sql.Tx, previous, p
 		return ErrAdmissionChanged
 	}
 	var policy factory.RepositoryPolicy
-	if err := loadGrantDocumentTx(ctx, tx, &policy, `SELECT data FROM factory_policies WHERE repository=$1 FOR UPDATE`, p.Repository); err != nil { return err }
+	if err := loadGrantDocumentTx(ctx, tx, &policy, `SELECT data FROM factory_policies WHERE repository=$1 FOR UPDATE`, p.Repository); err != nil {
+		return err
+	}
 	if !policy.Enabled || policy.Paused || policy.Revision != capture.Retry.Policy || policy.TargetBranch != p.TargetBranch || policy.Review.ActorID != op.Work.ActorID {
 		return ErrAdmissionChanged
 	}
 	var root string
-	if err := tx.QueryRowContext(ctx, `SELECT data->>'attempt_root' FROM factory_assignments WHERE id=$1`, p.AssignmentID).Scan(&root); err != nil { return err }
+	if err := tx.QueryRowContext(ctx, `SELECT data->>'attempt_root' FROM factory_assignments WHERE id=$1`, p.AssignmentID).Scan(&root); err != nil {
+		return err
+	}
 	settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, root)
-	if err != nil { return err }
-	if !settled { return ErrAttemptRunsPending }
+	if err != nil {
+		return err
+	}
+	if !settled {
+		return ErrAttemptRunsPending
+	}
 	return nil
 }
 
@@ -80,27 +94,47 @@ func (s *Store) RecordReviewRetry(ctx context.Context, command, principal string
 		w.OperationID != "review-retry-"+command || w.NotAfter <= now.Unix() || w.NotAfter > now.Add(5*time.Minute).Unix() {
 		return empty, ErrRetainedPublicationIneligible
 	}
-	payload, err := json.Marshal(reviewRetryCapture{Retry:r, Work:w})
-	if err != nil { return empty, err }
-	cmd := factory.Command{ID:command, Type:factory.CommandRetryReview, Target:"publication/"+r.Publication, Principal:principal, Payload:string(payload)}
+	payload, err := json.Marshal(reviewRetryCapture{Retry: r, Work: w})
+	if err != nil {
+		return empty, err
+	}
+	cmd := factory.Command{ID: command, Type: factory.CommandRetryReview, Target: "publication/" + r.Publication, Principal: principal, Payload: string(payload)}
 	cmd.Digest = factory.SettingsDigest(cmd.Type, cmd.Target, cmd.Payload)
 	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil { return empty, err }
+	if err != nil {
+		return empty, err
+	}
 	defer tx.Rollback()
 	stored, created, err := recordFactoryCommandTx(ctx, tx, cmd, now)
-	if err != nil { return empty, err }
-	if stored.Principal != principal || !created { return empty, ErrCommandConflict }
+	if err != nil {
+		return empty, err
+	}
+	if stored.Principal != principal || !created {
+		return empty, ErrCommandConflict
+	}
 	var raw []byte
-	if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1 FOR UPDATE`, r.Publication).Scan(&raw); err != nil { return empty, err }
+	if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1 FOR UPDATE`, r.Publication).Scan(&raw); err != nil {
+		return empty, err
+	}
 	var p factory.Publication
-	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil { return empty, ErrPublicationConflict }
-	op := factory.ReviewOperation{RunID:r.Run, RetryOf:r.Operation, RetryCommand:command, Work:w}
-	if err = p.CanAppendReviewOperation(op); err != nil { return empty, err }
-	if err = finishFactoryCommandTx(ctx, tx, command, now); err != nil { return empty, err }
+	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil {
+		return empty, ErrPublicationConflict
+	}
+	op := factory.ReviewOperation{RunID: r.Run, RetryOf: r.Operation, RetryCommand: command, Work: w}
+	if err = p.CanAppendReviewOperation(op); err != nil {
+		return empty, err
+	}
+	if err = finishFactoryCommandTx(ctx, tx, command, now); err != nil {
+		return empty, err
+	}
 	p.ReviewOperations = append(p.ReviewOperations, op)
 	p.Revision++
-	if err = updatePublicationTx(ctx, tx, p); err != nil { return empty, err }
-	if err = tx.Commit(); err != nil { return empty, err }
+	if err = updatePublicationTx(ctx, tx, p); err != nil {
+		return empty, err
+	}
+	if err = tx.Commit(); err != nil {
+		return empty, err
+	}
 	return p, nil
 }
 
@@ -266,15 +300,12 @@ func (s *Store) RetainedCandidateFundingOffer(ctx context.Context, publication s
 		if err != nil {
 			return f, err
 		}
-		var launched bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1 AND data->>'phase'='review')`, a.ID).Scan(&launched); err != nil {
+		unused, err := retainedUnusedReviewBudgetTx(ctx, tx, p, prior, limits)
+		if err != nil {
 			return f, err
 		}
-		if launched {
+		if unused {
 			f.CarryUnused, f.Limits = true, prior.Limits
-			if len(prior.Reviews) >= prior.Limits.ReviewRounds || prior.Limits.ActiveMinutes > limits.ActiveMinutes || prior.Limits.ReviewRounds > limits.ReviewRounds || prior.Limits.CorrectionCycles > limits.CorrectionCycles {
-				return f, ErrRetainedPublicationIneligible
-			}
 		}
 	}
 	return f, f.Validate()
@@ -318,14 +349,31 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	}
 	// Both ordinary and explicitly republished candidates use their original
 	// completed execution. Neither path may invent a candidate or a new run.
-	if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE run=$1`, p.Run).Scan(&raw); err != nil {
+	candidateRun := p.Run
+	if candidateRun == "" && a.RetainedPublication != nil {
+		candidateRun = a.RetainedPublication.Run
+	}
+	if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE run=$1`, candidateRun).Scan(&raw); err != nil {
 		return fail(err)
 	}
 	var candidate factory.Assignment
-	if json.Unmarshal(raw, &candidate) != nil || candidate.Validate() != nil || candidate.Role != project.RoleCoder || candidate.AttemptRoot != origin.ID || candidate.PublicationAssignment != origin.ID || candidate.Stage != factory.AssignmentFinished || candidate.Outcome != factory.Succeeded || candidate.Result == nil || !candidate.Result.Reported || candidate.Result.Status != "completed" || candidate.Result.Candidate != p.Candidate || candidate.Repository != p.Repository || candidate.Issue != p.Issue || candidate.ProjectID != p.ProjectID || candidate.Acceptance != p.Acceptance {
+	if json.Unmarshal(raw, &candidate) != nil || candidate.Validate() != nil || candidate.Role != project.RoleCoder || candidate.Stage != factory.AssignmentFinished || candidate.Outcome != factory.Succeeded || candidate.Result == nil || !candidate.Result.Reported || candidate.Result.Status != "completed" || candidate.Result.Candidate != p.Candidate || candidate.Repository != p.Repository || candidate.Issue != p.Issue || candidate.ProjectID != p.ProjectID || candidate.Acceptance != p.Acceptance || candidate.Connection != origin.Connection {
 		return fail(fmt.Errorf("%w: original candidate report changed", ErrRetainedPublicationIneligible))
 	}
-	if a.RetainedPublication != nil && (a.RetainedPublication.Run != p.Run || a.RetainedPublication.Candidate != p.Candidate) {
+	history, err := publicationReviewHistory(ctx, tx, p)
+	if err != nil {
+		return fail(err)
+	}
+	// An explicitly republished original Builder keeps its original assignment;
+	// later corrected candidates must instead join their admitted review history.
+	boundCandidate := candidate.ID == origin.ID && origin.Run == candidateRun &&
+		origin.AttemptRoot == origin.ID && origin.PublicationAssignment == origin.ID
+	for _, source := range history {
+		if source.Run == candidateRun && source.Candidate == p.Candidate && candidate.AttemptRoot == source.AssignmentID && candidate.PublicationAssignment == source.AssignmentID {
+			boundCandidate = true
+		}
+	}
+	if !boundCandidate || a.RetainedPublication != nil && p.Run == "" && (a.RetainedPublication.Run != candidateRun || a.RetainedPublication.Candidate != p.Candidate) {
 		return fail(ErrRetainedPublicationIneligible)
 	}
 	if p.Stage == factory.PublicationFenced {
@@ -384,6 +432,12 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 }
 
 func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal string, f factory.RetainedCandidateFunding, now time.Time) (factory.RetainedCandidateFundingReceipt, error) {
+	return s.FundRetainedCandidateObserved(ctx, command, principal, f, nil, now)
+}
+
+// FundRetainedCandidateObserved admits a fresh authenticated external origin
+// only for this new command. Old publication captures and deadlines never move.
+func (s *Store) FundRetainedCandidateObserved(ctx context.Context, command, principal string, f factory.RetainedCandidateFunding, observed *factory.ExternalPublicationOrigin, now time.Time) (factory.RetainedCandidateFundingReceipt, error) {
 	empty := factory.RetainedCandidateFundingReceipt{}
 	if f.Validate() != nil {
 		return empty, ErrRetainedPublicationIneligible
@@ -455,15 +509,23 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 		if err = admitFreshRetainedReviewTx(ctx, tx, p, a); err != nil {
 			return empty, err
 		}
-		var launched bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1 AND data->>'phase'='review')`, a.ID).Scan(&launched); err != nil {
+		if p.External != nil && (observed == nil || g.environment.Native == nil || g.environment.Native.Profile != observed.Profile ||
+			g.policy.Review.NativeProfile != observed.Profile || g.policy.Review.NativeConnection != observed.Connection || g.policy.Review.ActorID != observed.ActorID) {
+			return empty, ErrAdmissionChanged
+		}
+		prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
+		if err != nil {
 			return empty, err
 		}
-		if launched != f.CarryUnused {
+		unused, err := retainedUnusedReviewBudgetTx(ctx, tx, p, prior, bounds)
+		if err != nil {
+			return empty, err
+		}
+		if f.CarryUnused != unused {
 			return empty, ErrRetainedPublicationIneligible
 		}
 		p.Authority = a.Authority
-		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, now)
+		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, observed, now)
 		if err != nil {
 			return empty, err
 		}
@@ -497,38 +559,94 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 	return receipt, nil
 }
 
-// Unlaunched work can receive explicit fresh funding. An incomplete reviewer
-// can carry only unused budget; typed findings and pending sends require their
-// own result-driven recovery and never disappear into a fresh owner.
+// A fresh command can fund another finite review after confirmed retirement.
+// Known reports remain in the admitted history; an uncertain effect or a
+// missing source binding cannot disappear into a new owner.
 func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment) error {
 	prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
 	if err != nil {
 		return err
 	}
-	if !prior.Closed || prior.Active || p.Publish.Effect != factory.OpEffectCommitted || p.Publish.Completion != factory.OpCompletionComplete || p.PRCreate.Effect != factory.OpEffectCommitted || p.PRCreate.Completion != factory.OpCompletionComplete || len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) != 0 {
+	if !prior.Closed || prior.Active || !p.HasPullTarget() || p.External == nil &&
+		(p.Publish.Effect != factory.OpEffectCommitted || p.Publish.Completion != factory.OpCompletionComplete || p.PRCreate.Effect != factory.OpEffectCommitted || p.PRCreate.Completion != factory.OpCompletionComplete || len(p.Corrections) != 0) {
 		return fmt.Errorf("%w: prior allowance or publication remains active", ErrRetainedPublicationIneligible)
+	}
+	for _, op := range p.ReviewOperations {
+		if op.Outcome.NotObserved || op.Outcome.Completion != factory.OpCompletionComplete ||
+			(op.Outcome.Effect != factory.OpEffectCommitted && op.Outcome.Effect != factory.OpEffectNotCommitted) {
+			return ErrAttemptRunsPending
+		}
+	}
+	for _, op := range p.Corrections {
+		if op.Effect != factory.OpEffectCommitted || op.Completion != factory.OpCompletionComplete {
+			return ErrAttemptRunsPending
+		}
+	}
+	for _, op := range p.ResolutionOperations {
+		if op.Outcome.NotObserved || op.Outcome.Completion != factory.OpCompletionComplete ||
+			(op.Outcome.Effect != factory.OpEffectCommitted && op.Outcome.Effect != factory.OpEffectNotCommitted) {
+			return ErrAttemptRunsPending
+		}
 	}
 	settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, a.ID)
 	if err != nil || !settled {
 		return ErrAttemptRunsPending
 	}
-	var unsafe bool
-	// Settlement may wrap a missing report in a blocked phase result. That
-	// exact empty wrapper is not a typed review verdict or reusable output.
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1
-		AND NOT COALESCE((stage='finished' AND data->>'phase'='review' AND data->>'outcome'='needs-human' AND data->>'reason'=$2
-		AND data#>>'{result,status}'='blocked' AND data#>>'{result,reported}'='false'
-		AND (NOT (data->'result' ? 'phase_result') OR data#>'{result,phase_result}'=jsonb_build_object(
-			'version',$3::int,'phase','review','status','blocked','summary',data#>>'{result,summary}'))
-		AND NOT (data->'result' ? 'review')
-		AND COALESCE(jsonb_array_length(data#>'{result,findings}'),0)=0)
-		OR ($4::boolean AND run=$5 AND stage='finished' AND data->>'phase'='implement' AND data->>'outcome'='succeeded'
-		AND data#>>'{result,status}'='completed' AND data#>>'{result,reported}'='true' AND data#>>'{result,candidate}'=$6
-		AND data->>'publication_assignment'=$1),FALSE))`, a.ID, factory.AssignReasonNoReport, factory.PhaseResultVersion, a.RetainedPublication == nil, p.Run, p.Candidate).Scan(&unsafe); err != nil {
+	rows, err := tx.QueryContext(ctx, `SELECT data FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1 ORDER BY seq LIMIT 513`, a.ID)
+	if err != nil {
 		return err
 	}
-	if unsafe {
-		return fmt.Errorf("%w: a child has reusable or unsettled output", ErrRetainedPublicationIneligible)
+	children := 0
+	for rows.Next() {
+		var raw []byte
+		var child factory.Assignment
+		if err = rows.Scan(&raw); err != nil {
+			rows.Close()
+			return err
+		}
+		if json.Unmarshal(raw, &child) != nil || child.Validate() != nil || child.Stage != factory.AssignmentFinished || child.Result == nil || child.PublicationAssignment != p.AssignmentID || children >= 512 {
+			rows.Close()
+			return ErrRetainedPublicationIneligible
+		}
+		children++
+		switch child.Phase {
+		case project.ExecutionReview:
+			result := child.Result
+			if result.Reported {
+				if child.Outcome != factory.Succeeded || result.PhaseResult == nil || result.PhaseResult.Output == nil || (result.PhaseResult.Output.Review == nil && result.PhaseResult.Output.Clear == nil) {
+					rows.Close()
+					return ErrRetainedPublicationIneligible
+				}
+			} else if result.Review != nil || len(result.Findings) != 0 || result.PhaseResult != nil && result.PhaseResult.Output != nil ||
+				(child.Outcome != factory.Cancelled && child.Outcome != factory.Failed && !(child.Outcome == factory.NeedsHuman && child.Reason == factory.AssignReasonNoReport)) {
+				rows.Close()
+				return ErrRetainedPublicationIneligible
+			}
+		case project.ExecutionCorrect:
+			bound := false
+			for _, op := range p.Corrections {
+				if op.RunID == child.Run && op.Work != nil && op.Work.Candidate == child.Result.Candidate {
+					bound = true
+				}
+			}
+			if !bound || child.Outcome != factory.Succeeded || !child.Result.Reported || child.Result.PhaseResult == nil || child.Result.PhaseResult.Output == nil || child.Result.PhaseResult.Output.Correction == nil {
+				rows.Close()
+				return ErrRetainedPublicationIneligible
+			}
+		case project.ExecutionImplement:
+			if a.RetainedPublication != nil || child.Run != p.Run || child.Outcome != factory.Succeeded || !child.Result.Reported || child.Result.Candidate != p.Candidate {
+				rows.Close()
+				return ErrRetainedPublicationIneligible
+			}
+		default:
+			rows.Close()
+			return ErrRetainedPublicationIneligible
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
 	}
 	var pending bool
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_merges WHERE publication=$1 AND COALESCE((data#>>'{operation,attempts}')::int,1)>0)`, p.ID).Scan(&pending); err != nil {
@@ -540,10 +658,31 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	return nil
 }
 
-func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.Publication, owner factory.Assignment, command string, now time.Time) (factory.Publication, factory.Assignment, error) {
-	r := factory.RetainedPublication{Publication: prior.ID, Assignment: owner.ID, Run: prior.Run, Candidate: prior.Candidate, Connection: owner.Connection}
+func retainedUnusedReviewBudgetTx(ctx context.Context, tx *sql.Tx, p factory.Publication, prior factory.AttemptAllowance, bounds factory.AttemptLimits) (bool, error) {
+	eligible := len(prior.Reviews) > 0 && len(prior.Reviews) < prior.Limits.ReviewRounds &&
+		len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0 &&
+		prior.Limits.ActiveMinutes <= bounds.ActiveMinutes && prior.Limits.ReviewRounds <= bounds.ReviewRounds && prior.Limits.CorrectionCycles <= bounds.CorrectionCycles
+	if !eligible {
+		return false, nil
+	}
+	// A reserved identity without an admitted reviewer packet did not launch.
+	// An incomplete admitted reviewer can hand off only its unused budget.
+	var launched bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1 AND data->>'phase'='review')`, p.AssignmentID).Scan(&launched)
+	return launched, err
+}
+
+func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.Publication, owner factory.Assignment, command string, observed *factory.ExternalPublicationOrigin, now time.Time) (factory.Publication, factory.Assignment, error) {
+	origin, err := publicationExecutionOwner(ctx, tx, prior, owner)
+	if err != nil {
+		return prior, owner, err
+	}
+	r := factory.RetainedPublication{Publication: prior.ID, Assignment: origin.ID, Run: prior.Run, Candidate: prior.Candidate, Connection: origin.Connection}
 	if owner.RetainedPublication != nil {
 		r = *owner.RetainedPublication
+		if prior.Run != "" {
+			r.Run, r.Candidate = prior.Run, prior.Candidate
+		}
 	}
 	r.AdoptedFrom, r.NotAfter = prior.ID, 0
 	a := factory.Assignment{
@@ -558,7 +697,29 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 	p := prior
 	p.ID, p.AssignmentID, p.Revision, p.CreatedUnix = command, command, 0, now.Unix()
 	p.ReviewCycles = nil
-	p.Tuple = nil
+	p.ReviewOperations, p.Corrections, p.CorrectionJournals = nil, nil, nil
+	p.DeliveryAcceptances, p.ResolutionOperations = nil, nil
+	if prior.Tuple != nil {
+		tuple := *prior.Tuple
+		tuple.Revision = 0
+		p.Tuple = &tuple
+	}
+	if prior.External != nil {
+		if observed == nil || observed.Validate(prior.Repository) != nil || observed.CommandID != command || observed.Policy != owner.Authority.Policy || observed.ObservedUnix > now.Unix() || now.Unix()-observed.ObservedUnix > 30 ||
+			observed.Target != (factory.PublicationPullTarget{AuthorID: prior.PullTarget().AuthorID, IssueID: prior.PullTarget().IssueID, HeadRepository: prior.PullTarget().HeadRepository, HeadRef: prior.PullTarget().HeadRef, BaseRef: prior.PullTarget().BaseRef, HeadOID: prior.Candidate, BaseOID: prior.PullTarget().BaseOID}) ||
+			observed.Host != prior.External.Host || observed.Profile != prior.External.Profile || observed.Connection != prior.External.Connection || observed.ActorID != prior.External.ActorID || observed.ForkConsent != "" {
+			return p, a, ErrAdmissionChanged
+		}
+		var revision int64
+		if err = tx.QueryRowContext(ctx, `SELECT revision FROM factory_native_review_heads WHERE repository=$1 AND pull=$2 FOR UPDATE`, p.Repository, p.PRNumber).Scan(&revision); err != nil || revision != observed.ObservationRevision {
+			return p, a, ErrAdmissionChanged
+		}
+		p.External, p.Run = observed, ""
+		p.Publish, p.PRCreate = factory.PublicationOperation{Kind: factory.OpRefPublish}, factory.PublicationOperation{Kind: factory.OpPRCreate}
+		p.NativeRev, p.ObservedUnix, a.NativeRev = observed.ObservationRevision, observed.ObservedUnix, observed.ObservationRevision
+	} else if observed != nil {
+		return p, a, ErrAdmissionChanged
+	}
 	p.Stage, p.Outcome, p.Reason, p.FinishedUnix = factory.PublicationPublished, factory.Succeeded, factory.PublishReasonLinked, now.Unix()
 	if err := a.Validate(); err != nil {
 		return p, a, err
@@ -640,15 +801,17 @@ func publicationExecutionOwner(ctx context.Context, q grantCommandSQL, p factory
 	}
 	if owner.ExternalPublication != nil {
 		var raw []byte
-		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, owner.ExternalPublication.PlanAssignment).Scan(&raw); err != nil { return factory.Assignment{}, err }
+		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, owner.ExternalPublication.PlanAssignment).Scan(&raw); err != nil {
+			return factory.Assignment{}, err
+		}
 		var plan factory.Assignment
-		if json.Unmarshal(raw,&plan) != nil || plan.Validate() != nil || plan.Stage != factory.AssignmentFinished || plan.Outcome != factory.Succeeded ||
-			plan.Phase != project.ExecutionInvestigate || plan.NativeTool == nil || plan.Result == nil || plan.Result.PhaseResult == nil || plan.Result.PhaseResult.Output == nil || plan.Result.PhaseResult.Output.Plan == nil || plan.Result.PhaseResult.Output.PlanReview=="" ||
+		if json.Unmarshal(raw, &plan) != nil || plan.Validate() != nil || plan.Stage != factory.AssignmentFinished || plan.Outcome != factory.Succeeded ||
+			plan.Phase != project.ExecutionInvestigate || plan.NativeTool == nil || plan.Result == nil || plan.Result.PhaseResult == nil || plan.Result.PhaseResult.Output == nil || plan.Result.PhaseResult.Output.Plan == nil || plan.Result.PhaseResult.Output.PlanReview == "" ||
 			plan.Repository != owner.Repository || plan.Issue != owner.Issue || plan.ProjectID != owner.ProjectID || plan.Acceptance != owner.Acceptance || plan.Preparation != owner.Preparation ||
-			plan.SourceCommit != owner.SourceCommit || plan.Connection != owner.ExternalPublication.Connection || !reflect.DeepEqual(p.External,&owner.ExternalPublication.Origin) {
+			plan.SourceCommit != owner.SourceCommit || plan.Connection != owner.ExternalPublication.Connection || !reflect.DeepEqual(p.External, &owner.ExternalPublication.Origin) {
 			return factory.Assignment{}, ErrRetainedPublicationIneligible
 		}
-		return plan,nil
+		return plan, nil
 	}
 	if owner.RetainedPublication == nil {
 		return owner, nil
@@ -665,4 +828,104 @@ func publicationExecutionOwner(ctx context.Context, q grantCommandSQL, p factory
 		return factory.Assignment{}, ErrRetainedPublicationIneligible
 	}
 	return origin, nil
+}
+
+// PublicationReviewHistory follows only explicitly funded retained ownership.
+// Reports and native effects stay on their original publication and attempt.
+func (s *Store) PublicationReviewHistory(ctx context.Context, p factory.Publication) ([]factory.Publication, error) {
+	return publicationReviewHistory(ctx, s.db, p)
+}
+
+func publicationReviewHistory(ctx context.Context, q grantCommandSQL, p factory.Publication) ([]factory.Publication, error) {
+	history := []factory.Publication{}
+	seen := map[string]bool{}
+	total := 0
+	for {
+		if len(history) >= 32 || seen[p.ID] || p.Validate() != nil {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		total += len(p.ReviewCycles) + len(p.CorrectionJournals)
+		if total > 512 {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		seen[p.ID] = true
+		history = append(history, p)
+		var raw []byte
+		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, p.AssignmentID).Scan(&raw); err != nil {
+			return nil, err
+		}
+		var owner factory.Assignment
+		if json.Unmarshal(raw, &owner) != nil || owner.Validate() != nil || owner.ID != p.AssignmentID ||
+			owner.AttemptRoot != owner.ID || owner.PublicationAssignment != owner.ID ||
+			owner.Repository != p.Repository || owner.Issue != p.Issue || owner.ProjectID != p.ProjectID || owner.Acceptance != p.Acceptance {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		r := owner.RetainedPublication
+		if r == nil || r.AdoptedFrom == "" {
+			break
+		}
+		if err := q.QueryRowContext(ctx, `SELECT payload FROM factory_commands WHERE id=$1 AND type=$2 AND target=$3 AND finished<>''`,
+			owner.ID, factory.CommandFundRetained, "publication/"+r.AdoptedFrom).Scan(&raw); err != nil {
+			return nil, err
+		}
+		var funding factory.RetainedCandidateFunding
+		if json.Unmarshal(raw, &funding) != nil || funding.Validate() != nil || funding.Publication != r.AdoptedFrom ||
+			funding.Connection != r.Connection || funding.Candidate != p.InitialCandidate() || funding.Acceptance != p.Acceptance || funding.Base != p.PullTarget().BaseOID {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1`, r.AdoptedFrom).Scan(&raw); err != nil {
+			return nil, err
+		}
+		var parent factory.Publication
+		if json.Unmarshal(raw, &parent) != nil || parent.Validate() != nil || parent.ID != r.AdoptedFrom ||
+			parent.AssignmentID != funding.PreviousRoot || parent.Candidate != funding.Candidate ||
+			parent.Repository != p.Repository || parent.Issue != p.Issue || parent.ProjectID != p.ProjectID || parent.Acceptance != p.Acceptance ||
+			parent.PRNumber != p.PRNumber || parent.PRID != p.PRID || parent.TargetBranch != p.TargetBranch {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		before, after := parent.PullTarget(), p.PullTarget()
+		// Heads and observation revisions change only through the new exact
+		// funding capture; the PR, source repository and reference identity do not.
+		before.HeadOID, after.HeadOID = "", ""
+		if before != after || (parent.External == nil) != (p.External == nil) {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		if p.External != nil && (p.External.Policy != funding.Policy || parent.External.Host != p.External.Host ||
+			parent.External.Profile != p.External.Profile || parent.External.Connection != p.External.Connection || parent.External.ActorID != p.External.ActorID) {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, parent.AssignmentID).Scan(&raw); err != nil {
+			return nil, err
+		}
+		var parentOwner factory.Assignment
+		if json.Unmarshal(raw, &parentOwner) != nil || parentOwner.ActorID != owner.ActorID {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		origin, err := publicationExecutionOwner(ctx, q, p, owner)
+		if err != nil {
+			return nil, err
+		}
+		parentOrigin, err := publicationExecutionOwner(ctx, q, parent, parentOwner)
+		if err != nil {
+			return nil, err
+		}
+		if origin.ID != parentOrigin.ID || origin.Connection != funding.Connection || origin.SourceCommit != parentOrigin.SourceCommit || origin.Preparation != parentOrigin.Preparation {
+			return nil, ErrRetainedPublicationIneligible
+		}
+		// Preserve the authentication source captured by the original run, rather
+		// than accepting whichever source happens to be selected while reading.
+		if funding.Native != nil {
+			if err := q.QueryRowContext(ctx, `SELECT data FROM factory_runs WHERE id=$1`, origin.Run).Scan(&raw); err != nil {
+				return nil, err
+			}
+			var run factory.Run
+			if json.Unmarshal(raw, &run) != nil || run.Validate() != nil || run.Native == nil || run.Admission == nil || run.Admission.Native == nil ||
+				run.Native.Provenance.Profile != funding.Native.Profile || !run.Admission.Native.MatchesAuthentication(funding.Native.Authentication, funding.Native.CredentialSHA256) {
+				return nil, ErrRetainedPublicationIneligible
+			}
+		}
+		p = parent
+	}
+	slices.Reverse(history)
+	return history, nil
 }

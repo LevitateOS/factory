@@ -145,6 +145,10 @@ mod connector {
             "hooks={}",
             "-c",
             "managed_hooks_path=null",
+            // A lost provider reply is not fresh authority to repeat inference.
+            // Keep any new attempt with Factory's explicit admission owner.
+            "-c",
+            "provider_retry.max_retries=0",
         ]
         .into_iter()
         .map(OsString::from)

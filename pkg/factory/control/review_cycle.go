@@ -300,7 +300,7 @@ func checkPriorReviewerEvidence(p factory.Publication, prior factory.ReviewCycle
 
 func (c *Coordinator) checkPriorRunJoins(ctx context.Context, p factory.Publication, reviewer factory.Assignment) error {
 	// Recorded run with canonical owner joins: the claimed run
-	// must exist as a recorded reconciled succeeded run, and the
+	// must exist as a recorded reconciled run with the same outcome, and the
 	// canonical publicationAssignmentsForRun join must resolve that
 	// run to this exact reviewer assignment and its publication
 	// owner (role/project/input bound to the assignment, owner
@@ -310,7 +310,7 @@ func (c *Coordinator) checkPriorRunJoins(ctx context.Context, p factory.Publicat
 	// is injected as proof.
 	recorded, err := c.Store.FactoryRun(ctx, reviewer.Run)
 	if err != nil || recorded.ID != reviewer.Run ||
-		recorded.Outcome != factory.Succeeded || !recorded.Reconciled {
+		(recorded.Outcome != reviewer.Outcome && !(recorded.Outcome == factory.Succeeded && reviewer.Outcome == factory.NeedsHuman && reviewer.Reason == factory.AssignReasonNoReport)) || !recorded.Reconciled {
 		return errors.New("canonical carried history is incomplete: step18")
 	}
 	bound, owner, err := c.publicationAssignmentsForRun(ctx, recorded)
@@ -337,6 +337,19 @@ func (c *Coordinator) checkPriorReviewBindings(ctx context.Context, p factory.Pu
 }
 
 func (c *Coordinator) processPriorReview(ctx context.Context, p factory.Publication, k *carriedCollector, recorded factory.ReviewCycle, reviewer factory.Assignment) error {
+	// A settled failed/cancelled session without a verdict verifies nothing.
+	// Keep its original cycle/run joins, while carrying every prior finding.
+	if reviewer.Stage == factory.AssignmentFinished && (reviewer.Outcome == factory.Failed || reviewer.Outcome == factory.Cancelled || reviewer.Outcome == factory.NeedsHuman) &&
+		reviewer.Result != nil && !reviewer.Result.Reported && reviewer.Result.Review == nil && len(reviewer.Result.Findings) == 0 &&
+		(reviewer.Result.PhaseResult == nil || reviewer.Result.PhaseResult.Output == nil) {
+		if reviewer.Validate() != nil {
+			return errors.New("canonical carried history is incomplete: step05")
+		}
+		if err := checkPriorCycleBindings(p, recorded, reviewer); err != nil {
+			return err
+		}
+		return c.checkPriorRunJoins(ctx, p, reviewer)
+	}
 	if err := c.checkPriorReviewBindings(ctx, p, recorded, reviewer); err != nil {
 		return err
 	}
@@ -428,48 +441,40 @@ func (c *Coordinator) reviewCarriedFindings(ctx context.Context, p factory.Publi
 	// later rediscovery re-adds. There is no shortcut to any journal —
 	// not even the current cycle's: every supplied set still passes the
 	// same conflict and verification pipeline.
-	recorded := map[string]bool{}
-	for _, recordedCycle := range p.ReviewCycles {
-		recorded[recordedCycle.ID] = true
+	history, err := c.Store.PublicationReviewHistory(ctx, p)
+	if err != nil {
+		return nil, err
 	}
-	for _, journal := range p.CorrectionJournals {
-		if !recorded[journal.CycleID] {
-			return nil, errors.New("canonical carried history is incomplete: step16")
+	for _, source := range history {
+		recorded := map[string]bool{}
+		for _, recordedCycle := range source.ReviewCycles {
+			recorded[recordedCycle.ID] = true
 		}
-	}
-	ordered := append([]factory.ReviewCycle(nil), p.ReviewCycles...)
-	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Round < ordered[j].Round })
-	for _, recorded := range ordered {
-		if recorded.ID == cycle.ID {
-			if err := k.addJournal(p.CorrectionJournals, recorded.ID); err != nil {
+		for _, journal := range source.CorrectionJournals {
+			if !recorded[journal.CycleID] {
+				return nil, errors.New("canonical carried history is incomplete: step16")
+			}
+		}
+		ordered := append([]factory.ReviewCycle(nil), source.ReviewCycles...)
+		sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Round < ordered[j].Round })
+		for _, recorded := range ordered {
+			if source.ID == p.ID && recorded.Round > cycle.Round {
+				continue
+			}
+			// The current cycle has no prior verdict. Correction rounds have
+			// a synthetic reviewer marker and contribute only their journal.
+			if recorded.ID != cycle.ID && recorded.CorrectionAssignment == "" {
+				reviewer, err := c.Store.Assignment(ctx, recorded.ReviewerAssignment)
+				if err != nil {
+					return nil, errors.New("canonical carried history is incomplete: step17")
+				}
+				if err := c.processPriorReview(ctx, source, k, recorded, reviewer); err != nil {
+					return nil, err
+				}
+			}
+			if err := k.addJournal(source.CorrectionJournals, recorded.ID); err != nil {
 				return nil, err
 			}
-			continue
-		}
-		// Only earlier same-publication rounds contribute: a future
-		// round can never launder an earlier admission.
-		if recorded.Round > cycle.Round {
-			continue
-		}
-		// Correction rounds carry no reviewer report by construction:
-		// their reviewer assignment is a synthetic distinct-session
-		// marker, never a row. Their journals still merge below, so
-		// dispositions stay answered without a phantom reviewer.
-		if recorded.CorrectionAssignment != "" {
-			if err := k.addJournal(p.CorrectionJournals, recorded.ID); err != nil {
-				return nil, err
-			}
-			continue
-		}
-		reviewer, err := c.Store.Assignment(ctx, recorded.ReviewerAssignment)
-		if err != nil {
-			return nil, errors.New("canonical carried history is incomplete: step17")
-		}
-		if err := c.processPriorReview(ctx, p, k, recorded, reviewer); err != nil {
-			return nil, err
-		}
-		if err := k.addJournal(p.CorrectionJournals, recorded.ID); err != nil {
-			return nil, err
 		}
 	}
 	return k.carried, nil
@@ -577,7 +582,7 @@ func renderTypedReviewBody(head, base string, verdict ResolvedReviewVerdict) str
 // reviewer is wired, submission reports unavailable instead of guessing.
 func (c *Coordinator) replaySubmittedReview(ctx context.Context, p *factory.Publication, run factory.Run) (factory.ReviewOutcome, bool, error) {
 	var empty factory.ReviewOutcome
-	for i := len(p.ReviewOperations)-1; i >= 0; i-- {
+	for i := len(p.ReviewOperations) - 1; i >= 0; i-- {
 		op := p.ReviewOperations[i]
 		if op.RunID != run.ID {
 			continue

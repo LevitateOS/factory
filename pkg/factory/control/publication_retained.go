@@ -19,37 +19,55 @@ func (c *Coordinator) RetryUnsentReview(ctx context.Context, command, principal 
 		return nil, store.ErrRetainedPublicationIneligible
 	}
 	receipt := struct {
-		CommandID string `json:"command_id"`
-		Retry factory.ReviewRetry `json:"review_retry"`
+		CommandID string              `json:"command_id"`
+		Retry     factory.ReviewRetry `json:"review_retry"`
 	}{command, retry}
 	if prior, err := c.Store.FactoryCommand(ctx, command); err == nil {
-		var capture struct { Retry factory.ReviewRetry `json:"retry"` }
+		var capture struct {
+			Retry factory.ReviewRetry `json:"retry"`
+		}
 		if prior.Type != factory.CommandRetryReview || prior.Principal != principal || prior.Target != "publication/"+retry.Publication ||
 			prior.Finished == "" || json.Unmarshal([]byte(prior.Payload), &capture) != nil || capture.Retry != retry {
 			return nil, store.ErrCommandConflict
 		}
 		return receipt, nil
-	} else if !errors.Is(err, store.ErrNotFound) { return nil, err }
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return nil, err
+	}
 	offer, err := c.Store.ReviewRetryOffer(ctx, retry.Publication)
-	if err != nil { return nil, err }
-	if offer != retry { return nil, store.ErrAdmissionChanged }
+	if err != nil {
+		return nil, err
+	}
+	if offer != retry {
+		return nil, store.ErrAdmissionChanged
+	}
 	p, prior, err := c.Store.PublicationReviewOperation(ctx, retry.Operation)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	if p.ID != retry.Publication || prior.RunID != retry.Run || !prior.DefinitiveNoSend() {
 		return nil, store.ErrRetainedPublicationIneligible
 	}
 	// A causal native no-send is required. Missing journal/lookup evidence is
 	// never permission to replace the original command or repeat its model.
 	observed, err := c.Reviews.LookupOp(ctx, prior.Work.OperationID)
-	if err != nil { return nil, err }
-	if !sameOperationOutcome(prior.Outcome, observed) { return nil, store.ErrAdmissionChanged }
+	if err != nil {
+		return nil, err
+	}
+	if !sameOperationOutcome(prior.Outcome, observed) {
+		return nil, store.ErrAdmissionChanged
+	}
 	w := prior.Work
-	w.OperationID = "review-retry-"+command
+	w.OperationID = "review-retry-" + command
 	target, err := c.Reviews.ObserveReview(ctx, w)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	w.NativeRev, w.NotAfter = target.NativeRev, now.Add(5*time.Minute).Unix()
-	if _, err = c.Store.RecordReviewRetry(ctx, command, principal, retry, w, now); err != nil { return nil, err }
+	if _, err = c.Store.RecordReviewRetry(ctx, command, principal, retry, w, now); err != nil {
+		return nil, err
+	}
 	// The ordinary reconciliation owner dispatches this registered operation.
 	// Lost API replies return this same admission; they never extend its clock.
 	return receipt, nil
@@ -84,21 +102,22 @@ func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, princi
 		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
 	}
 	if funding.PreviousRoot != "" {
-		if c.Reviews == nil || p.PRCreate.Work == nil {
+		if c.Reviews == nil || !p.HasPullTarget() {
 			return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
 		}
 		policy, err := c.Store.RepositoryPolicy(ctx, p.Repository)
 		if err != nil {
 			return factory.RetainedCandidateFundingReceipt{}, err
 		}
-		// This is a current authenticated read, not a new provider submission.
-		// Head, base, canonical PR identity and author must still match the
-		// retained complete creation receipt before fresh inference is funded.
-		_, err = c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, ActorID: policy.Review.ActorID,
-			PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID,
-			HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID})
-		if err != nil {
-			return factory.RetainedCandidateFundingReceipt{}, err
+		// The ordinary PR must still match its retained creation receipt.
+		// External PRs receive their fresh authenticated capture after retirement.
+		if p.External == nil {
+			_, err = c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, ActorID: policy.Review.ActorID,
+				PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID,
+				HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID})
+			if err != nil {
+				return factory.RetainedCandidateFundingReceipt{}, err
+			}
 		}
 	}
 	// Retire the original known custody before the new allowance can admit
@@ -115,7 +134,24 @@ func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, princi
 			return factory.RetainedCandidateFundingReceipt{}, err
 		}
 	}
-	return c.Store.FundRetainedCandidate(ctx, command, principal, funding, time.Now())
+	var observed *factory.ExternalPublicationOrigin
+	if funding.PreviousRoot != "" && p.External != nil {
+		policy, err := c.Store.RepositoryPolicy(ctx, p.Repository)
+		if err != nil {
+			return factory.RetainedCandidateFundingReceipt{}, err
+		}
+		target := p.PullTarget()
+		target.HeadOID = p.Candidate
+		request := factory.ExternalPullAdoption{Policy: funding.Policy, Repository: p.Repository, Issue: p.Issue,
+			Acceptance: p.Acceptance, PlanAssignment: origin.ID, PRNumber: p.PRNumber, PRID: p.PRID,
+			Target: target, Connection: funding.Connection, Limits: funding.Limits}
+		capture, err := c.captureExternalOrigin(ctx, command, request, policy)
+		if err != nil {
+			return factory.RetainedCandidateFundingReceipt{}, err
+		}
+		observed = &capture
+	}
+	return c.Store.FundRetainedCandidateObserved(ctx, command, principal, funding, observed, time.Now())
 }
 
 // PublishRetainedCandidate authorizes a new branch and PR, never a second send
