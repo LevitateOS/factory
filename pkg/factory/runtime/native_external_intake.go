@@ -112,7 +112,11 @@ func (p NativeReviews) ReadAutomaticExternalPulls(ctx context.Context, repositor
 		}
 		// Discovery never creates or replaces an acceptance for a PR link.
 		if _, err = p.Store.AcceptanceHead(ctx, repository, item.ClosingIssues[0].Number); err == nil {
-			page.Selections = append(page.Selections, factory.ExternalPullSelection{Number: item.Number, Issue: item.ClosingIssues[0].Number})
+			id, err := strconv.ParseInt(item.ExternalID, 10, 64)
+			if err != nil || id < 1 {
+				return page, errNativeRead
+			}
+			page.Selections = append(page.Selections, control.AutomaticExternalPullSelection{ExternalPullSelection: factory.ExternalPullSelection{Number: item.Number, Issue: item.ClosingIssues[0].Number}, PRID: id, Head: item.Head})
 		}
 	}
 	page.Next, page.Complete = next, complete

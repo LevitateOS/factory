@@ -13993,6 +13993,30 @@ func retainedFundingRecovery(ctx context.Context, dsn, profile, source string, f
 	return file.Sync()
 }
 
+type externalDiscoveryFixture struct {
+	control.HostFactory
+	control.BrokerExecution
+	control.ReviewExecutor
+	selection             control.AutomaticExternalPullSelection
+	polls, offers, checks int
+}
+
+func (f *externalDiscoveryFixture) ReadAutomaticExternalPulls(context.Context, int64, string) (control.AutomaticExternalPullPage, error) {
+	f.polls++
+	return control.AutomaticExternalPullPage{Selections: []control.AutomaticExternalPullSelection{f.selection}, Complete: true}, nil
+}
+func (f *externalDiscoveryFixture) CheckAutomaticExternalPull(context.Context, factory.ExternalPullAdoption) error {
+	f.checks++
+	return errors.New("declared discovery must not authorize a new launch")
+}
+func (f *externalDiscoveryFixture) ReadExternalPullTarget(context.Context, int64, int64) (factory.ReviewObservation, error) {
+	f.offers++
+	return factory.ReviewObservation{}, errors.New("declared unseen head stops at fresh offer")
+}
+func (f *externalDiscoveryFixture) ReadCreations(context.Context, int64, int64, int) (factory.CreationRecoveryBatch, error) {
+	return factory.CreationRecoveryBatch{}, errors.New("declared discovery-only pass")
+}
+
 // Provider, setup and predecessor observations are declared. The existing
 // standalone PostgreSQL owners admit actual grants, preparation and packet;
 // this fixture makes no host call, provider request or inference.
@@ -14122,8 +14146,9 @@ func externalPreparationFixture() error {
 	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: prior.Run, Repository: prior.Repository, Issue: 1, Attempt: prior.ID}); err != nil {
 		return err
 	}
-	command := factory.NewID()
 	request := factory.ExternalPullAdoption{Policy: policy.Revision, Repository: int64(repo.ID), Issue: 1, Acceptance: acceptance.ID, PRNumber: 3, PRID: 13, Connection: string(account.ID), Limits: policy.AttemptLimits, Automatic: true, Target: factory.PublicationPullTarget{AuthorID: int64(actor.ID) + 1, IssueID: 23, HeadRepository: int64(repo.ID), HeadRef: "refs/heads/external", BaseRef: policy.TargetBranch, HeadOID: strings.Repeat("c", 40), BaseOID: base}}
+	commandSum := sha256.Sum256([]byte("automatic-external-pr\x00" + strconv.FormatInt(request.Repository, 10) + "\x00" + strconv.FormatInt(request.PRID, 10) + "\x00" + request.Target.HeadOID))
+	command := hex.EncodeToString(commandSum[:16])
 	revision, err := db.ObserveNativeReview(ctx, int64(repo.ID), request.PRNumber, strings.Repeat("f", 64))
 	if err != nil {
 		return err
@@ -14335,7 +14360,42 @@ func externalPreparationFixture() error {
 	if replay, err := db.RecordExternalPlanningPublication(ctx, stored, promoted, now); err != nil || !reflect.DeepEqual(replay, promoted) {
 		return fmt.Errorf("original promotion receipt did not replay: %v", err)
 	}
+	// Run the ordinary startup discovery owner over this retained command.
+	// Discovery facts are declared; any attempted offer/authority read is counted.
+	lockDir, err := os.MkdirTemp(os.Getenv("TMPDIR"), "external-discovery-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(lockDir)
+	discovery := &externalDiscoveryFixture{selection: control.AutomaticExternalPullSelection{ExternalPullSelection: factory.ExternalPullSelection{Issue: request.Issue, Number: request.PRNumber}, PRID: request.PRID, Head: request.Target.HeadOID}}
+	for pass := 0; pass < 2; pass++ {
+		c := control.NewCoordinator(db, discovery, discovery)
+		c.Reviews, c.Creations = discovery, discovery
+		if err = c.Start(ctx, filepath.Join(lockDir, "coordinator.lock")); err != nil {
+			_ = c.Close()
+			return err
+		}
+		if err = c.Close(); err != nil {
+			return err
+		}
+		if pass == 0 {
+			if discovery.polls != 1 || discovery.offers != 0 || discovery.checks != 0 {
+				return errors.New("consumed external command repeated provider offer or authority reads")
+			}
+			discovery.selection.Head = strings.Repeat("d", 40)
+		}
+	}
+	if discovery.polls != 2 || discovery.offers != 1 || discovery.checks != 0 {
+		return errors.New("new external head bypassed its fresh offer")
+	}
+	if after, err := db.Assignment(ctx, command); err != nil || !reflect.DeepEqual(after, stored) {
+		return errors.New("discovery changed the original external assignment")
+	}
+	if after, err := db.PublicationByID(ctx, command); err != nil || !reflect.DeepEqual(after, promoted) {
+		return errors.New("discovery changed the original external publication receipt")
+	}
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
+	fmt.Println("PASS: ordinary startup discovery skips a retained automatic PR/head command before fresh offer/authority reads, while a changed head reaches a fresh offer; original assignment and publication remain unchanged. Discovery facts declared; no provider, model or native send.")
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"time"
@@ -15,9 +16,18 @@ import (
 // The authenticated connector supplies locators only. Accepted input, current
 // policy and funding are admitted through the existing external command owner.
 type AutomaticExternalPullPage struct {
-	Selections []factory.ExternalPullSelection
+	Selections []AutomaticExternalPullSelection
 	Next       string
 	Complete   bool
+}
+
+// Discovery already observes the exact provider PR and head. These facts allow
+// a consumed command to be skipped before repeating full acceptance reads;
+// they grant no authority to adopt or launch an unseen candidate.
+type AutomaticExternalPullSelection struct {
+	factory.ExternalPullSelection
+	PRID int64
+	Head string
 }
 
 type automaticExternalPullSource interface {
@@ -56,12 +66,29 @@ func (c *Coordinator) recoverExternalPulls(ctx context.Context, repository int64
 		return store.ErrAdmissionChanged
 	}
 	for _, selection := range page.Selections {
-		request, err := c.ExternalPullOffer(ctx, repository, selection)
+		if selection.PRID < 1 || !factory.ValidCommit(selection.Head) {
+			return store.ErrAdmissionChanged
+		}
+		digest := sha256.Sum256([]byte("automatic-external-pr\x00" + strconv.FormatInt(repository, 10) + "\x00" + strconv.FormatInt(selection.PRID, 10) + "\x00" + selection.Head))
+		command := hex.EncodeToString(digest[:16])
+		if prior, err := c.Store.FactoryCommand(ctx, command); err == nil {
+			var captured factory.ExternalPullAdoption
+			if prior.Validate() != nil || prior.Type != factory.CommandAdoptExternalPull || prior.Target != factory.ExternalPullTarget(repository, selection.Number) || prior.Principal != "automatic-external-pr" ||
+				json.Unmarshal([]byte(prior.Payload), &captured) != nil || captured.Validate() != nil || !captured.Automatic || captured.Repository != repository || captured.Issue != selection.Issue || captured.PRNumber != selection.Number || captured.PRID != selection.PRID || captured.Target.HeadOID != selection.Head {
+				return store.ErrCommandConflict
+			}
+			// The original command's assignment/publication recovery owns all
+			// remaining work. Discovery must not renew its source or allowance.
+			continue
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		request, err := c.ExternalPullOffer(ctx, repository, selection.ExternalPullSelection)
 		if err != nil {
 			continue
 		}
 		request.Automatic = true
-		if request.Policy != policy.Revision || request.ForkConsent || request.Validate() != nil {
+		if request.Policy != policy.Revision || request.ForkConsent || request.Validate() != nil || request.PRID != selection.PRID || request.Target.HeadOID != selection.Head {
 			continue
 		}
 		if err = reader.CheckAutomaticExternalPull(ctx, request); err != nil {
@@ -69,13 +96,6 @@ func (c *Coordinator) recoverExternalPulls(ctx context.Context, repository int64
 		}
 		if err = c.Store.ExternalPullOriginAvailable(ctx, request); err != nil {
 			continue
-		}
-		digest := sha256.Sum256([]byte("automatic-external-pr\x00" + strconv.FormatInt(repository, 10) + "\x00" + strconv.FormatInt(request.PRID, 10) + "\x00" + request.Target.HeadOID))
-		command := hex.EncodeToString(digest[:16])
-		if _, err = c.Store.FactoryCommand(ctx, command); err == nil {
-			continue
-		} else if !errors.Is(err, store.ErrNotFound) {
-			return err
 		}
 		// The command admission rechecks policy after all authenticated I/O and
 		// records the exact source and finite allowance in its normal transaction.
