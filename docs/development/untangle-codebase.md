@@ -3,12 +3,67 @@
 ## Retained review recovery fix (2026-11-11)
 
 **Active goal: finish ordinary GitHub/Muse assembly-line qualification.** Fountain
-and user-started Daybreak work are excluded. INCOMPLETE: first finish retained
-PR56 re-inspection/allowed merge, then close paid delivery acceptance/resulting-
+and user-started Daybreak work are excluded. INCOMPLETE: finish retained
+PR56 allowed merge after its successful re-inspection, then close paid delivery acceptance/resulting-
 commit preparation, connected intake/adoption races and required installed
 withdrawal/wake/upgrade cases. Reuse earlier successful scoped evidence.
 
-Current continuation: source fixes `922aa7c` (publication-scoped action) and
+Current continuation (2026-11-11, stage17): genuine re-inspection of the retained
+Fixer candidate passed. Normal UI funding `27973bb763c642c9abf39330f86829b6`
+produced Inspector assignment `e8520c2249c0f0de953eab2bec541dcb`, sealed/retired
+run `416cb8dab81879897a2fc09f64634b9c`, including an explicit verified assessment
+of carried finding `ad34025fdf74289c3d5ffc5cd863e5f8`. Causal native operation
+`review-416cb8dab81879897a2fc09f64634b9c` committed GitHub COMMENT review
+`5860209619` at14:21:48Z with typed APPROVED verdict; it supplies no required
+human approval. Clean-review acceptance `01162c4912ad85f2199b980fdce58e45`
+binds corrected head `e91506e903852da8166a541fbcdc4f3bc6a05ab9` and base
+`0954a2d9ef2f6a9343b20e178c3c224d49b5f28d`. No Architect/Builder/Fixer replay.
+Original b191/94 rows and completed/failed runs retain their captured hashes.
+GitHub source usage181/200;32 settled runs, zero active/unsettled.
+
+Merge `83b26efa0644c2d45878a3691275177a` remains open with attempts0, no work,
+no allocated operation and its original generation1 deadline14:26:52Z unchanged.
+Native merge-policy observation returned401 while other authenticated reads and
+review publication worked. A direct read-only merge-preparation observation
+passed in3.12s; subsequent native projections reported `github_rate_limited`,
+reset1794409447 (15:04:07Z), now passed. The expired generation kept
+performing expensive provider reads; correction `859cb29` now
+holds before that I/O while retaining recorded-effect recovery. Diagnostic
+commits `85723f6`, `0f3e4aa`, `a08d0c1` distinguish bounded stage/class/code;
+they do not infer that401 means a revoked token. Installed stage18 is Ready;
+its original merge row is byte-for-byte unchanged and all32 runs remain settled
+at181minutes. Gate ordering was source-qualified; no new coordinator fixture
+was added. Normal UI command `b245caf5cfeb418bbcfda6e1cfc97067` then archived
+generation1 unchanged and established generation2, deadline1794409982
+(15:13:02Z). It still has attempts0/no work/no effect. New diagnostics prove
+`native_operation_retired`: authenticated `pull_required_checks` takes8.001460s
+and hits its unchanged8s native deadline. Automation checks pass7.378643s,
+capabilities2.150173s, delivery opinions4.469675s. GitHub sign-in is valid.
+Native read concurrency correction is owned by merge_read_latency. Original
+`goal19-preupdate-quit-1` was sent once to stop failed polling during that fix;
+inspect process/endpoint retirement before installing, never repeat Quit.
+Next: finish the smallest affected native check, commit/package/install its
+matching app, then use a fresh explicit no-send merge preparation after expiry.
+Never extend either original deadline or rerun models.
+
+Current installed inventory `96d7d0e924e9efbdd41cf43b7f99583940ffb6064d34f3ac8fa691aa81f77af6`:
+native/UI3d663cf, Go859cb29, matching broker ce168868… . Instance
+`205036f25cc9bf38368ad9ac5f3717eb` (generation2), developer session
+`764bfbb6b5a51ab2e3b0de068e9a8733`, private guest child16.sh. Ready, no execution
+error. Stage16 startup proved6422971 retirement of the exact unsent incomplete
+clear94, and1ed786d retained its findings unverified for the fresh command.
+Stage18 exact-prior upgrade/reopen is retained in goal18-expired-merge.json.
+Source changes through859cb29 are pushed on main; no worker/model check runs.
+Installed physical-unavailability/Retry passes: stopping only the idle guest's
+broker socket produced Ready-for-browsing with execution unavailable and an
+enabled Retry execution control. The socket is restored/active. Original action
+`goal18-native-retry-1` lost its reply during restart; generation2/new-instance
+Ready with no execution error and removal of Retry proves recovery without a
+second click. Original merge row remains exact;32 settled runs/181minutes, zero
+active/unsettled. Evidence: goal18-physical-retry.json. No new inference/write.
+Evidence remains private under `/home/vince/Projects/factory-real-cycle-20261110`.
+
+Historical stage15 continuation: source fixes `922aa7c` (publication-scoped action) and
 `211393f` (explicit fork consent/source/correction) are committed/pushed on main.
 Stage15 now runs matching app/backend/UI/broker from211393f. Inventory
 `4c80af2c2d93cd7400dbd1c6b16a578429655d4307ab403f5524a8555bf7d40b`;

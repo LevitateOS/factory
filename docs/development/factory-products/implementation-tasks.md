@@ -9,10 +9,11 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-10): INCOMPLETE, GitHub verification active.** The
+**Current snapshot (2026-11-11): INCOMPLETE, GitHub verification active.** The
 owner has authorized full GitHub verification; Fountain remains outside this
-pass. Current checks, installed state and the original external-fixture receipts
-are retained in Q17's active verification record below. No whole product or
+pass. The [active recovery ledger](../untangle-codebase.md#retained-review-recovery-fix-2026-11-11)
+records current checks, installed state and original external-fixture receipts;
+Q17 below retains earlier scoped evidence. No whole product or
 security gate is closed by source checks.
 
 **Earlier implementation-only snapshot (2026-11-10).** Q15–Q17,
@@ -61,7 +62,7 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-Current continuation is the source-only Q30 ledger below. The following retained
+Current continuation is the active recovery ledger linked above. The following retained
 Q16/Q26 checkpoint predates the later successful delivery and source-only edits;
 it is preserved as history, not the latest installed state.
 
@@ -816,6 +817,14 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q15"></a>
 
 ### Q15 — Complete connected GitHub delivery and correction
+
+**Current GitHub verification (2026-11-11): INCOMPLETE.** The retained PR56
+candidate now has a genuine completed Inspector → Fixer → re-inspection cycle
+and causal APPROVED COMMENT receipt. Its first merge generation expired without
+allocating a send; current provider backoff and the exact fresh-preparation next
+action are recorded once in the active recovery ledger. Paid delivery-material
+acceptance, resulting-commit preparation and remaining installed/race gates are
+still required. The source-only override below is historical.
 
 **Implementation-only owner override (2026-11-10), UNVERIFIED.** The owner now
 requests source reading/editing only, starting at Q15, with all execution and
@@ -3893,7 +3902,8 @@ Final reply: requested Q29, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q30 — Full finalization of non-Daybreak Factory work
 
-Current GitHub-only verification and recovery are in Q17 above. The following
+Current GitHub-only verification and recovery are in the active recovery ledger
+linked at the top. The following
 source-only ledger is historical; the newer owner request permits GitHub
 execution without reopening Fountain qualification or weakening final gates.
 
