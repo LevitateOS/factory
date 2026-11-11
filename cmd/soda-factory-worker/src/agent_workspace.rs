@@ -99,6 +99,18 @@ fn oid(bytes: Vec<u8>) -> io::Result<String> {
     }
     Ok(text.into())
 }
+/// The single task slot: which task is held and how far it has progressed.
+enum Slot {
+    Idle,
+    Active(usize),
+    Frozen {
+        task: usize,
+        tree: String,
+        output: String,
+    },
+    /// A checkpoint check failed; only `Read` and `Close` remain allowed.
+    Failed(usize),
+}
 struct Workspace<'a> {
     plan: Plan,
     phase: String,
@@ -106,10 +118,8 @@ struct Workspace<'a> {
     invocation: String,
     deadline: Instant,
     head: String,
-    active: Option<usize>,
-    frozen: Option<(String, String)>,
+    task: Slot,
     completed: BTreeSet<String>,
-    failed: bool,
     events: Vec<Event>,
     identity: &'a RepositoryIdentity,
     processes: &'a mut Processes,
@@ -220,10 +230,8 @@ impl<'a> Workspace<'a> {
             invocation: String::new(),
             deadline: Instant::now() + Duration::from_millis(until.whole_milliseconds() as u64),
             head: candidate.into(),
-            active: None,
-            frozen: None,
+            task: Slot::Idle,
             completed: BTreeSet::new(),
-            failed: false,
             events: Vec::new(),
             identity,
             processes,
@@ -308,8 +316,20 @@ impl<'a> Workspace<'a> {
         }
         Ok(path)
     }
+    fn current(&self) -> Option<usize> {
+        match self.task {
+            Slot::Active(i) | Slot::Frozen { task: i, .. } | Slot::Failed(i) => Some(i),
+            Slot::Idle => None,
+        }
+    }
+    fn active_task(&self, id: &str) -> Option<usize> {
+        self.current().filter(|&i| self.plan.tasks[i].id == id)
+    }
+    fn mutable_task(&self, id: &str) -> bool {
+        matches!(self.task, Slot::Active(_)) && self.active_task(id).is_some()
+    }
     fn owns(&self, path: &str) -> bool {
-        self.active.is_some_and(|i| {
+        self.current().is_some_and(|i| {
             self.plan.tasks[i]
                 .owned_paths
                 .iter()
@@ -319,7 +339,7 @@ impl<'a> Workspace<'a> {
     fn owns_directory(&self, path: &str) -> bool {
         let prefix = format!("{path}/");
         self.owns(&prefix)
-            || self.active.is_some_and(|i| {
+            || self.current().is_some_and(|i| {
                 self.plan.tasks[i]
                     .owned_paths
                     .iter()
@@ -436,7 +456,9 @@ impl<'a> Workspace<'a> {
         if Instant::now() >= self.deadline {
             return Err(refused("workspace deadline expired"));
         }
-        if self.failed && !matches!(&command, Command::Read { .. } | Command::Close) {
+        if matches!(self.task, Slot::Failed(_))
+            && !matches!(&command, Command::Read { .. } | Command::Close)
+        {
             return Err(refused("workspace task check failed"));
         }
         let mut reply = Reply {
@@ -456,7 +478,7 @@ impl<'a> Workspace<'a> {
             if self.phase == "correct" {
                 let task = self.plan.tasks[0].id.clone();
                 self.event("parent_task_started", &task, String::new())?;
-                self.active = Some(0);
+                self.task = Slot::Active(0);
                 reply.events = self.events.clone();
             }
             reply.status = Status::Bound;
@@ -476,11 +498,11 @@ impl<'a> Workspace<'a> {
             Command::BindParent { .. } => unreachable!(),
             Command::Observe => { reply.events = self.events.clone(); }
             Command::Start { task } | Command::StartAfter { task, .. } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) == Some(task.as_str()) {
+                if self.active_task(&task).is_some() {
                     reply.events = self.events.clone();
                     return Ok(reply);
                 }
-                if self.active.is_some() || self.completed.contains(&task) {
+                if !matches!(self.task, Slot::Idle) || self.completed.contains(&task) {
                     if guarded_start {
                         reply.status = if self.completed.contains(&task) { Status::TaskCompleted } else { Status::TaskBusy };
                         return Ok(reply);
@@ -502,7 +524,7 @@ impl<'a> Workspace<'a> {
                     return Err(refused("workspace dependency incomplete"));
                 }
                 self.event("parent_task_started", &task, String::new())?;
-                self.active = Some(i);
+                self.task = Slot::Active(i);
             }
             Command::Read {
                 task,
@@ -510,7 +532,7 @@ impl<'a> Workspace<'a> {
                 offset,
                 limit,
             } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str()) {
+                if self.active_task(&task).is_none() {
                     return Err(refused("workspace task not active"));
                 }
                 if !(1..=MAX_TEXT).contains(&limit) {
@@ -574,8 +596,7 @@ impl<'a> Workspace<'a> {
                 expected,
                 replacement,
             } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
-                    || self.frozen.is_some()
+                if !self.mutable_task(&task)
                     || !self.owns(&path)
                     || expected.len() > MAX_TEXT
                     || replacement.len() > MAX_TEXT
@@ -632,8 +653,7 @@ impl<'a> Workspace<'a> {
                 file.sync_all()?;
             }
             Command::SetExecutable { operation_id: _, task, path, expected_digest, executable } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
-                    || self.frozen.is_some() || !self.owns(&path) {
+                if !self.mutable_task(&task) || !self.owns(&path) {
                     return Err(refused("workspace executable outside task ownership"));
                 }
                 let path=self.path(&path)?;
@@ -661,8 +681,7 @@ impl<'a> Workspace<'a> {
                 task,
                 path,
             } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
-                    || self.frozen.is_some()
+                if !self.mutable_task(&task)
                     || !self.owns_directory(&path)
                 {
                     return Err(refused("workspace directory outside task ownership"));
@@ -687,8 +706,7 @@ impl<'a> Workspace<'a> {
                 path,
                 expected_digest,
             } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
-                    || self.frozen.is_some()
+                if !self.mutable_task(&task)
                     || !self.owns(&path)
                 {
                     return Err(refused("workspace removal outside task ownership"));
@@ -715,10 +733,10 @@ impl<'a> Workspace<'a> {
                 .sync_all()?;
             }
             Command::Release { task } => {
-                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(&task) {
+                let Some(i) = self.active_task(&task) else {
                     return Err(refused("workspace task not active"));
-                }
-                if let Some((tree, output)) = &self.frozen {
+                };
+                if let Slot::Frozen { tree, output, .. } = &self.task {
                     reply.tree = tree.clone();
                     reply.output_digest = output.clone();
                 } else {
@@ -731,7 +749,11 @@ impl<'a> Workspace<'a> {
                         .as_bytes(),
                     );
                     self.event("parent_output_observed", &task, output.clone())?;
-                    self.frozen = Some((tree.clone(), output.clone()));
+                    self.task = Slot::Frozen {
+                        task: i,
+                        tree: tree.clone(),
+                        output: output.clone(),
+                    };
                     reply.tree = tree;
                     reply.output_digest = output;
                 }
@@ -741,24 +763,27 @@ impl<'a> Workspace<'a> {
                 output_digest,
                 expected_head,
             } => {
-                if expected_head != self.head
-                    || self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(&task)
-                    || !self
-                        .frozen
-                        .as_ref()
-                        .is_some_and(|(_, output)| *output == output_digest)
-                {
-                    return Err(refused("workspace checkpoint binding differs"));
-                }
-                let frozen = self.frozen.as_ref().unwrap().0.clone();
-                let ids = self.plan.tasks[self.active.unwrap()].check_ids.clone();
+                let (i, frozen) = match &self.task {
+                    Slot::Frozen {
+                        task: i,
+                        tree,
+                        output,
+                    } if expected_head == self.head
+                        && self.plan.tasks[*i].id == task
+                        && *output == output_digest =>
+                    {
+                        (*i, tree.clone())
+                    }
+                    _ => return Err(refused("workspace checkpoint binding differs")),
+                };
+                let ids = self.plan.tasks[i].check_ids.clone();
                 reply.checks = self.checks(&ids)?;
                 if self.tree()? != frozen {
                     return Err(refused("workspace check changed frozen output"));
                 }
                 if reply.checks.iter().any(|c| !c.passed) {
                     self.event("task_failed", &task, "check_failed".into())?;
-                    self.failed = true;
+                    self.task = Slot::Failed(i);
                     reply.status = Status::Failed;
                     reply.events = self.events.clone();
                     return Ok(reply);
@@ -787,15 +812,14 @@ impl<'a> Workspace<'a> {
                 )?;
                 self.head = commit.clone();
                 self.completed.insert(task);
-                self.active = None;
-                self.frozen = None;
+                self.task = Slot::Idle;
                 reply.status = Status::Committed;
                 reply.head = commit;
                 reply.tree = frozen;
             }
             Command::Final { expected_head } => {
                 if expected_head != self.head
-                    || self.active.is_some()
+                    || !matches!(self.task, Slot::Idle)
                     || self.completed.len() != self.plan.tasks.len()
                 {
                     return Err(refused("workspace final tasks incomplete"));
