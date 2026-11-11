@@ -228,33 +228,49 @@ pub enum ExecutionOutcome {
 
 struct Entry {
     ticket: ExecutionTicket,
-    preparation: Option<JoinHandle<io::Result<OwnedAttempt>>>,
     cancellation: AgentCancellation,
-    execution: Option<OwnedAttempt>,
-    outcome: ExecutionOutcome,
+    stage: Stage,
+}
+
+/// `Done` never holds `Pending`; unfinished stages report it instead.
+enum Stage {
+    Preparing(JoinHandle<io::Result<OwnedAttempt>>),
+    Running(Box<OwnedAttempt>),
+    Done(ExecutionOutcome),
 }
 
 impl Entry {
     fn reap(&mut self, join: bool) {
-        if self
-            .preparation
-            .as_ref()
-            .is_some_and(|preparation| join || preparation.is_finished())
-        {
-            match self.preparation.take().unwrap().join() {
-                Ok(Ok(execution)) => self.execution = Some(execution),
-                _ => {
-                    self.ticket.uncertain();
-                    self.outcome = ExecutionOutcome::Uncertain;
+        self.stage = match self.take_stage() {
+            Stage::Preparing(preparation) if join || preparation.is_finished() => {
+                match preparation.join() {
+                    Ok(Ok(execution)) => Stage::Running(Box::new(execution)),
+                    _ => {
+                        self.ticket.uncertain();
+                        Stage::Done(ExecutionOutcome::Uncertain)
+                    }
                 }
             }
-        }
+            stage => stage,
+        };
         let terminal = matches!(
             self.ticket.observe().phase,
             AttemptPhase::Retired | AttemptPhase::Uncertain
         );
-        if (join || terminal) && self.execution.is_some() {
-            self.outcome = self.execution.take().unwrap().finish();
+        self.stage = match self.take_stage() {
+            Stage::Running(execution) if join || terminal => Stage::Done(execution.finish()),
+            stage => stage,
+        };
+    }
+
+    fn take_stage(&mut self) -> Stage {
+        std::mem::replace(&mut self.stage, Stage::Done(ExecutionOutcome::Uncertain))
+    }
+
+    fn outcome(&self) -> ExecutionOutcome {
+        match &self.stage {
+            Stage::Done(outcome) => outcome.clone(),
+            Stage::Preparing(_) | Stage::Running(_) => ExecutionOutcome::Pending,
         }
     }
 }
@@ -407,21 +423,19 @@ impl Executions {
                 }
                 result
             });
-        let (preparation, outcome, failure) = match preparation {
-            Ok(preparation) => (Some(preparation), ExecutionOutcome::Pending, None),
+        let (stage, failure) = match preparation {
+            Ok(preparation) => (Stage::Preparing(preparation), None),
             Err(error) => {
                 ticket.uncertain();
-                (None, ExecutionOutcome::Uncertain, Some(error))
+                (Stage::Done(ExecutionOutcome::Uncertain), Some(error))
             }
         };
         self.entries.insert(
             binding.run,
             Entry {
                 ticket: ticket.clone(),
-                preparation,
                 cancellation,
-                execution: None,
-                outcome,
+                stage,
             },
         );
         if let Some(error) = failure {
@@ -439,17 +453,19 @@ impl Executions {
     pub fn outcome(&mut self, binding: &ExecutionBinding) -> io::Result<ExecutionOutcome> {
         let entry = self.entry(binding)?;
         entry.reap(false);
-        Ok(entry.outcome.clone())
+        Ok(entry.outcome())
     }
 
     pub fn cancel(&mut self, binding: &ExecutionBinding) -> io::Result<()> {
         let entry = self.entry(binding)?;
-        if entry.preparation.is_some() || entry.execution.is_some() {
-            entry.cancellation.cancel();
-        } else if matches!(entry.outcome, ExecutionOutcome::Uncertain) {
-            return Err(refused(
-                "native execution cancellation requires reconciliation",
-            ));
+        match entry.stage {
+            Stage::Preparing(_) | Stage::Running(_) => entry.cancellation.cancel(),
+            Stage::Done(ExecutionOutcome::Uncertain) => {
+                return Err(refused(
+                    "native execution cancellation requires reconciliation",
+                ))
+            }
+            Stage::Done(_) => (),
         }
         Ok(())
     }
@@ -468,11 +484,11 @@ impl Executions {
     }
 
     fn completed_reference(entry: &Entry) -> Option<String> {
-        match &entry.outcome {
-            ExecutionOutcome::Complete(_, settled) => {
+        match &entry.stage {
+            Stage::Done(ExecutionOutcome::Complete(_, settled)) => {
                 Some(settled.custody().acquisition_id.clone())
             }
-            ExecutionOutcome::MuseComplete(result) if result.root_retired => {
+            Stage::Done(ExecutionOutcome::MuseComplete(result)) if result.root_retired => {
                 Some(result.process.service.clone())
             }
             _ => None,
@@ -507,7 +523,7 @@ impl Executions {
                     binding: entry.ticket.binding.clone(),
                     attempt: entry.ticket.observe(),
                     custody: entry.ticket.custody(),
-                    outcome: entry.outcome.clone(),
+                    outcome: entry.outcome(),
                 }
             })
             .collect()
