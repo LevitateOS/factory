@@ -57,6 +57,7 @@ export class SodaFactoryDiff extends LitElement {
     layout: {state: true},
     selection: {state: true},
     message: {state: true},
+    patchView: {state: true},
   };
   declare file: ChangedFile | null;
   declare threads: readonly DiffThread[];
@@ -68,6 +69,7 @@ export class SodaFactoryDiff extends LitElement {
   declare private layout: 'split' | 'unified';
   declare private selection: ReviewAnchor | null;
   declare private message: string;
+  declare private patchView: 'rendered' | 'empty' | 'failed';
   private renderer: VirtualizedFileDiff<DiffThread> | undefined;
   private virtualizer: Virtualizer | undefined;
   private metadata: FileDiffMetadata | undefined;
@@ -85,6 +87,7 @@ export class SodaFactoryDiff extends LitElement {
     this.layout = 'split';
     this.selection = null;
     this.message = '';
+    this.patchView = 'rendered';
     this.addEventListener('click', (event) => void this.openMarkdown(event));
     this.addEventListener('auxclick', (event) => void this.openMarkdown(event));
   }
@@ -231,6 +234,7 @@ export class SodaFactoryDiff extends LitElement {
     try {
       const file = parseChangedFile(this.file);
       if (file.patch === null || file.patch === '') {
+        this.patchView = 'empty';
         this.message = 'This patch has no displayable lines. Line comments are unavailable.';
         return;
       }
@@ -326,10 +330,12 @@ export class SodaFactoryDiff extends LitElement {
           },
           {notify: false}
         );
+      this.patchView = 'rendered';
       this.message = '';
     } catch {
       this.dispose();
       content.replaceChildren();
+      this.patchView = 'failed';
       this.message = 'This patch could not be rendered safely. Line comments are unavailable.';
     }
   }
@@ -484,7 +490,7 @@ export class SodaFactoryDiff extends LitElement {
           : ''
       }
       ${this.threads
-        .filter((t) => !sameFile(t.anchor, file) || t.anchor?.scope === 'file' || !complete || this.message.includes('Line comments are unavailable.'))
+        .filter((t) => !sameFile(t.anchor, file) || t.anchor?.scope === 'file' || !complete || this.patchView !== 'rendered')
         .map(
           (t) =>
             html`<details class="thread">
