@@ -381,15 +381,103 @@ are unchanged;37 settled runs/zero active or unsettled,211 source minutes, and
 original PR61 command still unadmitted at the retained capture. No new model
 command was issued for this investigation.
 
-Normal Quit retired39's app/backend and endpoint; no check or inference is
-running. Current GitHub goal remains INCOMPLETE. Next executable product action:
-implement original PR61's external-command-owned preparation for merged source
-609f18f, retaining command2e03e7af3f5cb85fa8c62350d268d460 and its exact source,
-origin and finite authority; recover its journal before any setup/launch. Do not
-replay initial roles or uncertain publications. Residual traffic remains an open
-efficiency finding; do not claim it fixed by the scoped50% reduction. Root owns
-the two task/decision records and developer README; source slices are committed
-on main. No permission question is pending for authorized implementation.
+39 was normally Quit before the verified exact-prior upgrade to40. Source
+fa348d3471b762c13fca83d93986725def5c3f68 now journals external planning's source
+setup under its original command. It shares current external scope/quiescence
+checks before setup and requires a fresh same-target observation for the final
+Architect packet, without replacing the first origin, native address or deadline.
+external-preparation-pg-4.log passes the existing realPG admission/replay/expiry/
+withdrawal checks with declared native facts; the final backend build passes.
+Package40 inventory f4b11831d2a8180744c4167e29e255804e9c47adf4f22d75a9fead63358aadd8
+retains exact native7c/UI6b/CLI/assets; archive4ddff19a099037e0987ced081157cc7ad3d75955db92517c333cfa8933bd343a
+and installed backend1091a629dc63f1c0858897da9b37a905b49b5ef92009422f64de08564f9dce57
+are verified. No schema change or new native/provider build was needed.
+
+**Retained40 recovery:** original automatic
+command2e03e7af3f5cb85fa8c62350d268d460 owns actual ready preparation
+f4966a1578c765f513648024d at609f18f and Architect720cfefabd648b2b94c9f81624b3f3e2,
+launched22:27:40Z with its original deadline22:42:22Z. It succeeded22:29:15Z,
+sealed/retired/reconciled, with actual plan a1b2c3d4e5f60718293a4b5c6d7e8f90
+and paid completeness opinion8a15a5c8802e0a089cf3a011a7ef46fb772f815e168861f63ed8c1a7fd45b7fa.
+No initial Builder was launched. First setup origin
+1794435952 and setup NotAfter1794436555 remain unchanged; fresh checked time
+1794436053 follows actual asynchronous setup. The prior root/closed allowance
+remain intact. The first active capture has213 repository734 source minutes;
+the unfiltered219 also includes eight old minutes in repository20856, not a
+replayed charge. The completed planning capture is216 repository734 minutes.
+goal40-original-external-handoff.json and goal40-completed-external-plan.json
+retain exact captures. Promotion reached a concrete ordering deadlock: it
+requires this ready source preparation, then generic root settlement requires
+that same preparation retired. No publication or new child exists. The repair
+may retain only the exact historical source/bundle/owner after all runs settle;
+all other preparations and custody fences remain enforced. It must support
+retained recovery without renewing setup authority or rerunning the Architect.
+
+40 was normally Quit to conserve quota; its original unknown Quit reply is
+resolved by backend1146354 and developer-socket retirement. No model/check is
+running. Last native counter snapshot has2402 wire attempts since this owner
+started, including repeated pending-promotion reads; it is not an idle-rate
+comparison. Source fa348d3 is committed/pushed on main.
+
+**Current recovery — INCOMPLETE:**9c1fa7395b2f0535c4af4551ee3cdee3c35fe21b
+repairs promotion's contradictory preparation gate. It retains only the exact
+completed Architect source/bundle/owner after every run settles; another
+unsettled same-root preparation still refuses. Confirmed retirement/setup expiry
+does not erase historical source evidence or grant a new send. The existing
+finite realPG external-promotion-pg.log and final backend build pass.
+Exact-prior installed41 inventory
+b3fdc8e427bf1b2da1e38cbc4b9428d64256c3a3683a9c372c329525c47e33c3,
+backend11770c7f754c5465897a35faa97cc8769696d95e0b475166c3085b2ece432fdf,
+native7c/UI6b adopts original command2e03's completed plan without replay.
+No branch or PR create is sent. The actual independent Inspector run
+7ba2db944625520345fb8e145dc0cbf1 succeeds22:48:32Z, sealed/retired/reconciled,
+and original review operation posts causal COMMENT5866320688 at6165f7c/base609f18f.
+CI43090799720/app15368 passes; clean acceptance65fa8f5ddcd1c47972ab5a1c0a08b553
+is retained. Original merge4e13a0c18374a6deed0198b7ecd091f8 has0 attempts/no work
+or native revision; its generation expires22:53:55Z and remains fenced. Actual
+saved merge/publication/authorization/union/derived-target validation passes;
+the four-row open-merge page is not starved. The local hold before native
+observation is unresolved. Do not renew that generation or replay roles.
+
+Further request measurement on41 with selected Work shows50 wire attempts in
+31.613s:17 repository/10 identity/9 GraphQL/4 branch/4 pull/2 issue/2 issues/
+2 permission. There are zero active/unsettled runs and219 repository734 charged
+minutes; this is a short selected-UI interval, not the unselected39 idle baseline.
+traffic41-selected-work-measurement.json retains both local counter snapshots;
+reading counters makes no provider calls. The app was normally Quit to stop
+unproductive traffic; its original unknown reply is resolved by all factory
+processes and the developer socket being absent. No check/model is running.
+96c624460e5cb73680241ea5de5b0c1543c76486 removes a second concrete cause:
+automatic discovery discarded its already-observed PR/head, then read the full
+offer and current authority before checking the retained deterministic command.
+Discovery now checks the original automatic command's validated identity/payload
+first. New heads still need a fresh matching offer and current launch authority;
+original command/publication recovery remains responsible for pending effects.
+The existing finite realPG request-dedupe-pg-2.log proves consumed-command zero
+offer/authority calls, changed-head fresh offer and unchanged original receipts,
+along with the prior preparation/promotion guards. One production backend build
+passes (request-dedupe-server, SHA5dd36187b8b3043c6cf547414f9b61f20d10d7b65b564b0efd880f6cbdb0c0aa).
+Exact-prior installed42 inventory
+fcda8ea28376c04e69cc9aa5641266ae7db20c9b8d5bac1b821226bd3c259e02 retains the
+same native7c/UI6b/CLI/provider/PG assets and uses that backend. Its same selected
+account/repository Work view records **54 wire attempts in101.8885s (31.8/min)**:
+20 repository/11 identity/6 GraphQL/8 contents/2 git-object/2 git-ref/2 issues/
+2 pull/1 permission. Two full input reads and one external discovery occur;
+no repeated automation-review read occurs. This interval includes one source
+setup/target-tip observation, so it is not a pure steady idle baseline or an
+exactly equal-duration comparison with41. Zero active/unsettled runs,219 charged
+minutes and the original expired merge's0 attempts remain unchanged. Retained
+traffic42-selected-work-measurement.json contains both native snapshots and local
+state checks. Integrity/install/retention pass in package42-{inputs,integrity,
+install}.log and package42-retention.json. No native/UI rebuild, model call or
+repository write was needed for this comparison. The sole normal Quit's unknown
+reply is resolved by process/socket retirement. The app is stopped; no check,
+model or package process remains. Request traffic is substantially reduced but
+still frequent; positive authority caching across sends is not introduced.
+Next: resolve the retained original PR61 local merge hold before any fresh finite
+merge preparation; never renew its expired generation or replay completed models. The original
+PR61 unsent merge hold, paid premerge/fork/withdrawal journeys remain outstanding.
+No external journey or request-efficiency closure is claimed.
 All original installed payloads/profiles/captures remain; only byte-verified
 duplicate public transfer copies/archives were reclaimed, with host archives kept.
 
