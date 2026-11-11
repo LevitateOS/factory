@@ -352,7 +352,7 @@ func mergeUpdateAllowed(old, next factory.Merge) error {
 			return ErrMergeConflict
 		}
 	}
-	if old.Stage != factory.MergeOpen && old.Stage != factory.MergeFenced {
+	if !factory.MergeTransitionAllowed(old.Stage, next.Stage) {
 		return ErrMergeConflict
 	}
 	if !mergeOperationUpdateAllowed(old.Operation, next.Operation) {
@@ -733,11 +733,16 @@ func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal strin
 	if err = tx.QueryRowContext(ctx, `SELECT data::text FROM factory_merges WHERE publication=$1`, r.Publication).Scan(&prior); err != nil {
 		return empty, err
 	}
+	// Replacing the row is a new generation, not an in-place update: a
+	// failed or withdrawn predecessor reopens only through this transition.
+	if !factory.MergeTransitionAllowed(m.Stage, factory.MergeOpen) && !factory.MergeNewGenerationAllowed(m.Stage) {
+		return empty, ErrMergeConflict
+	}
 	if r.RetryNoSend {
 		if m.Operation.Work != nil {
 			m.History = append(m.History, factory.SnapshotMergeGeneration(m.Authorization, m.Operation, m.Stage, m.Outcome, m.Reason, m.FinishedUnix))
 		} else if expiredUnallocatedMerge(m) {
-			m.History = append(m.History, factory.SnapshotMergeGeneration(m.Authorization, m.Operation, factory.MergeWithdrawn, factory.Cancelled, factory.MergeReasonWithdrawn, now.Unix()))
+			m.History = append(m.History, factory.SnapshotMergeGeneration(m.Authorization, m.Operation, factory.MergeWithdrawn, factory.MergeStageOutcome(factory.MergeWithdrawn), factory.MergeReasonWithdrawn, now.Unix()))
 		}
 		m.Authorization, m.Operation = factory.MergeAuthorization{}, factory.MergeOperation{Kind: factory.OpMerge}
 		m.NativeRev, m.ObservedUnix = 0, 0

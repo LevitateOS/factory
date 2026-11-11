@@ -32,6 +32,20 @@ const (
 	PublicationFenced    = "fenced"
 )
 
+// PublicationTransitionAllowed is the stored publication stage table. Open
+// and fenced work may move to any stage (a fenced effect may resolve
+// either way, or reopen); published work may stay, fence, or withdraw
+// only when it is an external publication; failed and withdrawn are final.
+func PublicationTransitionAllowed(from, to string, external bool) bool {
+	switch from {
+	case PublicationOpen, PublicationFenced:
+		return true
+	case PublicationPublished:
+		return to == PublicationPublished || to == PublicationFenced || external && to == PublicationWithdrawn
+	}
+	return false
+}
+
 // PublicationStageOutcome is the single stage → outcome mapping for
 // publications. Open work, and an unknown stage, carry no outcome; stage
 // validity is checked separately.

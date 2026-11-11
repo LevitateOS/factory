@@ -535,18 +535,6 @@ func publicationAcceptancesStable(old, next factory.Publication) bool {
 	return true
 }
 
-func publicationStageAllowed(old, next factory.Publication) bool {
-	switch {
-	case old.Stage == factory.PublicationOpen || old.Stage == factory.PublicationFenced:
-		return true
-	case old.Stage == factory.PublicationPublished &&
-		(next.Stage == factory.PublicationPublished || next.Stage == factory.PublicationFenced || old.External != nil && next.Stage == factory.PublicationWithdrawn):
-		return true
-	default:
-		return false
-	}
-}
-
 func publicationUpdateAllowed(old, next factory.Publication) error {
 	if !reflect.DeepEqual(old.External, next.External) {
 		return ErrPublicationConflict
@@ -559,7 +547,7 @@ func publicationUpdateAllowed(old, next factory.Publication) error {
 	}
 	if !publicationCorrectionsStable(old, next) || !publicationReviewsStable(old, next) ||
 		!publicationJournalsStable(old, next) || !publicationAcceptancesStable(old, next) ||
-		!publicationStageAllowed(old, next) {
+		!factory.PublicationTransitionAllowed(old.Stage, next.Stage, old.External != nil) {
 		return ErrPublicationConflict
 	}
 	if !publicationOperationUpdateAllowed(old.Publish, next.Publish) || !publicationOperationUpdateAllowed(old.PRCreate, next.PRCreate) {

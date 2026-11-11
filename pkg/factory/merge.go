@@ -29,6 +29,26 @@ const (
 	MergeFenced    = "fenced"
 )
 
+// MergeTransitionAllowed is the stored merge stage table for row updates.
+// Only open and fenced rows change, and they may move to any stage; merged,
+// failed and withdrawn rows never change in place.
+func MergeTransitionAllowed(from, to string) bool {
+	switch from {
+	case MergeOpen, MergeFenced:
+		return true
+	}
+	return false
+}
+
+// MergeNewGenerationAllowed is the separate transition that replaces a
+// failed or withdrawn row with a new open generation under a new identity
+// and revision zero, archiving a driven or retired predecessor as a history
+// snapshot. Open and fenced rows are replaced under MergeTransitionAllowed;
+// a merged row is never replaced.
+func MergeNewGenerationAllowed(from string) bool {
+	return from == MergeFailed || from == MergeWithdrawn
+}
+
 // MergeStageOutcome is the single stage → outcome mapping for merges. Open
 // work, and an unknown stage, carry no outcome; stage validity is checked
 // separately.
