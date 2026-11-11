@@ -461,10 +461,6 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 			return err
 		}
 	}
-	if prior.NativeTool != nil && prior.Phase == project.ExecutionImplement && role == project.RoleReviewer &&
-		p.External == nil && owner.RetainedPublication == nil && owner.ExternalPublication == nil {
-		return c.retirePublicationImplementation(ctx, p, owner, prior)
-	}
 	if prior.NativeTool == nil || prior.Phase != project.ExecutionReview && prior.Phase != project.ExecutionCorrect {
 		return nil
 	}
@@ -669,6 +665,22 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 	owner, stop := c.loadPublicationChildOwner(ctx, p, report)
 	if stop {
 		return
+	}
+	// Publication retained the exact Builder candidate and export receipt.
+	// Release its completed private checkout independently of whether the
+	// next role's current source, tool, checks or authority can admit work.
+	if owner.NativeTool != nil && p.External == nil && owner.RetainedPublication == nil && owner.ExternalPublication == nil {
+		prior, err := c.Store.AssignmentByRun(ctx, p.Run)
+		if err != nil {
+			publicationWait(report, p.ID, "publication_predecessor_unavailable")
+			return
+		}
+		if prior.NativeTool != nil && prior.Phase == project.ExecutionImplement {
+			if err := c.retirePublicationImplementation(ctx, p, owner, prior); err != nil {
+				report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "candidate_preparation_retirement_pending", Detail: err.Error()})
+				return
+			}
+		}
 	}
 	allowance, stop := c.gatePublicationChildAttempt(ctx, p, owner, report)
 	if stop {

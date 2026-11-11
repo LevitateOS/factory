@@ -1268,6 +1268,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "check-builder-retirement" {
+		if err := builderRetirementFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, "builder retirement:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "check-work-readback" {
 		if err := workReadbackFixture(); err != nil {
 			fmt.Fprintln(os.Stderr, "work readback:", err)
@@ -5275,6 +5282,180 @@ func workReadbackFixture() error {
 		return fmt.Errorf("late old-root child redirected current work: %v", err)
 	}
 	fmt.Println("PASS: current Builder and Stop capability follow the active child, then its actual settlement; publication/journey ownership stays exact; newer root selects its own child; foreign bindings and late old-root children refuse; declared source facts, real PostgreSQL/service reads, no execution/provider/model calls")
+	return nil
+}
+
+type builderRetirementHost struct {
+	factoryruntime.NativeExecution
+	state execution.PreparationState
+	stops int
+}
+
+func (h *builderRetirementHost) RetireWorkspacePreparation(ctx context.Context, address execution.PreparationAddress) (execution.PreparationState, error) {
+	if h.state.ValidateFor(address) != nil {
+		return execution.PreparationState{}, errors.New("retirement crossed the declared checkout owner")
+	}
+	h.stops++
+	state := h.state
+	state.Phase, state.Ready, state.Stopped, state.Retirement = project.PrepareStopped, false, true, "confirmed"
+	return state, ctx.Err()
+}
+
+// Declared retained assignments, native custody and provider receipts exercise
+// the real PublishPass/PG handoff. No host setup, execution or provider is wired.
+func builderRetirementFixture() error {
+	dsn, ok := store.TestFixtureDSN()
+	if !ok {
+		return errors.New("private PostgreSQL fixture required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, privateDSN, cleanup, err := store.OpenEphemeral(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	raw, err := sql.Open("pgx", privateDSN)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	now := time.Now().UTC()
+	root := offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, strings.Repeat("1", 40))
+	tool := execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("b", 64), Executable: "/home/fixture/bin/muse"}
+	root.NativeTool, root.Harness, root.HarnessVers = &tool, tool.Harness+"-"+tool.Version, tool.Version
+	requirement := project.RequirementDecision{ID: "d" + strings.Repeat("c", 24), Project: root.ProjectID, Approver: root.ActorID, SourceCommit: root.SourceCommit, SetupDigest: strings.Repeat("a", 64), InputsDigest: strings.Repeat("b", 64)}
+	approval := project.ApprovalDecision{ID: "d" + strings.Repeat("e", 24), Project: root.ProjectID, Requirement: requirement.ID, Approver: root.ActorID, EffectsDigest: strings.Repeat("a", 64), ReadinessDigest: strings.Repeat("b", 64), Verified: true}
+	root.Authority = factory.AuthorityRef{RequirementsID: requirement.ID, ApprovalID: approval.ID, SponsorshipConnection: root.Connection}
+	if err = db.UpsertUser(ctx, store.User{ID: root.ActorID, Login: "retirement-fixture"}); err != nil {
+		return err
+	}
+	if err = db.CreateProject(ctx, store.Project{ID: root.ProjectID, Name: "retirement", RepositoryID: root.Repository, OwnerID: root.ActorID, Repository: "fixture/retirement"}); err != nil {
+		return err
+	}
+	if err = db.AdmitRequirementDecision(ctx, requirement); err != nil {
+		return err
+	}
+	if err = db.AdmitApprovalDecision(ctx, approval); err != nil {
+		return err
+	}
+	owner := &execution.NativeWorkspaceRef{Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: root.Preparation}
+	zero := 0
+	preparation := execution.PreparationRecord{Preparation: project.Preparation{ID: root.Preparation, Project: root.ProjectID, Role: root.Role, SourceCommit: root.SourceCommit, SetupDigest: requirement.SetupDigest, Requirements: requirement.Ref(1), Approval: approval.Ref(1)}, Native: owner,
+		State: execution.PreparationState{ID: root.Preparation, Project: root.ProjectID, Role: root.Role, SourceCommit: root.SourceCommit, SetupDigest: requirement.SetupDigest, Phase: project.PrepareReady, Ready: true, Native: owner, SetupExit: &zero, CheckExit: &zero}}
+	if _, _, err = db.AdmitPreparation(ctx, preparation); err != nil {
+		return err
+	}
+	meta := map[string]any{"repository": root.Repository, "issue": root.Issue, "actor_id": strconv.FormatInt(root.ActorID, 10), "project": root.ProjectID, "owner_assignment": root.ID, "child_assignment": root.ID, "attempt_root": root.ID, "publication_id": "", "connection": root.Connection, "authority": root.Authority, "not_after_unix": now.Add(time.Minute).Unix()}
+	metaBytes, err := json.Marshal(meta)
+	if err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission}',$2::jsonb) WHERE id=$1`, root.Preparation, string(metaBytes)); err != nil {
+		return err
+	}
+	finish := func(a factory.Assignment) factory.Assignment {
+		a.Stage, a.Outcome, a.Reason, a.FinishedUnix = factory.AssignmentFinished, factory.Succeeded, factory.AssignReasonReported, now.Unix()
+		a.Result = &factory.AssignmentResult{AssignmentID: a.ID, RunID: a.Run, Status: "completed", Summary: "Declared retained report", Candidate: strings.Repeat("2", 40), Reported: true, RecordedUnix: now.Unix()}
+		return a
+	}
+	root = finish(root)
+	child := root
+	child.ID, child.Run, child.Phase, child.ParentAssignment = factory.NewID(), factory.NewID(), project.ExecutionImplement, root.ID
+	child.RunHistory = []string{child.Run}
+	child = finish(child)
+	for _, a := range []factory.Assignment{root, child} {
+		if err = a.Validate(); err != nil {
+			return err
+		}
+		data, _ := json.Marshal(a)
+		if _, err = raw.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, a.ID, a.Repository, a.Issue, a.Run, a.Stage, string(data)); err != nil {
+			return err
+		}
+		run := factory.Run{ID: a.Run, ProjectID: a.ProjectID, Role: a.Role, InputSHA: a.SourceCommit, Started: now.Add(-time.Minute), Deadline: now.Add(time.Minute), Harness: a.Harness, Model: a.Model, Outcome: factory.Succeeded, Reconciled: true,
+			Native: &execution.NativeRecord{Tool: tool, Retirement: execution.Retired, Sealed: true, Provenance: execution.NativeProvenance{TrustMode: "same_user_trusted_host", Profile: owner.Profile, InstanceID: owner.InstanceID, WorktreeID: owner.WorktreeID, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+		if err = run.Validate(); err != nil {
+			return err
+		}
+		data, _ = json.Marshal(run)
+		if _, err = raw.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, run.ID, string(data)); err != nil {
+			return err
+		}
+		if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: run.ID, Repository: a.Repository, Issue: a.Issue, Attempt: a.ID}); err != nil {
+			return err
+		}
+	}
+	target := factory.CheckTarget{Repository: root.Repository, PRNumber: 60, PRID: 160, IssueID: 260, HeadRef: factory.PublishBranchName(root.ID), BaseRef: "refs/heads/main", HeadOID: child.Result.Candidate, BaseOID: root.SourceCommit}
+	p := declaredPublishedFixture(target, collaboration.ActorID(root.ActorID), root.ID, root.Issue, 1, now.Add(time.Minute).Unix())
+	p.ProjectID, p.Acceptance, p.Preparation, p.Run, p.Authority = root.ProjectID, root.Acceptance, root.Preparation, child.Run, root.Authority
+	if err = p.Validate(); err != nil {
+		return err
+	}
+	pBytes, _ := json.Marshal(p)
+	if _, err = raw.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, root.ID, root.Repository, root.Issue, child.Run, p.Stage, string(pBytes)); err != nil {
+		return err
+	}
+	allowance := factory.AttemptAllowance{RootAssignment: root.ID, Repository: root.Repository, Issue: root.Issue, Limits: factory.DefaultAttemptLimits(), Corrections: []string{}, CheckpointUnix: now.Unix(), Active: true}
+	allowanceBytes, _ := json.Marshal(allowance)
+	if _, err = raw.ExecContext(ctx, `INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,$2,$3,0,$4)`, root.Repository, root.Issue, root.ID, string(allowanceBytes)); err != nil {
+		return err
+	}
+	reviewer := factory.NewID()
+	if consumed, exhausted, e := db.ChargeReviewDispatch(ctx, root.Repository, root.Issue, root.ID, reviewer, p.Candidate, false); e != nil || !consumed || exhausted {
+		return fmt.Errorf("declared first review allocation: %t/%t: %v", consumed, exhausted, e)
+	}
+	evidence := func() (string, error) {
+		var saved string
+		e := raw.QueryRowContext(ctx, `SELECT jsonb_build_object('assignments',(SELECT jsonb_agg(to_jsonb(a) ORDER BY seq) FROM factory_assignments a),'runs',(SELECT jsonb_agg(to_jsonb(r) ORDER BY seq) FROM factory_runs r),'publications',(SELECT jsonb_agg(to_jsonb(p) ORDER BY seq) FROM factory_publications p))::text`).Scan(&saved)
+		return saved, e
+	}
+	before, err := evidence()
+	if err != nil {
+		return err
+	}
+	host := &builderRetirementHost{state: preparation.State}
+	c := control.NewCoordinator(db, host, host)
+	c.Publication = factoryruntime.NativePublication{}
+	defer c.Close()
+	for _, field := range []string{"attempt_root", "child_assignment"} {
+		if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,ARRAY['factory_admission',$2],to_jsonb($3::text)) WHERE id=$1`, root.Preparation, field, factory.NewID()); err != nil {
+			return err
+		}
+		report := c.PublishPass(ctx)
+		if host.stops != 0 || !slices.ContainsFunc(report.Waits, func(w control.PublishWait) bool {
+			return w.ID == p.ID && w.Reason == "candidate_preparation_retirement_pending"
+		}) {
+			return fmt.Errorf("foreign %s did not hold retirement: %+v", field, report)
+		}
+		if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission}',$2::jsonb) WHERE id=$1`, root.Preparation, string(metaBytes)); err != nil {
+			return err
+		}
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET settled=false,active=true WHERE id=$1`, root.Run); err != nil {
+		return err
+	}
+	report := c.PublishPass(ctx)
+	if host.stops != 0 || !slices.ContainsFunc(report.Waits, func(w control.PublishWait) bool {
+		return w.ID == p.ID && w.Reason == "candidate_preparation_retirement_pending"
+	}) {
+		return fmt.Errorf("unsettled consumer did not hold retirement: %+v", report)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET settled=true,active=false WHERE id=$1`, root.Run); err != nil {
+		return err
+	}
+	for i := 0; i < 2; i++ {
+		report = c.PublishPass(ctx)
+		stored, e := db.CandidatePreparation(ctx, root.Preparation)
+		clock, clockErr := db.AttemptAllowance(ctx, root.Repository, root.Issue)
+		if e != nil || clockErr != nil || host.stops != 1 || !stored.Stopped || stored.Retirement != "confirmed" || clock.Closed || clock.Active || len(clock.Reviews) != 1 || clock.Reviews[0] != reviewer || clock.ReviewedHeads[p.Candidate] != reviewer {
+			return fmt.Errorf("early retirement/replay lost custody or open review grant: stop=%d clock=%+v report=%+v errors=%v/%v", host.stops, clock, report, e, clockErr)
+		}
+	}
+	after, err := evidence()
+	if err != nil || before != after {
+		return fmt.Errorf("retirement changed retained report/run/publication evidence: %v", err)
+	}
+	fmt.Println("PASS: PublishPass releases the exact private Builder checkout before next-role gates; wrong root/child and unsettled consumer hold; replay stops once, keeps the attempt open and preserves its allocated review and retained report/run/publication; native custody declared, no setup/execution/provider/model calls")
 	return nil
 }
 
