@@ -12,6 +12,11 @@ import {
   settleAllowanceChange,
 } from './allowance-record.js';
 import type {AllowanceAddress} from './allowance-record.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
+
+// Unchanged from the previous first-send rule: a 409 on the first send refuses the change.
+const classifyRefusal: ClassifyRefusal = (status) => (status === 409 ? 'discard' : 'keep');
 
 export interface VerificationAllowanceContext {
   readonly transport: FactoryTransport;
@@ -28,26 +33,30 @@ export class SodaFactoryVerificationAllowance extends LitElement {
     busy: {state: true},
     runs: {state: true},
     minutes: {state: true},
-    pending: {state: true},
-    ready: {state: true},
   };
   declare private allowance: VerificationAllowance | undefined;
   declare private message: string;
   declare private busy: boolean;
   declare private runs: number;
   declare private minutes: number;
-  declare private pending: VerificationAllowanceChange | undefined;
-  declare private ready: boolean;
+  private cmd = new PendingCommandController<VerificationAllowanceChange, AllowanceAddress>(
+    {read: readAllowanceChange, retain: retainAllowanceChange, settle: settleAllowanceChange, same: sameAllowanceChange},
+    () => this.requestUpdate()
+  );
+  private get pending() {
+    return this.cmd.pending;
+  }
+  private get ready() {
+    return this.cmd.ready;
+  }
   private current: VerificationAllowanceContext | undefined;
-  private address: AllowanceAddress | undefined;
-  private attempted = false;
   private serial = 0;
   private generation = '';
   private lifetime = new AbortController();
   constructor() {
     super();
     this.message = '';
-    this.busy = this.ready = false;
+    this.busy = false;
     this.runs = 2;
     this.minutes = 60;
   }
@@ -76,11 +85,10 @@ export class SodaFactoryVerificationAllowance extends LitElement {
     this.current = context;
     this.generation = context?.transport.generation ?? '';
     this.serial++;
-    this.allowance = this.pending = undefined;
-    this.address = undefined;
-    this.attempted = false;
+    this.allowance = undefined;
+    this.cmd.reset();
     this.message = '';
-    this.busy = this.ready = false;
+    this.busy = false;
     if (context) void this.refresh();
   }
   disconnectedCallback() {
@@ -99,21 +107,12 @@ export class SodaFactoryVerificationAllowance extends LitElement {
     return `factory/intents/${context.intent}/verification-allowance`;
   }
   private async resolveIdentity(context: VerificationAllowanceContext, serial: number): Promise<boolean> {
-    this.ready = false;
+    this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing allowance identity');
       const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
       if (!this.live(serial, context)) return false;
-      const address = {scope, repository: context.repository, intent: context.intent};
-      const stored = readAllowanceChange(address);
-      this.attempted = stored.pending
-        ? this.address?.scope === scope && this.pending && sameAllowanceChange(this.pending, stored.pending)
-          ? this.attempted
-          : true
-        : false;
-      this.address = address;
-      this.pending = stored.pending;
-      if (stored.blocked) {
+      if (this.cmd.adopt({scope, repository: context.repository, intent: context.intent}) === 'blocked') {
         this.message =
           'Saved verification limit change is unreadable or belongs to another scope. It was preserved; no new change was sent.';
         return false;
@@ -125,14 +124,15 @@ export class SodaFactoryVerificationAllowance extends LitElement {
       const request = object(await readSodaJSON(response));
       if (!this.live(serial, context)) return false;
       check(request.intent === context.intent && request.repository === context.repository);
-      this.ready = true;
-      this.message = stored.pending
+      this.message = this.cmd.pending
         ? 'An unconfirmed verification limit change is saved. Retry the same change to check its recorded result.'
         : '';
       return true;
     } catch {
-      if (this.live(serial, context))
+      if (this.live(serial, context)) {
+        this.cmd.unresolve(true);
         this.message = 'Allowance identity or request scope could not be read. Refresh before increasing limits.';
+      }
       return false;
     }
   }
@@ -160,13 +160,12 @@ export class SodaFactoryVerificationAllowance extends LitElement {
           found.limits.runs === this.pending.limits.runs &&
             found.limits.active_minutes === this.pending.limits.active_minutes
         );
-        if (!settleAllowanceChange(this.address!, this.pending)) throw Error('Saved change replaced');
-        this.pending = undefined;
+        if (!this.cmd.settleObserved(this.pending)) throw Error('Saved change replaced');
         this.message = 'Verification limits confirmed. Previous usage is retained.';
       }
     } catch {
       if (this.live(serial, context)) {
-        this.ready = false;
+        this.cmd.unresolve(true);
         this.message = 'Could not read verification limits. Refresh to try again.';
       }
     } finally {
@@ -192,68 +191,52 @@ export class SodaFactoryVerificationAllowance extends LitElement {
       this.message = 'Increase at least one limit; previous usage stays recorded.';
       return;
     }
-    const shown = this.pending,
-      scope = this.address?.scope;
     this.busy = true;
     try {
-      if (!(await this.resolveIdentity(context, serial))) return;
-      if (
-        scope !== this.address?.scope ||
-        (shown ? !this.pending || !sameAllowanceChange(shown, this.pending) : this.pending)
-      ) {
-        this.ready = false;
+      const admitted = await this.cmd.readmit(() => this.resolveIdentity(context, serial));
+      if (admitted === 'unresolved') return;
+      if (admitted === 'changed') {
         this.message = 'The saved limit change or account changed. Refresh before retrying.';
         return;
       }
       const pending = this.pending ?? {command_id: factoryCommandId(), expected_revision: current.revision, limits};
-      const address = this.address!;
-      this.pending = pending;
-      const retained = retainAllowanceChange(address, pending);
-      if (retained !== 'saved') {
+      let confirmed: VerificationAllowance | undefined;
+      const outcome = await this.cmd.submit({
+        command: pending,
+        live: () => this.live(serial, context),
+        classifyRefusal,
+        send: () =>
+          context.transport.request(this.path(context), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(pending),
+            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+          }),
+        receipt: (body) => {
+          confirmed = verificationAllowance(body, context.intent);
+          check(
+            confirmed.command_id === pending.command_id &&
+              confirmed.limits.runs >= pending.limits.runs &&
+              confirmed.limits.active_minutes >= pending.limits.active_minutes
+          );
+        },
+      });
+      if (outcome.kind === 'retired') return;
+      if (outcome.kind === 'not-saved')
         this.message =
-          retained === 'unavailable'
+          outcome.result === 'unavailable'
             ? 'Verification limit change could not be saved. No change was sent. Retry the same change when storage is available.'
             : 'The saved limit change changed. Refresh before retrying.';
-        if (retained === 'conflict') this.ready = false;
-        return;
-      }
-      const firstAttempt = !this.attempted;
-      this.attempted = true;
-      const response = await context.transport.request(this.path(context), {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(pending),
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
-      });
-      if (!this.live(serial, context)) return;
-      if (response.status === 409 && firstAttempt && settleAllowanceChange(address, pending)) {
-        this.pending = undefined;
+      else if (outcome.kind === 'record-changed') this.message = 'The saved limit change changed. Refresh before retrying.';
+      else if (outcome.kind === 'refused' && outcome.discarded) {
         this.allowance = undefined;
-        this.ready = false;
         this.message = 'Verification limits changed. Refresh before retrying.';
-        return;
-      }
-      check(response.ok);
-      const confirmed = verificationAllowance(await readSodaJSON(response), context.intent);
-      if (!this.live(serial, context)) return;
-      check(
-        confirmed.command_id === pending.command_id &&
-          confirmed.limits.runs >= pending.limits.runs &&
-          confirmed.limits.active_minutes >= pending.limits.active_minutes
-      );
-      if (address.scope !== this.address?.scope || !settleAllowanceChange(address, pending)) {
-        this.ready = false;
-        this.message = 'The saved limit change changed. Refresh before retrying.';
-        return;
-      }
-      this.allowance = confirmed;
-      this.pending = undefined;
-      this.runs = confirmed.limits.runs;
-      this.minutes = confirmed.limits.active_minutes;
-      this.message = 'Verification limits saved. Previous usage is retained.';
-    } catch {
-      if (this.live(serial, context))
-        this.message = 'The current limits were not confirmed. Retry the same change or refresh.';
+      } else if (outcome.kind === 'confirmed' && confirmed) {
+        this.allowance = confirmed;
+        this.runs = confirmed.limits.runs;
+        this.minutes = confirmed.limits.active_minutes;
+        this.message = 'Verification limits saved. Previous usage is retained.';
+      } else this.message = 'The current limits were not confirmed. Retry the same change or refresh.';
     } finally {
       if (this.live(serial, context)) this.busy = false;
     }

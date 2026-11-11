@@ -1,5 +1,5 @@
 import {LitElement, html} from 'lit';
-import {object, readSodaJSON} from '../api/models.js';
+import {object} from '../api/models.js';
 import {factoryCommandId} from '../api/run-response.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {
@@ -12,6 +12,14 @@ import {
   type FactoryIssueDetail,
 } from '../api/work-response.js';
 import {PendingRecord} from '../shared/retained-record.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
+
+// Refusals returned before any of the four commands is recorded: pkg/factory/control/publication_retained.go
+// and merge.go check eligibility before the store's single rolled-back transaction
+// (pkg/store/factory_retained_publication.go, factory_merges.go). command_conflict means a record exists.
+const classifyRefusal: ClassifyRefusal = (status, code) =>
+  status === 409 && (code === 'retained_publication_ineligible' || code === 'preparation_changed') ? 'discard' : 'keep';
 
 interface PublicationContext {
   transport: FactoryTransport;
@@ -82,11 +90,24 @@ function valid(value: unknown): value is Capture {
 
 /** A fresh command reuses the candidate; a lost reply reuses this same command. */
 export class SodaFactoryRetainedPublication extends LitElement {
-  static properties = {busy: {state: true}, ready: {state: true}, message: {state: true}, pending: {state: true}};
+  static properties = {busy: {state: true}, message: {state: true}};
   declare private busy: boolean;
-  declare private ready: boolean;
   declare private message: string;
-  declare private pending: Capture | undefined;
+  private cmd = new PendingCommandController<Capture, {scope: string}>(
+    {
+      read: () => this.record?.read() ?? {pending: undefined, blocked: true, durable: false},
+      retain: (_, pending) => this.record?.retain(pending) ?? 'unavailable',
+      settle: (_, pending) => this.record?.settle(pending) ?? false,
+      same: sameCapture,
+    },
+    () => this.requestUpdate()
+  );
+  private get pending() {
+    return this.cmd.pending;
+  }
+  private get ready() {
+    return this.cmd.ready;
+  }
   private current: PublicationContext | undefined;
   private generation = '';
   private serial = 0;
@@ -94,7 +115,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
   private record: PendingRecord<Capture> | undefined;
   constructor() {
     super();
-    this.busy = this.ready = false;
+    this.busy = false;
     this.message = '';
   }
   protected createRenderRoot() {
@@ -117,8 +138,8 @@ export class SodaFactoryRetainedPublication extends LitElement {
     this.generation = context?.transport.generation ?? '';
     this.serial++;
     this.record = undefined;
-    this.pending = undefined;
-    this.ready = this.busy = false;
+    this.cmd.reset();
+    this.busy = false;
     this.message = '';
     if (context) void this.recover(context, this.serial);
   }
@@ -152,10 +173,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
         (value) => JSON.stringify(value),
         sameCapture
       );
-      const saved = this.record.read();
-      if (saved.blocked) throw Error('saved record');
-      this.pending = saved.pending;
-      this.ready = true;
+      if (this.cmd.adopt({scope}) === 'blocked') throw Error('saved record');
     } catch {
       if (this.live(serial)) this.message = 'The saved publication request is unavailable. No new request was sent.';
     }
@@ -177,12 +195,12 @@ export class SodaFactoryRetainedPublication extends LitElement {
       return;
     const captured = record.read();
     if (captured.blocked) {
-      this.ready = false;
+      this.cmd.unresolve(true);
       return;
     }
     const pending =
       captured.pending ??
-      this.pending ??
+      this.cmd.pending ??
       (publication && {
         command: factoryCommandId(),
         publication: publication.id,
@@ -196,77 +214,83 @@ export class SodaFactoryRetainedPublication extends LitElement {
             ? {funding: structuredClone(funding.funding)}
             : {}),
       });
-    if (!pending || !valid(pending) || record.retain(pending) !== 'saved') {
+    if (!pending || !valid(pending)) {
       this.message = 'The publication identity could not be saved. No request was sent.';
       return;
     }
-    this.pending = pending;
+    const noun = pending.reviewRetry ? 'Review retry' : pending.preparation ? 'Merge preparation' : pending.funding ? 'Funding' : 'Publication';
     this.busy = true;
     this.message = pending.reviewRetry ? 'Review submission retry requested; waiting for confirmation.' : pending.preparation
       ? 'Merge preparation requested; waiting for confirmation.'
       : pending.funding
         ? 'Funding requested; waiting for confirmation.'
         : 'Publication requested; waiting for confirmation.';
-    let refusal = '';
     try {
-      const response = await context.transport.request(`factory/runs/${pending.run}/actions`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          action: pending.reviewRetry ? 'retry-unsent-review' : pending.preparation
-            ? 'prepare-unsent-merge'
-            : pending.funding
-              ? 'fund-retained-candidate'
-              : 'publish-retained-candidate',
-          ...(pending.preparation ? {merge_preparation: pending.preparation} : {}),
-          ...(pending.funding ? {funding: pending.funding} : {}),
-          ...(pending.reviewRetry ? {review_retry: pending.reviewRetry} : {}),
-          command_id: pending.command,
-          publication: pending.publication,
-        }),
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+      const outcome = await this.cmd.submit({
+        command: pending,
+        live: () => this.live(serial),
+        classifyRefusal,
+        send: () =>
+          context.transport.request(`factory/runs/${pending.run}/actions`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              action: pending.reviewRetry ? 'retry-unsent-review' : pending.preparation
+                ? 'prepare-unsent-merge'
+                : pending.funding
+                  ? 'fund-retained-candidate'
+                  : 'publish-retained-candidate',
+              ...(pending.preparation ? {merge_preparation: pending.preparation} : {}),
+              ...(pending.funding ? {funding: pending.funding} : {}),
+              ...(pending.reviewRetry ? {review_retry: pending.reviewRetry} : {}),
+              command_id: pending.command,
+              publication: pending.publication,
+            }),
+            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+          }),
+        receipt: (body) => {
+          const receipt = object(body);
+          if (
+            pending.reviewRetry ? receipt.command_id !== pending.command || !sameReviewRetry(pending.reviewRetry, receipt.review_retry) : pending.preparation
+              ? receipt.command_id !== pending.command ||
+                receipt.merge_id !== pending.command ||
+                (pending.preparation.retry_no_send &&
+                  (typeof receipt.not_after !== 'number' ||
+                    !Number.isSafeInteger(receipt.not_after) ||
+                    receipt.not_after <= 0)) ||
+                !samePreparation(pending.preparation, receipt.merge_preparation)
+              : pending.funding
+                ? receipt.command_id !== pending.command ||
+                  !sameFunding(pending.funding, receipt.funding)
+                : receipt.id !== pending.command ||
+                  receipt.assignment_id !== pending.command ||
+                  receipt.run !== pending.run ||
+                  receipt.candidate !== pending.candidate
+          )
+            throw Error('unconfirmed');
+        },
       });
-      const receipt = object(await readSodaJSON(response));
-      if (!this.live(serial)) return;
-      if (!response.ok) {
-        const code = receipt.error;
-        refusal = ` (HTTP ${response.status}${typeof code === 'string' && /^[a-z0-9_]{1,64}$/.test(code) ? `; ${code}` : ''})`;
-      }
-      if (
-        !response.ok ||
-        (pending.reviewRetry ? receipt.command_id !== pending.command || !sameReviewRetry(pending.reviewRetry, receipt.review_retry) : pending.preparation
-          ? receipt.command_id !== pending.command ||
-            receipt.merge_id !== pending.command ||
-            (pending.preparation.retry_no_send &&
-              (typeof receipt.not_after !== 'number' ||
-                !Number.isSafeInteger(receipt.not_after) ||
-                receipt.not_after <= 0)) ||
-            !samePreparation(pending.preparation, receipt.merge_preparation)
+      if (outcome.kind === 'retired') return;
+      if (outcome.kind === 'not-saved') this.message = 'The publication identity could not be saved. No request was sent.';
+      else if (outcome.kind === 'confirmed') {
+        this.message = pending.reviewRetry
+          ? 'Review submission retry recorded. The completed reviewer result and earlier unsent operation are preserved; no model runs again.' : pending.preparation
+          ? 'Fresh merge preparation recorded under current policy. The prior unsent preparation is preserved. Current approval, CI and permission checks still apply.'
           : pending.funding
-            ? receipt.command_id !== pending.command ||
-              !sameFunding(pending.funding, receipt.funding)
-            : receipt.id !== pending.command ||
-              receipt.assignment_id !== pending.command ||
-              receipt.run !== pending.run ||
-              receipt.candidate !== pending.candidate)
-      )
-        throw Error('unconfirmed');
-      const saved = record.read();
-      if (saved.blocked || saved.pending?.command !== pending.command) throw Error('changed record');
-      record.settle(pending);
-      this.pending = undefined;
-      this.message = pending.reviewRetry
-        ? 'Review submission retry recorded. The completed reviewer result and earlier unsent operation are preserved; no model runs again.' : pending.preparation
-        ? 'Fresh merge preparation recorded under current policy. The prior unsent preparation is preserved. Current approval, CI and permission checks still apply.'
-        : pending.funding
-          ? pending.funding.carry_unused
-            ? 'Unused review/correction budget carried forward. Earlier results, spent rounds and charges remain unchanged.'
-            : 'Finite review/correction funding recorded on the selected source. Earlier charges and publication authority remain unchanged.'
-          : 'Fresh publication recorded. Review and correction require separate funding.';
-      this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
-    } catch {
-      if (this.live(serial))
-        this.message = `${pending.reviewRetry ? 'Review retry' : pending.preparation ? 'Merge preparation' : pending.funding ? 'Funding' : 'Publication'} was not confirmed${refusal}. The saved request is preserved; check the same request to recover its result.`;
+            ? pending.funding.carry_unused
+              ? 'Unused review/correction budget carried forward. Earlier results, spent rounds and charges remain unchanged.'
+              : 'Finite review/correction funding recorded on the selected source. Earlier charges and publication authority remain unchanged.'
+            : 'Fresh publication recorded. Review and correction require separate funding.';
+        this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
+      } else if (outcome.kind === 'refused' && outcome.discarded)
+        this.message = `${noun} was refused before it was recorded. Refresh the work detail to see the current options.`;
+      else {
+        const refusal =
+          outcome.kind === 'refused'
+            ? ` (HTTP ${outcome.status}${outcome.code && /^[a-z0-9_]{1,64}$/.test(outcome.code) ? `; ${outcome.code}` : ''})`
+            : '';
+        this.message = `${noun} was not confirmed${refusal}. The saved request is preserved; check the same request to recover its result.`;
+      }
     } finally {
       if (this.live(serial)) this.busy = false;
     }

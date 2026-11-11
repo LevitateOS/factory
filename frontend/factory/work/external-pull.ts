@@ -4,6 +4,14 @@ import {readSodaJSON} from '../api/models.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {externalPullAdoption, sameExternalPull, type ExternalPullAdoption} from '../api/external-pull.js';
 import {PendingRecord} from '../shared/retained-record.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
+
+// preparation_changed is returned by pkg/factory/control/publication_external.go and
+// publication_external_planning.go only before executeFreshAttempt and the store's rolled-back
+// transaction (pkg/store/factory_external_publications.go); command_conflict means a record exists.
+const classifyRefusal: ClassifyRefusal = (status, code) =>
+  status === 409 && code === 'preparation_changed' ? 'discard' : 'keep';
 
 interface Context {
   transport: FactoryTransport;
@@ -23,26 +31,39 @@ function decode(raw: string): Capture | undefined {
 // Selection is a read; only the explicit funded command below creates work.
 // The existing retained-command owner fences a lost API reply across reloads.
 export class SodaFactoryExternalPull extends LitElement {
-  static properties = {busy: {state: true}, message: {state: true}, offer: {state: true}, pending: {state: true}, ready: {state: true}};
+  static properties = {busy: {state: true}, message: {state: true}, offer: {state: true}};
   declare private busy: boolean;
-  declare private ready: boolean;
   declare private message: string;
   declare private offer: ExternalPullAdoption | undefined;
-  declare private pending: Capture | undefined;
+  private cmd = new PendingCommandController<Capture, {scope: string}>(
+    {
+      read: () => this.record?.read() ?? {pending: undefined, blocked: true, durable: false},
+      retain: (_, pending) => this.record?.retain(pending) ?? 'unavailable',
+      settle: (_, pending) => this.record?.settle(pending) ?? false,
+      same: (a, b) => a.command === b.command && sameExternalPull(a.request, b.request),
+    },
+    () => this.requestUpdate()
+  );
+  private get pending() {
+    return this.cmd.pending;
+  }
+  private get ready() {
+    return this.cmd.ready;
+  }
   private current: Context | undefined;
   private generation = '';
   private serial = 0;
   private lifetime = new AbortController();
   private scope = '';
   private record: PendingRecord<Capture> | undefined;
-  constructor() { super(); this.busy = this.ready = false; this.message = ''; }
+  constructor() { super(); this.busy = false; this.message = ''; }
   protected createRenderRoot() { return this; }
   set context(context: Context | undefined) {
     const prior = this.current; this.current = context;
     if (context?.transport === prior?.transport && context?.transport.generation === this.generation && context?.repository === prior?.repository && context?.issue === prior?.issue && context?.commandScope === prior?.commandScope) { this.requestUpdate(); return; }
     this.generation = context?.transport.generation ?? '';
     this.lifetime.abort(); this.lifetime = new AbortController(); this.serial++;
-    this.record = undefined; this.scope = ''; this.offer = this.pending = undefined; this.busy = this.ready = false; this.message = '';
+    this.record = undefined; this.scope = ''; this.offer = undefined; this.cmd.reset(); this.busy = false; this.message = '';
     if (context) void this.recover(context, this.serial);
   }
   disconnectedCallback() { super.disconnectedCallback(); this.lifetime.abort(); this.serial++; }
@@ -56,10 +77,9 @@ export class SodaFactoryExternalPull extends LitElement {
       this.scope = scope;
       this.record = new PendingRecord<Capture>(`soda-external-pull:v1:${encodeURIComponent(scope)}:${context.repository}:${context.issue}`, 8192, decode, capture => JSON.stringify(capture),
         (a, b) => a.command === b.command && sameExternalPull(a.request, b.request));
-      const saved = this.record.read();
-      if (saved.blocked || saved.pending && (saved.pending.request.repository !== context.repository || saved.pending.request.issue !== context.issue)) throw Error('capture');
-      this.pending = saved.pending; this.ready = true;
-    } catch { if (this.live(serial)) this.message = 'The retained adoption request is unavailable. No new request was sent.'; }
+      const blocked = this.cmd.adopt({scope}) === 'blocked', saved = this.cmd.pending;
+      if (blocked || saved && (saved.request.repository !== context.repository || saved.request.issue !== context.issue)) throw Error('capture');
+    } catch { this.cmd.unresolve(); if (this.live(serial)) this.message = 'The retained adoption request is unavailable. No new request was sent.'; }
   }
   private async post(context: Context, body: unknown, signal: AbortSignal) {
     const response = await context.transport.request(`repositories/${context.repository}/factory/actions`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: AbortSignal.any([signal, AbortSignal.timeout(90000)])});
@@ -90,30 +110,34 @@ export class SodaFactoryExternalPull extends LitElement {
     try {
       if (await context.commandScope?.(signal) !== this.scope || !this.live(serial)) return;
       const capture = this.pending ?? {command: factoryCommandId(), request: this.offer!};
-      if (record.retain(capture) !== 'saved') throw Error('capture');
-      this.pending = capture;
-      const value = await this.post(context, {action: 'adopt-external-pr', command_id: capture.command, external_pull: capture.request}, signal);
-      if (!this.live(serial)) return;
-      const admission = value as Record<string, unknown>;
-      const admittedRequest = externalPullAdoption(admission?.request);
-      if (!admission || admission.command_id !== capture.command || !admittedRequest || !sameExternalPull(admittedRequest,capture.request)) throw Error('receipt');
-      if (admission.planning !== undefined) {
-        const planning = admission.planning as Record<string, unknown>;
-        if (capture.request.plan_assignment !== '' || admission.publication !== undefined || !planning || planning.assignment !== capture.command || typeof planning.run !== 'string' || !/^[a-f0-9]{32}$/.test(planning.run) || !['assigned','finished'].includes(String(planning.stage))) throw Error('receipt');
-        if (!record.settle(capture)) throw Error('capture');
-        this.pending = this.offer = undefined;
-        this.message = 'Planning command admitted. Work retains its run, charges and subsequent PR adoption; no initial Builder is started.';
+      let planned = false;
+      const outcome = await this.cmd.submit({command: capture, live: () => this.live(serial), classifyRefusal, forgetUnsaved: true,
+        send: () => context.transport.request(`repositories/${context.repository}/factory/actions`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'adopt-external-pr', command_id: capture.command, external_pull: capture.request}), signal: AbortSignal.any([signal, AbortSignal.timeout(90000)])}),
+        receipt: (value) => {
+          const admission = value as Record<string, unknown>;
+          const admittedRequest = externalPullAdoption(admission?.request);
+          if (!admission || admission.command_id !== capture.command || !admittedRequest || !sameExternalPull(admittedRequest,capture.request)) throw Error('receipt');
+          if (admission.planning !== undefined) {
+            const planning = admission.planning as Record<string, unknown>;
+            if (capture.request.plan_assignment !== '' || admission.publication !== undefined || !planning || planning.assignment !== capture.command || typeof planning.run !== 'string' || !/^[a-f0-9]{32}$/.test(planning.run) || !['assigned','finished'].includes(String(planning.stage))) throw Error('receipt');
+            planned = true;
+            return;
+          }
+          const row = admission.publication as Record<string, unknown>, origin = row?.external as Record<string, unknown> | undefined;
+          if (!row || row.id !== capture.command || row.assignment_id !== capture.command || row.repository !== context.repository || row.issue !== context.issue || row.acceptance !== capture.request.acceptance || !origin || origin.command_id !== capture.command) throw Error('receipt');
+          const confirmed = externalPullAdoption({...capture.request, repository: row.repository, issue: row.issue, acceptance: row.acceptance, pr_number: String(row.pr_number), pr_id: String(row.pr_id), target: origin.target});
+          const authority = row.authority as Record<string, unknown> | undefined;
+          if (!confirmed || !sameExternalPull(confirmed, capture.request) || authority?.sponsorship_connection !== capture.request.connection) throw Error('receipt');
+        }});
+      if (outcome.kind === 'retired') return;
+      if (outcome.kind === 'confirmed') {
+        this.offer = undefined;
+        this.message = planned ? 'Planning command admitted. Work retains its run, charges and subsequent PR adoption; no initial Builder is started.' : 'External PR adopted with the captured source and finite review/correction allowance.';
         this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
         return;
       }
-      const row = admission.publication as Record<string, unknown>, origin = row?.external as Record<string, unknown> | undefined;
-      if (!row || row.id !== capture.command || row.assignment_id !== capture.command || row.repository !== context.repository || row.issue !== context.issue || row.acceptance !== capture.request.acceptance || !origin || origin.command_id !== capture.command) throw Error('receipt');
-      const confirmed = externalPullAdoption({...capture.request, repository: row.repository, issue: row.issue, acceptance: row.acceptance, pr_number: String(row.pr_number), pr_id: String(row.pr_id), target: origin.target});
-      const authority = row.authority as Record<string, unknown> | undefined;
-      if (!confirmed || !sameExternalPull(confirmed, capture.request) || authority?.sponsorship_connection !== capture.request.connection) throw Error('receipt');
-      if (!record.settle(capture)) throw Error('capture');
-      this.pending = this.offer = undefined; this.message = 'External PR adopted with the captured source and finite review/correction allowance.';
-      this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
+      if (outcome.kind === 'refused' && outcome.discarded) { this.offer = undefined; this.message = 'The adoption request was refused before it was recorded. Inspect the PR again.'; return; }
+      this.message = this.pending ? 'The original request remains retained. Recover it before selecting another PR; no replacement command was issued.' : 'Adoption was not sent because its captured account or local record is unavailable.';
     } catch { if (this.live(serial)) this.message = this.pending ? 'The original request remains retained. Recover it before selecting another PR; no replacement command was issued.' : 'Adoption was not sent because its captured account or local record is unavailable.'; }
     finally { if (this.live(serial)) this.busy = false; }
   }

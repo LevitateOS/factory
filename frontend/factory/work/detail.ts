@@ -1,7 +1,9 @@
 import {LitElement, html} from 'lit';
 import {getJSON, failureInput, readFailureText} from '../api/read.js';
-import {readRunRetry, retainRunRetry, settleRunRetry} from './retry-record.js';
+import {readRunRetry, retainRunRetry, sameRunRetry, settleRunRetry} from './retry-record.js';
 import type {PendingRunRetry, RunRetryAddress} from './retry-record.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
 import './acceptance.js';
 import './context-resolution.js';
 import './completion-retry.js';
@@ -42,6 +44,12 @@ import {
 } from './work-view.js';
 import type {InterventionKind, InterventionResult} from './work-view.js';
 import type {SourceState} from './progress-view.js';
+// Refusals returned before the retry command is recorded: pkg/factory/control/lifecycle_retry.go
+// (RetryRun admission; command_conflict means a record exists) and the rolled-back transactions in
+// pkg/store/factory_explicit_retry.go and factory_delivery_retry.go. A replay never discards:
+// an access refusal on a replay cannot prove whether an earlier request applied.
+const classifyRetryRefusal: ClassifyRefusal = (status, code) =>
+  status === 409 && (code === 'retry_ineligible' || code === 'authority_ineffective') ? 'discard' : 'keep';
 interface Posted {
   readonly status: number;
   readonly value: unknown;
@@ -149,7 +157,6 @@ export class SodaFactoryWorkDetail extends LitElement {
     message: {state: true},
     busy: {state: true},
     acting: {state: true},
-    retryReady: {state: true},
     observation: {state: true},
   };
   declare private detail: FactoryIssueDetail | undefined;
@@ -158,7 +165,6 @@ export class SodaFactoryWorkDetail extends LitElement {
   declare private message: string;
   declare private busy: boolean;
   declare private acting: InterventionKind | undefined;
-  declare private retryReady: boolean;
   declare private observation: WorkObservation | undefined;
   private readSerial = 0;
   private readRequest: AbortController | undefined;
@@ -167,8 +173,10 @@ export class SodaFactoryWorkDetail extends LitElement {
   private serial = 0;
   private generation = '';
   private lifetime = new AbortController();
-  private pendingRetry: PendingRunRetry | undefined;
-  private retryAddress: RunRetryAddress | undefined;
+  private cmd = new PendingCommandController<PendingRunRetry, RunRetryAddress>(
+    {read: readRunRetry, retain: retainRunRetry, settle: settleRunRetry, same: sameRunRetry},
+    () => this.requestUpdate()
+  );
   protected createRenderRoot() {
     return this;
   }
@@ -178,7 +186,6 @@ export class SodaFactoryWorkDetail extends LitElement {
     this.marks = idleMarks();
     this.message = '';
     this.busy = false;
-    this.retryReady = false;
   }
   set context(context: WorkDetailContext | undefined) {
     if (context)
@@ -204,9 +211,7 @@ export class SodaFactoryWorkDetail extends LitElement {
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.generation = context?.transport.generation ?? '';
-    this.pendingRetry = undefined;
-    this.retryAddress = undefined;
-    this.retryReady = false;
+    this.cmd.reset();
     this.current = context && {...context, runIDs: [...context.runIDs], capabilities: {...context.capabilities}};
     this.serial++;
     this.detail = undefined;
@@ -254,7 +259,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       refresh,
     };
     this.busy = true;
-    this.retryReady = false;
+    this.cmd.resolving();
     this.observation = {...observation, state: 'loading', detail: this.detail, journey: this.observation?.journey};
     try {
       const [detail, accessResult, runs] = await Promise.all([
@@ -311,10 +316,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
       if (!current()) return false;
       const address: RunRetryAddress = {scope, repository: context.repository, issue: context.issue};
-      const captured = readRunRetry(address);
-      if (captured.blocked) {
-        this.retryReady = false;
-        this.pendingRetry = undefined;
+      if (this.cmd.adopt(address) === 'blocked') {
         this.setMark(
           'retry',
           'failed',
@@ -322,7 +324,7 @@ export class SodaFactoryWorkDetail extends LitElement {
         );
         return false;
       }
-      const pending = captured.pending;
+      const pending = this.cmd.pending;
       if (pending && pending.run !== context.runID && !context.runIDs.includes(pending.run)) {
         const run = factoryRunStatusResponse(
           await getJSON(context.transport, `factory/runs/${pending.run}`, signal),
@@ -332,9 +334,6 @@ export class SodaFactoryWorkDetail extends LitElement {
         if (!current()) return false;
         check(run.view?.issue === context.issue);
       }
-      this.retryAddress = address;
-      this.pendingRetry = pending;
-      this.retryReady = true;
       if (pending)
         this.setMark(
           'retry',
@@ -344,8 +343,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       return true;
     } catch {
       if (current()) {
-        this.retryReady = false;
-        this.pendingRetry = undefined;
+        this.cmd.unresolve();
         this.setMark(
           'retry',
           'failed',
@@ -389,89 +387,94 @@ export class SodaFactoryWorkDetail extends LitElement {
         this.setMark(kind, 'failed', 'No recorded run is available for this action on this work.');
         return;
       }
-      const commandID = kind === 'retry' ? (this.pendingRetry?.command ?? factoryCommandId()) : '';
-      if (kind === 'retry' && runID && this.retryAddress) {
-        const pending = {command: commandID, run: runID};
-        this.pendingRetry = pending;
-        const retained = retainRunRetry(this.retryAddress, pending);
-        if (retained !== 'saved') {
-          this.setMark(
-            kind,
-            'failed',
-            retained === 'conflict'
-              ? 'A different or unreadable retry is already saved. It was preserved; no new request was sent.'
-              : 'Retry identity could not be saved. No request was sent. Retry after storage is available.'
-          );
-          return;
-        }
+      if (kind === 'retry') {
+        if (runID) await this.submitRetry(context, serial, runID);
+        return;
       }
       this.setMark(kind, 'pending', 'Requested; awaiting confirmation.');
-      await this.executeIntervention(context, kind, commandID, serial, runID, this.retryAddress);
+      await this.executeIntervention(context, kind, serial, runID);
     } finally {
       if (this.live(serial, context)) this.acting = undefined;
+    }
+  }
+  private async submitRetry(context: WorkDetailContext, serial: number, runID: string) {
+    const pending: PendingRunRetry = {command: this.cmd.pending?.command ?? factoryCommandId(), run: runID};
+    let receipt: ReturnType<typeof retryDecision> | undefined,
+      understood = true;
+    this.setMark('retry', 'pending', 'Requested; awaiting confirmation.');
+    const outcome = await this.cmd.submit({
+      command: pending,
+      live: () => this.live(serial, context),
+      classifyRefusal: classifyRetryRefusal,
+      send: () =>
+        context.transport.request(`factory/runs/${runID}/actions`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({command_id: pending.command, action: 'retry'}),
+          signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+        }),
+      receipt: (body) => {
+        try {
+          receipt = retryDecision(body, pending.command, runID);
+        } catch (error) {
+          understood = false;
+          throw error;
+        }
+      },
+    });
+    if (outcome.kind === 'retired') return;
+    if (outcome.kind === 'not-saved')
+      this.setMark(
+        'retry',
+        'failed',
+        outcome.result === 'conflict'
+          ? 'A different or unreadable retry is already saved. It was preserved; no new request was sent.'
+          : 'Retry identity could not be saved. No request was sent. Retry after storage is available.'
+      );
+    else if (outcome.kind === 'record-changed')
+      this.setMark(
+        'retry',
+        'uncertain',
+        'Saved retry changed while waiting. Its current record was preserved; refresh detail.'
+      );
+    else if (outcome.kind === 'refused') {
+      const rendered = interventionResultText(
+        parsePostedOutcome('retry', context, {status: outcome.status, value: outcome.body}, pending.command, runID)
+      );
+      this.setMark('retry', rendered.result, rendered.text);
+    } else if (outcome.kind === 'unknown')
+      this.setMark(
+        'retry',
+        'uncertain',
+        understood
+          ? 'No reply was confirmed. Retry the same request or refresh.'
+          : 'The reply could not be understood; refresh before acting again.'
+      );
+    else if (receipt) {
+      const rendered = interventionResultText({kind: 'retry', receipt});
+      this.setMark('retry', rendered.result, rendered.text);
+      void this.load();
     }
   }
   private async executeIntervention(
     context: WorkDetailContext,
     kind: InterventionKind,
-    commandID: string,
     serial: number,
-    runID: string | undefined,
-    retryAddress: RunRetryAddress | undefined
+    runID: string | undefined
   ) {
     try {
-      const posted = await postIntervention(context, kind, commandID, runID, this.lifetime.signal);
+      const posted = await postIntervention(context, kind, '', runID, this.lifetime.signal);
       if (!this.live(serial, context)) return;
-      if (kind === 'retry' && retryAddress) {
-        const captured = readRunRetry(retryAddress);
-        if (
-          this.retryAddress?.scope !== retryAddress.scope ||
-          captured.blocked ||
-          captured.pending?.command !== commandID ||
-          captured.pending.run !== runID
-        ) {
-          this.setMark(
-            'retry',
-            'uncertain',
-            'Saved retry changed while waiting. Its current record was preserved; refresh detail.'
-          );
-          return;
-        }
-      }
-      this.applyPosted(kind, context, posted, commandID, runID, retryAddress);
+      this.applyPosted(kind, context, posted, runID);
       void this.load();
     } catch {
       if (!this.live(serial, context)) return;
-      this.setMark(
-        kind,
-        'uncertain',
-        kind === 'retry'
-          ? 'No reply was confirmed. Retry the same request or refresh.'
-          : 'No reply was confirmed. Refresh before acting again.'
-      );
+      this.setMark(kind, 'uncertain', 'No reply was confirmed. Refresh before acting again.');
     }
   }
-  private applyPosted(
-    kind: InterventionKind,
-    context: WorkDetailContext,
-    posted: Posted,
-    commandID: string,
-    runID: string | undefined,
-    retryAddress: RunRetryAddress | undefined
-  ) {
+  private applyPosted(kind: InterventionKind, context: WorkDetailContext, posted: Posted, runID: string | undefined) {
     try {
-      const outcome = parsePostedOutcome(kind, context, posted, commandID, runID);
-      // An access refusal on a replay cannot prove whether an earlier request
-      // applied. Only the recorded retry receipt settles this captured identity.
-      if (kind === 'retry' && outcome.kind === 'retry' && retryAddress && runID) {
-        settleRunRetry(retryAddress, {command: commandID, run: runID});
-        if (
-          this.retryAddress?.scope === retryAddress.scope &&
-          this.pendingRetry?.command === commandID &&
-          this.pendingRetry.run === runID
-        )
-          this.pendingRetry = undefined;
-      }
+      const outcome = parsePostedOutcome(kind, context, posted, '', runID);
       const rendered = interventionResultText(outcome);
       this.setMark(kind, rendered.result, rendered.text);
     } catch {
@@ -502,7 +505,7 @@ export class SodaFactoryWorkDetail extends LitElement {
    * keeps the live selection; stop and takeover never fall back. */
   private retryRunID(): string | undefined {
     const context = this.current;
-    if (this.pendingRetry) return this.pendingRetry.run;
+    if (this.cmd.pending) return this.cmd.pending.run;
     if (context?.runID) return context.runID;
     return this.runs.find((entry) => entry.detail?.reconciled)?.id;
   }
@@ -522,7 +525,7 @@ export class SodaFactoryWorkDetail extends LitElement {
         (context?.capabilities[kind] ?? false) &&
         gate.available &&
         this.acting === undefined &&
-        (kind !== 'retry' || this.retryReady) &&
+        (kind !== 'retry' || this.cmd.ready) &&
         (!['retry', 'stop', 'takeover'].includes(kind) || runID !== undefined),
       result: mark.result,
       resultText: !gate.available && mark.result === 'idle' ? `Unavailable: ${gate.reasonText}` : mark.text,
@@ -663,8 +666,6 @@ async function postIntervention(
     );
   if ((kind === 'stop' || kind === 'takeover') && runID)
     return postJSON(context.transport, `factory/runs/${runID}/actions`, {action: kind}, signal);
-  if (kind === 'retry' && runID)
-    return postJSON(context.transport, `factory/runs/${runID}/actions`, {command_id: commandID, action: kind}, signal);
   throw Error('Intervention target is not available in this context.');
 }
 

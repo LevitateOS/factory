@@ -29,7 +29,7 @@ function valid(value: unknown): value is PendingRunRetry {
   const record = value as Record<string, unknown>;
   return typeof record.command === 'string' && /^[a-f0-9]{32}$/.test(record.command) && factoryRunID(record.run);
 }
-function same(a: PendingRunRetry, b: PendingRunRetry): boolean {
+export function sameRunRetry(a: PendingRunRetry, b: PendingRunRetry): boolean {
   return a.command === b.command && a.run === b.run;
 }
 
@@ -50,7 +50,7 @@ function record(address: RunRetryAddress): PendingRecord<PendingRunRetry> {
         return {command: row.command, run: row.run};
     },
     (pending) => JSON.stringify({...address, ...pending}),
-    same
+    sameRunRetry
   );
 }
 export function readRunRetry(address: RunRetryAddress): RetainedPending<PendingRunRetry> {
@@ -63,6 +63,6 @@ export function retainRunRetry(
   check(valid(pending));
   return record(address).retain(pending);
 }
-export function settleRunRetry(address: RunRetryAddress, pending: PendingRunRetry): void {
-  record(address).settle(pending);
+export function settleRunRetry(address: RunRetryAddress, pending: PendingRunRetry): boolean {
+  return record(address).settle(pending);
 }

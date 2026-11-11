@@ -12,6 +12,11 @@ import {
   settleRepairChange,
 } from './repair-record.js';
 import type {RepairAddress} from './repair-record.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
+
+// Unchanged from the previous first-send rule: 409 and 412 on the first send refuse the change.
+const classifyRefusal: ClassifyRefusal = (status) => ([409, 412].includes(status) ? 'discard' : 'keep');
 export interface RepairContext {
   readonly transport: FactoryTransport;
   readonly repository: string;
@@ -34,23 +39,27 @@ export class SodaFactoryRepair extends LitElement {
     view: {state: true},
     busy: {state: true},
     message: {state: true},
-    pending: {state: true},
-    ready: {state: true},
   };
   declare private view: RepairView | undefined;
   declare private busy: boolean;
   declare private message: string;
-  declare private pending: RepairChange | undefined;
-  declare private ready: boolean;
+  private cmd = new PendingCommandController<RepairChange, RepairAddress>(
+    {read: readRepairChange, retain: retainRepairChange, settle: settleRepairChange, same: sameRepairChange},
+    () => this.requestUpdate()
+  );
+  private get pending() {
+    return this.cmd.pending;
+  }
+  private get ready() {
+    return this.cmd.ready;
+  }
   private current: RepairContext | undefined;
-  private address: RepairAddress | undefined;
   private serial = 0;
   private generation = '';
   private lifetime = new AbortController();
-  private attempted = false;
   constructor() {
     super();
-    this.busy = this.ready = false;
+    this.busy = false;
     this.message = '';
   }
   protected createRenderRoot() {
@@ -74,10 +83,10 @@ export class SodaFactoryRepair extends LitElement {
     this.current = context;
     this.generation = context?.transport.generation ?? '';
     this.serial++;
-    this.view = this.pending = undefined;
-    this.address = undefined;
+    this.view = undefined;
+    this.cmd.reset();
     this.message = '';
-    this.busy = this.ready = this.attempted = false;
+    this.busy = false;
     if (context) void this.load();
   }
   disconnectedCallback() {
@@ -93,39 +102,30 @@ export class SodaFactoryRepair extends LitElement {
     return true;
   }
   private async identity(context: RepairContext, serial: number): Promise<boolean> {
-    this.ready = false;
+    this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing repair identity');
       const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
       if (!this.live(serial, context)) return false;
-      const address = {scope, repository: context.repository},
-        stored = readRepairChange(address);
-      this.attempted = stored.pending
-        ? this.address?.scope === scope && this.pending && sameRepairChange(stored.pending, this.pending)
-          ? this.attempted
-          : true
-        : false;
-      this.address = address;
-      this.pending = stored.pending;
-      if (stored.blocked) {
+      if (this.cmd.adopt({scope, repository: context.repository}) === 'blocked') {
         this.message =
           'Saved repair change is unreadable or belongs to another scope. It was preserved; no new change was sent.';
         return false;
       }
-      this.ready = true;
-      this.message = stored.pending ? 'A repair change is unconfirmed. Retry the same change before editing.' : '';
+      this.message = this.pending ? 'A repair change is unconfirmed. Retry the same change before editing.' : '';
       return true;
     } catch {
-      if (this.live(serial, context))
+      if (this.live(serial, context)) {
+        this.cmd.unresolve(true);
         this.message = 'Repair account identity could not be read. Refresh before saving.';
+      }
       return false;
     }
   }
-  private async request(context: RepairContext, serial: number, change?: RepairChange) {
+  private async request(context: RepairContext, serial: number) {
     const response = await context.transport.request(`repositories/${context.repository}/factory/repair`, {
-      method: change ? 'PUT' : 'GET',
+      method: 'GET',
       signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
-      ...(change ? {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(change)} : {}),
     });
     if (!this.live(serial, context)) throw Error('Repair context retired');
     if (response.status === 401)
@@ -137,62 +137,57 @@ export class SodaFactoryRepair extends LitElement {
     const context = this.current,
       serial = this.serial;
     if (!context || !this.live(serial, context) || this.busy) return;
-    const shown = this.pending,
-      scope = this.address?.scope;
     this.busy = true;
     let recorded = false;
     try {
-      const admitted = await this.identity(context, serial);
-      if (!this.live(serial, context)) return;
+      let admitted = true;
       if (change) {
-        if (!admitted) return;
-        if (
-          scope !== this.address?.scope ||
-          (shown ? !this.pending || !sameRepairChange(shown, this.pending) : this.pending)
-        ) {
-          this.ready = false;
+        const readmitted = await this.cmd.readmit(() => this.identity(context, serial));
+        if (!this.live(serial, context) || readmitted === 'unresolved') return;
+        if (readmitted === 'changed') {
           this.message = 'The saved repair change or account changed. Refresh before retrying.';
           return;
         }
-        const address = this.address!;
-        this.pending = change;
-        const saved = retainRepairChange(address, change);
-        if (saved !== 'saved') {
+      } else {
+        admitted = await this.identity(context, serial);
+        if (!this.live(serial, context)) return;
+      }
+      if (change) {
+        const outcome = await this.cmd.submit({
+          command: change,
+          live: () => this.live(serial, context),
+          classifyRefusal,
+          send: () =>
+            context.transport.request(`repositories/${context.repository}/factory/repair`, {
+              method: 'PUT',
+              signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(change),
+            }),
+          receipt: (value) => {
+            const receipt = object(value);
+            check(receipt.command_id === change.command_id && receipt.revision === change.expected_revision + 1);
+          },
+        });
+        if (outcome.kind === 'retired') return;
+        if (outcome.kind === 'not-saved') {
           this.message =
-            saved === 'unavailable'
+            outcome.result === 'unavailable'
               ? 'Repair change could not be saved. No change was sent. Retry the same change when storage is available.'
               : 'The saved repair change was replaced. Refresh before retrying.';
-          if (saved === 'conflict') this.ready = false;
           return;
         }
-        const firstAttempt = !this.attempted;
-        this.attempted = true;
-        let value: unknown;
-        try {
-          value = await this.request(context, serial, change);
-        } catch (error) {
-          if (!this.live(serial, context)) return;
-          if (
-            firstAttempt &&
-            error instanceof RepairRequestError &&
-            [409, 412].includes(error.status) &&
-            settleRepairChange(address, change)
-          ) {
-            this.pending = undefined;
-            this.view = undefined;
-            this.ready = false;
-          }
-          throw error;
+        if (outcome.kind === 'refused') {
+          if (outcome.status === 401)
+            this.dispatchEvent(new CustomEvent('soda-session-invalid', {bubbles: true, composed: true}));
+          if (outcome.discarded) this.view = undefined;
+          throw new RepairRequestError(outcome.status);
         }
-        if (!this.live(serial, context)) return;
-        const receipt = object(value);
-        check(receipt.command_id === change.command_id && receipt.revision === change.expected_revision + 1);
-        if (this.address?.scope !== address.scope || !settleRepairChange(address, change)) {
-          this.ready = false;
+        if (outcome.kind === 'unknown') throw outcome.error;
+        if (outcome.kind === 'record-changed') {
           this.message = 'The saved repair change was replaced. Refresh before retrying.';
           return;
         }
-        this.pending = undefined;
         recorded = true;
       }
       const found = repairView(await this.request(context, serial), context.repository);
@@ -208,8 +203,7 @@ export class SodaFactoryRepair extends LitElement {
             grant.proposal_judgments === pending.proposal_judgments &&
             grant.active_minutes === pending.active_minutes
         );
-        check(settleRepairChange(this.address!, pending));
-        this.pending = undefined;
+        check(this.cmd.settleObserved(pending));
       }
       this.view = found;
       if (admitted)
@@ -220,16 +214,15 @@ export class SodaFactoryRepair extends LitElement {
             : '';
     } catch (error) {
       if (!this.live(serial, context)) return;
-      this.ready = false;
+      const denied = error instanceof RepairRequestError && [401, 403].includes(error.status);
+      // An uncertain write remains replayable; a failed read requires refresh.
+      if (recorded || !(change && this.pending && !denied)) this.cmd.unresolve(true);
       if (recorded) {
         this.view = undefined;
         this.message = 'Repair change recorded. Current history could not be read; refresh repair funding.';
         return;
       }
-      if (error instanceof RepairRequestError && [401, 403].includes(error.status)) this.view = undefined;
-      // An uncertain write remains replayable; a failed read requires refresh.
-      if (change && this.pending && !(error instanceof RepairRequestError && [401, 403].includes(error.status)))
-        this.ready = true;
+      if (denied) this.view = undefined;
       this.message = this.pending
         ? 'A repair change is unconfirmed. Retry the same change before editing.'
         : error instanceof RepairRequestError

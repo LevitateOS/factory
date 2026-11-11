@@ -4,6 +4,8 @@ import {check, id, object, readSodaJSON} from '../api/models.js';
 import {factoryCommandId, factoryRunID, factoryRunStatusResponse} from '../api/run-response.js';
 import type {DeliveryRepairProgress, FactoryRunDetail} from '../api/run-response.js';
 import {deliveryRepairDecision, retryDecision} from '../api/work-response.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
 import {
   readVerificationRequest,
   retainVerificationRequest,
@@ -22,6 +24,13 @@ export interface VerificationRetryContext {
   readonly commandScope?: (signal: AbortSignal) => Promise<string>;
 }
 
+// Refusals returned before the retry command is recorded: pkg/factory/control/lifecycle_retry.go
+// (RetryRun admission; command_conflict means a record exists) and the rolled-back transactions in
+// pkg/store/factory_explicit_retry.go and factory_delivery_retry.go. Delivery repair has no command
+// record to prove absence from, so it keeps every refusal.
+const classifyRetryRefusal: ClassifyRefusal = (status, code) =>
+  status === 409 && (code === 'retry_ineligible' || code === 'authority_ineffective') ? 'discard' : 'keep';
+
 // Only the host-selected recorded issue-zero runs are read. The server's
 // exact delivery eligibility owns this control; a native exit alone is no verdict.
 export class SodaFactoryVerificationRetry extends LitElement {
@@ -31,8 +40,6 @@ export class SodaFactoryVerificationRetry extends LitElement {
     busy: {state: true},
     reading: {state: true},
     recoveryMessage: {state: true},
-    ready: {state: true},
-    pending: {state: true},
   };
   declare private entries: FactoryRunDetail[];
   declare private message: string;
@@ -41,10 +48,24 @@ export class SodaFactoryVerificationRetry extends LitElement {
   private generation = '';
   private lifetime = new AbortController();
   private serial = 0;
-  declare private pending: PendingVerificationRequest | undefined;
   declare private recoveryMessage: string;
-  declare private ready: boolean;
-  private address: VerificationRequestAddress | undefined;
+  private cmd = new PendingCommandController<PendingVerificationRequest, VerificationRequestAddress>(
+    {
+      read: readVerificationRequest,
+      retain: retainVerificationRequest,
+      settle: settleVerificationRequest,
+      same: sameVerificationRequest,
+    },
+    () => this.requestUpdate()
+  );
+  /** Which transient notice `message` currently holds; set only where it is written. */
+  private notice: 'loading' | 'read-failed' | undefined;
+  private get pending() {
+    return this.cmd.pending;
+  }
+  private get ready() {
+    return this.cmd.ready;
+  }
   private repairs = new Map<string, {cause: string; cycle: string}>();
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   declare private reading: boolean;
@@ -55,7 +76,6 @@ export class SodaFactoryVerificationRetry extends LitElement {
     this.message = '';
     this.busy = false;
     this.reading = false;
-    this.ready = false;
     this.recoveryMessage = '';
   }
   protected createRenderRoot() {
@@ -89,9 +109,8 @@ export class SodaFactoryVerificationRetry extends LitElement {
     this.serial++;
     this.entries = [];
     this.message = '';
-    this.pending = undefined;
-    this.address = undefined;
-    this.ready = false;
+    this.cmd.reset();
+    this.notice = undefined;
     this.recoveryMessage = '';
     this.repairs.clear();
     this.unavailable.clear();
@@ -117,25 +136,21 @@ export class SodaFactoryVerificationRetry extends LitElement {
     if (this.current && !this.busy) return this.load(this.current, this.serial);
   }
   private async resolveIdentity(context: VerificationRetryContext, serial: number): Promise<boolean> {
-    this.ready = false;
+    this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing verification identity');
       const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
       if (!this.live(serial, context)) return false;
-      const address = {scope, repository: context.repository};
-      const stored = readVerificationRequest(address);
-      this.address = address;
-      this.pending = stored.pending;
-      this.recoveryMessage = stored.blocked
+      const blocked = this.cmd.adopt({scope, repository: context.repository}) === 'blocked';
+      this.recoveryMessage = blocked
         ? 'Saved verification request is unreadable or belongs to another scope. It was preserved; no new request was sent.'
-        : stored.pending
+        : this.cmd.pending
           ? 'An unconfirmed verification request is saved. Retry the same request to check its recorded result.'
           : '';
-      this.ready = !stored.blocked;
-      return this.ready;
+      return !blocked;
     } catch {
       if (this.live(serial, context)) {
-        this.pending = undefined;
+        this.cmd.unresolve();
         this.recoveryMessage = 'Verification identity could not be read. Refresh verification before retrying.';
       }
       return false;
@@ -145,7 +160,10 @@ export class SodaFactoryVerificationRetry extends LitElement {
     if (!this.live(serial, context) || this.reading) return;
     this.reading = true;
     clearTimeout(this.refreshTimer);
-    if (!this.entries.length && !this.message) this.message = 'Loading verification and repair progress…';
+    if (!this.entries.length && !this.message) {
+      this.message = 'Loading verification and repair progress…';
+      this.notice = 'loading';
+    }
     if (!progressOnly) await this.resolveIdentity(context, serial);
     if (!this.live(serial, context)) return;
     const selected = [
@@ -234,14 +252,16 @@ export class SodaFactoryVerificationRetry extends LitElement {
     if (reads.some((read) => read.status === 'rejected')) {
       this.message =
         'Could not read current verification or repair progress. Last confirmed states are shown; refresh verification to try again.';
+      this.notice = 'read-failed';
       return;
     }
     if (
       entries.some((entry) => entry.delivery_repair?.progress) ||
-      this.message.startsWith('Could not read current verification') ||
-      this.message === 'Loading verification and repair progress…'
-    )
+      this.notice !== undefined
+    ) {
       this.message = '';
+      this.notice = undefined;
+    }
     if (this.repairs.size || this.entries.some((entry) => this.unsettled(entry.delivery_repair?.progress)))
       this.refreshTimer = setTimeout(() => {
         if (this.live(serial, context) && this.isConnected) void this.load(context, serial, true);
@@ -267,67 +287,66 @@ export class SodaFactoryVerificationRetry extends LitElement {
       (!this.pending && !(action === 'retry' ? entry.verification_retry?.available : entry.delivery_repair?.available))
     )
       return;
-    const shown = this.pending,
-      scope = this.address?.scope;
+    const shown = this.pending;
     if (shown && (shown.run !== run || shown.action !== action)) return;
     const serial = this.serial;
     this.busy = true;
     clearTimeout(this.refreshTimer);
     try {
-      if (!(await this.resolveIdentity(context, serial))) return;
-      if (
-        scope !== this.address?.scope ||
-        (shown ? !this.pending || !sameVerificationRequest(shown, this.pending) : this.pending)
-      ) {
+      const admitted = await this.cmd.readmit(() => this.resolveIdentity(context, serial));
+      if (admitted === 'unresolved') return;
+      if (admitted === 'changed') {
         this.recoveryMessage =
           'The saved verification request or account changed. Refresh verification before retrying.';
-        this.ready = false;
         return;
       }
       const pending = this.pending ?? {run, command: action === 'retry' ? factoryCommandId() : '', action};
-      const address = this.address!;
-      this.pending = pending;
-      const retained = retainVerificationRequest(address, pending);
-      if (retained !== 'saved') {
+      let repair: ReturnType<typeof deliveryRepairDecision> | undefined;
+      const outcome = await this.cmd.submit({
+        command: pending,
+        live: () => this.live(serial, context),
+        classifyRefusal: action === 'retry' ? classifyRetryRefusal : () => 'keep',
+        send: () =>
+          context.transport.request(`factory/runs/${run}/actions`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: pending.action, ...(pending.command ? {command_id: pending.command} : {})}),
+            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+          }),
+        receipt: (value) => {
+          if (action === 'retry') {
+            const receipt = object(value);
+            check(receipt.command_id === pending.command && receipt.prior_run === run && receipt.queued === true);
+            retryDecision(value, pending.command, run);
+          } else {
+            repair = deliveryRepairDecision(value, run);
+            check(factoryRunID(repair.cause_id) && factoryRunID(repair.cycle_id) && object(value).state === 'queued');
+          }
+        },
+      });
+      if (outcome.kind === 'retired') return;
+      if (outcome.kind === 'not-saved') {
         this.recoveryMessage =
-          retained === 'unavailable'
+          outcome.result === 'unavailable'
             ? 'Verification request could not be saved. No request was sent. Retry the same request when storage is available.'
             : 'The saved verification request changed. Refresh verification before retrying.';
-        if (retained === 'conflict') this.ready = false;
-        return;
-      }
-      const response = await context.transport.request(`factory/runs/${run}/actions`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({action: pending.action, ...(pending.command ? {command_id: pending.command} : {})}),
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
-      });
-      check(response.ok);
-      const value = await readSodaJSON(response);
-      if (!this.live(serial, context)) return;
-      let repair: ReturnType<typeof deliveryRepairDecision> | undefined;
-      if (action === 'retry') {
-        const receipt = object(value);
-        check(receipt.command_id === pending.command && receipt.prior_run === run && receipt.queued === true);
-        retryDecision(value, pending.command, run);
-      } else {
-        repair = deliveryRepairDecision(value, run);
-        check(factoryRunID(repair.cause_id) && factoryRunID(repair.cycle_id) && object(value).state === 'queued');
-      }
-      if (address.scope !== this.address?.scope || !settleVerificationRequest(address, pending)) {
-        this.ready = false;
+      } else if (outcome.kind === 'record-changed') {
         this.recoveryMessage =
           'The saved verification request changed. Refresh verification to read its current state.';
-        return;
-      }
-      this.recoveryMessage = '';
-      this.confirmed(run, action, repair);
-    } catch {
-      if (this.live(serial, context))
+      } else if (outcome.kind === 'confirmed') {
+        this.recoveryMessage = '';
+        this.confirmed(run, action, repair);
+      } else if (outcome.kind === 'refused' && outcome.discarded) {
+        this.notice = undefined;
+        this.message =
+          'The verification request is no longer available. Refresh verification before requesting again.';
+      } else {
+        this.notice = undefined;
         this.message =
           action === 'retry'
             ? 'No Retry was confirmed. Retry this same request or refresh the verification status.'
             : 'No repair request was confirmed. Retry this same request or refresh the verification status.';
+      }
     } finally {
       if (this.live(serial, context)) this.busy = false;
     }
@@ -337,7 +356,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     action: 'retry' | 'repair_delivery',
     repair?: ReturnType<typeof deliveryRepairDecision>
   ) {
-    this.pending = undefined;
+    this.notice = undefined;
     if (repair) {
       this.repairs.set(run, {cause: repair.cause_id, cycle: repair.cycle_id});
       this.entries = this.entries.map((entry) =>

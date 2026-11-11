@@ -10,6 +10,22 @@ import {acceptanceCommentIDs, acceptanceErrorMessage, acceptancePreview} from '.
 import type {AcceptancePreview} from '../api/acceptance-response.js';
 import {readAcceptance, retainAcceptance, sameAcceptance, settleAcceptance} from './acceptance-record.js';
 import type {AcceptanceAddress, AcceptanceDecision} from './acceptance-record.js';
+import {PendingCommandController} from '../shared/pending-command.js';
+import type {ClassifyRefusal} from '../shared/pending-command.js';
+
+// These typed evidence refusals precede persistence. After any unknown outcome or recovery,
+// a current refusal cannot settle the earlier attempt (the controller allows only a first send).
+const refusedBeforePersistence = new Set([
+  'stale_evidence',
+  'objective_changed',
+  'source_missing',
+  'source_changed',
+  'edge_changed',
+  'prereq_route_unknown',
+  'prereq_route_stale',
+]);
+const classifyRefusal: ClassifyRefusal = (status, code) =>
+  status === 409 && code !== undefined && refusedBeforePersistence.has(code) ? 'discard' : 'keep';
 
 export interface RequirementsAcceptanceContext {
   readonly observation?: WorkObservation;
@@ -55,8 +71,6 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     resolutions: {state: true},
     choices: {state: true},
     reviewed: {state: true},
-    pending: {state: true},
-    ready: {state: true},
   };
   declare private allowed: boolean;
   declare private message: string;
@@ -66,10 +80,16 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
   declare private resolutions: string;
   declare private choices: PrerequisiteChoice[];
   declare private reviewed: boolean;
-  declare private pending: AcceptanceDecision | undefined;
-  declare private ready: boolean;
-  private address: AcceptanceAddress | undefined;
-  private attempted = false;
+  private cmd = new PendingCommandController<AcceptanceDecision, AcceptanceAddress>(
+    {read: readAcceptance, retain: retainAcceptance, settle: settleAcceptance, same: sameAcceptance},
+    () => this.requestUpdate()
+  );
+  private get pending() {
+    return this.cmd.pending;
+  }
+  private get ready() {
+    return this.cmd.ready;
+  }
   private current: RequirementsAcceptanceContext | undefined;
   private predecessor: string | undefined;
   private serial = 0;
@@ -80,7 +100,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
   }
   constructor() {
     super();
-    this.allowed = this.ready = false;
+    this.allowed = false;
     this.message = '';
     this.busy = false;
     this.sources = '';
@@ -114,11 +134,9 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     this.generation = context?.transport.generation ?? '';
     this.current = context && {...context};
     this.serial++;
-    this.allowed = this.ready = false;
-    this.address = undefined;
-    this.attempted = false;
+    this.allowed = false;
+    this.cmd.reset();
     this.preview = undefined;
-    this.pending = undefined;
     this.predecessor = undefined;
     this.sources = '';
     this.resolutions = '';
@@ -162,41 +180,36 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     } else if (!this.busy) void this.resolveIdentity(context, this.serial);
   }
   private async resolveIdentity(context: RequirementsAcceptanceContext, serial: number): Promise<boolean> {
-    this.ready = false;
+    this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing acceptance identity');
       const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
       if (!this.live(serial, context)) return false;
       const address: AcceptanceAddress = {scope, repository: context.repository, issue: context.issue};
-      const stored = readAcceptance(address);
-      const same =
-        this.address?.scope === scope && this.pending && stored.pending && sameAcceptance(this.pending, stored.pending);
-      if (this.address && this.address.scope !== scope) {
+      if (this.cmd.address && this.cmd.address.scope !== scope) {
         this.preview = undefined;
         this.reviewed = false;
         this.choices = [];
         this.sources = this.resolutions = '';
       }
-      this.address = address;
-      this.attempted = stored.pending ? (same ? this.attempted : true) : false;
-      this.pending = stored.pending;
+      const blocked = this.cmd.adopt(address) === 'blocked',
+        stored = this.cmd;
       if (stored.pending) {
         this.sources = stored.pending.sources.map((source) => source.id).join(', ');
         this.resolutions = stored.pending.resolutions.map((source) => source.id).join(', ');
       }
-      if (stored.blocked) {
+      if (blocked) {
         this.message =
           'Saved acceptance is unreadable or belongs to another scope. It was preserved; no new decision was sent.';
         return false;
       }
-      this.ready = true;
       this.message = stored.pending
         ? 'An unconfirmed acceptance is saved. Retry the same acceptance to check its recorded result.'
         : '';
       return true;
     } catch {
       if (this.live(serial, context)) {
-        this.pending = undefined;
+        this.cmd.unresolve();
         this.message = 'Acceptance identity could not be read. Refresh acceptance authority before accepting.';
       }
       return false;
@@ -290,8 +303,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     const serial = this.serial;
     this.busy = true;
     try {
-      const shown = this.pending,
-        scope = this.address?.scope;
+      const shown = this.pending;
       let candidate: AcceptanceDecision | undefined;
       if (!shown && preview) {
         const prerequisites = await this.selectedPrerequisites(context);
@@ -310,80 +322,66 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
           prerequisites,
         };
       }
-      if (!(await this.resolveIdentity(context, serial))) return;
-      if (
-        scope !== this.address?.scope ||
-        (shown ? !this.pending || !sameAcceptance(shown, this.pending) : this.pending)
-      ) {
+      const admitted = await this.cmd.readmit(() => this.resolveIdentity(context, serial));
+      if (admitted === 'unresolved') return;
+      if (admitted === 'changed') {
         this.message = 'The saved acceptance or account changed. Review it before accepting.';
         return;
       }
       if (!this.allowed || !this.live(serial, context)) return;
       const decision = this.pending ?? candidate;
       if (!decision) return;
-      this.pending = decision;
-      const address = this.address!;
-      const retained = retainAcceptance(address, decision);
-      if (retained !== 'saved') {
+      const outcome = await this.cmd.submit({
+        command: decision,
+        live: () => this.live(serial, context),
+        classifyRefusal,
+        send: () =>
+          context.transport.request(`${this.base(context)}/acceptances`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(decision),
+            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(30000)]),
+          }),
+        receipt: (value) => {
+          const receipt = object(value);
+          check(
+            receipt.decision_id === decision.decision_id &&
+              decisionID(receipt.head) &&
+              typeof receipt.depth === 'number' &&
+              Number.isSafeInteger(receipt.depth) &&
+              receipt.depth > 0
+          );
+        },
+      });
+      if (outcome.kind === 'retired') return;
+      const retry = () => (this.pending ? ' Retry the same acceptance to check its recorded result.' : '');
+      if (outcome.kind === 'not-saved') {
         this.message =
-          retained === 'unavailable'
+          outcome.result === 'unavailable'
             ? 'Acceptance could not be saved. No decision was sent. Retry the same acceptance when storage is available.'
             : 'The saved acceptance changed. Refresh acceptance authority before retrying.';
         return;
       }
-      const firstAttempt = !this.attempted;
-      this.attempted = true;
-      const response = await context.transport.request(`${this.base(context)}/acceptances`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(decision),
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(30000)]),
-      });
-      const value = await readSodaJSON(response);
-      if (!this.live(serial, context)) return;
-      if (!response.ok) {
-        const refusal = object(value).error;
-        // These typed evidence refusals precede persistence. After any unknown
-        // outcome or recovery, a current refusal cannot settle the earlier attempt.
-        if (
-          firstAttempt &&
-          response.status === 409 &&
-          typeof refusal === 'string' &&
-          [
-            'stale_evidence',
-            'objective_changed',
-            'source_missing',
-            'source_changed',
-            'edge_changed',
-            'prereq_route_unknown',
-            'prereq_route_stale',
-          ].includes(refusal) &&
-          settleAcceptance(address, decision)
-        ) {
-          this.pending = undefined;
-          this.preview = undefined;
-          this.reviewed = false;
-        }
-        throw Error(
-          acceptanceErrorMessage(value) ??
-            sodaErrorDetail(value).message ??
-            'Acceptance was not confirmed. Refresh the preview before accepting current requirements.'
-        );
-      }
-      const receipt = object(value);
-      check(
-        receipt.decision_id === decision.decision_id &&
-          decisionID(receipt.head) &&
-          typeof receipt.depth === 'number' &&
-          Number.isSafeInteger(receipt.depth) &&
-          receipt.depth > 0
-      );
-      if (!settleAcceptance(address, decision)) {
-        this.ready = false;
+      if (outcome.kind === 'record-changed') {
         this.message = 'The saved acceptance changed. Refresh acceptance authority to read its current state.';
         return;
       }
-      this.pending = undefined;
+      if (outcome.kind === 'refused') {
+        if (outcome.discarded) {
+          this.preview = undefined;
+          this.reviewed = false;
+        }
+        this.message = `${
+          acceptanceErrorMessage(outcome.body) ??
+          sodaErrorDetail(outcome.body).message ??
+          'Acceptance was not confirmed. Refresh the preview before accepting current requirements.'
+        }${retry()}`;
+        return;
+      }
+      if (outcome.kind === 'unknown') {
+        this.message = `${outcome.error instanceof Error ? outcome.error.message : 'Acceptance was not confirmed.'}${retry()}`;
+        return;
+      }
       this.preview = undefined;
       this.reviewed = false;
       this.message =

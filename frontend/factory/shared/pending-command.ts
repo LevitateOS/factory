@@ -43,6 +43,8 @@ export interface SubmitOptions<T> {
   /** Validates the 2xx body against the command; throws unless it is the exact receipt. */
   receipt: (body: unknown) => void;
   classifyRefusal: ClassifyRefusal;
+  /** When the command could not be saved, forget it instead of keeping it in memory. */
+  forgetUnsaved?: boolean;
 }
 
 /** Plain controller (no Lit dependency); `changed` is the host's requestUpdate. */
@@ -139,12 +141,14 @@ export class PendingCommandController<T extends object, A extends {scope: string
     const {command, live} = options,
       address = this.address;
     if (!address) throw Error('Pending command has no admitted address');
-    const firstSend = !this.attempted;
+    const firstSend = !this.attempted,
+      before = {pending: this.pending, state: this.state};
     this.pending = command;
     this.to({kind: 'retained', command, firstSend});
     const retained = this.storage.retain(address, command);
     if (retained !== 'saved') {
-      if (retained === 'conflict') this.to({kind: 'conflict'});
+      if (options.forgetUnsaved) this.pending = before.pending;
+      this.to(retained === 'conflict' ? {kind: 'conflict'} : options.forgetUnsaved ? before.state : this.state);
       return {kind: 'not-saved', result: retained};
     }
     this.attempted = true;
