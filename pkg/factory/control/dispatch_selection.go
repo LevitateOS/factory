@@ -78,8 +78,9 @@ func checkConcurrencyLimits(ctx context.Context, deps DispatchDeps, occupancy *p
 	return nil, nil
 }
 
-// selectPreparationFor binds a ready role preparation built from the current
-// requirement and approval decisions. An exact ID preserves child work.
+// selectPreparationFor binds current approved setup. Fresh issue and publication
+// review preparations can use a retired native recipe; an exact ID preserves
+// child work and always requires its live ready preparation.
 func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role, exactID string) (*planWait, *planWait) {
 	if plan.nativeEnvironment == nil {
 		g, err := deps.Store.EnvironmentGrant(ctx, plan.policy.Repository)
@@ -117,12 +118,16 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 	if err != nil {
 		return nil, waitFor(DispatchErrStore, "preparations unreadable")
 	}
+	retiredRecipeAllowed := exactID == "" && plan.subject.Kind == factory.SubjectIssue &&
+		(role == project.RoleCoder && plan.phase == project.ExecutionInvestigate ||
+			role == project.RoleReviewer && plan.phase == project.ExecutionReview && plan.parent != "")
 	for _, prep := range preparations {
 		if plan.nativeEnvironment == nil && prep.Native != nil || plan.nativeEnvironment != nil &&
 			(prep.Native == nil || prep.Native.Profile != plan.nativeEnvironment.Profile || prep.State.SourceBundleSHA256 == "") {
 			continue
 		}
-		if prep.Preparation.Role != role || !prep.State.Ready || (exactID != "" && prep.Preparation.ID != exactID) {
+		retainedSource := retiredRecipeAllowed && prep.RetiredRecipeCandidate()
+		if prep.Preparation.Role != role || (!prep.State.Ready && !retainedSource) || (exactID != "" && prep.Preparation.ID != exactID) {
 			continue
 		}
 		if prep.Preparation.Requirements.ID != requirement || prep.Preparation.Approval.ID != approval {
@@ -136,11 +141,16 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 				continue
 			}
 			state, observeErr := observer.InspectWorkspacePreparation(ctx, prep.Address())
-			if observeErr != nil || state.ValidateFor(prep.Address()) != nil || !state.Ready || state.Stopped ||
+			if observeErr != nil || state.ValidateFor(prep.Address()) != nil ||
 				state.Role != role || state.SourceCommit != prep.Preparation.SourceCommit || state.SetupDigest != prep.Preparation.SetupDigest {
 				continue
 			}
 			prep.State = state
+			if !state.Ready || state.Stopped {
+				if !retiredRecipeAllowed || !prep.RetiredRecipeCandidate() {
+					continue
+				}
+			}
 		}
 		plan.prep = prep
 		plan.requirement, plan.approval = requirement, approval

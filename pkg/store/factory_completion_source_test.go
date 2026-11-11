@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
@@ -455,6 +456,37 @@ func TestCaptureCompletionLocalAtSourceMergedCoderTip(t *testing.T) {
 				t.Fatalf("another merge identity admitted: %v", err)
 			}
 			if err = tx.Rollback(); err != nil {
+				t.Fatal(err)
+			}
+			// The authority projection can admit fresh source setup from a
+			// declared retained native recipe without reporting it ready.
+			retained, err := db.Preparation(ctx, p.Preparation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			retained.Preparation.ID = "f" + factory.NewID()[:24]
+			retained.State.ID = retained.Preparation.ID
+			retained.Native = &execution.NativeWorkspaceRef{Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: retained.Preparation.ID}
+			retained.State.Native, retained.State.Container = retained.Native, ""
+			retained.State.Phase, retained.State.Ready, retained.State.Stopped, retained.State.Retirement = project.PrepareStopped, false, true, "confirmed"
+			zero := 0
+			retained.State.SetupExit, retained.State.CheckExit, retained.State.SourceBundleSHA256 = &zero, &zero, strings.Repeat("c", 64)
+			if err = retained.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := json.Marshal(retained)
+			if _, err = db.db.ExecContext(ctx, `INSERT INTO project_preparations(id,project_id,role,revision,requirements,approval,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, retained.Preparation.ID, retained.Preparation.Project, retained.Preparation.Role, retained.Preparation.Revision, retained.Preparation.Requirements.ID, retained.Preparation.Approval.ID, raw); err != nil {
+				t.Fatal(err)
+			}
+			policy, err := db.RepositoryPolicy(ctx, 7)
+			if err != nil {
+				t.Fatal(err)
+			}
+			in := factory.AuthorityInput{Role: project.RoleCoder, Policy: &policy}
+			if err = scanReadyPreparations(ctx, db.db, p.ProjectID, &in, &project.NativeEnvironment{Profile: retained.Native.Profile}); err != nil || in.PreparationReady || !in.PreparationRefreshable {
+				t.Fatalf("retained recipe must permit only fresh source setup: %+v %v", in, err)
+			}
+			if _, err = db.db.ExecContext(ctx, `DELETE FROM project_preparations WHERE id=$1`, retained.Preparation.ID); err != nil {
 				t.Fatal(err)
 			}
 			if local.Material.Authority.RequirementSourceCommit != base {

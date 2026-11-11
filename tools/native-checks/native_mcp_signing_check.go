@@ -7135,6 +7135,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if err != nil || len(after) != len(entries) {
 			return errors.New("refused old preparation created another native owner")
 		}
+		if os.Getenv("SODA_NATIVE_CHECK_RETIRED_SOURCE") == "1" {
+			if err := nativeRetiredSourceFixture(ctx, db, port, record, state); err != nil {
+				return err
+			}
+		}
 		fmt.Println("PASS: native reopen adopts exact old preparation/host retirement; its original instance/request cannot reconstruct or replay setup")
 		return nil
 	}
@@ -7276,6 +7281,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		setup = []byte("mkdir -p .factory-build\nprintf 'prepared dependency\\n' > .factory-build/dependency\nprintf 'prepared HOME\\n' > \"$HOME/factory-env\"\nchmod 600 \"$HOME/factory-env\" .factory-build/dependency\n")
 		check = []byte("test \"$(cat .factory-build/dependency)\" = 'prepared dependency'\ntest \"$(cat \"$HOME/factory-env\")\" = 'prepared HOME'\nprintf 'checked-by-native\\n'\n")
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_RETIRED_SOURCE") == "1" {
+		check = append(check, []byte("git rev-parse --verify HEAD\ncat docs/note.md\n")...)
+	}
 	if os.Getenv("SODA_NATIVE_CHECK_SETUP_RESOURCES") == "1" {
 		setup = append(setup, []byte("node -e 'const fs=require(\"fs\"); const memory=Buffer.alloc(192*1024*1024, 7); const artifact=memory.subarray(0,80*1024*1024); fs.writeFileSync(\".factory-build/large\",artifact); fs.writeFileSync(process.env.HOME+\"/large\",artifact); if(memory[191*1024*1024]!==7) process.exit(1)'\n")...)
 		check = append(check, []byte("test \"$(wc -c < .factory-build/large)\" -eq 83886080\ntest \"$(wc -c < \"$HOME/large\")\" -eq 83886080\nprintf 'checked-by-native prepared trees exceed historical byte and memory ceilings\\n'\n")...)
@@ -7380,7 +7388,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
 	var sourceInputs map[string]string
-	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" {
+	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" || os.Getenv("SODA_NATIVE_CHECK_RETIRED_SOURCE") == "1" {
 		content, err := os.ReadFile(os.Getenv("SODA_NATIVE_CHECK_SOURCE_README"))
 		if err != nil {
 			return err
@@ -7601,6 +7609,15 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		}
 	}
 	if os.Getenv("SODA_NATIVE_KEEP_PREPARATION") == "1" {
+		if os.Getenv("SODA_NATIVE_CHECK_RETIRED_SOURCE") == "1" {
+			retained, err := json.Marshal(struct{ Preparation string }{prep.ID})
+			if err != nil {
+				return err
+			}
+			if err = os.WriteFile(filepath.Join(profile, "admitted-native-fixture.json"), retained, 0600); err != nil {
+				return err
+			}
+		}
 		fmt.Println("PASS: retained admitted source preparation with actual build output and private HOME file")
 		return nil
 	}
@@ -7716,6 +7733,67 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return errors.New("stopped native preparation restarted")
 	}
 	fmt.Println("PASS: actual Go/native source preparation, real setup/check exits, source digest, observed state CAS, stable replay and exact retirement")
+	return nil
+}
+
+func nativeRetiredSourceFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, record execution.PreparationRecord, retired execution.PreparationState) error {
+	record.State = retired
+	if !record.RetiredRecipeCandidate() {
+		return errors.New("retained source lacks successful setup and confirmed retirement")
+	}
+	bundle, err := os.ReadFile(os.Getenv("SODA_NATIVE_CANDIDATE_FULL_BUNDLE"))
+	if err != nil {
+		return err
+	}
+	for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+		candidate := record.Preparation
+		candidate.ID, candidate.Revision, candidate.Role, candidate.SourceCommit = "f"+factory.NewID()[:24], 0, role, os.Getenv("SODA_NATIVE_CANDIDATE_COMMIT")
+		address, err := port.CandidatePreparationAddress(candidate.Project, candidate.ID)
+		if err != nil || address.Native.InstanceID == record.Native.InstanceID {
+			return errors.New("fresh candidate did not use the current native owner")
+		}
+		source := &project.FactoryMergedSource{Export: project.FactoryExport{Project: candidate.Project, ID: factory.NewID(), Role: project.RoleCoder, Preparation: record.Preparation.ID, Candidate: candidate.SourceCommit}, MergeID: factory.NewID(), Commit: candidate.SourceCommit, Repository: 1, Target: "refs/heads/main"}
+		derived := execution.CandidatePreparationRequest{Native: address.Native, Input: project.FactoryCandidate{Preparation: candidate, SourcePreparation: record.Preparation.ID, SourceMerge: source, Deadline: time.Now().Add(20 * time.Second)}}
+		if role == project.RoleReviewer {
+			derived.Input.SourceMerge, derived.Input.Bundle = nil, bundle
+		}
+		if _, err = port.PrepareWorkspaceCandidate(ctx, derived); err == nil {
+			return errors.New("retired recipe supplied candidate authority without its journal")
+		}
+		// Only native import admission is declared. Production Go admission above
+		// still refuses; exact merge/grant joins are checked by the PG source check.
+		derived.Input.Bundle = bundle
+		payload := map[string]any{"operation": "candidate", "request": derived, "source": record.Address()}
+		var state execution.PreparationState
+		bad := derived
+		bad.Input.Bundle = []byte(strings.Replace(string(bundle), "# v2 git bundle\n", "# v2 git bundle\n-"+record.Preparation.SourceCommit+" protected source\n", 1))
+		if err = nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/preparation", map[string]any{"operation": "candidate", "request": bad, "source": record.Address()}, &state); err == nil {
+			return errors.New("retired source accepted a prerequisite delta")
+		}
+		if err = nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/preparation", payload, &state); err != nil {
+			return err
+		}
+		for !state.Ready {
+			if state.Phase != project.PrepareRunning {
+				return fmt.Errorf("fresh retired-source setup: %s %s", state.Phase, state.Output)
+			}
+			time.Sleep(30 * time.Millisecond)
+			if err = nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/preparation", map[string]any{"operation": "inspect", "address": derived.Address()}, &state); err != nil {
+				return err
+			}
+		}
+		if state.SourceCommit != candidate.SourceCommit || state.SetupDigest != candidate.SetupDigest || state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || !strings.Contains(state.Output, candidate.SourceCommit) {
+			return errors.New("fresh preparation did not independently execute approved setup/check at the exact new source")
+		}
+		if err = nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/preparation", map[string]any{"operation": "retire", "address": derived.Address()}, &state); err != nil || !state.Stopped || state.Retirement != "confirmed" {
+			return errors.Join(errors.New("fresh preparation retirement unconfirmed"), err)
+		}
+		after, err := port.InspectWorkspacePreparation(ctx, record.Address())
+		if err != nil || !reflect.DeepEqual(after, retired) {
+			return errors.New("fresh preparation changed its original retired source")
+		}
+	}
+	fmt.Println("PASS: actual native Quit/restart consumes only retired approved recipe and complete source bundle; independent current coder and reviewer addresses/deadlines execute setup/check, prerequisite delta and absent Go admission refuse, original source stays retired; merge/publication/provider facts declared, no model/provider request")
 	return nil
 }
 

@@ -449,7 +449,10 @@ type AuthorityInput struct {
 	Environment      *project.EnvironmentGrant
 	ProjectExists    bool
 	PreparationReady bool
-	DispatchOpen     bool
+	// A preserved approved native recipe can admit fresh merged-source setup;
+	// this does not make any retired preparation ready for execution.
+	PreparationRefreshable bool
+	DispatchOpen           bool
 }
 
 // MaxActiveDispatchCauses bounds the cause labels retained on one gate.

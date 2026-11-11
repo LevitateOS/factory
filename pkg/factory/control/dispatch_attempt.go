@@ -35,7 +35,7 @@ type attemptLineage struct {
 // source, the verified prompt bytes, and the deadline the reservation
 // will hold.
 type attemptPlan struct {
-	externalPlanning *factory.ExternalPullPlanning
+	externalPlanning  *factory.ExternalPullPlanning
 	effective         factory.EffectiveAuthority
 	policy            factory.RepositoryPolicy
 	sponsorship       factory.Sponsorship
@@ -405,7 +405,7 @@ func confirmAttemptPreparation(ctx context.Context, deps DispatchDeps, plan *att
 		if !ready {
 			return waitFor(WaitPreparation, "fresh retry preparation is running")
 		}
-	} else if role == project.RoleCoder && !recordedPrompt && plan.prep.Preparation.SourceCommit != plan.inputs.Tip {
+	} else if role == project.RoleCoder && !recordedPrompt && (plan.prep.Preparation.SourceCommit != plan.inputs.Tip || !plan.prep.State.Ready || plan.prep.State.Stopped) {
 		if deps.PrepareSource == nil {
 			return waitFor(WaitPreparation, "current source preparation is unavailable")
 		}
@@ -574,8 +574,8 @@ func maybeAdvanceCompletedPlanning(ctx context.Context, deps DispatchDeps, occup
 // retains this parent and plan. Its immutable command supplies the new child
 // identity; the packet transaction rechecks the retired prior run and budget.
 func advanceCompletedPlanning(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, control factory.IssueControl, latest factory.Assignment, head string, report *DispatchReport, retry *factory.RetryDecision) bool {
-	if latest.ExternalPlanning!=nil {
-		report.Waits=append(report.Waits,DispatchWait{Repository:control.Repository,Issue:control.Issue,Reason:WaitAttemptRecorded,Detail:"external planning never starts an initial Builder; its publication owner adopts the captured PR"})
+	if latest.ExternalPlanning != nil {
+		report.Waits = append(report.Waits, DispatchWait{Repository: control.Repository, Issue: control.Issue, Reason: WaitAttemptRecorded, Detail: "external planning never starts an initial Builder; its publication owner adopts the captured PR"})
 		return true
 	}
 	repository, issue := control.Repository, control.Issue

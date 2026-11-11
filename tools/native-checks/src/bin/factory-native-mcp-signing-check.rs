@@ -899,7 +899,8 @@ fn managed_preparations(
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
     let fences = std::env::var("SODA_NATIVE_CHECK_PREPARATION_FENCES").as_deref() == Ok("1");
-    let modes: &[&str] = if fences {
+    let retired_source = std::env::var("SODA_NATIVE_CHECK_RETIRED_SOURCE").as_deref() == Ok("1");
+    let modes: &[&str] = if fences || retired_source {
         &["ready"]
     } else if std::env::var("SODA_NATIVE_CHECK_STANDING_WITHDRAWAL").as_deref() == Ok("1") {
         &["withdrawn"]
@@ -920,6 +921,9 @@ fn managed_preparations(
         let profile = root.join(format!("preparation-{mode}"));
         let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
         let ready = supervisor.health()?;
+        if let Some(error) = supervisor.execution_error() {
+            return Err(format!("native preparation owner unavailable: {error}").into());
+        }
         if !Command::new(client)
             .arg(&profile)
             .arg(&ready.instance)
@@ -1011,6 +1015,21 @@ fn managed_preparations(
         {
             return Err("native preparation retirement acknowledgement missing".into());
         }
+        if retired_source {
+            let retained: Vec<_> = entries.iter().map(|entry| Ok((entry.path(), fs::read(entry.path().join("request.json"))?, fs::read(entry.path().join("retired.json"))?)))
+                .collect::<std::io::Result<_>>()?;
+            let restarted = NativeSupervisor::start(payload, backend, &profile)?;
+            let reopened = restarted.health()?;
+            let checked = reopened.instance != ready.instance && Command::new(client).arg(&profile).arg(&reopened.instance)
+                .arg("check-native-preparation").arg("retained").status()?.success();
+            restarted.stop()?;
+            if !checked { return Err("retired source did not produce an independent current preparation".into()); }
+            for (path, request, retirement) in retained {
+                if fs::read(path.join("request.json"))? != request || fs::read(path.join("retired.json"))? != retirement {
+                    return Err("fresh source setup changed original request or retirement".into());
+                }
+            }
+        }
         if fences {
             let restarted = NativeSupervisor::start(payload, backend, &profile)?;
             let reopened = restarted.health()?;
@@ -1036,7 +1055,9 @@ fn managed_preparations(
             restarted.stop()?;
         }
     }
-    if modes.contains(&"withdrawn") {
+    if retired_source {
+        println!("PASS: retired successful source supplies only an immutable recipe across Quit/restart; independent current setup completes and both exact identities retire without changing original journals");
+    } else if modes.contains(&"withdrawn") {
         println!("PASS: current workspace withdrawal refuses retained standing setup before native effects; owned supervisor/database joined");
     } else if modes.contains(&"network-pending") {
         println!("PASS: two overlapping public HTTPS preparations interrupted by joined Quit; new supervisor retains exact inputs/retirement without setup replay");

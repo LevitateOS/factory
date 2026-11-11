@@ -161,6 +161,7 @@ func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID str
 		return err
 	}
 	ready := map[string]bool{}
+	var retained []execution.PreparationRecord
 	for rows.Next() {
 		var data []byte
 		var preparation execution.PreparationRecord
@@ -180,6 +181,13 @@ func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID str
 			(native == nil && preparation.Native == nil || native != nil && preparation.Native != nil && preparation.Native.Profile == native.Profile) {
 			ready[preparation.Preparation.Role] = true
 		}
+		var fields map[string]json.RawMessage
+		if native != nil && in.Role == project.RoleCoder && preparation.Native != nil && preparation.Native.Profile == native.Profile &&
+			preparation.Preparation.Role == project.RoleCoder && preparation.RetiredRecipeCandidate() && len(preparation.Preparation.Requirements.SourceInputs) != 0 {
+			if json.Unmarshal(data, &fields) == nil && fields["factory_admission"] == nil {
+				retained = append(retained, preparation)
+			}
+		}
 	}
 	if err = rows.Err(); err != nil {
 		_ = rows.Close()
@@ -189,6 +197,34 @@ func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID str
 		return err
 	}
 	in.PreparationReady = ready[project.RoleCoder] && ready[project.RoleReviewer]
+	if len(retained) != 0 {
+		var requirement, approval string
+		if err := q.QueryRowContext(ctx, `SELECT r.decision,a.decision FROM project_requirement_heads r JOIN project_approval_heads a ON a.project_id=r.project_id WHERE r.project_id=$1`, projectID).Scan(&requirement, &approval); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return err
+		}
+		for _, preparation := range retained {
+			if preparation.Preparation.Requirements.ID == requirement && preparation.Preparation.Approval.ID == approval {
+				var publicationData, mergeData, runData []byte
+				var tip string
+				if in.Policy == nil {
+					continue
+				}
+				err := q.QueryRowContext(ctx, `SELECT p.data,m.data,COALESCE(r.data,'null'::jsonb),m.data->>'merged_commit' FROM factory_publications p JOIN factory_merges m ON m.publication=p.data->>'id' LEFT JOIN factory_runs r ON r.id=p.data->>'run' WHERE p.repository=$1 AND m.stage='merged' AND m.data->>'project_id'=$2 AND m.data->>'base_ref'=$3 ORDER BY m.seq DESC LIMIT 1`, in.Policy.Repository, projectID, in.Policy.TargetBranch).Scan(&publicationData, &mergeData, &runData, &tip)
+				if errors.Is(err, sql.ErrNoRows) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				if _, err := mergedPreparationSource(publicationData, mergeData, runData, in.Policy.Repository, projectID, in.Policy.TargetBranch, tip); err == nil {
+					in.PreparationRefreshable = true
+				}
+			}
+		}
+	}
 	return nil
 }
 

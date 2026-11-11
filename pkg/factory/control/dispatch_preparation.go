@@ -148,7 +148,7 @@ func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, comma
 // source at the planned tip.
 func (c *Coordinator) resolveCoderSource(ctx context.Context, plan *attemptPlan) (project.Preparation, *project.FactoryExport, *project.FactoryMergedSource, error) {
 	source := plan.prep.Preparation
-	if source.SourceCommit == plan.inputs.Tip {
+	if source.SourceCommit == plan.inputs.Tip && plan.prep.State.Ready && !plan.prep.State.Stopped {
 		return source, nil, nil, nil
 	}
 	if len(source.Requirements.SourceInputs) == 0 {
@@ -183,9 +183,18 @@ func (c *Coordinator) admitCoderPreparation(ctx context.Context, plan *attemptPl
 	registration.GateRevision = revision
 	requested := execution.PreparationRecord{Preparation: prep}
 	if plan.prep.Native != nil {
-		owner := *plan.prep.Native
-		owner.WorktreeID = prep.ID
-		requested.Native = &owner
+		owner, available := c.Host.(execution.PreparationTarget)
+		if available {
+			address, err := owner.CandidatePreparationAddress(prep.Project, prep.ID)
+			if err != nil || address.Native == nil || address.Native.Profile != plan.prep.Native.Profile {
+				return empty, false, execution.ErrPreparation
+			}
+			requested.Native = address.Native
+		} else {
+			owner := *plan.prep.Native
+			owner.WorktreeID = prep.ID
+			requested.Native = &owner
+		}
 	}
 	record, created, err := c.Store.AdmitCandidatePreparation(ctx, requested, registration)
 	if err != nil {

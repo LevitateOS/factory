@@ -59,7 +59,27 @@ struct DerivedSource {
     sha256: String,
     base: String,
     delta: Vec<u8>,
+    complete: bool,
     not_after: OffsetDateTime,
+}
+fn refreshed_source(request: &Value) -> bool {
+    let input = &request["input"];
+    match input["preparation"]["role"].as_str() {
+        Some("soda-coder") => input["source_pull"].is_null() && matches!(
+            (&input["source_run"], &input["source_merge"]),
+            (Value::Object(_), Value::Null) | (Value::Null, Value::Object(_))
+        ),
+        // The current publication admission owns the exact reviewer head.
+        // A retired recipe supplies approved bytes, never a live checkout.
+        Some("soda-reviewer") => input["source_run"].is_null() && input["source_merge"].is_null(),
+        _ => false,
+    }
+}
+fn complete_bundle(bundle: &[u8], candidate: &str) -> bool {
+    let header = format!("# v2 git bundle\n{candidate} HEAD\n\n");
+    bundle
+        .strip_prefix(header.as_bytes())
+        .is_some_and(|pack| pack.len() >= 32 && pack.starts_with(b"PACK"))
 }
 struct Input {
     request: Value,
@@ -158,6 +178,10 @@ impl Input {
                 Value::Null => Vec::new(),
                 value => decode(value)?,
             };
+            let complete = match binding.get("complete") {
+                None => false,
+                Some(value) => value.as_bool().ok_or_else(denied)?,
+            };
             let not_after =
                 OffsetDateTime::parse(text(&origin["input"], "deadline", 64)?, &Rfc3339)
                     .map_err(|_| denied())?;
@@ -167,6 +191,7 @@ impl Input {
                 || sha256 != bundle_sha
                 || delta.len() > MAX_STAGE_BUNDLE
                 || delta.is_empty() && base != source
+                || complete && (!refreshed_source(origin) || !complete_bundle(&delta, &source))
             {
                 return Err(denied());
             }
@@ -175,6 +200,7 @@ impl Input {
                 sha256,
                 base,
                 delta,
+                complete,
                 not_after,
             })
         } else {
@@ -293,6 +319,12 @@ fn load_completion(directory: &Path) -> io::Result<Option<Completion>> {
         Err(error) => Err(error),
     }
 }
+fn setup_ready(receipt: &SetupReceipt) -> bool {
+    receipt.missing.is_empty()
+        && !receipt.output_truncated
+        && receipt.setup_exit == Some(0)
+        && receipt.check_exit == Some(0)
+}
 /// The lifecycle of one preparation, derived from its journal.
 enum Phase {
     /// Fenced before any request was admitted (controller-not-started journal).
@@ -319,10 +351,7 @@ impl Phase {
             Some(Outcome::Receipt(receipt)) => {
                 if !receipt.missing.is_empty() {
                     Self::Waiting(receipt)
-                } else if !receipt.output_truncated
-                    && receipt.setup_exit == Some(0)
-                    && receipt.check_exit == Some(0)
-                {
+                } else if setup_ready(&receipt) {
                     Self::Ready(receipt)
                 } else {
                     Self::Failed(receipt)
@@ -662,7 +691,9 @@ impl Preparations {
                                 if cancellation.cancelled() {
                                     return Err(denied());
                                 }
-                                let bundle = if derived.delta.is_empty() {
+                                let bundle = if derived.complete {
+                                    derived.delta.clone()
+                                } else if derived.delta.is_empty() {
                                     input.bundle.clone()
                                 } else {
                                     Broker::complete_candidate(
@@ -775,14 +806,26 @@ impl Preparations {
                 return self.inspect(&address);
             }
         }
-        if !matches!(self.status(source)?.phase, Phase::Ready(_)) {
+        let source_status = self.status(source)?;
+        let complete = match &source_status.phase {
+            Phase::Ready(_) => false,
+            Phase::Stopped {
+                prior: Some(Outcome::Receipt(receipt)),
+            } if setup_ready(receipt) && refreshed_source(&request) => true,
+            _ => return Err(denied()),
+        };
+        let source_key = self.key(source)?;
+        let base = match source_status.subject {
+            Subject::Input(input) => input,
+            Subject::Fence(_) => return Err(denied()),
+        };
+        if source_status
+            .phase
+            .receipt()
+            .is_none_or(|receipt| receipt.setup_sha256 != base.setup)
+        {
             return Err(denied());
         }
-        let source_key = self.key(source)?;
-        let base = {
-            let entries = self.entries.lock().map_err(|_| denied())?;
-            entries.get(&source_key).ok_or_else(denied)?.input.clone()
-        };
         let target = &request["input"]["preparation"];
         let approved = &base.request["input"]["preparation"];
         if request["input"]["source_preparation"] != base.id
@@ -803,8 +846,12 @@ impl Preparations {
             .iter()
             .map(|(name, bytes)| (name.clone(), encode(bytes)))
             .collect();
+        let mut binding = json!({"key":source_key,"base":base.source,"sha256":digest(&bundle),"address":source});
+        if complete {
+            binding["complete"] = Value::Bool(true);
+        }
         let standing = json!({"native":request["native"],"input":{"preparation":target,"setup":{"files":files,"bundle":encode(&bundle)}},
-            "candidate_origin":request,"candidate_source":{"key":source_key,"base":base.source,"sha256":digest(&bundle),"address":source}});
+            "candidate_origin":request,"candidate_source":binding});
         self.prepare(standing, authority)
     }
     pub(crate) fn inspect(&self, address: &Value) -> io::Result<Value> {

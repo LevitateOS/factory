@@ -63,7 +63,7 @@ func EvaluateAuthority(in AuthorityInput) EffectiveAuthority {
 	default:
 		ref.Environment = in.Environment.Revision
 	}
-	if in.ProjectExists && !in.PreparationReady {
+	if in.ProjectExists && !in.PreparationReady && !in.PreparationRefreshable {
 		missing = append(missing, MissingPreparation)
 	}
 	if !in.DispatchOpen {

@@ -13,17 +13,17 @@ import (
 	"github.com/levitateos/factory/pkg/project"
 )
 
-// externalPullBundle uses the existing authenticated source connector. It does
+// publicationHeadBundle uses the existing authenticated source connector. It does
 // not execute the checkout, renew the publication or infer a native send from
 // the provider's current state. Both PR observations must match the admitted
 // head/base and canonical identities before these bytes reach preparation.
-func (p NativeExecution) externalPullBundle(ctx context.Context, source project.FactoryPullSource, base string) ([]byte, error) {
+func (p NativeExecution) publicationHeadBundle(ctx context.Context, source project.FactoryPullSource, base string) ([]byte, error) {
 	publication, err := p.Store.PublicationByID(ctx, source.Publication)
-	if err != nil || publication.Validate() != nil || publication.External == nil || publication.WithdrawRequested || publication.Stage != factory.PublicationPublished || !reflect.DeepEqual(publication.PullSource(), &source) || source.Validate() != nil {
+	if err != nil || publication.Validate() != nil || publication.WithdrawRequested || publication.Stage != factory.PublicationPublished || !reflect.DeepEqual(publicationPreparationSource(publication), &source) || source.Validate() != nil {
 		return nil, execution.ErrPreparation
 	}
 	policy, err := p.Store.RepositoryPolicy(ctx, source.Repository)
-	if err != nil || policy.Revision != publication.External.Policy || policy.Review.NativeProfile != publication.External.Profile || policy.Review.NativeConnection != publication.External.Connection || publication.External.Profile != p.Config.Profile {
+	if err != nil || publication.External != nil && (policy.Revision != publication.External.Policy || policy.Review.NativeProfile != publication.External.Profile || policy.Review.NativeConnection != publication.External.Connection || publication.External.Profile != p.Config.Profile) {
 		return nil, execution.ErrPreparation
 	}
 	reader := NativeInputSource{p}
@@ -38,7 +38,7 @@ func (p NativeExecution) externalPullBundle(ctx context.Context, source project.
 	}
 	query := nativeRead{Kind: "source_bundle", Repository: account.repository.ExternalID, Base: &base, Commit: source.Head, TargetRef: source.HeadRef}
 	if source.HeadRepository != source.Repository {
-		if account.binding.Host.Provider != collaboration.GitHub || publication.External.ForkConsent != publication.ID || base != source.Base {
+		if account.binding.Host.Provider != collaboration.GitHub || publication.External == nil || publication.External.ForkConsent != publication.ID || base != source.Base {
 			return nil, execution.ErrPreparation
 		}
 		headRepository, err := p.Store.CollaborationRepositoryOnHost(ctx, account.binding.Host.ID, collaboration.RepositoryID(source.HeadRepository))
@@ -71,8 +71,13 @@ func (p NativeExecution) externalPullBundle(ctx context.Context, source project.
 		return nil, err
 	}
 	current, err := p.Store.PublicationByID(ctx, source.Publication)
-	if err != nil || current.WithdrawRequested || current.Stage != factory.PublicationPublished || !reflect.DeepEqual(current.PullSource(), &source) {
+	if err != nil || current.WithdrawRequested || current.Stage != factory.PublicationPublished || !reflect.DeepEqual(publicationPreparationSource(current), &source) {
 		return nil, execution.ErrPreparation
 	}
 	return fetched.Bundle, nil
+}
+
+func publicationPreparationSource(p factory.Publication) *project.FactoryPullSource {
+	t := p.PullTarget()
+	return &project.FactoryPullSource{Publication: p.ID, Repository: p.Repository, Number: p.PRNumber, PullID: p.PRID, IssueID: t.IssueID, AuthorID: t.AuthorID, HeadRepository: t.HeadRepository, HeadRef: t.HeadRef, BaseRef: t.BaseRef, Head: p.Candidate, Base: t.BaseOID}
 }

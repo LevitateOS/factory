@@ -339,6 +339,10 @@ func (c *Coordinator) chargePublicationChildReview(ctx context.Context, p factor
 }
 
 func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, p factory.Publication, owner factory.Assignment, role, expectedPrepID, childID string, lineage attemptLineage, report *PublishReport) (*attemptPlan, string, execution.PreparationRecord, bool) {
+	if deps.Authority == nil {
+		publicationWait(report, p.ID, WaitAuthority)
+		return nil, "", execution.PreparationRecord{}, true
+	}
 	occupancySnapshot, err := snapshotOccupancy(ctx, deps.Store)
 	if err != nil {
 		publicationError(report, p.ID, "capacity_accounting_unavailable")
@@ -356,6 +360,32 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 	exactPreparation := ""
 	if role == project.RoleCoder {
 		exactPreparation = owner.Preparation
+	}
+	if role == project.RoleReviewer && lineage.phase == project.ExecutionReview && lineage.parent == owner.ID &&
+		owner.NativeTool != nil && owner.Validate() == nil && owner.PublicationAssignment == owner.ID &&
+		owner.Repository == p.Repository && owner.Issue == p.Issue && owner.Acceptance == p.Acceptance && owner.ProjectID == p.ProjectID {
+		standingAuthority := deps.Authority
+		deps.Authority = func(ctx context.Context, repository int64, selectedRole string) (factory.EffectiveAuthority, error) {
+			effective, err := standingAuthority(ctx, repository, selectedRole)
+			if err != nil || repository != p.Repository || selectedRole != project.RoleReviewer ||
+				len(effective.Missing) != 1 || effective.Missing[0] != factory.MissingPreparation {
+				return effective, err
+			}
+			current, err := deps.Store.PublicationByAssignment(ctx, owner.ID)
+			if err != nil {
+				return effective, err
+			}
+			if !admitPublicationChildInput(current) || current.ID != p.ID || current.ProjectID != owner.ProjectID ||
+				current.Repository != p.Repository || current.Issue != p.Issue || current.Acceptance != p.Acceptance ||
+				current.Candidate != p.Candidate || current.PRNumber != p.PRNumber || current.PRID != p.PRID ||
+				current.PullTarget() != p.PullTarget() || !reflect.DeepEqual(current.Tuple, p.Tuple) {
+				return effective, nil
+			}
+			// Only this published review may proceed to independent candidate
+			// setup. Selection and its atomic admission still prove the recipe.
+			effective.Missing, effective.Effective = []string{}, true
+			return effective, nil
+		}
 	}
 	plan, wait, failed := planAttemptForRole(ctx, deps, occupancy, p.Repository, p.Issue, p.Acceptance, control, false, role, exactPreparation, true, "", lineage)
 	if failed != nil {
@@ -901,8 +931,12 @@ func (c *Coordinator) currentChildCheckAssessment(ctx context.Context, p factory
 
 func buildReviewCandidatePrep(plan *attemptPlan, p factory.Publication, expectedPrepID string) (source, prep project.Preparation, err error) {
 	source = plan.prep.Preparation
+	role, err := factory.PhaseRole(plan.phase)
+	if err != nil || role != source.Role {
+		return project.Preparation{}, project.Preparation{}, errors.New("candidate preparation role differs from its admitted phase")
+	}
 	prep = project.Preparation{
-		ID: expectedPrepID, Project: p.ProjectID, Role: source.Role,
+		ID: expectedPrepID, Project: p.ProjectID, Role: role,
 		Requirements: source.Requirements, Approval: source.Approval, SourceCommit: p.Candidate,
 		SetupDigest: source.SetupDigest, Tools: append([]string(nil), source.Tools...), Credential: source.Credential,
 	}
@@ -936,9 +970,17 @@ func (c *Coordinator) admitReviewCandidatePrep(ctx context.Context, plan *attemp
 	}
 	record := execution.PreparationRecord{Preparation: prep}
 	if plan.prep.Native != nil {
-		ref := *plan.prep.Native
-		ref.WorktreeID = prep.ID
-		record.Native = &ref
+		if target, available := c.Host.(execution.PreparationTarget); available {
+			address, err := target.CandidatePreparationAddress(prep.Project, prep.ID)
+			if err != nil || address.Native == nil || address.Native.Profile != plan.prep.Native.Profile {
+				return execution.PreparationRecord{}, false, execution.ErrPreparation
+			}
+			record.Native = address.Native
+		} else {
+			ref := *plan.prep.Native
+			ref.WorktreeID = prep.ID
+			record.Native = &ref
+		}
 	}
 	// Recovery reuses the original native custody and admission, including its
 	// expiry. A current controller may inspect it, never replace its instance,

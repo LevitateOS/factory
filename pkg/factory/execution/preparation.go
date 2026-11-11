@@ -37,6 +37,12 @@ type PreparationObserver interface {
 	RetireWorkspacePreparation(context.Context, PreparationAddress) (PreparationState, error)
 }
 
+// PreparationTarget supplies the current owner's address for a new candidate.
+// It grants no setup authority and never changes a retained source address.
+type PreparationTarget interface {
+	CandidatePreparationAddress(string, string) (PreparationAddress, error)
+}
+
 type StandingPreparationRequest struct {
 	Controller *PreparationController `json:"controller,omitempty"`
 	Input      project.Prepare        `json:"input"`
@@ -177,6 +183,15 @@ type PreparationRecord struct {
 
 func (r PreparationRecord) Address() PreparationAddress {
 	return PreparationAddress{Workspace: r.Preparation.Project, ID: r.Preparation.ID, Native: r.Native}
+}
+
+// RetiredRecipeCandidate identifies recorded successful setup bytes worth
+// inspecting as immutable input. The native owner must still confirm custody,
+// its full successful receipt and the preserved bundle before a new setup.
+func (r PreparationRecord) RetiredRecipeCandidate() bool {
+	return r.Native != nil && r.Validate() == nil && r.State.RetirementState() == Retired &&
+		r.State.SourceBundleSHA256 != "" && r.State.Missing == "" &&
+		r.State.SetupExit != nil && *r.State.SetupExit == 0 && r.State.CheckExit != nil && *r.State.CheckExit == 0
 }
 
 func (r PreparationRecord) MarshalJSON() ([]byte, error) {

@@ -24,6 +24,29 @@ var _ execution.PreparationObserver = NativeExecution{}
 var _ execution.PreparationContextReader = NativeExecution{}
 var _ execution.PreparationLauncher = NativeExecution{}
 
+func (p NativeExecution) CandidatePreparationAddress(workspace, id string) (execution.PreparationAddress, error) {
+	address := execution.PreparationAddress{Workspace: workspace, ID: id, Native: &execution.NativeWorkspaceRef{Profile: p.Config.Profile, InstanceID: p.Instance, WorktreeID: id}}
+	if !p.currentPreparationAddress(address) {
+		return execution.PreparationAddress{}, execution.ErrPreparation
+	}
+	return address, nil
+}
+
+func (p NativeExecution) candidateRecipeMatches(source execution.PreparationRecord, wanted project.Preparation, refresh bool) bool {
+	base := source.Preparation
+	if source.Validate() != nil || source.Native == nil || source.Native.Profile != p.Config.Profile ||
+		base.Project != wanted.Project || base.SetupDigest != wanted.SetupDigest || !base.Requirements.Equal(wanted.Requirements) ||
+		base.Approval != wanted.Approval || !slices.Equal(base.Tools, wanted.Tools) {
+		return false
+	}
+	if p.currentPreparationAddress(source.Address()) && source.State.Ready && !source.State.Stopped {
+		return true
+	}
+	// The constructor independently checks the exact retained native journal.
+	// A prior ready record can outlive its incarnation in the Go projection.
+	return refresh && (source.RetiredRecipeCandidate() || source.State.Ready && !source.State.Stopped)
+}
+
 func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request execution.CandidatePreparationRequest) (execution.PreparationState, error) {
 	var empty execution.PreparationState
 	if p.Store == nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) || request.Input.Preparation.Credential != "" || !time.Now().Before(request.Input.Deadline) {
@@ -35,7 +58,7 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 	}
 	actual, wanted := request.Input.Preparation, stored.Preparation.Preparation
 	actual.Revision, wanted.Revision = 0, 0
-	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) || !reflect.DeepEqual(request.Input.SourceMerge, stored.Admission.SourceMerge) || !reflect.DeepEqual(request.Input.SourcePull,stored.Admission.SourcePull) {
+	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) || !reflect.DeepEqual(request.Input.SourceMerge, stored.Admission.SourceMerge) || !reflect.DeepEqual(request.Input.SourcePull, stored.Admission.SourcePull) {
 		return empty, execution.ErrPreparation
 	}
 	source, err := p.Store.Preparation(ctx, request.Input.SourcePreparation)
@@ -43,8 +66,19 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 		return empty, err
 	}
 	base := source.Preparation
-	if source.Native == nil || !p.currentPreparationAddress(source.Address()) || base.Project != wanted.Project || base.SetupDigest != wanted.SetupDigest || !base.Requirements.Equal(wanted.Requirements) || base.Approval != wanted.Approval || !slices.Equal(base.Tools, wanted.Tools) || !source.State.Ready || source.State.Stopped {
+	refreshRecipe := request.Input.SourceRun != nil || request.Input.SourceMerge != nil || wanted.Role == project.RoleReviewer && stored.Admission.PublicationID != ""
+	if !p.candidateRecipeMatches(source, wanted, refreshRecipe) {
 		return empty, execution.ErrPreparation
+	}
+	if refreshRecipe {
+		state, inspectErr := p.InspectWorkspacePreparation(ctx, source.Address())
+		if inspectErr != nil || state.SourceBundleSHA256 != source.State.SourceBundleSHA256 {
+			return empty, errors.Join(execution.ErrPreparation, inspectErr)
+		}
+		source.State = state
+		if !p.candidateRecipeMatches(source, wanted, true) || !state.Ready && !source.RetiredRecipeCandidate() {
+			return empty, execution.ErrPreparation
+		}
 	}
 	notAfter, err := p.Store.AuthorizeCandidatePreparation(ctx, wanted.ID)
 	if err != nil {
@@ -56,12 +90,38 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 	bounded, cancel := context.WithDeadline(ctx, request.Input.Deadline)
 	defer cancel()
 	if request.Input.SourcePull != nil {
-		request.Input.Bundle,err=p.externalPullBundle(bounded,*request.Input.SourcePull,base.SourceCommit)
-		if err!=nil { return empty,err }
-	} else if request.Input.SourceMerge != nil {
+		bundleBase := base.SourceCommit
+		if source.RetiredRecipeCandidate() {
+			bundleBase = ""
+		}
+		request.Input.Bundle, err = p.publicationHeadBundle(bounded, *request.Input.SourcePull, bundleBase)
+		if err != nil {
+			return empty, err
+		}
+	} else if wanted.Role == project.RoleReviewer && source.RetiredRecipeCandidate() {
+		publication, readErr := p.Store.PublicationByID(bounded, stored.Admission.PublicationID)
+		if readErr != nil || publication.ProjectID != wanted.Project || publication.Candidate != wanted.SourceCommit || publication.Repository != stored.Admission.Repository {
+			return empty, execution.ErrPreparation
+		}
+		request.Input.Bundle, err = p.publicationHeadBundle(bounded, *publicationPreparationSource(publication), "")
+		if err != nil {
+			return empty, err
+		}
+	} else if request.Input.SourceMerge != nil || request.Input.SourceRun != nil && source.RetiredRecipeCandidate() {
 		merged := request.Input.SourceMerge
+		if merged == nil {
+			policy, readErr := p.Store.RepositoryPolicy(bounded, stored.Admission.Repository)
+			if readErr != nil {
+				return empty, readErr
+			}
+			bound, readErr := p.Store.MergedPreparationSource(bounded, stored.Admission.Repository, wanted.Project, policy.TargetBranch, wanted.SourceCommit)
+			if readErr != nil || bound.Export != *request.Input.SourceRun || bound.Commit != request.Input.SourceRun.Candidate {
+				return empty, execution.ErrPreparation
+			}
+			merged = &bound
+		}
 		bound, err := p.Store.MergedPreparationSource(bounded, stored.Admission.Repository, wanted.Project, merged.Target, wanted.SourceCommit)
-		if err != nil || !reflect.DeepEqual(bound,*merged) {
+		if err != nil || !reflect.DeepEqual(bound, *merged) {
 			return empty, execution.ErrPreparation
 		}
 		account, err := (NativeInputSource{p}).account(bounded, strconv.FormatInt(merged.Repository, 10), factory.OpMerge)
@@ -76,11 +136,17 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 			SHA256     string `json:"sha256"`
 			Bundle     []byte `json:"bundle"`
 		}
-		if err = account.read(bounded, nativeRead{Kind: "source_bundle", Repository: account.repository.ExternalID, Base: &base.SourceCommit, Commit: merged.Commit, TargetRef: merged.Target}, &fetched); err != nil {
+		bundleBase := base.SourceCommit
+		if source.RetiredRecipeCandidate() {
+			// A complete authenticated bundle lets the new preparation import
+			// its source without reopening the retired protected checkout.
+			bundleBase = ""
+		}
+		if err = account.read(bounded, nativeRead{Kind: "source_bundle", Repository: account.repository.ExternalID, Base: &bundleBase, Commit: merged.Commit, TargetRef: merged.Target}, &fetched); err != nil {
 			return empty, err
 		}
 		sum := sha256.Sum256(fetched.Bundle)
-		if fetched.Repository != account.repository.ExternalID || fetched.Base != base.SourceCommit || fetched.Commit != wanted.SourceCommit || fetched.Target != merged.Target || len(fetched.Bundle) == 0 || len(fetched.Bundle) > project.MaxSourceBundle || fetched.SHA256 != hex.EncodeToString(sum[:]) {
+		if fetched.Repository != account.repository.ExternalID || fetched.Base != bundleBase || fetched.Commit != wanted.SourceCommit || fetched.Target != merged.Target || len(fetched.Bundle) == 0 || len(fetched.Bundle) > project.MaxSourceBundle || fetched.SHA256 != hex.EncodeToString(sum[:]) {
 			return empty, execution.ErrPreparation
 		}
 		request.Input.Bundle = fetched.Bundle
@@ -269,16 +335,18 @@ func nativePreparationAdmission(p NativeExecution) http.Handler {
 		case "candidate":
 			var request execution.CandidatePreparationRequest
 			if strictjson.Decode(bytes.NewReader(input.Request), &request) != nil {
-				err=execution.ErrPreparation
+				err = execution.ErrPreparation
 				break
 			}
 			// This callback receives the complete, previously fetched native
 			// payload. Validate its typed source separately from transported
 			// bundle bytes; the public preparation entry still forbids a
 			// caller-supplied coder archive.
-			shape:=request
-			if shape.Input.SourceRun!=nil || shape.Input.SourceMerge!=nil || shape.Input.SourcePull!=nil { shape.Input.Bundle=nil }
-			if shape.Validate() != nil || !p.currentPreparationAddress(request.Address()) || len(request.Input.Bundle)>project.MaxSourceBundle {
+			shape := request
+			if shape.Input.SourceRun != nil || shape.Input.SourceMerge != nil || shape.Input.SourcePull != nil {
+				shape.Input.Bundle = nil
+			}
+			if shape.Validate() != nil || !p.currentPreparationAddress(request.Address()) || len(request.Input.Bundle) > project.MaxSourceBundle {
 				err = execution.ErrPreparation
 				break
 			}
@@ -290,12 +358,12 @@ func nativePreparationAdmission(p NativeExecution) http.Handler {
 			record = stored.Preparation
 			actual, wanted := request.Input.Preparation, record.Preparation
 			actual.Revision, wanted.Revision = 0, 0
-			if !reflect.DeepEqual(actual, wanted) || !reflect.DeepEqual(record.Native, request.Native) || !reflect.DeepEqual(stored.Admission.SourceRun, request.Input.SourceRun) || !reflect.DeepEqual(stored.Admission.SourceMerge, request.Input.SourceMerge) || !reflect.DeepEqual(stored.Admission.SourcePull,request.Input.SourcePull) {
+			if !reflect.DeepEqual(actual, wanted) || !reflect.DeepEqual(record.Native, request.Native) || !reflect.DeepEqual(stored.Admission.SourceRun, request.Input.SourceRun) || !reflect.DeepEqual(stored.Admission.SourceMerge, request.Input.SourceMerge) || !reflect.DeepEqual(stored.Admission.SourcePull, request.Input.SourcePull) {
 				err = execution.ErrPreparation
 				break
 			}
 			source, sourceErr := p.Store.Preparation(r.Context(), request.Input.SourcePreparation)
-			if sourceErr != nil || source.Native == nil || !p.currentPreparationAddress(source.Address()) || !source.State.Ready || source.State.Stopped || source.Preparation.Project != wanted.Project || source.Preparation.SetupDigest != wanted.SetupDigest || !source.Preparation.Requirements.Equal(wanted.Requirements) || source.Preparation.Approval != wanted.Approval || !slices.Equal(source.Preparation.Tools, wanted.Tools) {
+			if sourceErr != nil || !p.candidateRecipeMatches(source, wanted, request.Input.SourceRun != nil || request.Input.SourceMerge != nil || wanted.Role == project.RoleReviewer && stored.Admission.PublicationID != "") {
 				err = execution.ErrPreparation
 				break
 			}
