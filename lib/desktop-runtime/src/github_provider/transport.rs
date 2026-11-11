@@ -23,6 +23,7 @@ pub struct TrafficSnapshot {
     responses: u64,
     rate_hold_suppressions: u64,
     requests: BTreeMap<&'static str, BTreeMap<&'static str, TrafficCounts>>,
+    semantic_reads: BTreeMap<&'static str, u64>,
     rate_limits: BTreeMap<&'static str, RateLimit>,
 }
 #[derive(Clone, Default, serde::Serialize)]
@@ -346,6 +347,12 @@ impl GitService {
 }
 
 impl Client {
+    pub(super) fn count_semantic_read(&self, kind: &'static str) {
+        if let Ok(mut snapshot) = self.traffic.lock() {
+            let count = snapshot.semantic_reads.entry(kind).or_default();
+            *count = count.saturating_add(1);
+        }
+    }
     pub fn traffic_snapshot(&self) -> Option<TrafficSnapshot> {
         self.traffic.lock().ok().map(|snapshot| snapshot.clone())
     }
