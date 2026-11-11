@@ -240,7 +240,10 @@ func checkExternalPullOrigin(ctx context.Context, q interface {
 	 (COALESCE((data#>>'{pr_create,attempts}')::int,0)>0 AND
 	 (data#>>'{pr_create,completion}' IS DISTINCT FROM 'complete' OR COALESCE(data#>>'{pr_create,effect}','') NOT IN ('committed','not_committed') OR
 	 (data#>>'{pr_create,effect}'='committed' AND COALESCE((data->>'pr_number')::bigint,0)=0)))))
-	 OR (data ? 'external' AND (data#>>'{external,target,head_oid}'=$3 OR (data->>'pr_number')::bigint=$2 AND stage NOT IN ('fenced','withdrawn')))))
+	 OR (data ? 'external' AND (data#>>'{external,target,head_oid}'=$3 OR data->>'candidate'=$3
+	 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(data->'corrections','[]'::jsonb)) correction
+	 WHERE correction->>'effect'='committed' AND correction#>>'{work,candidate}'=$3)
+	 OR (data->>'pr_number')::bigint=$2 AND stage NOT IN ('fenced','withdrawn')))))
 	 OR EXISTS(SELECT 1 FROM factory_assignments WHERE repository=$1 AND id<>$4 AND data ? 'external_planning'
 	 AND (data#>>'{external_planning,request,target,head_oid}'=$3 OR (data#>>'{external_planning,request,pr_number}')::bigint=$2)
 	 AND NOT EXISTS(SELECT 1 FROM factory_publications p WHERE p.assignment=factory_assignments.id AND p.stage IN ('fenced','withdrawn') AND p.data#>>'{external,target,head_oid}'<>$3))`, request.Repository, request.PRNumber, request.Target.HeadOID, owner).Scan(&unsafe)

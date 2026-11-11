@@ -115,6 +115,20 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err = db.ExternalPullOriginAvailable(ctx, request); !errors.Is(err, ErrAttemptRunsPending) {
 				t.Fatal("the same external head was admitted twice", err)
 			}
+			// Corrections change the publication candidate while its origin stays
+			// immutable. Fencing cannot turn an already handled head into new work.
+			if _, err = db.db.ExecContext(ctx, `UPDATE factory_publications SET data=jsonb_build_object('external',jsonb_build_object('target',jsonb_build_object('head_oid',$2::text)),'candidate',$3::text,'pr_number',999) WHERE assignment=$1`, unknownID, strings.Repeat("a", 40), request.Target.HeadOID); err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ExternalPullOriginAvailable(ctx, request); !errors.Is(err, ErrAttemptRunsPending) {
+				t.Fatal("fenced corrected candidate was adopted again", err)
+			}
+			if _, err = db.db.ExecContext(ctx, `UPDATE factory_publications SET data=jsonb_set(jsonb_set(data,'{candidate}',to_jsonb($2::text)),'{corrections}',jsonb_build_array(jsonb_build_object('effect','committed','work',jsonb_build_object('candidate',$3::text)))) WHERE assignment=$1`, unknownID, strings.Repeat("f", 40), request.Target.HeadOID); err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ExternalPullOriginAvailable(ctx, request); !errors.Is(err, ErrAttemptRunsPending) {
+				t.Fatal("prior committed correction head was adopted again", err)
+			}
 			if _, err = db.db.ExecContext(ctx, `DELETE FROM factory_publications WHERE assignment=$1`, unknownID); err != nil {
 				t.Fatal(err)
 			}
