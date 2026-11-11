@@ -1463,7 +1463,7 @@ async fn observe_scope(
                 Operation::Current => client.product_current(repository).await.map(|_|Value::Null).map_err(|e|Failure::new(e.status,e.code)),
                 Operation::Read(query) => client.product_read(repository, query).await.map_err(|e|Failure::new(e.status,e.code)),
                 Operation::Receipt(descriptor) => {
-                    let prior=receipts::lookup(state,&scope,descriptor)?;
+                    let prior=receipts::lookup(state,&scope,descriptor)?.into_wire();
                     if !prior.is_null() && prior["state"]!="indeterminate" {return Ok(prior);}
                     let profile=state.channel.socket.parent().ok_or_else(Failure::unavailable)?;
                     if client.issue_collaboration_only() {
@@ -1506,7 +1506,7 @@ async fn observe_scope(
                     .await
             }
             Operation::Mutation(command) => mutate(state, &scope, token, command).await,
-            Operation::Receipt(descriptor) => receipts::lookup(state,&scope,descriptor),
+            Operation::Receipt(descriptor) => receipts::lookup(state,&scope,descriptor).map(receipts::Lookup::into_wire),
         }).await.map_err(|_| Failure::new(401, "native_credential_unavailable"))?
     };
     let observation = tokio::select! {

@@ -98,16 +98,33 @@ impl Attempt {
         Ok(record.outcome)
     }
 }
+/// What the receipt directory holds for one command. `Reserved` is the
+/// outcome-unknown state: `reserve` refuses any resend of it.
+pub(super) enum Lookup {
+    Absent,
+    Reserved,
+    Done(Value),
+}
+impl Lookup {
+    /// The reply to Go. Absent and Reserved are deliberately the same bytes
+    /// (`null`); the wire has no way to tell them apart.
+    pub(super) fn into_wire(self) -> Value {
+        match self {
+            Self::Done(outcome) => outcome,
+            Self::Absent | Self::Reserved => Value::Null,
+        }
+    }
+}
 pub(super) fn lookup(
     state: &State,
     scope: &Scope,
     descriptor: &Descriptor,
-) -> Result<Value, Failure> {
+) -> Result<Lookup, Failure> {
     let directory = directory(state)?;
     let intent = directory.join(format!("{}.intent.json", descriptor.command_id));
     let bytes = match read_bytes(&intent, 4096) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Value::Null),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Lookup::Absent),
         Err(_) => return Err(Failure::unavailable()),
     };
     let capture: Capture = serde_json::from_slice(&bytes).map_err(|_| Failure::unavailable())?;
@@ -117,7 +134,7 @@ pub(super) fn lookup(
     let path = directory.join(format!("{}.outcome.json", descriptor.command_id));
     let completed = match read_bytes(&path, 8192) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Value::Null),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Lookup::Reserved),
         Err(_) => return Err(Failure::unavailable()),
     };
     let completed: Completed =
@@ -125,5 +142,5 @@ pub(super) fn lookup(
     if completed.capture_sha256 != sha(&bytes) {
         return Err(Failure::unavailable());
     }
-    Ok(completed.outcome)
+    Ok(Lookup::Done(completed.outcome))
 }
