@@ -19,9 +19,24 @@ replay, immutable old rows, no new run/reservation/send authority, current-grant
 and uncertain-effect refusal, and the earlier continuation cases. Evidence:
 /home/vince/Projects/factory-real-cycle-20261110/retained-history-pg4.log.
 Warm release Muse helper build and current pinned CLI configuration validation
-pass without inference. Next: install the exact composite, restore normal setup,
-and run one fresh finite Inspector against PR56/e91506e9. The prior timeout and
-177-minute charge remain; no new inference has run for this fix yet.
+pass without inference. Implementation commit `6ffe6b2` is on `main` and installed
+as composite inventory `5bb721d0024c24d56a2669ffab1c18fae832db86b4b7af172af44b543e02ab56`.
+Normal exact-prior upgrade/reopen preserved the profile; new instance
+`6b159ca000773a0a7eebc546bee3500d`, developer session
+`b9b56f96dd8be04d55da95ba432bc656`, guest child9.sh. Unchanged main-source setups
+`fc244d310ceb0d23c2e2af86c` / `fe0242b982fce309124eef81b` are ready.
+Under standing permission, normal UI saved source total200 (spent177), policy8
+with15minutes/run, one review and zero corrections, and temporary global capacity2
+to preserve the separate retained Fountain allowance without contacting its host.
+No new inference or continuation command has run for this fix yet. Next: fund
+one fresh Inspector on issue54/PR56/e91506e9 via its installed Work panel, then
+restore policy15/2/1 and global capacity1 after terminal custody. Preserve the
+prior timeout, old closed root and uncertain publication unchanged.
+
+Main consolidation: both old detached worktree base commits are ancestors of
+`main`; all six leftover permission/read-only edits are already present in main.
+The old guidance branch adds no content missing from current AGENTS.md. Existing
+worktrees/stashes are preserved as historical state; subsequent work uses main.
 
 ## Bounded live GitHub/Muse correction journey (2026-11-11)
 

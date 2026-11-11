@@ -1472,14 +1472,31 @@ are retained in `external-*-receipt.json` and `issue54-reopen-receipt.json`.
 No adoption/model command has yet been sent. Original uncertain publication
 0bc012940c247259280c0c90166c388c remains fenced and unreplayed.
 
-Recovery: the original installed app/backend/PG are running in guest port22209,
-profile `/home/factory/q28-format102/profile`, session owner
-`/home/factory/github-verification60/session.pid`. Recover the original
-preparations/PR56 and any later command before effects. Next: use issue54's
-installed Work panel to inspect PR56 and admit its exact explicit external
-command, then qualify actual review/correction/CI/allowed merge. Fork execution,
-automatic new-PR discovery and remaining installed/security journeys stay open.
-No Fountain host or consumer qualification is included.
+Historical pause record, preserved from the earlier session: the current
+GitHub/Muse continuation and recovery state is recorded in
+`docs/development/untangle-codebase.md`, “Retained review recovery fix
+(2026-11-11)”. That later record supersedes the process/next-action details below.
+
+**Paused at owner request; INCOMPLETE.** Verified fixes and the evidence above
+are committed locally as `d3df93875d3c9e5920d16880fb2d6018bd407336`, not pushed.
+A clean production bundle from that commit is ready at evidence directory
+`stage-clean` (inventory SHA256
+`28e12cf6b76f1e10c1522c34f745920963fd0d9f524cccb9ecab0a62dd183cb1`),
+but is not installed. No check or paid inference remains running. Last retained
+readback (`pause-state.log`): zero active/unsettled runs, zero external adoption
+commands, unchanged153-minute GitHub charge. No new uncertain effect exists.
+
+Recovery: the original installed app/backend/PG remain live and idle in guest
+port22209 (QEMU2062457, app965603, backend965748), profile
+`/home/factory/q28-format102/profile`, session owner
+`/home/factory/github-verification60/session.pid`. The only owned uncommitted
+edit at pause is this recovery record. Preserve PR56, the reopened issue54,
+preparations and all original receipts. On resume, recover their current state
+before effects, then use issue54's installed Work panel to inspect PR56 and
+admit its exact explicit external command. No adoption has been sent. Actual
+review/correction/CI/allowed merge, fork execution, automatic new-PR discovery
+and remaining installed/security journeys stay open. No Fountain host or
+consumer qualification is included.
 
 **INCOMPLETE — source implementation (2026-11-10), unverified.** Shared
 `external_publication.go`, `control/publication_external.go` and

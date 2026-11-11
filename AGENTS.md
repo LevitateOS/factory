@@ -1,5 +1,7 @@
 # Working on Factory
 
+- Work directly on `main`. Do not create or use development branches or
+  worktrees. Preserve existing historical snapshots and stashes.
 - Minimize the total work needed to deliver the requested result correctly.
   Treat tokens, tool calls, builds and the user's attention as costs. Never
   prolong work to use available context, tokens or runtime; activity and output
