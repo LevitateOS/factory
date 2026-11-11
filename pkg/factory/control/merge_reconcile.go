@@ -1,6 +1,7 @@
 package control
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -88,6 +89,9 @@ func (c *Coordinator) adoptObservedMergeOp(ctx context.Context, m *factory.Merge
 	if outcome.NotObserved {
 		return true
 	}
+	if sameMergeOutcome(*op, outcome) {
+		return true
+	}
 	if !c.adoptMergeObserved(op, outcome, time.Now()) {
 		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
 		return false
@@ -167,6 +171,10 @@ func (c *Coordinator) routeMergeEffect(ctx context.Context, m *factory.Merge, re
 		return true
 	}
 	if m.Operation.Effect == factory.OpEffectIndeterminate {
+		if m.Stage == factory.MergeFenced && m.Outcome == factory.NeedsHuman && m.Reason == factory.MergeReasonFenced {
+			mergeWait(report, m.ID, factory.MergeReasonFenced)
+			return true
+		}
 		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonFenced, report)
 		return true
 	}
@@ -346,9 +354,13 @@ func (c *Coordinator) adoptMergeObserved(op *factory.MergeOperation, outcome fac
 	if op.Receipt != "" && op.Receipt != string(outcome.Receipt) {
 		return false
 	}
+	prior := mergeOperationOutcomeOf(*op)
 	op.Effect, op.Cancellation, op.Completion, op.Reason = outcome.Effect, outcome.Cancellation, outcome.Completion, outcome.Reason
-	op.Receipt, op.UpdatedUnix = string(outcome.Receipt), now.Unix()
+	op.Receipt = string(outcome.Receipt)
 	op.InstallationID, op.ActorID, op.RepositoryID = outcome.InstallationID, outcome.ActorID, outcome.RepositoryID
+	if !sameOperationOutcome(prior, mergeOperationOutcomeOf(*op)) {
+		op.UpdatedUnix = now.Unix()
+	}
 	return true
 }
 
@@ -357,4 +369,12 @@ func mergeOperationOutcomeOf(op factory.MergeOperation) factory.OperationOutcome
 		Receipt: []byte(op.Receipt), Effect: op.Effect, Cancellation: op.Cancellation, Completion: op.Completion, Reason: op.Reason,
 		OperationID: op.OperationID, InstallationID: op.InstallationID, Kind: op.Kind, ActorID: op.ActorID, RepositoryID: op.RepositoryID,
 	}
+}
+
+func sameMergeOutcome(op factory.MergeOperation, outcome factory.OperationOutcome) bool {
+	return op.Work != nil && outcome.InstallationID != "" && op.Work.ActorID == outcome.ActorID && op.Work.Repository == outcome.RepositoryID &&
+		!outcome.NotObserved && op.OperationID == outcome.OperationID && op.InstallationID == outcome.InstallationID &&
+		op.Kind == outcome.Kind && op.ActorID == outcome.ActorID && op.RepositoryID == outcome.RepositoryID &&
+		op.Effect == outcome.Effect && op.Cancellation == outcome.Cancellation && op.Completion == outcome.Completion &&
+		op.Reason == outcome.Reason && bytes.Equal([]byte(op.Receipt), outcome.Receipt)
 }

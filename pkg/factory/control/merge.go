@@ -202,7 +202,10 @@ func (c *Coordinator) storeMerge(ctx context.Context, m *factory.Merge, report *
 }
 
 func (c *Coordinator) finishMerge(ctx context.Context, m factory.Merge, stage string, outcome factory.Outcome, reason string, report *MergeReport) bool {
-	m.Stage, m.Outcome, m.Reason, m.FinishedUnix = stage, outcome, reason, time.Now().Unix()
+	if m.Stage != stage || m.FinishedUnix == 0 {
+		m.FinishedUnix = time.Now().Unix()
+	}
+	m.Stage, m.Outcome, m.Reason = stage, outcome, reason
 	if !c.storeMerge(ctx, &m, report) {
 		return false
 	}
