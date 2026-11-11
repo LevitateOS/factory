@@ -485,6 +485,10 @@ export class SodaIntent extends LitElement {
     if (changed.has('actor') || changed.has('draftScope')) {
       this.explorationCommandNotice = '';
       this.explorationCanResume = this.explorationCanRelease = false;
+      this.planningCommandNotice = '';
+      this.planningCanResume = this.planningCanRelease = false;
+      this.generationCommandNotice = '';
+      this.generationCanResume = this.generationCanRelease = false;
       this.saveNotice = '';
       this.saveRetry = false;
       this.saveObsolete = false;
