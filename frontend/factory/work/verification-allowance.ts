@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {factoryCommandId} from '../api/run-response.js';
@@ -49,10 +50,12 @@ export class SodaFactoryVerificationAllowance extends LitElement {
   private get ready() {
     return this.cmd.ready;
   }
-  private current: VerificationAllowanceContext | undefined;
-  private serial = 0;
-  private generation = '';
-  private lifetime = new AbortController();
+  private bound = new ScopedBinding<VerificationAllowanceContext>(
+    (a, b) => a.transport === b.transport && a.repository === b.repository && a.intent === b.intent,
+    () => {
+      this.context = undefined;
+    }
+  );
   constructor() {
     super();
     this.message = '';
@@ -71,20 +74,7 @@ export class SodaFactoryVerificationAllowance extends LitElement {
           typeof context.transport.generation === 'string' &&
           !!context.transport.generation
       );
-    if (
-      context?.transport === this.current?.transport &&
-      context?.repository === this.current?.repository &&
-      context?.intent === this.current?.intent &&
-      context?.transport.generation === this.generation
-    ) {
-      this.current = context;
-      return;
-    }
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.current = context;
-    this.generation = context?.transport.generation ?? '';
-    this.serial++;
+    if (this.bound.bind(context) === 'same') return;
     this.allowance = undefined;
     this.cmd.reset();
     this.message = '';
@@ -95,14 +85,6 @@ export class SodaFactoryVerificationAllowance extends LitElement {
     this.context = undefined;
     super.disconnectedCallback();
   }
-  private live(serial: number, context: VerificationAllowanceContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   private path(context: VerificationAllowanceContext) {
     return `factory/intents/${context.intent}/verification-allowance`;
   }
@@ -110,26 +92,26 @@ export class SodaFactoryVerificationAllowance extends LitElement {
     this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing allowance identity');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]));
+      if (!this.bound.live(serial, context)) return false;
       if (this.cmd.adopt({scope, repository: context.repository, intent: context.intent}) === 'blocked') {
         this.message =
           'Saved verification limit change is unreadable or belongs to another scope. It was preserved; no new change was sent.';
         return false;
       }
       const response = await context.transport.request(`factory/intents/${context.intent}`, {
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+        signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
       });
       check(response.ok);
       const request = object(await readSodaJSON(response));
-      if (!this.live(serial, context)) return false;
+      if (!this.bound.live(serial, context)) return false;
       check(request.intent === context.intent && request.repository === context.repository);
       this.message = this.cmd.pending
         ? 'An unconfirmed verification limit change is saved. Retry the same change to check its recorded result.'
         : '';
       return true;
     } catch {
-      if (this.live(serial, context)) {
+      if (this.bound.live(serial, context)) {
         this.cmd.unresolve(true);
         this.message = 'Allowance identity or request scope could not be read. Refresh before increasing limits.';
       }
@@ -137,21 +119,21 @@ export class SodaFactoryVerificationAllowance extends LitElement {
     }
   }
   async refresh() {
-    const context = this.current,
-      serial = this.serial;
-    if (!context || !this.live(serial, context) || this.busy) return;
+    const context = this.bound.current,
+      serial = this.bound.serial;
+    if (!context || !this.bound.live(serial, context) || this.busy) return;
     this.busy = true;
     try {
       await this.resolveIdentity(context, serial);
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       const response = await context.transport.request(this.path(context), {
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+        signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
       });
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       if (response.status === 401 || response.status === 403) this.allowance = undefined;
       check(response.ok);
       const found = verificationAllowance(await readSodaJSON(response), context.intent);
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       this.allowance = found;
       this.runs = found.limits.runs;
       this.minutes = found.limits.active_minutes;
@@ -164,20 +146,20 @@ export class SodaFactoryVerificationAllowance extends LitElement {
         this.message = 'Verification limits confirmed. Previous usage is retained.';
       }
     } catch {
-      if (this.live(serial, context)) {
+      if (this.bound.live(serial, context)) {
         this.cmd.unresolve(true);
         this.message = 'Could not read verification limits. Refresh to try again.';
       }
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   private async save(event: SubmitEvent) {
     event.preventDefault();
-    const context = this.current,
+    const context = this.bound.current,
       current = this.allowance,
-      serial = this.serial;
-    if (!context || !this.live(serial, context) || !this.ready || !current?.can_increase || this.busy) return;
+      serial = this.bound.serial;
+    if (!context || !this.bound.live(serial, context) || !this.ready || !current?.can_increase || this.busy) return;
     const limits = {runs: this.runs, active_minutes: this.minutes};
     if (
       !this.pending &&
@@ -203,14 +185,14 @@ export class SodaFactoryVerificationAllowance extends LitElement {
       let confirmed: VerificationAllowance | undefined;
       const outcome = await this.cmd.submit({
         command: pending,
-        live: () => this.live(serial, context),
+        live: () => this.bound.live(serial, context),
         classifyRefusal,
         send: () =>
           context.transport.request(this.path(context), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(pending),
-            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+            signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
           }),
         receipt: (body) => {
           confirmed = verificationAllowance(body, context.intent);
@@ -238,11 +220,11 @@ export class SodaFactoryVerificationAllowance extends LitElement {
         this.message = 'Verification limits saved. Previous usage is retained.';
       } else this.message = 'The current limits were not confirmed. Retry the same change or refresh.';
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   protected render() {
-    if (!this.current) return html``;
+    if (!this.bound.current) return html``;
     const current = this.allowance,
       disabled = !this.ready || this.busy || this.pending !== undefined;
     return html`<section aria-label="Verification allowance">
