@@ -99,13 +99,34 @@ func (s *Store) RecordExternalPublicationCommand(ctx context.Context, cmd factor
 }
 
 func checkExternalAdmissionTx(ctx context.Context, tx *sql.Tx, request factory.ExternalPullAdoption, a factory.Assignment, p factory.Publication, now time.Time, fresh bool) error {
+	if err := checkExternalAdmissionScopeTx(ctx, tx, request, a, p, now, fresh); err != nil {
+		return err
+	}
+	var raw []byte
+	if err := tx.QueryRowContext(ctx, `SELECT data FROM project_preparations WHERE id=$1 FOR UPDATE`, a.Preparation).Scan(&raw); err != nil {
+		return err
+	}
+	preparation, _, err := unmarshalCandidatePreparation(raw)
+	if err != nil || preparation.Native == nil || preparation.Native.Profile != p.External.Profile || preparation.Preparation.SourceCommit != p.BaseSHA || !preparation.State.Ready || preparation.State.Stopped || preparation.Preparation.Requirements.ID != a.Authority.RequirementsID || preparation.Preparation.Approval.ID != a.Authority.ApprovalID {
+		return ErrAdmissionChanged
+	}
+	return nil
+}
+
+// Source setup and the final packet share scope, authority and predecessor
+// refusal. Only the final packet requires the new checkout to exist and be ready.
+func checkExternalAdmissionScopeTx(ctx context.Context, tx *sql.Tx, request factory.ExternalPullAdoption, a factory.Assignment, p factory.Publication, now time.Time, fresh bool) error {
 	if request.Automatic != p.External.Automatic {
 		return ErrAdmissionChanged
 	}
 	if err := checkExternalPullOrigin(ctx, tx, request, a.ID); err != nil {
 		return err
 	}
-	if p.External.ObservedUnix > now.Unix() || fresh && now.Unix()-p.External.ObservedUnix > 30 || (p.External.Target.HeadRepository != p.Repository) != request.ForkConsent {
+	checked := p.External.ObservedUnix
+	if a.ExternalPlanning != nil && a.ExternalPlanning.CheckedUnix != 0 {
+		checked = a.ExternalPlanning.CheckedUnix
+	}
+	if p.External.ObservedUnix > now.Unix() || checked > now.Unix() || fresh && now.Unix()-checked > 30 || (p.External.Target.HeadRepository != p.Repository) != request.ForkConsent {
 		return ErrAdmissionChanged
 	}
 	var sameHost bool
@@ -156,14 +177,6 @@ func checkExternalAdmissionTx(ctx context.Context, tx *sql.Tx, request factory.E
 		if !admitted {
 			return ErrStalePlanBindings
 		}
-	}
-	var raw []byte
-	if err = tx.QueryRowContext(ctx, `SELECT data FROM project_preparations WHERE id=$1 FOR UPDATE`, a.Preparation).Scan(&raw); err != nil {
-		return err
-	}
-	preparation, _, err := unmarshalCandidatePreparation(raw)
-	if err != nil || preparation.Native == nil || preparation.Native.Profile != p.External.Profile || preparation.Preparation.SourceCommit != p.BaseSHA || !preparation.State.Ready || preparation.State.Stopped || preparation.Preparation.Requirements.ID != a.Authority.RequirementsID || preparation.Preparation.Approval.ID != a.Authority.ApprovalID {
-		return ErrAdmissionChanged
 	}
 	// Serialize on the repository dispatch gate above, including all own and
 	// external producers. A Factory-created PR never re-enters external intake.

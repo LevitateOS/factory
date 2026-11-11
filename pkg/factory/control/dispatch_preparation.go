@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -86,6 +87,23 @@ func (c *Coordinator) prepareSourceCoder(ctx context.Context, plan *attemptPlan)
 	if err != nil || !open {
 		return false, store.ErrDispatchClosed
 	}
+	if e := plan.externalPlanning; e != nil {
+		// This exact command owns setup before its Architect packet exists.
+		// Recover its first capture and absolute deadline instead of deriving a
+		// generic source command or replacing its origin after a lost reply.
+		command := e.Origin.CommandID
+		prior, err := c.Store.CandidatePreparation(ctx, coderPreparationID(command, plan.inputs.Tip))
+		if err == nil {
+			captured := prior.Admission.ExternalPlanning
+			if captured == nil || !reflect.DeepEqual(captured.Request, e.Request) || captured.Principal != e.Principal || !sameExternalPlanningOrigin(captured.Origin, e.Origin) {
+				return false, store.ErrCandidatePreparationConflict
+			}
+			plan.externalPlanning = captured
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return false, err
+		}
+		return c.prepareCoder(ctx, plan, command, &revision)
+	}
 	inputs := struct {
 		Repository, Issue  int64
 		Acceptance, Source string
@@ -154,6 +172,7 @@ func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, comma
 		Connection: plan.sponsorship.Connection, Authority: plan.effective.Authority,
 		GateRevision: plan.gateRev, Control: plan.control, RequestedNotAfter: requested,
 		SourceRun: sourceRun, SourceMerge: sourceMerge,
+		ExternalPlanning: plan.externalPlanning,
 	}
 	record, created, err := c.admitCoderPreparation(ctx, plan, prep, registration, command, expectedGate)
 	if err != nil {
@@ -233,6 +252,16 @@ func (c *Coordinator) admitCoderPreparation(ctx context.Context, plan *attemptPl
 			owner := *plan.prep.Native
 			owner.WorktreeID = prep.ID
 			requested.Native = &owner
+		}
+	}
+	if registration.ExternalPlanning != nil {
+		// The retained native address owns lookup after restart. A new runtime
+		// incarnation must not silently replace it or obtain a fresh setup send.
+		prior, err := c.Store.CandidatePreparation(ctx, prep.ID)
+		if err == nil {
+			requested.Native = prior.Preparation.Native
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return empty, false, err
 		}
 	}
 	record, created, err := c.Store.AdmitCandidatePreparation(ctx, requested, registration)

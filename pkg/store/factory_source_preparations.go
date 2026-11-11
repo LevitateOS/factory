@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -61,9 +62,11 @@ func mergedPreparationSource(publicationData, mergeData, runData []byte, reposit
 	if err := json.Unmarshal(mergeData, &m); err != nil {
 		return project.FactoryMergedSource{}, err
 	}
-	if p.External!=nil && p.Run=="" {
-		if p.Validate()!=nil || p.ProjectID!=projectID || p.Repository!=repository || p.Candidate!=m.HeadOID || admitMergedSource(m,p,repository,projectID,target,tip)!=nil { return project.FactoryMergedSource{},ErrCandidatePreparationConflict }
-		return project.FactoryMergedSource{Pull:p.PullSource(),Project:projectID,MergeID:m.ID,Commit:tip,Repository:repository,Target:target},nil
+	if p.External != nil && p.Run == "" {
+		if p.Validate() != nil || p.ProjectID != projectID || p.Repository != repository || p.Candidate != m.HeadOID || admitMergedSource(m, p, repository, projectID, target, tip) != nil {
+			return project.FactoryMergedSource{}, ErrCandidatePreparationConflict
+		}
+		return project.FactoryMergedSource{Pull: p.PullSource(), Project: projectID, MergeID: m.ID, Commit: tip, Repository: repository, Target: target}, nil
 	}
 	if err := json.Unmarshal(runData, &run); err != nil {
 		return project.FactoryMergedSource{}, err
@@ -97,11 +100,17 @@ func mergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, repository int64
 }
 
 func checkMergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, r CandidatePreparationRegistration, tip, target string) error {
-	if r.SourceMerge!=nil && r.SourceMerge.Pull!=nil {
-		if r.SourceRun!=nil || r.SourceMerge.Validate()!=nil || r.SourceMerge.Workspace()!=r.Project { return ErrCandidatePreparationConflict }
-		bound,err:=mergedPreparationSourceTx(ctx,tx,r.Repository,r.Project,target,tip)
-		if err!=nil { return err }
-		if !reflect.DeepEqual(bound,*r.SourceMerge) { return ErrCandidatePreparationConflict }
+	if r.SourceMerge != nil && r.SourceMerge.Pull != nil {
+		if r.SourceRun != nil || r.SourceMerge.Validate() != nil || r.SourceMerge.Workspace() != r.Project {
+			return ErrCandidatePreparationConflict
+		}
+		bound, err := mergedPreparationSourceTx(ctx, tx, r.Repository, r.Project, target, tip)
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(bound, *r.SourceMerge) {
+			return ErrCandidatePreparationConflict
+		}
 		return nil
 	}
 	source := r.SourceRun
@@ -125,7 +134,7 @@ func checkMergedPreparationSourceTx(ctx context.Context, tx *sql.Tx, r Candidate
 	if err != nil {
 		return err
 	}
-	if r.SourceMerge != nil && !reflect.DeepEqual(bound,*r.SourceMerge) || r.SourceMerge == nil && (bound.Export != *source || bound.Commit != source.Candidate) {
+	if r.SourceMerge != nil && !reflect.DeepEqual(bound, *r.SourceMerge) || r.SourceMerge == nil && (bound.Export != *source || bound.Commit != source.Candidate) {
 		return ErrCandidatePreparationConflict
 	}
 	return nil
@@ -145,6 +154,34 @@ func checkQueuedPreparationOwnerTx(ctx context.Context, tx *sql.Tx, r CandidateP
 	}
 	if assigned {
 		return ErrAssignmentActive
+	}
+	return nil
+}
+
+// A separately funded external command may follow a fully settled issue root.
+// Its source setup is journaled here before the normal Architect packet exists;
+// neither the old root nor the ordinary queued/Retry admission is reopened.
+func checkExternalPreparationOwnerTx(ctx context.Context, tx *sql.Tx, preparation execution.PreparationRecord, r CandidatePreparationRegistration, target string) error {
+	e := r.ExternalPlanning
+	if e == nil || e.Validate(r.OwnerAssignment) != nil {
+		return ErrAdmissionChanged
+	}
+	a := factory.Assignment{ID: r.OwnerAssignment, AttemptRoot: r.AttemptRoot, PublicationAssignment: r.OwnerAssignment,
+		Repository: r.Repository, Issue: r.Issue, ProjectID: r.Project, ActorID: r.ActorID, Role: project.RoleCoder,
+		Acceptance: r.Control.Acceptance, Preparation: preparation.Preparation.ID, SourceCommit: preparation.Preparation.SourceCommit,
+		Authority: r.Authority, Connection: r.Connection, ExternalPlanning: e}
+	var retained, commanded bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM project_preparations WHERE id=$1), EXISTS(SELECT 1 FROM factory_commands WHERE id=$2)`, a.Preparation, a.ID).Scan(&retained, &commanded); err != nil {
+		return err
+	}
+	if commanded {
+		return ErrAssignmentActive
+	}
+	if err := checkExternalAdmissionScopeTx(ctx, tx, e.Request, a, externalPlanningTarget(a, time.Now()), time.Now(), !retained); err != nil {
+		return err
+	}
+	if r.SourceRun != nil || r.SourceMerge != nil {
+		return checkMergedPreparationSourceTx(ctx, tx, r, a.SourceCommit, target)
 	}
 	return nil
 }
@@ -173,6 +210,17 @@ func checkCoderPreparationCustodyTx(ctx context.Context, tx *sql.Tx, a factory.A
 		meta.ChildAssignment != a.ID || meta.AttemptRoot != a.AttemptRoot || meta.PublicationID != "" ||
 		p.Preparation.SourceCommit != a.SourceCommit || meta.Authority != a.Authority {
 		return ErrAdmissionChanged
+	}
+	if a.ExternalPlanning != nil || meta.ExternalPlanning != nil {
+		captured := a.ExternalPlanning
+		if captured != nil {
+			original := *captured
+			original.CheckedUnix = 0
+			captured = &original
+		}
+		if !reflect.DeepEqual(meta.ExternalPlanning, captured) {
+			return ErrAdmissionChanged
+		}
 	}
 	return nil
 }

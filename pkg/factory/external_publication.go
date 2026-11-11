@@ -24,6 +24,18 @@ type ExternalPullPlanning struct {
 	Request   ExternalPullAdoption      `json:"request"`
 	Origin    ExternalPublicationOrigin `json:"origin"`
 	Principal string                    `json:"principal"`
+	// CheckedUnix records a fresh observation of the unchanged origin before
+	// packet admission. It never replaces the first capture or setup deadline.
+	CheckedUnix int64 `json:"checked_unix,omitempty"`
+}
+
+func (e ExternalPullPlanning) Validate(command string) error {
+	r := e.Request
+	if r.Validate() != nil || r.PlanAssignment != "" || e.Origin.Validate(r.Repository) != nil || e.Origin.CommandID != command || e.Origin.Policy != r.Policy || e.Origin.Target != r.Target || e.Origin.Automatic != r.Automatic ||
+		e.Principal == "" || len(e.Principal) > 128 || e.CheckedUnix < 0 || e.CheckedUnix != 0 && e.CheckedUnix < e.Origin.ObservedUnix {
+		return errors.New("external planning differs from its captured command")
+	}
+	return nil
 }
 
 type ExternalPullAdmission struct {
@@ -45,9 +57,9 @@ func (a Assignment) validateExternalPlanning() error {
 		return nil
 	}
 	r := e.Request
-	if r.Validate() != nil || r.PlanAssignment != "" || e.Origin.Validate(a.Repository) != nil || e.Origin.CommandID != a.ID || e.Origin.Policy != r.Policy || e.Origin.Target != r.Target || e.Origin.Automatic != r.Automatic ||
+	if e.Validate(a.ID) != nil || e.CheckedUnix > a.CreatedUnix ||
 		a.RetainedPublication != nil || a.ExternalPublication != nil || a.Phase != project.ExecutionInvestigate || a.Role != project.RoleCoder || a.AttemptRoot != a.ID || a.PublicationAssignment != a.ID || a.ParentAssignment != "" ||
-		a.Repository != r.Repository || a.Issue != r.Issue || a.Acceptance != r.Acceptance || a.Connection != r.Connection || a.SourceCommit != r.Target.BaseOID || a.Authority.Policy != e.Origin.Policy || e.Principal == "" || len(e.Principal) > 128 {
+		a.Repository != r.Repository || a.Issue != r.Issue || a.Acceptance != r.Acceptance || a.Connection != r.Connection || a.SourceCommit != r.Target.BaseOID || a.Authority.Policy != e.Origin.Policy {
 		return errors.New("external planning differs from its captured command")
 	}
 	return nil

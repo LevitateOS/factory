@@ -1324,6 +1324,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "external-preparation" {
+		if err := externalPreparationFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 6 && os.Args[1] == "workspace-manifest" {
 		if err := workspaceManifest(os.Args[2], os.Args[3], os.Args[4], os.Args[5]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -13984,4 +13991,261 @@ func retainedFundingRecovery(ctx context.Context, dsn, profile, source string, f
 		return err
 	}
 	return file.Sync()
+}
+
+// Provider, setup and predecessor observations are declared. The existing
+// standalone PostgreSQL owners admit actual grants, preparation and packet;
+// this fixture makes no host call, provider request or inference.
+func externalPreparationFixture() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	config, err := factoryruntime.LoadNative(os.Getenv("SODA_NATIVE_FACTORY_CONFIG"))
+	if err != nil {
+		return err
+	}
+	db, dsn, cleanup, err := store.OpenEphemeral(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	raw, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	if err = db.InitializeEmptyCollaborationLedger(ctx); err != nil {
+		return err
+	}
+	host, err := db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
+	if err != nil {
+		return err
+	}
+	repo, err := db.ObserveCollaborationRepository(ctx, host.ID, "declared-external-setup", "fixture/external-setup")
+	if err != nil {
+		return err
+	}
+	actor, err := db.ObserveCollaborationActor(ctx, host.ID, "declared-maintainer", "maintainer")
+	if err != nil {
+		return err
+	}
+	profile := collaboration.Profile{ID: collaboration.ProfileID(factory.NewID()), Name: "Declared external setup"}
+	if err = db.PutCollaborationProfile(ctx, profile); err != nil {
+		return err
+	}
+	account := collaboration.ConnectionRef{ID: collaboration.ConnectionID(factory.NewID()), Profile: profile.ID, Host: host.ID, Actor: actor.ID}
+	if err = db.PutCollaborationConnection(ctx, account); err != nil {
+		return err
+	}
+	runtime := collaboration.RuntimeRef{ID: collaboration.RuntimeID(profile.ID), Profile: profile.ID, Kind: collaboration.Native, Name: profile.Name}
+	placement, err := db.SelectPlacement(ctx, host.ID, repo.ID, actor.ID, runtime, "", factory.PlacementActive)
+	if err != nil {
+		return err
+	}
+	environment := &project.NativeEnvironment{Profile: profile.ID, Runtime: runtime.ID, Generation: placement.Generation}
+	if _, err = db.ApplyFactoryGrant(ctx, "external-preparation-fixture", project.EnvironmentGrant{Repository: int64(repo.ID), Owner: int64(actor.ID), Native: environment, Active: true}); err != nil {
+		return err
+	}
+	grant, err := db.EnvironmentGrant(ctx, int64(repo.ID))
+	if err != nil {
+		return err
+	}
+	base := strings.Repeat("b", 40)
+	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: base, SetupDigest: strings.Repeat("a", 64), InputsDigest: strings.Repeat("b", 64), Native: environment}
+	if err = db.AdmitRequirementDecision(ctx, requirement); err != nil {
+		return err
+	}
+	approval := project.ApprovalDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Requirement: requirement.ID, Approver: int64(actor.ID), EffectsDigest: strings.Repeat("c", 64), ReadinessDigest: strings.Repeat("d", 64), Verified: true, Native: environment}
+	if err = db.AdmitApprovalDecision(ctx, approval); err != nil {
+		return err
+	}
+	selection := factory.RoleSelection{Account: string(account.ID), Harness: project.FactoryHarnessMuse, HarnessVers: "declared-1", Model: "declared-no-model"}
+	ref := func(kind string) factory.ActorBindingRef {
+		return factory.ActorBindingRef{NativeProfile: profile.ID, NativeConnection: account.ID, ActorID: int64(actor.ID), Kind: kind}
+	}
+	policy := factory.RepositoryPolicy{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), Enabled: true, AutomaticExternalPulls: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"declared/check"}, Roles: map[string]factory.RoleSelection{project.RoleCoder: selection, project.RoleReviewer: selection}, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+	for _, err = range []error{
+		db.SaveRepositoryPolicy(ctx, policy),
+		db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
+		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Connection: string(account.ID), Native: &factory.NativeSponsorship{Profile: profile.ID, CredentialSHA256: strings.Repeat("a", 64)}, Roles: []string{project.RoleCoder, project.RoleReviewer}, AllowanceMinutes: 60, Active: true}),
+	} {
+		if err != nil {
+			return err
+		}
+	}
+	policy, err = db.RepositoryPolicy(ctx, int64(repo.ID))
+	if err != nil {
+		return err
+	}
+	acceptance := factory.Acceptance{ID: "d" + factory.NewID()[:24], Repository: int64(repo.ID), IssueIndex: "1", Approver: int64(actor.ID), NativeRev: 1, TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
+	if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
+		return err
+	}
+	controlRow, _, err := db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: int64(repo.ID), Issue: 1, Acceptance: acceptance.ID, NativeRev: 1, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("1", 64), Authority: strings.Repeat("2", 64)}, time.Now())
+	if err != nil {
+		return err
+	}
+	authority := factory.AuthorityRef{Policy: policy.Revision, Operator: 1, Capacity: 1, Sponsorship: 1, SponsorshipConnection: string(account.ID), Environment: grant.Revision, RequirementsID: requirement.ID, ApprovalID: approval.ID}
+	write := func(query string, value any, args ...any) error {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		_, err = raw.ExecContext(ctx, query, append(args, string(encoded))...)
+		return err
+	}
+	// An existing finished root remains retained and closed, with fully settled
+	// native evidence. It is not an explicit Retry or a new source of authority.
+	prior := offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, base)
+	prior.Repository, prior.Issue, prior.ProjectID, prior.ActorID = int64(repo.ID), 1, grant.Project, int64(actor.ID)
+	prior.Acceptance, prior.Subject.Issue.Acceptance, prior.Connection, prior.Authority = acceptance.ID, acceptance.ID, string(account.ID), authority
+	prior.Stage, prior.Outcome, prior.Reason, prior.FinishedUnix = factory.AssignmentFinished, factory.Cancelled, factory.AssignReasonCancelled, time.Now().Unix()
+	prior.Result = &factory.AssignmentResult{AssignmentID: prior.ID, RunID: prior.Run, Status: "cancelled", Summary: "Declared settled predecessor", RecordedUnix: prior.FinishedUnix}
+	if err = prior.Validate(); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,1,$3,'finished',0,$4)`, prior, prior.ID, repo.ID, prior.Run); err != nil {
+		return err
+	}
+	oldAllowance := factory.AttemptAllowance{RootAssignment: prior.ID, Repository: int64(repo.ID), Issue: 1, Limits: policy.AttemptLimits, CheckpointUnix: time.Now().Unix(), Closed: true}
+	if err = write(`INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,1,$2,0,$3)`, oldAllowance, repo.ID, prior.ID); err != nil {
+		return err
+	}
+	tool := execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: selection.HarnessVers, SHA256: strings.Repeat("e", 64), Executable: "/home/fixture/bin/muse"}
+	oldRun := factory.Run{ID: prior.Run, ProjectID: grant.Project, Role: prior.Role, InputSHA: base, Started: time.Now().Add(-time.Minute), Deadline: time.Now().Add(time.Minute), Harness: tool.Harness + "-" + tool.Version, Model: prior.Model, Outcome: factory.Failed, Reconciled: true, Native: &execution.NativeRecord{Tool: tool, Retirement: execution.Retired, Sealed: true, Provenance: execution.NativeProvenance{TrustMode: "same_user_trusted_host", Profile: profile.ID, InstanceID: factory.NewID(), WorktreeID: prior.Preparation, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+	if err = oldRun.Validate(); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, oldRun, oldRun.ID); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: prior.Run, Repository: prior.Repository, Issue: 1, Attempt: prior.ID}); err != nil {
+		return err
+	}
+	command := factory.NewID()
+	request := factory.ExternalPullAdoption{Policy: policy.Revision, Repository: int64(repo.ID), Issue: 1, Acceptance: acceptance.ID, PRNumber: 3, PRID: 13, Connection: string(account.ID), Limits: policy.AttemptLimits, Automatic: true, Target: factory.PublicationPullTarget{AuthorID: int64(actor.ID) + 1, IssueID: 23, HeadRepository: int64(repo.ID), HeadRef: "refs/heads/external", BaseRef: policy.TargetBranch, HeadOID: strings.Repeat("c", 40), BaseOID: base}}
+	revision, err := db.ObserveNativeReview(ctx, int64(repo.ID), request.PRNumber, strings.Repeat("f", 64))
+	if err != nil {
+		return err
+	}
+	planning := &factory.ExternalPullPlanning{Request: request, Principal: "automatic-external-pr", Origin: factory.ExternalPublicationOrigin{CommandID: command, Automatic: true, Host: host.ID, Profile: profile.ID, Connection: account.ID, ActorID: int64(actor.ID), Policy: policy.Revision, Target: request.Target, ObservationDigest: strings.Repeat("f", 64), ObservationRevision: revision, ObservedUnix: time.Now().Unix()}}
+	idSum := sha256.Sum256([]byte("fresh-coder\x00" + command + "\x00" + base))
+	preparation := execution.PreparationRecord{Preparation: project.Preparation{ID: "f" + hex.EncodeToString(idSum[:12]), Project: grant.Project, Role: project.RoleCoder, SourceCommit: base, SetupDigest: requirement.SetupDigest, Requirements: requirement.Ref(1), Approval: approval.Ref(1)}}
+	preparation.Native = &execution.NativeWorkspaceRef{Profile: profile.ID, InstanceID: factory.NewID(), WorktreeID: preparation.Preparation.ID}
+	open, gate, _, err := db.DispatchState(ctx, int64(repo.ID))
+	if err != nil || !open {
+		return fmt.Errorf("declared dispatch gate unavailable: %v", err)
+	}
+	registration := store.CandidatePreparationRegistration{Repository: int64(repo.ID), Issue: 1, ActorID: int64(actor.ID), Project: grant.Project, OwnerAssignment: command, ChildAssignment: command, AttemptRoot: command, Connection: string(account.ID), Authority: authority, GateRevision: gate, Control: controlRow, RequestedNotAfter: time.Now().Add(2 * time.Minute).Unix(), ExternalPlanning: planning}
+	admitted, created, err := db.AdmitCandidatePreparation(ctx, preparation, registration)
+	if err != nil || !created || admitted.Admission.ExternalPlanning.CheckedUnix != 0 {
+		return fmt.Errorf("external source setup not admitted before packet: created=%t %v", created, err)
+	}
+	if _, err = db.FactoryCommand(ctx, command); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("source setup prematurely admitted model command")
+	}
+	if _, err = db.AuthorizeCandidatePreparation(ctx, preparation.Preparation.ID); err != nil {
+		return fmt.Errorf("current external setup before-host guard: %w", err)
+	}
+	// Withdrawal and unsettled predecessor checks use actual current database
+	// predicates; restore only their declared fixture observations afterward.
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET active=true WHERE id=$1`, prior.Run); err != nil {
+		return err
+	}
+	if _, err = db.AuthorizeCandidatePreparation(ctx, preparation.Preparation.ID); !errors.Is(err, store.ErrAttemptRunsPending) {
+		return fmt.Errorf("unsettled predecessor admitted setup: %v", err)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET active=false WHERE id=$1`, prior.Run); err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_policies SET data=jsonb_set(data,'{paused}','true') WHERE repository=$1`, repo.ID); err != nil {
+		return err
+	}
+	if _, err = db.AuthorizeCandidatePreparation(ctx, preparation.Preparation.ID); !errors.Is(err, store.ErrAdmissionChanged) {
+		return fmt.Errorf("withdrawn policy admitted setup: %v", err)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_policies SET data=jsonb_set(data,'{paused}','false') WHERE repository=$1`, repo.ID); err != nil {
+		return err
+	}
+	changed := registration
+	changedPlanning := *planning
+	changedPlanning.Principal = "different-command-principal"
+	changed.ExternalPlanning = &changedPlanning
+	if _, _, err = db.AdmitCandidatePreparation(ctx, preparation, changed); !errors.Is(err, store.ErrCandidatePreparationConflict) {
+		return fmt.Errorf("changed command reused preparation: %v", err)
+	}
+	// Declare an older first observation to exercise setup duration without a
+	// real expiry sleep. Preserve its original absolute send deadline/address.
+	planning.Origin.ObservedUnix = time.Now().Add(-time.Minute).Unix()
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission,external_planning,origin,observed_unix}',to_jsonb($2::bigint)) WHERE id=$1`, preparation.Preparation.ID, planning.Origin.ObservedUnix); err != nil {
+		return err
+	}
+	registration.RequestedNotAfter = time.Now().Add(10 * time.Minute).Unix()
+	recovered, created, err := db.AdmitCandidatePreparation(ctx, preparation, registration)
+	if err != nil || created || recovered.NotAfter != admitted.NotAfter || !reflect.DeepEqual(recovered.Preparation.Native, admitted.Preparation.Native) || !reflect.DeepEqual(recovered.Admission.ExternalPlanning, planning) {
+		return fmt.Errorf("recovery renewed setup capture/deadline/address: created=%t %v", created, err)
+	}
+	if _, err = db.AuthorizeCandidatePreparation(ctx, preparation.Preparation.ID); err != nil {
+		return fmt.Errorf("retained setup lost original authority: %w", err)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission,not_after_unix}',to_jsonb($2::bigint)) WHERE id=$1`, preparation.Preparation.ID, time.Now().Add(-time.Second).Unix()); err != nil {
+		return err
+	}
+	if _, err = db.AuthorizeCandidatePreparation(ctx, preparation.Preparation.ID); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
+		return fmt.Errorf("expired setup was renewed: %v", err)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission,not_after_unix}',to_jsonb($2::bigint)) WHERE id=$1`, preparation.Preparation.ID, admitted.NotAfter); err != nil {
+		return err
+	}
+	zero := 0
+	preparation.State = execution.PreparationState{ID: preparation.Preparation.ID, Project: grant.Project, Role: project.RoleCoder, SourceCommit: base, SetupDigest: requirement.SetupDigest, Phase: project.PrepareReady, Ready: true, Native: preparation.Native, SourceBundleSHA256: strings.Repeat("f", 64), SetupExit: &zero, CheckExit: &zero}
+	if err = db.ObservePreparation(ctx, preparation); err != nil {
+		return err
+	}
+	a := offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, base)
+	a.ID, a.AttemptRoot, a.PublicationAssignment = command, command, command
+	a.Repository, a.Issue, a.ProjectID, a.ActorID = int64(repo.ID), 1, grant.Project, int64(actor.ID)
+	a.Acceptance, a.Subject.Issue.Acceptance, a.Connection, a.Authority = acceptance.ID, acceptance.ID, string(account.ID), authority
+	a.Preparation, a.Harness, a.HarnessVers, a.Model, a.NativeTool = preparation.Preparation.ID, project.FactoryHarnessMuse+"-"+tool.Version, tool.Version, selection.Model, &tool
+	a.ExternalPlanning = planning
+	run := factory.Run{ID: a.Run, ProjectID: a.ProjectID, Role: a.Role, InputSHA: base, Started: time.Now(), Deadline: time.Now().Add(time.Minute), Harness: a.Harness, Model: a.Model, Native: &execution.NativeRecord{Tool: tool, BundleSHA256: preparation.State.SourceBundleSHA256, PromptSHA256: a.PromptSHA, Retirement: execution.NotStarted, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: profile.ID, InstanceID: preparation.Native.InstanceID, WorktreeID: preparation.Native.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+	launch := execution.NativeLaunch{CredentialSHA256: strings.Repeat("a", 64), Workspace: *preparation.Native, Tool: tool, BundleSHA256: preparation.State.SourceBundleSHA256, PromptSHA256: a.PromptSHA, Runtime: runtime.ID, PlacementGeneration: placement.Generation, TrustMode: run.Native.Provenance.TrustMode, BrokerRun: run.Native.Provenance.BrokerRun}
+	reservation := factory.Reservation{AssignmentID: command, Repository: a.Repository, Connection: a.Connection, State: factory.ReservationHeld, PlannedMinutes: 1}
+	view := factory.RunView{RunID: a.Run, Repository: a.Repository, Issue: 1, Attempt: command}
+	if err = db.RecordNativeDispatchPacket(ctx, controlRow, a, reservation, run, view, launch); !errors.Is(err, store.ErrAdmissionChanged) {
+		return fmt.Errorf("old capture without fresh check admitted packet: %v", err)
+	}
+	fresh := *planning
+	fresh.CheckedUnix = time.Now().Add(time.Minute).Unix()
+	a.ExternalPlanning = &fresh
+	if err = db.RecordNativeDispatchPacket(ctx, controlRow, a, reservation, run, view, launch); err == nil {
+		return errors.New("future fresh-check time admitted packet")
+	}
+	fresh.CheckedUnix = time.Now().Unix()
+	a.CreatedUnix = fresh.CheckedUnix
+	if err = db.RecordNativeDispatchPacket(ctx, controlRow, a, reservation, run, view, launch); err != nil {
+		return fmt.Errorf("fresh same-origin external packet refused: %w", err)
+	}
+	stored, err := db.Assignment(ctx, command)
+	if err != nil || stored.ExternalPlanning.Origin != planning.Origin || stored.ExternalPlanning.CheckedUnix != fresh.CheckedUnix {
+		return errors.New("packet replaced original external origin")
+	}
+	retained, err := db.CandidatePreparation(ctx, preparation.Preparation.ID)
+	if err != nil || retained.NotAfter != admitted.NotAfter || retained.Admission.ExternalPlanning.CheckedUnix != 0 {
+		return errors.New("packet renewed preparation authority")
+	}
+	var old factory.AttemptAllowance
+	var oldData []byte
+	err = raw.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, prior.ID).Scan(&oldData)
+	if err == nil {
+		err = json.Unmarshal(oldData, &old)
+	}
+	if err != nil || !reflect.DeepEqual(old, oldAllowance) {
+		return fmt.Errorf("external packet changed old allowance: %+v %v", old, err)
+	}
+	if cmd, err := db.FactoryCommand(ctx, command); err != nil || cmd.Finished == "" || cmd.Principal != planning.Principal {
+		return errors.New("external packet lost original command receipt")
+	}
+	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
+	return nil
 }

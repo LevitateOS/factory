@@ -34,6 +34,7 @@ type CandidatePreparationRegistration struct {
 	SourceRun         *project.FactoryExport
 	SourceMerge       *project.FactoryMergedSource
 	SourcePull        *project.FactoryPullSource
+	ExternalPlanning  *factory.ExternalPullPlanning
 }
 
 // CandidatePreparationRecord joins the public preparation view with its
@@ -109,24 +110,25 @@ func (s *Store) PendingCandidatePreparations(ctx context.Context, limit int) ([]
 }
 
 type candidatePreparationRegistration struct {
-	Repository      int64                        `json:"repository"`
-	Issue           int64                        `json:"issue"`
-	ActorID         int64                        `json:"actor_id,string"`
-	Project         string                       `json:"project"`
-	OwnerAssignment string                       `json:"owner_assignment"`
-	ChildAssignment string                       `json:"child_assignment"`
-	AttemptRoot     string                       `json:"attempt_root"`
-	PublicationID   string                       `json:"publication_id"`
-	Connection      string                       `json:"connection"`
-	Authority       factory.AuthorityRef         `json:"authority"`
-	GateRevision    int64                        `json:"gate_revision"`
-	Control         factory.IssueControl         `json:"control"`
-	SourceRun       *project.FactoryExport       `json:"source_run,omitempty"`
-	SourceMerge     *project.FactoryMergedSource `json:"source_merge,omitempty"`
-	SourcePull      *project.FactoryPullSource   `json:"source_pull,omitempty"`
-	NotAfter        int64                        `json:"not_after_unix"`
-	Stopped         bool                         `json:"stopped,omitempty"`
-	Retirement      string                       `json:"retirement,omitempty"`
+	Repository       int64                         `json:"repository"`
+	Issue            int64                         `json:"issue"`
+	ActorID          int64                         `json:"actor_id,string"`
+	Project          string                        `json:"project"`
+	OwnerAssignment  string                        `json:"owner_assignment"`
+	ChildAssignment  string                        `json:"child_assignment"`
+	AttemptRoot      string                        `json:"attempt_root"`
+	PublicationID    string                        `json:"publication_id"`
+	Connection       string                        `json:"connection"`
+	Authority        factory.AuthorityRef          `json:"authority"`
+	GateRevision     int64                         `json:"gate_revision"`
+	Control          factory.IssueControl          `json:"control"`
+	SourceRun        *project.FactoryExport        `json:"source_run,omitempty"`
+	SourceMerge      *project.FactoryMergedSource  `json:"source_merge,omitempty"`
+	SourcePull       *project.FactoryPullSource    `json:"source_pull,omitempty"`
+	ExternalPlanning *factory.ExternalPullPlanning `json:"external_planning,omitempty"`
+	NotAfter         int64                         `json:"not_after_unix"`
+	Stopped          bool                          `json:"stopped,omitempty"`
+	Retirement       string                        `json:"retirement,omitempty"`
 }
 
 var (
@@ -179,7 +181,7 @@ func insertCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparation e
 		OwnerAssignment: registration.OwnerAssignment, ChildAssignment: registration.ChildAssignment,
 		AttemptRoot: registration.AttemptRoot, PublicationID: registration.PublicationID,
 		Connection: registration.Connection, Authority: registration.Authority,
-		GateRevision: registration.GateRevision, Control: registration.Control, NotAfter: deadline, SourceRun: registration.SourceRun, SourceMerge: registration.SourceMerge, SourcePull: registration.SourcePull,
+		GateRevision: registration.GateRevision, Control: registration.Control, NotAfter: deadline, SourceRun: registration.SourceRun, SourceMerge: registration.SourceMerge, SourcePull: registration.SourcePull, ExternalPlanning: registration.ExternalPlanning,
 	}
 	data, err := marshalCandidatePreparation(preparation, meta)
 	if err != nil {
@@ -520,6 +522,11 @@ func validateCandidatePreparationRegistration(preparation execution.PreparationR
 	if err := validateCandidatePreparationControl(preparation, r); err != nil {
 		return err
 	}
+	if e := r.ExternalPlanning; e != nil && (e.Validate(r.OwnerAssignment) != nil || e.CheckedUnix != 0 || r.PublicationID != "" || preparation.Native == nil ||
+		e.Request.Repository != r.Repository || e.Request.Issue != r.Issue || e.Request.Acceptance != r.Control.Acceptance || e.Request.Connection != r.Connection ||
+		e.Origin.Profile != preparation.Native.Profile || e.Origin.Policy != r.Authority.Policy || e.Request.Target.BaseOID != preparation.Preparation.SourceCommit) {
+		return errors.New("external planning preparation differs from its captured command")
+	}
 	if r.SourceRun != nil {
 		if r.SourceMerge != nil || r.SourcePull != nil {
 			return errors.New("candidate preparation has conflicting sources")
@@ -689,6 +696,9 @@ func checkCandidatePreparationSetupTx(ctx context.Context, tx *sql.Tx, p project
 
 func checkCandidatePreparationOwnerTx(ctx context.Context, tx *sql.Tx, preparation execution.PreparationRecord, r CandidatePreparationRegistration, actorID int64, target string) error {
 	if r.PublicationID == "" {
+		if r.ExternalPlanning != nil {
+			return checkExternalPreparationOwnerTx(ctx, tx, preparation, r, target)
+		}
 		if r.SourceRun != nil || r.SourceMerge != nil {
 			if err := checkMergedPreparationSourceTx(ctx, tx, r, preparation.Preparation.SourceCommit, target); err != nil {
 				return err
@@ -796,7 +806,7 @@ func registrationFromMeta(m candidatePreparationRegistration) CandidatePreparati
 		Repository: m.Repository, Issue: m.Issue, ActorID: m.ActorID, Project: m.Project, OwnerAssignment: m.OwnerAssignment,
 		ChildAssignment: m.ChildAssignment, AttemptRoot: m.AttemptRoot, PublicationID: m.PublicationID,
 		Connection: m.Connection, Authority: m.Authority, GateRevision: m.GateRevision,
-		Control: m.Control, RequestedNotAfter: m.NotAfter, SourceRun: m.SourceRun, SourceMerge: m.SourceMerge, SourcePull: m.SourcePull,
+		Control: m.Control, RequestedNotAfter: m.NotAfter, SourceRun: m.SourceRun, SourceMerge: m.SourceMerge, SourcePull: m.SourcePull, ExternalPlanning: m.ExternalPlanning,
 	}
 }
 

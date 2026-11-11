@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -128,9 +129,17 @@ func (c *Coordinator) appendExternalPlanningContext(ctx context.Context, plan *a
 	return observed, nil
 }
 
-// The ordinary Architect packet is the single admission transaction. No
-// preparation send occurs before that packet: a stale approved base waits for
-// normal source preparation, rather than creating unjournaled setup here.
+// Fresh target reads may change observation time and digest without changing
+// the digest-stable native revision or any captured origin/authority fact.
+func sameExternalPlanningOrigin(left, right factory.ExternalPublicationOrigin) bool {
+	left.ObservedUnix, right.ObservedUnix = 0, 0
+	left.ObservationDigest, right.ObservationDigest = "", ""
+	return reflect.DeepEqual(left, right)
+}
+
+// Source setup uses the existing finite preparation journal, owned by this
+// external command. The Architect packet remains the single model/funding
+// admission and requires the actual ready checkout plus a fresh target read.
 func (c *Coordinator) planExternalPull(ctx context.Context, cmd factory.Command, request factory.ExternalPullAdoption) (factory.ExternalPullAdmission, error) {
 	var empty factory.ExternalPullAdmission
 	refuse := func(stage, reason, detail string, cause error) (factory.ExternalPullAdmission, error) {
@@ -142,7 +151,6 @@ func (c *Coordinator) planExternalPull(ctx context.Context, cmd factory.Command,
 		return empty, errors.Join(cause, &factory.PublicationRefusal{Reason: reason})
 	}
 	deps := c.dispatchDeps()
-	deps.PrepareSource = nil
 	occupancy, err := snapshotOccupancy(ctx, c.Store)
 	if err != nil {
 		return refuse("occupancy", DispatchErrStore, "", err)
@@ -151,7 +159,16 @@ func (c *Coordinator) planExternalPull(ctx context.Context, cmd factory.Command,
 	if err != nil {
 		return refuse("readiness", DispatchErrStore, "", err)
 	}
-	plan, wait, failed := planAttemptForRole(ctx, deps, &occupancy, request.Repository, request.Issue, request.Acceptance, control, true, project.RoleCoder, "", false, "", attemptLineage{phase: project.ExecutionInvestigate})
+	policy, err := c.Store.RepositoryPolicy(ctx, request.Repository)
+	if err != nil {
+		return refuse("policy", DispatchErrStore, "", err)
+	}
+	origin, err := c.captureExternalOrigin(ctx, cmd.ID, request, policy)
+	if err != nil {
+		return refuse("origin", WaitInputsUnavailable, "", err)
+	}
+	planning := &factory.ExternalPullPlanning{Request: request, Origin: origin, Principal: cmd.Principal}
+	plan, wait, failed := planAttemptForRole(ctx, deps, &occupancy, request.Repository, request.Issue, request.Acceptance, control, true, project.RoleCoder, "", false, "", attemptLineage{phase: project.ExecutionInvestigate, externalPlanning: planning})
 	if failed != nil {
 		return refuse("plan", failed.Reason, failed.Detail, store.ErrAdmissionChanged)
 	}
@@ -187,12 +204,20 @@ func (c *Coordinator) planExternalPull(ctx context.Context, cmd factory.Command,
 		}
 		return refuse("candidate_context", reason, "", err)
 	}
-	origin, err := c.captureExternalOriginObserved(ctx, cmd.ID, request, plan.policy, &observed)
+	checked, err := c.captureExternalOriginObserved(ctx, cmd.ID, request, plan.policy, &observed)
 	if err != nil {
 		return refuse("origin", WaitInputsUnavailable, "", err)
 	}
+	if plan.externalPlanning == nil || !sameExternalPlanningOrigin(plan.externalPlanning.Origin, checked) {
+		return refuse("origin", WaitInputsChanged, "", store.ErrAdmissionChanged)
+	}
+	// Preserve the preparation's first origin. This fresh same-target read
+	// qualifies the packet only; it cannot renew that setup's send deadline.
+	planning = new(factory.ExternalPullPlanning)
+	*planning = *plan.externalPlanning
+	planning.CheckedUnix = checked.ObservedUnix
 	plan.preparationOwner = cmd.ID
-	plan.externalPlanning = &factory.ExternalPullPlanning{Request: request, Origin: origin, Principal: cmd.Principal}
+	plan.externalPlanning = planning
 	report := newDispatchReport()
 	executeFreshAttempt(ctx, deps, &occupancy, plan, request.Repository, request.Issue, &report, nil)
 	// A lost packet/launch reply recovers exactly this command's assignment.

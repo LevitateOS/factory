@@ -25,9 +25,10 @@ import (
 // (intent_bound.go) and completion subjects through FW30; this boundary
 // admits issue subjects only and refuses every other kind.
 type attemptLineage struct {
-	advancePlan *factory.InvestigationPlan
-	phase       string
-	parent      string
+	advancePlan      *factory.InvestigationPlan
+	phase            string
+	parent           string
+	externalPlanning *factory.ExternalPullPlanning
 }
 
 // attemptPlan is everything one dispatch attempt verified, in check order:
@@ -405,7 +406,7 @@ func confirmAttemptPreparation(ctx context.Context, deps DispatchDeps, plan *att
 		if !ready {
 			return waitFor(WaitPreparation, "fresh retry preparation is running"), nil
 		}
-	} else if role == project.RoleCoder && !recordedPrompt && (plan.prep.Preparation.SourceCommit != plan.inputs.Tip || !plan.prep.State.Ready || plan.prep.State.Stopped) {
+	} else if role == project.RoleCoder && !recordedPrompt && (plan.externalPlanning != nil || plan.prep.Preparation.SourceCommit != plan.inputs.Tip || !plan.prep.State.Ready || plan.prep.State.Stopped) {
 		// Accepted-input observation already completed. Hold before creating a
 		// finite source checkout that cannot be used until this fence releases.
 		fenced, err := dispatchFenced(ctx, deps, plan.control.Repository)
@@ -491,7 +492,7 @@ func planAttemptForRole(ctx context.Context, deps DispatchDeps, occupancy *passO
 	if control.Validate() != nil || control.Readiness != factory.ReadinessQueued || control.Repository != repository || control.Issue != issue || control.Acceptance != head {
 		return nil, waitFor(WaitInputsChanged, "queued readiness changed during dispatch"), nil
 	}
-	plan := &attemptPlan{control: control, freshAttempt: freshAttempt, phase: lineage.phase, parent: lineage.parent, advancePlan: lineage.advancePlan}
+	plan := &attemptPlan{control: control, freshAttempt: freshAttempt, phase: lineage.phase, parent: lineage.parent, advancePlan: lineage.advancePlan, externalPlanning: lineage.externalPlanning}
 	if wait, failed := admitAttemptLineage(plan, lineage, role, recordedPrompt, issue, head); failed != nil || wait != nil {
 		return nil, wait, failed
 	}
