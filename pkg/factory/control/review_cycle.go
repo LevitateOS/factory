@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -19,9 +20,11 @@ import (
 // publications reconsidered for checks and merge progress.
 const reviewCyclePassLimit = 256
 
+const passiveCheckInterval = time.Minute
+
 // CheckPass assesses native checks for every published publication that
 // lacks a passing assessment on its current head: missing verdicts,
-// verdicts on a superseded head, and non-passing verdicts that later CI
+// verdicts on a superseded head, and due non-passing verdicts that later CI
 // may flip. Publications already passing on their head are left alone;
 // the merge still re-verifies checks live before submitting, so a stale
 // pass can never ride through. While no check assessor is wired, the
@@ -59,6 +62,9 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 			checkError(&report, p.ID, "store_unavailable")
 			continue
 		}
+		if c.passiveChecksRecent(ctx, p, policy, time.Now().Unix()) {
+			continue
+		}
 		one := c.AssessPublicationChecks(ctx, c.Checks, policy.Merge.ActorID, p.AssignmentID)
 		report.Assessed = append(report.Assessed, one.Assessed...)
 		report.Waits = append(report.Waits, one.Waits...)
@@ -80,6 +86,20 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 	children := PublishReport{}
 	c.producePublishedChildren(ctx, &children)
 	return report
+}
+
+// Passive polling reuses a recent nonpassing observation only for its exact
+// captured target and policy. Explicit assessment and send-time verification
+// always observe current native evidence independently of this cadence.
+func (c *Coordinator) passiveChecksRecent(ctx context.Context, p factory.Publication, policy factory.RepositoryPolicy, now int64) bool {
+	a, err := c.Store.CheckAssessment(ctx, p.Repository, p.PRNumber)
+	if err != nil || a.Validate() != nil || a.Verdict == factory.CheckPass || a.AssessedUnix > now || now-a.AssessedUnix >= int64(passiveCheckInterval/time.Second) {
+		return false
+	}
+	target := p.PullTarget()
+	return a.Repository == p.Repository && a.PRNumber == p.PRNumber && a.PRID == p.PRID && a.IssueID == target.IssueID &&
+		a.HeadRef == target.HeadRef && a.BaseRef == target.BaseRef && a.HeadOID == p.Candidate && a.BaseOID == target.BaseOID &&
+		a.PolicyRevision == policy.Revision && a.ChecksDigest == factory.ChecksDigest(policy.Checks) && slices.Equal(a.Checks, policy.Checks)
 }
 
 // checkCurrent reports whether the latest stored assessment already passes
@@ -104,7 +124,7 @@ func (c *Coordinator) progressAfterPublish(ctx context.Context, assignmentID str
 		p = updated
 	}
 	if c.Checks != nil {
-		if policy, err := c.Store.RepositoryPolicy(ctx, p.Repository); err == nil && !c.checkCurrent(ctx, p) {
+		if policy, err := c.Store.RepositoryPolicy(ctx, p.Repository); err == nil && !c.checkCurrent(ctx, p) && !c.passiveChecksRecent(ctx, p, policy, time.Now().Unix()) {
 			c.AssessPublicationChecks(ctx, c.Checks, policy.Merge.ActorID, p.AssignmentID)
 			if fresh, err := c.Store.PublicationByAssignment(ctx, assignmentID); err == nil {
 				p = fresh

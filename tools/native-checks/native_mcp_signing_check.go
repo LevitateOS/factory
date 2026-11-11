@@ -13341,12 +13341,29 @@ func progressGateFixture() error {
 		return err
 	}
 	defer raw.Close()
-	p := factory.Publication{ID: strings.Repeat("a", 32), AssignmentID: strings.Repeat("b", 32), Repository: 7, Issue: 12, PRNumber: 3, PRID: 11, Stage: factory.PublicationPublished, Candidate: strings.Repeat("a", 40), PRCreate: factory.PublicationOperation{Work: &factory.PublicationIntent{}, IssueID: 13, HeadRef: "refs/heads/factory/check", BaseRef: "refs/heads/main", BaseOID: strings.Repeat("b", 40)}}
+	target := factory.CheckTarget{Repository: 7, PRNumber: 3, PRID: 11, IssueID: 13, HeadRef: "refs/heads/factory/check", BaseRef: "refs/heads/main", HeadOID: strings.Repeat("a", 40), BaseOID: strings.Repeat("b", 40)}
+	owner := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, target.BaseOID)
+	owner.ID, owner.AttemptRoot, owner.PublicationAssignment = strings.Repeat("b", 32), strings.Repeat("b", 32), strings.Repeat("b", 32)
+	owner.Repository, owner.Issue, owner.Subject.Issue.Issue = target.Repository, 12, 12
+	if err := owner.Validate(); err != nil {
+		return err
+	}
+	p := declaredPublishedFixture(target, 7, owner.ID, owner.Issue, 1, time.Now().Add(time.Minute).Unix())
+	p.Run = owner.Run
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	allowance := factory.AttemptAllowance{RootAssignment: owner.ID, Repository: owner.Repository, Issue: owner.Issue, Limits: factory.DefaultAttemptLimits(), CheckpointUnix: time.Now().Unix()}
+	if err := allowance.Validate(); err != nil {
+		return err
+	}
 	policy := factory.RepositoryPolicy{Repository: 7, Revision: 1, Checks: []string{"ci/gate"}}
 	for _, row := range []struct {
 		query string
 		value any
 	}{
+		{`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',7,12,'declared-run','assigned',0,$1)`, owner},
+		{`INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES(7,12,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',0,$1)`, allowance},
 		{`INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',7,12,'declared-run','published',0,$1)`, p},
 		{`INSERT INTO factory_policies(repository,revision,data) VALUES(7,1,$1)`, policy},
 	} {
@@ -13423,6 +13440,14 @@ func progressGateFixture() error {
 	if len(first.Errors) != 0 || len(first.Assessed) != 1 || first.Assessed[0].Revision != 1 {
 		return fmt.Errorf("current check pass failed: %+v", first)
 	}
+	// The same passive tick reuses a recent nonpassing assessment without
+	// invoking the native observer. Advance only the fixture's recorded time.
+	if passive := c.CheckPass(ctx); len(passive.Errors) != 0 || len(passive.Assessed) != 0 {
+		return fmt.Errorf("passive check repeated the recent observation: %+v", passive)
+	}
+	if _, err := raw.ExecContext(ctx, `UPDATE factory_check_assessments SET data=jsonb_set(data,'{assessed_unix}',to_jsonb($1::bigint)) WHERE repository=7 AND pr=3`, time.Now().Add(-time.Minute).Unix()); err != nil {
+		return err
+	}
 	// A context captured by a completed pass no longer confers ownership.
 	go func() { done <- c.CheckPass(ctx) }()
 	select {
@@ -13446,6 +13471,42 @@ func progressGateFixture() error {
 	second := <-done
 	if len(second.Errors) != 0 || len(second.Assessed) != 1 || second.Assessed[0].Revision != 2 {
 		return fmt.Errorf("later valid request failed: %+v", second)
+	}
+	// Explicit assessment bypasses passive cadence. Captured policy/head/base
+	// changes must also become due immediately, without waiting a wall minute.
+	observations := 0
+	c.Checks = progressCheckObserver(func(_ context.Context, target factory.CheckTarget, _ int64) (factory.ObservedChecks, error) {
+		observations++
+		return factory.ObservedChecks{NativeRev: 1, ObservedContexts: 1, HeadTip: target.HeadOID, BaseTip: target.BaseOID, Complete: true, Checks: []factory.ObservedCheck{{Context: "ci/gate", State: "pending"}}}, nil
+	})
+	if explicit := c.AssessPublicationChecks(ctx, c.Checks, 7, p.AssignmentID); len(explicit.Errors) != 0 || len(explicit.Assessed) != 1 || observations != 1 {
+		return fmt.Errorf("explicit assessment was delayed: %+v, observations=%d", explicit, observations)
+	}
+	policy.Revision++
+	encoded, _ := json.Marshal(policy)
+	if _, err := raw.ExecContext(ctx, `UPDATE factory_policies SET revision=$1,data=$2 WHERE repository=7`, policy.Revision, string(encoded)); err != nil {
+		return err
+	}
+	if changed := c.CheckPass(ctx); len(changed.Errors) != 0 || len(changed.Assessed) != 1 || observations != 2 {
+		return fmt.Errorf("changed policy did not refresh immediately: %+v, observations=%d", changed, observations)
+	}
+	for _, change := range []string{"head", "base"} {
+		if change == "head" {
+			p.Candidate = strings.Repeat("c", 40)
+		} else {
+			p.PRCreate.BaseOID = strings.Repeat("d", 40)
+		}
+		encoded, _ := json.Marshal(p)
+		if _, err := raw.ExecContext(ctx, `UPDATE factory_publications SET data=$1 WHERE assignment=$2`, string(encoded), p.AssignmentID); err != nil {
+			return err
+		}
+		before := observations
+		if changed := c.CheckPass(ctx); len(changed.Errors) != 0 || len(changed.Assessed) != 1 || observations != before+1 {
+			return fmt.Errorf("changed %s did not refresh immediately: %+v, observations=%d", change, changed, observations)
+		}
+		if passive := c.CheckPass(ctx); len(passive.Errors) != 0 || len(passive.Assessed) != 0 || observations != before+1 {
+			return fmt.Errorf("unchanged %s was polled before due: %+v, observations=%d", change, passive, observations)
+		}
 	}
 	// A slow authority read runs outside admission; a changed accepted head
 	// invalidates it before any generation journal or native effect is created.
@@ -13492,7 +13553,7 @@ func progressGateFixture() error {
 	if _, e := db.IntentGeneration(ctx, r.ID); !errors.Is(e, store.ErrNotFound) {
 		return errors.New("stale observation created a generation")
 	}
-	fmt.Println("PASS: real PG coordinator holds a slow check observation; expired waiter exits without commands/assessments, live nested passes reuse admission, retired contexts cannot bypass it, later valid check writes revision 2; graph observation permits independent admission and changed accepted revision refuses before journal/effects. Native observations declared.")
+	fmt.Println("PASS: real PG coordinator holds a slow check observation; expired waiter exits without commands/assessments, live nested passes reuse admission, retired contexts cannot bypass it; passive checks wait one minute on the exact recorded tuple, elapsed/policy/head/base changes refresh immediately and explicit assessment bypasses the wait; graph observation permits independent admission and changed accepted revision refuses before journal/effects. Native observations declared.")
 	return nil
 }
 
