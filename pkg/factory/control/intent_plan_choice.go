@@ -265,14 +265,14 @@ func bindRecordedScopeCoverage(r factory.IntentRevision, out *factory.SemanticPl
 // its stored answer, and any other reported outcome carries the
 // planner's attention text back to the product decision.
 func settlePlanChoiceStatus(a factory.Assignment) (*factory.SemanticPlannerOutput, *DispatchWait, error) {
-	switch {
-	case a.Stage != factory.AssignmentFinished || a.Result == nil:
+	switch a.PlanOutcome() {
+	case factory.PlanPending:
 		return nil, &DispatchWait{Repository: a.Repository, Reason: WaitAssigned, Detail: "recorded decomposition plan is still running"}, nil
-	case a.Outcome == factory.Failed:
+	case factory.PlanFailed:
 		return nil, nil, fmt.Errorf("recorded decomposition failed: %s", a.Result.Summary)
-	case a.Outcome == factory.Cancelled:
+	case factory.PlanCancelled:
 		return nil, nil, fmt.Errorf("recorded decomposition was cancelled: %s", a.Result.Summary)
-	case a.Result.Reported && a.Result.PhaseResult != nil && a.Result.PhaseResult.Status == "completed":
+	case factory.PlanCompleted:
 		if a.Result.PhaseResult.Output == nil || a.Result.PhaseResult.Output.Decomposition == nil {
 			return nil, nil, errors.New("recorded plan carries no decomposition result")
 		}

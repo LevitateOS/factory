@@ -28,20 +28,20 @@ type PlanningStatus struct {
 
 func renderIntentPlanOutcome(a factory.Assignment) PlanningStatus {
 	view := PlanningStatus{AssignmentID: a.ID, RunID: a.Run}
-	switch {
-	case a.Stage != factory.AssignmentFinished || a.Result == nil:
+	switch a.PlanOutcome() {
+	case factory.PlanPending:
 		view.State = "pending"
-	case a.Outcome == factory.Failed:
+	case factory.PlanFailed:
 		view.State, view.Summary = "failed", a.Result.Summary
-	case a.Outcome == factory.Cancelled:
+	case factory.PlanCancelled:
 		view.State, view.Summary = "cancelled", a.Result.Summary
-	case a.Result.Reported && a.Result.PhaseResult != nil && a.Result.PhaseResult.Status == "completed":
+	case factory.PlanCompleted:
 		view.State, view.Summary = "completed", a.Result.Summary
 		if out := a.Result.PhaseResult.Output; out != nil && out.Decomposition != nil {
 			view.Candidates = len(out.Decomposition.Candidates)
 			view.Walkthroughs = out.Decomposition.Walkthroughs
 		}
-	default:
+	default: // factory.PlanAttention
 		view.State, view.Summary = "attention", a.Result.Summary
 		if out := a.Result.PhaseResult; out != nil && out.Output != nil && out.Output.Decomposition != nil {
 			view.Attention = out.Output.Decomposition.Attention
