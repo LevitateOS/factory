@@ -42,31 +42,24 @@ interface ReadContext {
   readonly transport: {readonly generation: string};
 }
 
-/** Plain controller (no Lit dependency); `changed` is the host's requestUpdate. It owns binding to a
- * context key, the serial/generation staleness guard, the abort lifetime and the read lifecycle.
- * `retire` must unbind the host (set its context to undefined). */
-export class ScopedRead<C extends ReadContext, T> {
-  state: ReadState<T> = {kind: 'idle'};
+/** Plain binding owner (no Lit dependency) for a host that binds to a context key: the serial and
+ * generation staleness guard plus the abort lifetime. `retire` must unbind the host (set its context
+ * to undefined). */
+export class ScopedBinding<C extends ReadContext> {
   current: C | undefined;
   serial = 0;
   private generation = '';
   private lifetime = new AbortController();
-  private running: AbortController | undefined;
-  private reads = 0;
   constructor(
     private same: (a: C, b: C) => boolean,
-    private changed: () => void,
     private retire: () => void
   ) {}
-  get busy(): boolean {
-    return this.state.kind === 'loading';
-  }
   /** Aborted when the binding is retired; for work that is not a run. */
   get signal(): AbortSignal {
     return this.lifetime.signal;
   }
   /** 'same' keeps everything (storing `keep` as the current context); 'rebound' retires the old
-   * binding, resets the state to idle and adopts `context`. The host starts the first run. */
+   * binding (aborts its lifetime, bumps the serial) and adopts `context`. */
   bind(context: C | undefined, keep: C | undefined = context): 'same' | 'rebound' {
     if (context && this.current && this.same(context, this.current) && context.transport.generation === this.generation) {
       this.current = keep;
@@ -77,8 +70,6 @@ export class ScopedRead<C extends ReadContext, T> {
     this.generation = context?.transport.generation ?? '';
     this.current = keep;
     this.serial++;
-    this.state = {kind: 'idle'};
-    this.changed();
     return 'rebound';
   }
   live(serial: number, context: C): boolean {
@@ -88,6 +79,46 @@ export class ScopedRead<C extends ReadContext, T> {
       return false;
     }
     return true;
+  }
+}
+
+/** ScopedBinding plus the read lifecycle; `changed` is the host's requestUpdate. */
+export class ScopedRead<C extends ReadContext, T> {
+  state: ReadState<T> = {kind: 'idle'};
+  private binding: ScopedBinding<C>;
+  private running: AbortController | undefined;
+  private reads = 0;
+  constructor(
+    same: (a: C, b: C) => boolean,
+    private changed: () => void,
+    retire: () => void
+  ) {
+    this.binding = new ScopedBinding(same, retire);
+  }
+  get current(): C | undefined {
+    return this.binding.current;
+  }
+  get serial(): number {
+    return this.binding.serial;
+  }
+  get busy(): boolean {
+    return this.state.kind === 'loading';
+  }
+  /** Aborted when the binding is retired; for work that is not a run. */
+  get signal(): AbortSignal {
+    return this.binding.signal;
+  }
+  /** 'same' keeps everything (storing `keep` as the current context); 'rebound' retires the old
+   * binding, resets the state to idle and adopts `context`. The host starts the first run. */
+  bind(context: C | undefined, keep: C | undefined = context): 'same' | 'rebound' {
+    const bound = this.binding.bind(context, keep);
+    if (bound === 'same') return bound;
+    this.state = {kind: 'idle'};
+    this.changed();
+    return bound;
+  }
+  live(serial: number, context: C): boolean {
+    return this.binding.live(serial, context);
   }
   private to(state: ReadState<T>): ReadState<T> {
     this.state = state;
@@ -110,7 +141,7 @@ export class ScopedRead<C extends ReadContext, T> {
     this.running?.abort();
     const request = new AbortController();
     this.running = request;
-    const signal = AbortSignal.any([request.signal, this.lifetime.signal]);
+    const signal = AbortSignal.any([request.signal, this.signal]);
     const current = () => this.live(serial, context) && token === this.reads;
     this.to({
       kind: 'loading',
