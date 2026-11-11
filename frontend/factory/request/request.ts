@@ -1014,10 +1014,15 @@ export class SodaIntent extends LitElement {
       throw error;
     }
   }
+  // A plan or generation status describes one revision; showing another
+  // revision drops what was read for the previous one (its status reloads).
+  private showRevision(next: IntentRevision) {
+    if (this.plan && this.plan.revision !== next.id) this.plan = undefined;
+    if (this.generation && this.generation.revision !== next.id) this.generation = undefined;
+    this.revision = next;
+  }
   private applyRevision(saved: IntentRevision, read?: SavedReviewRead) {
-    if (saved.intent !== this.revision?.intent) {
-    }
-    this.revision = saved;
+    this.showRevision(saved);
     this.savedSnapshot = structuredClone(saved);
     this.scopeGateArmed = false;
     this.reconcileShelvedTasks(saved);
@@ -1884,7 +1889,7 @@ export class SodaIntent extends LitElement {
       return false;
     }
     this.taskShelf.reset(pending.after);
-    this.revision = saved;
+    this.showRevision(saved);
     this.savedSnapshot = structuredClone(saved);
     this.dirty = false;
     this.rememberDraft();
@@ -2108,7 +2113,7 @@ export class SodaIntent extends LitElement {
     const proposal = result.revision;
     this.exploration = result.advice;
     this.restoredReview = {basis: pending.revision.id, result: proposal.id};
-    this.revision = proposal;
+    this.showRevision(proposal);
     this.reconcileShelvedTasks(proposal);
     this.savedSnapshot = structuredClone(proposal);
     this.changeOpen = false;
