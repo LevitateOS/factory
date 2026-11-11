@@ -526,6 +526,14 @@ func (s *Store) FundRetainedCandidateObserved(ctx context.Context, command, prin
 		if f.CarryUnused != unused {
 			return empty, ErrRetainedPublicationIneligible
 		}
+		if !prior.Closed {
+			// A changed setup may replace only a proved unlaunched retained
+			// continuation. Retire its old grant in this same admission; never
+			// rewrite its setup capture, spent rounds or command receipt.
+			if err = transitionLockedAttemptRootTx(ctx, tx, prior, true, now); err != nil {
+				return empty, err
+			}
+		}
 		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, observed, now)
 		if err != nil {
 			return empty, err
@@ -568,7 +576,25 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	if err != nil {
 		return err
 	}
-	if !prior.Closed || prior.Active || !p.HasPullTarget() || p.External == nil &&
+	if !prior.Closed || prior.Active {
+		if prior.Closed || !prior.Active || a.RetainedPublication == nil ||
+			(a.Authority.RequirementsID == p.Authority.RequirementsID && a.Authority.ApprovalID == p.Authority.ApprovalID) ||
+			len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) != 0 {
+			return ErrRetainedPublicationIneligible
+		}
+		// Dispatch records its assignment/run atomically before starting a
+		// model; preparation admission precedes native I/O. Absence of both
+		// proves this owner never launched either effect, rather than relying
+		// on a missing provider lookup or a terminal label.
+		launched, err := retainedReviewHasAdmittedWork(ctx, tx, a.ID)
+		if err != nil {
+			return err
+		}
+		if launched {
+			return ErrAttemptRunsPending
+		}
+	}
+	if !p.HasPullTarget() || p.External == nil &&
 		(p.Publish.Effect != factory.OpEffectCommitted || p.Publish.Completion != factory.OpCompletionComplete || p.PRCreate.Effect != factory.OpEffectCommitted || p.PRCreate.Completion != factory.OpCompletionComplete || len(p.Corrections) != 0) {
 		return fmt.Errorf("%w: prior allowance or publication remains active", ErrRetainedPublicationIneligible)
 	}
@@ -862,6 +888,30 @@ func publicationReviewHistory(ctx context.Context, q grantCommandSQL, p factory.
 			return nil, ErrRetainedPublicationIneligible
 		}
 		r := owner.RetainedPublication
+		if len(history) > 1 && r != nil && len(p.ReviewCycles) > 0 &&
+			len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0 {
+			// A later finished funding command admits this predecessor. Only a
+			// closed, never-launched retained root can have reserved cycles with
+			// no report. Omit those markers from this derived view, retaining
+			// their canonical cycles and spent identities unchanged in Store.
+			var allowance factory.AttemptAllowance
+			var revision int64
+			if err := q.QueryRowContext(ctx, `SELECT revision,data FROM factory_attempt_allowances WHERE repository=$1 AND issue=$2 AND root_assignment=$3`, p.Repository, p.Issue, owner.ID).Scan(&revision, &raw); err != nil {
+				return nil, err
+			}
+			if json.Unmarshal(raw, &allowance) != nil || validateAttemptAllowanceRow(allowance, p.Repository, p.Issue, owner.ID, revision) != nil {
+				return nil, ErrRetainedPublicationIneligible
+			}
+			if allowance.Closed && !allowance.Active {
+				launched, err := retainedReviewHasAdmittedWork(ctx, q, owner.ID)
+				if err != nil {
+					return nil, err
+				}
+				if !launched {
+					history[len(history)-1].ReviewCycles = nil
+				}
+			}
+		}
 		if r == nil || r.AdoptedFrom == "" {
 			break
 		}
@@ -929,4 +979,11 @@ func publicationReviewHistory(ctx context.Context, q grantCommandSQL, p factory.
 	}
 	slices.Reverse(history)
 	return history, nil
+}
+
+func retainedReviewHasAdmittedWork(ctx context.Context, q grantCommandSQL, root string) (bool, error) {
+	var launched bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1)
+	 OR EXISTS(SELECT 1 FROM project_preparations WHERE data#>>'{factory_admission,attempt_root}'=$1)`, root).Scan(&launched)
+	return launched, err
 }

@@ -343,6 +343,120 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, owner.ID).Scan(&raw); err != nil || json.Unmarshal(raw, &after) != nil || !reflect.DeepEqual(spent, after) {
 				t.Fatal("history funding renewed old consumption", err)
 			}
+			// A reserved reviewer identity without an admitted child or candidate
+			// preparation must not strand this old setup's open funding forever.
+			reserved := factory.NewID()
+			freshPublication.ReviewCycles = append(freshPublication.ReviewCycles, reviewCorrectCycle(t, freshPublication, freshOwner, 1, reserved, ""))
+			freshPublication.Revision++
+			if err = db.UpdatePublication(ctx, freshPublication); err != nil {
+				t.Fatal(err)
+			}
+			if _, exhausted, err := db.ChargeReviewDispatch(ctx, freshOwner.Repository, freshOwner.Issue, freshOwner.ID, reserved, freshPublication.Candidate, false); err != nil || exhausted {
+				t.Fatal("unlaunched retained review charge", err)
+			}
+			unlaunched, err := db.AttemptAllowance(ctx, freshOwner.Repository, freshOwner.Issue)
+			if err != nil || unlaunched.Closed || !unlaunched.Active || len(unlaunched.Reviews) != 1 {
+				t.Fatal("unlaunched retained funding", err)
+			}
+			if _, err = db.RetainedCandidateFundingOffer(ctx, freshPublication.ID); !errors.Is(err, ErrRetainedPublicationIneligible) {
+				t.Fatal("same setup replenished active funding", err)
+			}
+			sameSetup := freshOffer
+			sameSetup.Publication, sameSetup.PreviousRoot = freshPublication.ID, freshOwner.ID
+			if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", sameSetup, time.Now()); !errors.Is(err, ErrRetainedPublicationIneligible) {
+				t.Fatal("same setup duplicate funding admitted", err)
+			}
+			requirement, err := db.RequirementDecision(ctx, freshOwner.Authority.RequirementsID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requirement.Predecessor, requirement.ID = requirement.ID, "d"+strings.Repeat("4", 24)
+			if err = db.AdmitRequirementDecision(ctx, requirement); err != nil {
+				t.Fatal(err)
+			}
+			approval, err := db.ApprovalDecision(ctx, freshOwner.Authority.ApprovalID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			approval.Predecessor, approval.ID, approval.Requirement = approval.ID, "d"+strings.Repeat("5", 24), requirement.ID
+			if err = db.AdmitApprovalDecision(ctx, approval); err != nil {
+				t.Fatal(err)
+			}
+			replacement, err := db.RetainedCandidateFundingOffer(ctx, freshPublication.ID)
+			if err != nil || replacement.CarryUnused || replacement.PreviousRoot != freshOwner.ID || replacement.Requirements != requirement.ID || replacement.Approval != approval.ID {
+				t.Fatal("changed setup unlaunched funding offer", err)
+			}
+			var offerAllowance factory.AttemptAllowance
+			if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, freshOwner.ID).Scan(&raw); err != nil || json.Unmarshal(raw, &offerAllowance) != nil || !reflect.DeepEqual(unlaunched, offerAllowance) {
+				t.Fatal("funding offer mutated the old grant", err)
+			}
+			guardScope := freshPublication
+			guardScope.Authority.RequirementsID, guardScope.Authority.ApprovalID = requirement.ID, approval.ID
+			// These controlled rows exist only in rolled-back transactions. They
+			// prove that any admitted child or uncertain preparation blocks this
+			// recovery; they do not claim native execution or preparation ran.
+			child := reviewer
+			child.ID, child.Run = factory.NewID(), factory.NewID()
+			child.AttemptRoot, child.PublicationAssignment, child.ParentAssignment = freshOwner.ID, freshOwner.ID, freshOwner.ID
+			child.RunHistory, child.Stage, child.Result = []string{child.Run}, factory.AssignmentAssigned, nil
+			child.Outcome, child.Reason, child.FinishedUnix = "", "", 0
+			if err = child.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			childRaw, _ := json.Marshal(child)
+			for _, blocked := range []string{"child", "preparation"} {
+				guardTx, err := db.db.BeginTx(ctx, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if blocked == "child" {
+					_, err = guardTx.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, child.ID, child.Repository, child.Issue, child.Run, child.Stage, child.Revision, string(childRaw))
+				} else {
+					_, err = guardTx.ExecContext(ctx, `INSERT INTO project_preparations(id,project_id,role,revision,requirements,approval,data)
+					 SELECT $1,project_id,role,revision,requirements,approval,data||jsonb_build_object('factory_admission',jsonb_build_object('attempt_root',$2::text)) FROM project_preparations WHERE id=$3`, "f"+strings.Repeat("9", 24), freshOwner.ID, freshOwner.Preparation)
+				}
+				if err == nil {
+					err = admitFreshRetainedReviewTx(ctx, guardTx, guardScope, freshOwner)
+				}
+				_ = guardTx.Rollback()
+				if !errors.Is(err, ErrAttemptRunsPending) {
+					t.Fatal("changed setup bypassed retained effect guard", blocked, err)
+				}
+			}
+			recoveryCommand := factory.NewID()
+			if _, err = db.FundRetainedCandidate(ctx, recoveryCommand, "owner", replacement, time.Now()); err != nil {
+				t.Fatal("changed setup unlaunched funding recovery", err)
+			}
+			var closedUnlaunched factory.AttemptAllowance
+			if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, freshOwner.ID).Scan(&raw); err != nil || json.Unmarshal(raw, &closedUnlaunched) != nil || !closedUnlaunched.Closed || closedUnlaunched.Active || !reflect.DeepEqual(unlaunched.Reviews, closedUnlaunched.Reviews) || !reflect.DeepEqual(unlaunched.ReviewedHeads, closedUnlaunched.ReviewedHeads) || unlaunched.Limits != closedUnlaunched.Limits {
+				t.Fatal("setup recovery reopened or refunded the old grant", err)
+			}
+			unchanged, err := db.Assignment(ctx, freshOwner.ID)
+			if err != nil || !reflect.DeepEqual(unchanged, freshOwner) {
+				t.Fatal("setup recovery changed the old owner", err)
+			}
+			recovered, err := db.Assignment(ctx, recoveryCommand)
+			if err != nil || recovered.Run != "" || recovered.Model != "" || recovered.Authority.RequirementsID != requirement.ID || recovered.Authority.ApprovalID != approval.ID {
+				t.Fatal("setup recovery lost fresh authority or replayed execution", err)
+			}
+			recoveredPublication, err := db.PublicationByID(ctx, recoveryCommand)
+			if err != nil {
+				t.Fatal(err)
+			}
+			history, err = db.PublicationReviewHistory(ctx, recoveredPublication)
+			if err != nil || len(history) != 4 || !reflect.DeepEqual(history[1], adopted) || history[2].ID != freshPublication.ID || len(history[2].ReviewCycles) != 0 || history[3].ID != recoveryCommand {
+				t.Fatal("setup recovery lost finding history or retained an unlaunched derived cycle", err)
+			}
+			canonicalPublication, err := db.PublicationByID(ctx, freshPublication.ID)
+			if err != nil || !reflect.DeepEqual(canonicalPublication, freshPublication) || len(canonicalPublication.ReviewCycles) != 1 || canonicalPublication.ReviewCycles[0].ReviewerAssignment != reserved {
+				t.Fatal("derived history erased the canonical reserved cycle", err)
+			}
+			if err = db.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM factory_runs),(SELECT count(*) FROM factory_reservations)`).Scan(&runs, &reservations); err != nil || runs != oldRuns || reservations != oldReservations {
+				t.Fatal("setup recovery replayed a run/reservation", err)
+			}
+			if replay, err := db.FundRetainedCandidate(ctx, freshCommand, "owner", freshOffer, time.Now()); err != nil || replay != receipt {
+				t.Fatal("setup recovery changed the original funding receipt", err)
+			}
 		}
 		ctx, db := context.Background(), dispatchStoreFixture(t)
 		sponsor, err := db.Sponsorship(ctx, 7, "conn")
