@@ -16,6 +16,8 @@ import type {PendingVerificationRequest, VerificationRequestAddress} from './ver
 
 /** Host-selected canonical repository and recorded issue-zero runs.
  * Retire the binding on profile/account changes; this view does not discover custody. */
+// Terminal repair states stop polling. An unrecognized state is settled too: this view cannot know it will change.
+const SETTLED_REPAIR: ReadonlySet<RepairState> = new Set(['adopted', 'attention', 'stale', 'unknown']);
 export interface VerificationRetryContext {
   readonly transport: FactoryTransport;
   readonly repository: string;
@@ -200,17 +202,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
           check(
             progress.failed_run === run &&
               factoryRunID(progress.cause_id) &&
-              factoryRunID(progress.cycle_id) &&
-              [
-                'collecting',
-                'ready',
-                'investigating',
-                'assessing',
-                'applying',
-                'adopted',
-                'attention',
-                'stale',
-              ].includes(String(progress.state))
+              factoryRunID(progress.cycle_id)
           );
         }
         const entry = factoryRunStatusResponse(value, run, context.repository);
@@ -268,7 +260,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
       }, 4000);
   }
   private unsettled(progress: DeliveryRepairProgress | undefined) {
-    return progress !== undefined && !['adopted', 'attention', 'stale'].includes(progress.state);
+    return progress !== undefined && !SETTLED_REPAIR.has(progress.state);
   }
   private async requestAction(run: string, action: 'retry' | 'repair_delivery') {
     const context = this.current;
