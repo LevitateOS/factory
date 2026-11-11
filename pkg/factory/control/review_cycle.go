@@ -415,6 +415,32 @@ func (c *Coordinator) processPriorClearReview(recorded factory.ReviewCycle, k *c
 	return nil
 }
 
+// An explicitly funded predecessor can retain a legacy clear that finished
+// before carried-assessment validation reached the terminal mapper. If no
+// native operation ever attributed that verdict, its missing assessments verify
+// nothing. Recognize only that exact shape; all other malformed history still
+// passes through the ordinary validator and refuses.
+func (c *Coordinator) unsubmittedHistoricalClear(ctx context.Context, p factory.Publication, recorded factory.ReviewCycle, reviewer factory.Assignment, carried []factory.Finding) (bool, error) {
+	if !reviewer.UnassessedClear() {
+		return false, nil
+	}
+	for _, operation := range p.ReviewOperations {
+		if operation.RunID == reviewer.Run {
+			return false, nil
+		}
+	}
+	assigned := reviewer.ReviewContext
+	if assigned.Publication.ID != p.ID || assigned.Publication.AssignmentID != p.AssignmentID ||
+		!reflect.DeepEqual(assigned.Cycle, recorded) ||
+		factory.CheckSubmittedFindings(carried, assigned.CarriedFindings) != nil {
+		return false, nil
+	}
+	if err := c.checkPriorReviewBindings(ctx, p, recorded, reviewer); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (c *Coordinator) reviewCarriedFindings(ctx context.Context, p factory.Publication, cycle factory.ReviewCycle) ([]factory.Finding, error) {
 	k := &carriedCollector{carried: []factory.Finding{}, seen: map[string]bool{}, content: map[string]factory.Finding{}}
 	// applyAssessments retires keys only on bound attributable verification
@@ -468,8 +494,19 @@ func (c *Coordinator) reviewCarriedFindings(ctx context.Context, p factory.Publi
 				if err != nil {
 					return nil, errors.New("canonical carried history is incomplete: step17")
 				}
-				if err := c.processPriorReview(ctx, source, k, recorded, reviewer); err != nil {
-					return nil, err
+				recovered := false
+				// Only predecessors admitted by PublicationReviewHistory qualify;
+				// the current publication must still reject its incomplete result.
+				if source.ID != p.ID {
+					recovered, err = c.unsubmittedHistoricalClear(ctx, source, recorded, reviewer, k.snapshot())
+					if err != nil {
+						return nil, err
+					}
+				}
+				if !recovered {
+					if err := c.processPriorReview(ctx, source, k, recorded, reviewer); err != nil {
+						return nil, err
+					}
 				}
 			}
 			if err := k.addJournal(source.CorrectionJournals, recorded.ID); err != nil {

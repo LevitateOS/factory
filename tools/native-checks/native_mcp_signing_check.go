@@ -2189,6 +2189,9 @@ func offlineRoleHandoffs() error {
 	if err = f.post(ctx, clear, cap, factory.MCPToolFinishReview, map[string]any{"conclusion": "clear", "evidence_refs": []string{"controlled"}}, map[string]any{"conclusion": "clear", "carried_assessments": []factory.FindingAssessment{assessment}, "evidence_refs": []string{"controlled:corrected-output"}}, ""); err != nil {
 		return err
 	}
+	if err = offlineRetainedIncompleteClearRecovery(ctx, db, rawDB, architect, reviewed, clear); err != nil {
+		return fmt.Errorf("retained incomplete clear: %w", err)
+	}
 	if err = f.remainingProfiles(ctx); err != nil {
 		return fmt.Errorf("remaining controlled profiles: %w", err)
 	}
@@ -2196,6 +2199,211 @@ func offlineRoleHandoffs() error {
 		return fmt.Errorf("retained publication HTTP scope: %w", err)
 	}
 	fmt.Println("PASS: real typed Architect→Builder→Inspector findings→Fixer→Inspector proposals; bound plan/root/source, exact candidates/base, finding dispositions/coverage, invalid→corrected results and controlled final-checkpoint gates; final Inspector proposal retained for PostgreSQL crash recovery")
+	return nil
+}
+
+type offlineHistoryReview struct {
+	control.ReviewExecutor
+	observations int
+	stop         error
+}
+
+func (r *offlineHistoryReview) ObserveReview(context.Context, factory.ReviewWork) (factory.ReviewObservation, error) {
+	r.observations++
+	return factory.ReviewObservation{}, r.stop
+}
+
+// The legacy result and funding lineage are declared historical inputs. The
+// production history reader, run joins and verdict binding must carry its key
+// without allowing that result to verify it or reach a provider operation.
+func offlineRetainedIncompleteClearRecovery(ctx context.Context, db *store.Store, raw *sql.DB, origin, reviewed, clear factory.Assignment) error {
+	clone := func(a factory.Assignment) factory.Assignment {
+		encoded, _ := json.Marshal(a)
+		var result factory.Assignment
+		_ = json.Unmarshal(encoded, &result)
+		return result
+	}
+	writeAssignment := func(a factory.Assignment, insert bool) error {
+		if err := a.Validate(); err != nil {
+			return err
+		}
+		encoded, _ := json.Marshal(a)
+		if !insert {
+			_, err := raw.ExecContext(ctx, `UPDATE factory_assignments SET data=$2 WHERE id=$1`, a.ID, string(encoded))
+			return err
+		}
+		_, err := raw.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, a.ID, a.Repository, a.Issue, a.Run, a.Stage, a.Revision, string(encoded))
+		return err
+	}
+	writePublication := func(p factory.Publication, insert bool) error {
+		if err := p.Validate(); err != nil {
+			return err
+		}
+		encoded, _ := json.Marshal(p)
+		if !insert {
+			_, err := raw.ExecContext(ctx, `UPDATE factory_publications SET data=$2 WHERE assignment=$1`, p.AssignmentID, string(encoded))
+			return err
+		}
+		_, err := raw.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, p.AssignmentID, p.Repository, p.Issue, p.Run, p.Stage, p.Revision, string(encoded))
+		return err
+	}
+	baseRun, err := db.FactoryRun(ctx, reviewed.Run)
+	if err != nil || !reviewed.Succeeded() {
+		return errors.New("controlled historical reviewer must already have its typed result")
+	}
+	makeReviewer := func(template factory.Assignment, owner, publication string, round int, incomplete bool) (factory.Assignment, error) {
+		a := clone(reviewed)
+		a.ID, a.Run = factory.NewID(), factory.NewID()
+		a.RunHistory, a.AttemptRoot, a.PublicationAssignment, a.ParentAssignment = []string{a.Run}, owner, owner, owner
+		a.SourceCommit, a.ReviewContext = template.SourceCommit, clone(template).ReviewContext
+		cycle := &a.ReviewContext.Cycle
+		cycle.PublicationID, cycle.AttemptRoot, cycle.ReviewerAssignment, cycle.Round = publication, owner, a.ID, round
+		cycle.ID = factory.ReviewCycleID(publication, owner, round, cycle.Phase)
+		a.ReviewContext.Publication = factory.CurrentPublicationContext{ID: publication, AssignmentID: owner}
+		a.Result.AssignmentID, a.Result.RunID = a.ID, a.Run
+		if template.ReviewContext.ClearCoverageDigest != "" {
+			report := &factory.ClearReviewReport{Conclusion: factory.ClearReviewConclusion, CycleID: cycle.ID, Head: cycle.Head, BaseOID: cycle.BaseOID, CoverageDigest: a.ReviewContext.ClearCoverageDigest}
+			if !incomplete {
+				for _, finding := range a.ReviewContext.CarriedFindings {
+					report.Assessments = append(report.Assessments, factory.FindingAssessment{Key: finding.Key, Status: factory.FindingVerified, Evidence: "controlled bound follow-up verification"})
+				}
+			}
+			a.Result.PhaseResult.Output = &factory.PhaseOutput{Clear: report}
+		} else {
+			a.Result.PhaseResult.Output.Review.CycleID = cycle.ID
+		}
+		if err := writeAssignment(a, true); err != nil {
+			return a, err
+		}
+		run := baseRun
+		run.ID, run.InputSHA = a.Run, a.SourceCommit
+		run.Reconciled, run.Outcome = true, factory.Succeeded
+		if err := run.Validate(); err != nil {
+			return a, err
+		}
+		encoded, _ := json.Marshal(run)
+		if _, err := raw.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES($1,FALSE,TRUE,$2)`, run.ID, string(encoded)); err != nil {
+			return a, err
+		}
+		_, err := raw.ExecContext(ctx, `INSERT INTO factory_run_views(run,repository,issue,attempt) VALUES($1,$2,$3,$4)`, run.ID, a.Repository, a.Issue, a.ID)
+		return a, err
+	}
+	first, err := makeReviewer(reviewed, origin.ID, origin.ID, 1, false)
+	if err != nil {
+		return err
+	}
+	legacy, err := makeReviewer(clear, origin.ID, origin.ID, 2, true)
+	if err != nil {
+		return err
+	}
+	now := time.Now().Unix()
+	p := factory.Publication{ID: origin.ID, AssignmentID: origin.ID, ProjectID: origin.ProjectID, Role: origin.Role, Authority: origin.Authority, Acceptance: origin.Acceptance, Preparation: origin.Preparation, Repository: origin.Repository, Issue: origin.Issue, Candidate: clear.SourceCommit, BaseSHA: origin.SourceCommit, TargetBranch: "refs/heads/main", PRNumber: 10, PRID: 20, Stage: factory.PublicationPublished, Outcome: factory.Succeeded, Reason: factory.PublishReasonLinked, CreatedUnix: now, FinishedUnix: now, Publish: factory.PublicationOperation{Kind: factory.OpRefPublish}, PRCreate: factory.PublicationOperation{Kind: factory.OpPRCreate},
+		External:     &factory.ExternalPublicationOrigin{CommandID: origin.ID, Host: collaboration.HostID(strings.Repeat("a", 32)), Profile: collaboration.ProfileID(strings.Repeat("b", 32)), Connection: collaboration.ConnectionID(origin.Connection), ActorID: origin.ActorID, Policy: 1, ObservationDigest: strings.Repeat("e", 64), ObservationRevision: 1, ObservedUnix: now, Target: factory.PublicationPullTarget{AuthorID: 8, IssueID: 30, HeadRepository: origin.Repository, HeadRef: "refs/heads/history-fixture", BaseRef: "refs/heads/main", HeadOID: clear.SourceCommit, BaseOID: origin.SourceCommit}},
+		ReviewCycles: []factory.ReviewCycle{first.ReviewContext.Cycle, legacy.ReviewContext.Cycle}}
+	if err = writePublication(p, true); err != nil {
+		return err
+	}
+	port := &offlineHistoryReview{stop: errors.New("controlled history reached provider observation")}
+	c := control.NewCoordinator(db, nil, nil)
+	defer c.Close()
+	c.Reviews = port
+	assertReview := func(run string, accepted bool) error {
+		port.observations = 0
+		_, err := c.SubmitReviewForRun(ctx, run)
+		if accepted != errors.Is(err, port.stop) || port.observations != map[bool]int{false: 0, true: 1}[accepted] || err == nil {
+			return fmt.Errorf("controlled history accepted=%v observations=%d: %w", accepted, port.observations, err)
+		}
+		return nil
+	}
+	if err = assertReview(legacy.Run, false); err != nil {
+		return fmt.Errorf("current incomplete clear: %w", err)
+	}
+	id := factory.NewID()
+	owner := factory.Assignment{ID: id, AttemptRoot: id, PublicationAssignment: id, ProjectID: origin.ProjectID, Role: origin.Role, Authority: origin.Authority, ActorID: origin.ActorID, Acceptance: origin.Acceptance, Preparation: origin.Preparation, SourceCommit: origin.SourceCommit, Stage: factory.AssignmentRetained, Repository: origin.Repository, Issue: origin.Issue, NativeRev: 1, CreatedUnix: now, Subject: origin.Subject,
+		RetainedPublication: &factory.RetainedPublication{AdoptedFrom: p.ID, Publication: p.ID, Assignment: origin.ID, Run: origin.Run, Candidate: p.Candidate, Connection: origin.Connection}}
+	if err = writeAssignment(owner, true); err != nil {
+		return err
+	}
+	fresh := p
+	fresh.ID, fresh.AssignmentID, fresh.ReviewCycles = id, id, nil
+	external := *p.External
+	external.CommandID = id
+	fresh.External = &external
+	current, err := makeReviewer(clear, id, id, 1, false)
+	if err != nil {
+		return err
+	}
+	fresh.ReviewCycles = []factory.ReviewCycle{current.ReviewContext.Cycle}
+	if err = writePublication(fresh, true); err != nil {
+		return err
+	}
+	funding := factory.RetainedCandidateFunding{Publication: p.ID, PreviousRoot: origin.ID, Candidate: p.Candidate, Base: p.BaseSHA, Acceptance: p.Acceptance, Connection: origin.Connection, GrantID: "controlled-history", Generation: 1, Policy: 1, Limits: factory.DefaultAttemptLimits()}
+	if err = funding.Validate(); err != nil {
+		return err
+	}
+	if err = assertReview(current.Run, false); err != nil {
+		return fmt.Errorf("unadmitted predecessor: %w", err)
+	}
+	payload, _ := json.Marshal(funding)
+	if _, err = raw.ExecContext(ctx, `INSERT INTO factory_commands(id,type,target,principal,digest,payload,created,finished) VALUES($1,$2,$3,'controlled-history',$4,$5,'controlled','controlled')`, id, factory.CommandFundRetained, "publication/"+p.ID, factory.SettingsDigest(factory.CommandFundRetained, "publication/"+p.ID, string(payload)), string(payload)); err != nil {
+		return err
+	}
+	if history, err := db.PublicationReviewHistory(ctx, fresh); err != nil || len(history) != 2 {
+		return fmt.Errorf("controlled funded ancestor: %w", err)
+	}
+	if err = assertReview(current.Run, true); err != nil {
+		return fmt.Errorf("unsubmitted ancestor recovery: %w", err)
+	}
+	for _, change := range []struct {
+		name string
+		edit func(*factory.Assignment)
+	}{
+		{"coverage", func(a *factory.Assignment) {
+			a.Result.PhaseResult.Output.Clear.CoverageDigest = strings.Repeat("0", 64)
+		}},
+		{"tuple", func(a *factory.Assignment) { a.Result.PhaseResult.Output.Clear.BaseOID = strings.Repeat("8", 40) }},
+		{"carried content", func(a *factory.Assignment) { a.ReviewContext.CarriedFindings[0].Evidence += " changed" }},
+		{"recorded run project", func(a *factory.Assignment) { a.ProjectID = "p" + strings.Repeat("e", 24) }},
+		{"partial assessment", func(a *factory.Assignment) {
+			a.Result.PhaseResult.Output.Clear.Assessments = []factory.FindingAssessment{{Key: a.ReviewContext.CarriedFindings[0].Key, Status: factory.FindingStillOpen, Evidence: "controlled unresolved finding"}}
+		}},
+	} {
+		changed := clone(legacy)
+		change.edit(&changed)
+		if err = writeAssignment(changed, false); err != nil {
+			return err
+		}
+		if err = assertReview(current.Run, false); err != nil {
+			return fmt.Errorf("changed %s: %w", change.name, err)
+		}
+	}
+	if err = writeAssignment(legacy, false); err != nil {
+		return err
+	}
+	work := factory.ReviewWork{OperationID: "review-" + legacy.Run, AuthRevision: factory.ReviewAuthRevision(origin.ID, legacy.Run), Repository: p.Repository, ActorID: origin.ActorID, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.TargetBranch, HeadOID: p.Candidate, BaseOID: p.BaseSHA, Event: "COMMENT", AgentVerdict: "APPROVED", Body: "controlled historical operation", NativeRev: 1, NotAfter: now + 60}
+	attributed := p
+	attributed.ReviewOperations = []factory.ReviewOperation{{RunID: legacy.Run, Work: work}}
+	if err = writePublication(attributed, false); err != nil {
+		return err
+	}
+	if err = assertReview(current.Run, false); err != nil {
+		return fmt.Errorf("attributed incomplete clear: %w", err)
+	}
+	if err = writePublication(p, false); err != nil {
+		return err
+	}
+	if err = assertReview(current.Run, true); err != nil {
+		return err
+	}
+	stored, err := db.Assignment(ctx, legacy.ID)
+	if err != nil || !reflect.DeepEqual(stored, legacy) {
+		return errors.New("historical recovery changed its incomplete original result")
+	}
+	storedPublication, err := db.PublicationByID(ctx, p.ID)
+	if err != nil || !reflect.DeepEqual(storedPublication, p) {
+		return errors.New("historical recovery changed original cycles or native operations")
+	}
+	fmt.Println("PASS: funded historical unsubmitted assessment-free clear carries its actionable finding without verification; current result, attributed history, tuple/coverage/content drift, partial assessments, broken run joins and absent funding provenance refuse before provider observation; original result/cycles unchanged; lineage and provider declared, no inference or send")
 	return nil
 }
 
