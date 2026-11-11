@@ -1241,6 +1241,15 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q16 — GitHub automatic own-issue intake
 
+**Current installed evidence (2026-11-11), INCOMPLETE.** Original issue57 creation
+7422f81917ae4f2893a0490d4e2e3331 and initial acceptance d8a29fb7a80198bb86a422c1b
+survive Quit/upgrade/reconnect. Sourcea5bf3a6's stage23 isolates complete repository
+priority rounds, preserving unavailable foreign work and the original global
+journal, and prepares the next coder on actual merged result88d626a without
+manually approving that tip. No new model call yet: the external-completion
+material projection holds reassessment_pending. See the active recovery ledger
+for exact receipts/current installation and next correction; full journey remains open.
+
 Additional source-only correction (2026-11-10): readiness enqueue now checks the
 existing completed-delivery receipt under the same budget lock used by work
 completion. This closes the check/enqueue race after a completed delivery and

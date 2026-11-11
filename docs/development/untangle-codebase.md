@@ -50,7 +50,7 @@ verified15:47:22Z. Required CI enforced for admins; no rule was weakened.
 Evidence: `goal20-merged-cycle.json` and `goal20-team-permission.json` in
 `/home/vince/Projects/factory-real-cycle-20261110`.
 
-Actual stage20 inventory
+Verified merge installation (stage20) inventory
 `15af0abcec2d31b1cc050f468f00e333124b86714508e2ab80055c6fc61f0ae2`:
 native/backend f7e2065, qualified production UI and helpers retained exactly.
 Exact-prior upgrade/reopen passed. Instance `f4bfc465685d8977afb915ef6e747f5e`,
@@ -66,15 +66,96 @@ Neither substitutes for active-worker upgrades or provider-withdrawal I/O races.
 Automatic PR discovery da8c41a is installed but default off; connected opt-in
 qualification is pending.3d663cf's corrected-head dedup passed real PostgreSQL.
 
-**Exact next action:** retain the standing approved setup at old tip0954a2d9;
-do not manually prepare at88d first. Use a fresh accepted own issue and explicit
-finite same-Muse funding under standing permission, restore15/2-review/1-correction
-policy bounds, then prove normal dispatch captures resulting-commit SourceMerge
-preparation before its next Builder. Recover existing commands before effects.
-Complete paid delivery acceptance, automatic PR/fork adoption and remaining
-installed gates; no whole Q15/Q16/Q17/Q26 or security completion is claimed.
-Owned edit: this recovery record. No running check, worker, uncertain new send
-or temporary permission grant remains.
+**Current continuation:** installed normal issue-create command
+7422f81917ae4f2893a0490d4e2e3331 committed issue57 (6332312961), original/unedited
+2026-11-11T16:05:22Z. Automatic intake accepted d8a29fb7a80198bb86a422c1b at
+native revision6224, cursor57. Sponsorship8 now grants260minutes on the same
+Muse source; policy9 captures15minutes/run, two reviews and one correction.
+No new assignment/model launched; GitHub usage remains181. Old coder preparation
+f754b2f2ef5c3ce26ef10c031 at0954a2d9 is confirmed stopped/retired after Quit.
+The live gate therefore exposed a missing fresh SourceMerge handoff, before
+inference. Preserve its approved recipe and retired custody; do not manually
+prepare88d or replace the original issue command.
+
+9901693 fixes funded findings-COMMENT acceptance through the existing merge
+union; existing real PostgreSQL handoff/restart/WAL and four merge/publication
+checks passed (`factory-paid-comment-check/pg2.log`, pg3.log). A real paid
+judgment/acceptance/COMMENT merge remains pending. e669949 exposes existing
+dispatch diagnostics to semantic UI inspection; typecheck/production UI build
+pass. Both commits are pushed on main. Stage21 backend-only bundle9901693 was
+verified/uploaded but **not installed**; combine the pending handoff fix and
+semantic UI in the next installed bundle. Fixture-only permission exercise
+confirmed effective GitHub read access; editable local-owner policy is intended,
+not remote write authority. Team20554791 is restored to push. Evidence:
+`factory-real-cycle-20261110/goal21-next-issue-and-permissions.json`.
+
+**Verified current installation:** e11ed9e's Go/Rust fresh-preparation correction
+passes affected builds, existing real PostgreSQL source checks (source-pg2.log)
+and the disposable VM's actual setup → Quit → restart → independent fresh
+coder/reviewer imports, refusal of unadmitted/prerequisite-only input, and
+unchanged original journals (`/home/factory/fsrc25/check.log`). Provider/merge
+facts are declared in that no-model fixture; issue57 remains the integration
+proof. Stage22 inventory
+c041716beba0c3ff13bd63451f73dbfa6750a26c59cd6d8c3efad3978b9ff35b installed
+with exact prior15af0abc, normal Quit and reopen. Current instance
+89b8f7272bd3a6c40aa4f55b5cd13ffc, session90c092fc21ae15365f4393747dd6ae05,
+generation1 Ready/no execution error. Original sodaos/repository734 binding
+reopened through normal UI;32 runs settled, zero active/unsettled. No issue57
+assignment/preparation or new model call yet. 7a5277d separately splits explicit
+fork PR-base identity from pack prerequisites; builds/request-contract check
+pass, but it is not installed or provider-qualified. Both source commits pushed.
+
+**Priority correction:** a5bf3a6058d431770e34dd52ba97a8bf9b4ed372 is committed
+and pushed on main. Production uses complete `repository:<id>` inventories and
+the existing fair cursor rotates before native reads; mixed-repository choices
+remain unavailable. Affected backend build and existing real PostgreSQL store
+and finite DispatchPass checks pass (`priority-store-check.log`,
+`priority-dispatch-check.log`, `priority-build-check.log` in the evidence root).
+The latter proves unavailable older repository isolation, complete same-repository
+selection with declared payer, reopened receipt reuse without another choice,
+unchanged foreign reservation/control and retained global journal; no live model
+or provider effect. Installed stage23 then reached original issue57 and made
+fresh coder preparation fa769b26883bf18558d0fbe3f Ready at actual merged result
+88d626aeafeb94a22b5c1d6cf8a72399c42dd42c, retaining approval d5b2b77347f8fba65f4b9ae3d
+and SourceMerge1872ed53ff604d37955bb1ede99e3156. This qualifies installed queue
+isolation and merged-source preparation, not a completed new Builder run.
+Foreign controls/reservation, original global scan/candidates and issue-create
+command hashes are unchanged;32 settled runs/zero active or unsettled.
+Evidence: `goal23-installed-priority-and-source.json` in the same evidence root.
+
+**Current installation:** stage23 inventory
+efc2d7ae306eb70ad6ecbb3e4a0609eeb11ba176787221ccb33f01a8e6d88665,
+archive45c73ea08251dc2119c354dda61f8ef61aac02065482672d65413025334214fa,
+exact-prior upgrade from c041716b passed. Instancea1fe07b9569fd0431280ca20dda004f8,
+session62810eae682ea50b3de1fa1da1af0de5, generation1 Ready, no execution error.
+Normal saved sodaos/repository reconnect used original profile and receipts.
+Stage23 uses the new priority backend
+with exact stage22 native/UI bytes; stage24 adds the already-built fork source
+fix with that identical backend/UI. Install24 during a real issue57 worker
+without quitting it to qualify executable capture preservation, then activate
+after settlement. This uses two required changes without extra inference;
+stage24 is verified/extracted on the guest but not installed.
+Retained global `factory_priority_scans`
+current has cursor2, native_revision0 and subjects734/1,734/54,20856/2,734/57;
+the two GitHub predecessors are excluded allowance_exhausted, then an unavailable
+Fountain fixture20856/2 prevents reaching issue57. Preserve that item's state,
+reservation and original global scan. Stage22's GitHub login expired, then normal
+Refresh login action goal23-refresh-existing-login-1 recovered the same saved
+account/repository without new sign-in. No issue57 assignment or inference yet.
+**Exact next action:** fix the observed external-completion material mismatch.
+Cycleafb79f68bddc3013e31f644fb45dfa32, eventba19e76fb54c14d510e6ed6142cdddc6,
+generation3 remains collecting/inventory_unavailable and holds issue57 with
+reassessment_pending. External publications27973/94a/3bc have their owned
+assignments and no producer run, as allowed by canonical publication; completion
+projection incorrectly requires a run. Preserve exact external-origin provenance
+in the material union and current-native-incarnation source-preparation identity;
+never fabricate a producer, clear the fence or renew the old prep deadline.
+next_source_controls owns those fixes/checks. Then install/reopen and recover
+this same acceptance/source without new issue or repeated inference. Owned edits:
+those source corrections and this record. No live worker, uncertain new send
+or temporary team grant remains. Complete paid acceptance, automatic PR/fork
+adoption and remaining installed gates; no whole Q15/Q16/Q17/Q26 or security
+completion is claimed.
 
 Historical stage15 continuation: source fixes `922aa7c` (publication-scoped action) and
 `211393f` (explicit fork consent/source/correction) are committed/pushed on main.
