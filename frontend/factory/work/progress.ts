@@ -28,7 +28,7 @@ import {
   describeDirectionRevision,
   renderDirectionRevision,
 } from './progress-view.js';
-import type {OverviewScope, RequestOverviewModel, SourceState, WorkOverviewModel} from './progress-view.js';
+import type {OverviewScope, SourceState, WorkOverviewModel} from './progress-view.js';
 import {issuePlan, requestOverview, revisionHistory} from '../api/progress-response.js';
 import type {RevisionHistory, IssuePlan, RequestOverview} from '../api/progress-response.js';
 export interface WorkOverviewContext {
