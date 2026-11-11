@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryAcceptanceLinks} from '../app/navigation.js';
@@ -90,11 +91,13 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
   private get ready() {
     return this.cmd.ready;
   }
-  private current: RequirementsAcceptanceContext | undefined;
+  private bound = new ScopedBinding<RequirementsAcceptanceContext>(
+    (a, b) => a.transport === b.transport && a.repository === b.repository && a.issue === b.issue,
+    () => {
+      this.context = undefined;
+    }
+  );
   private predecessor: string | undefined;
-  private serial = 0;
-  private generation = '';
-  private lifetime = new AbortController();
   protected createRenderRoot() {
     return this;
   }
@@ -117,23 +120,12 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         !context.transport.generation)
     )
       throw Error('Invalid requirements acceptance context.');
-    const prior = this.current;
-    if (
-      context?.transport === prior?.transport &&
-      context?.repository === prior?.repository &&
-      context?.transport.generation === this.generation &&
-      context?.issue === prior?.issue
-    ) {
-      this.current = context && {...context};
+    const prior = this.bound.current;
+    if (this.bound.bind(context, context && {...context}) === 'same') {
       if (context?.observation !== prior?.observation && context) this.observe(context);
       if (context?.links !== prior?.links) this.requestUpdate();
       return;
     }
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.generation = context?.transport.generation ?? '';
-    this.current = context && {...context};
-    this.serial++;
     this.allowed = false;
     this.cmd.reset();
     this.preview = undefined;
@@ -150,19 +142,11 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     super.disconnectedCallback();
     this.context = undefined;
   }
-  private live(serial: number, context: RequirementsAcceptanceContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   private async read(context: RequirementsAcceptanceContext, path: string): Promise<unknown> {
-    const serial = this.serial;
-    if (!this.live(serial, context)) throw Error('Requirements context retired.');
-    const value = await read(context, path, this.lifetime.signal);
-    if (!this.live(serial, context)) throw Error('Requirements context retired.');
+    const serial = this.bound.serial;
+    if (!this.bound.live(serial, context)) throw Error('Requirements context retired.');
+    const value = await read(context, path, this.bound.signal);
+    if (!this.bound.live(serial, context)) throw Error('Requirements context retired.');
     return value;
   }
   private base(context: RequirementsAcceptanceContext): string {
@@ -177,14 +161,14 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     if (!this.allowed) {
       this.message =
         'Accepting requirements needs current repository code-write authority and a current session. Refresh the work detail.';
-    } else if (!this.busy) void this.resolveIdentity(context, this.serial);
+    } else if (!this.busy) void this.resolveIdentity(context, this.bound.serial);
   }
   private async resolveIdentity(context: RequirementsAcceptanceContext, serial: number): Promise<boolean> {
     this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing acceptance identity');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]));
+      if (!this.bound.live(serial, context)) return false;
       const address: AcceptanceAddress = {scope, repository: context.repository, issue: context.issue};
       if (this.cmd.address && this.cmd.address.scope !== scope) {
         this.preview = undefined;
@@ -208,7 +192,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         : '';
       return true;
     } catch {
-      if (this.live(serial, context)) {
+      if (this.bound.live(serial, context)) {
         this.cmd.unresolve();
         this.message = 'Acceptance identity could not be read. Refresh acceptance authority before accepting.';
       }
@@ -222,10 +206,10 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     this.choices = [];
   }
   private async loadPreview() {
-    const context = this.current;
-    if (!context || !this.live(this.serial, context) || !this.allowed || !this.ready || this.busy || this.pending)
+    const context = this.bound.current;
+    if (!context || !this.bound.live(this.bound.serial, context) || !this.allowed || !this.ready || this.busy || this.pending)
       return;
-    const serial = this.serial;
+    const serial = this.bound.serial;
     this.busy = true;
     this.preview = undefined;
     this.reviewed = false;
@@ -238,7 +222,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       const query = new URLSearchParams(selected.map((comment) => ['comment_id', comment])).toString();
       const observation = currentWorkObservation(context);
       const value = await this.read(context, `${this.base(context)}/acceptance-preview${query ? `?${query}` : ''}`);
-      if (!this.live(serial, context) || observation !== currentWorkObservation(this.current!) || !this.allowed) return;
+      if (!this.bound.live(serial, context) || observation !== currentWorkObservation(this.bound.current!) || !this.allowed) return;
       const preview = acceptancePreview(value, context.repository, context.issue, selected);
       this.predecessor = observation?.detail?.status.acceptance?.id;
       this.choices = preview.dependencies.map((edge) => ({
@@ -250,10 +234,10 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       this.preview = preview;
       this.message = 'Review the native issue, selected comments and every prerequisite outcome before accepting.';
     } catch (error) {
-      if (this.live(serial, context))
+      if (this.bound.live(serial, context))
         this.message = error instanceof Error ? error.message : 'Requirements preview is unavailable.';
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   private changeChoice(index: number, field: 'endpoint_repository' | 'endpoint_issue' | 'outcome', event: Event) {
@@ -289,25 +273,25 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     );
   }
   private async accept() {
-    const context = this.current,
+    const context = this.bound.current,
       preview = this.preview;
     if (
       !context ||
-      !this.live(this.serial, context) ||
+      !this.bound.live(this.bound.serial, context) ||
       !this.allowed ||
       !this.ready ||
       this.busy ||
       (!this.pending && (!preview || !this.reviewed))
     )
       return;
-    const serial = this.serial;
+    const serial = this.bound.serial;
     this.busy = true;
     try {
       const shown = this.pending;
       let candidate: AcceptanceDecision | undefined;
       if (!shown && preview) {
         const prerequisites = await this.selectedPrerequisites(context);
-        if (!this.live(serial, context)) return;
+        if (!this.bound.live(serial, context)) return;
         const sources = new Set(acceptanceCommentIDs(this.sources));
         candidate = {
           decision_id: newDecisionID(),
@@ -328,19 +312,19 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         this.message = 'The saved acceptance or account changed. Review it before accepting.';
         return;
       }
-      if (!this.allowed || !this.live(serial, context)) return;
+      if (!this.allowed || !this.bound.live(serial, context)) return;
       const decision = this.pending ?? candidate;
       if (!decision) return;
       const outcome = await this.cmd.submit({
         command: decision,
-        live: () => this.live(serial, context),
+        live: () => this.bound.live(serial, context),
         classifyRefusal,
         send: () =>
           context.transport.request(`${this.base(context)}/acceptances`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(decision),
-            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(30000)]),
+            signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(30000)]),
           }),
         receipt: (value) => {
           const receipt = object(value);
@@ -388,10 +372,10 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         'Requirements accepted. Factory will assess the accepted work against current grants and prerequisites.';
       this.dispatchEvent(new CustomEvent('soda-factory-requirements-accepted', {bubbles: true, composed: true}));
     } catch (error) {
-      if (this.live(serial, context))
+      if (this.bound.live(serial, context))
         this.message = `${error instanceof Error ? error.message : 'Acceptance was not confirmed.'}${this.pending ? ' Retry the same acceptance to check its recorded result.' : ''}`;
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   private renderPreview(context: RequirementsAcceptanceContext) {
@@ -465,7 +449,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     </div>`;
   }
   protected render() {
-    const context = this.current;
+    const context = this.bound.current;
     if (!context) return html``;
     const issueLink = context.links?.issue(context.issue);
     return html`<section aria-label="Issue requirements acceptance">
