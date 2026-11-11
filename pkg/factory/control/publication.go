@@ -256,13 +256,13 @@ func (c *Coordinator) resolvePublicationOwner(ctx context.Context, a factory.Ass
 	if err != nil {
 		return owner, candidate, runID, preparation, false
 	}
+	res, ok := child.Report()
 	if child.Validate() != nil || child.Phase != project.ExecutionImplement || child.Role != project.RoleCoder ||
 		child.ParentAssignment != a.ID || child.PublicationAssignment != a.ID || child.AttemptRoot != a.AttemptRoot ||
 		child.Repository != a.Repository || child.Issue != a.Issue || child.Acceptance != a.Acceptance ||
 		child.ProjectID != a.ProjectID || child.SourceCommit != a.SourceCommit || child.Preparation != a.Preparation ||
-		child.Stage != factory.AssignmentFinished ||
-		child.Outcome != factory.Succeeded || child.Result == nil || !child.Result.Reported ||
-		child.Result.Status != "completed" || !factory.ValidCommit(child.Result.Candidate) {
+		!ok ||
+		res.Status != "completed" || !factory.ValidCommit(res.Candidate) {
 		return owner, candidate, runID, preparation, false
 	}
 	return child, child.Result.Candidate, child.Run, child.Preparation, true

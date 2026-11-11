@@ -91,7 +91,7 @@ type RetainedCandidateFundingReceipt struct {
 // PublicationOwnerReady recognizes an explicit non-executing owner without
 // inventing a successful run. Dispatch still requires its separate allowance.
 func (a Assignment) PublicationOwnerReady() bool {
-	return a.ExternalPublication != nil && a.validateExternalPublicationOwner() == nil || a.RetainedPublication != nil && a.validateRetainedPublication() == nil || a.Stage == AssignmentFinished && a.Outcome == Succeeded
+	return a.ExternalPublication != nil && a.validateExternalPublicationOwner() == nil || a.RetainedPublication != nil && a.validateRetainedPublication() == nil || a.Succeeded()
 }
 
 // RetainedPublication identifies the original execution without pretending it

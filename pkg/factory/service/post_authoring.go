@@ -220,8 +220,8 @@ func (d *IntentPostDrafter) DraftPostIssue(ctx context.Context, comment store.Fe
 	}
 	// The coordinator also settles this run. Returning pending lets its
 	// next progress pass do that work instead of waiting inside its lock.
-	if attempt.Stage != factory.AssignmentFinished || attempt.Result == nil {
-		if attempt.Stage == factory.AssignmentFinished {
+	if !attempt.Finished() || attempt.Result == nil {
+		if attempt.Finished() {
 			return empty, pendingPostDraft(factory.PostAuthoringSettling, "result_pending", "The Product Lead run ended. Waiting for its recorded result.", head.Intent, attempt.Run, attempt.CreatedUnix)
 		}
 		if attempt.Run == "" {
@@ -260,7 +260,7 @@ func (d *IntentPostDrafter) postPlanAttempt(ctx context.Context, head factory.In
 			return attempt, nil
 		}
 		run, e := d.Store.FactoryRun(ctx, attempt.Run)
-		if e != nil || !run.Reconciled || attempt.Stage != factory.AssignmentFinished || (attempt.Outcome != factory.Failed && attempt.Outcome != factory.Cancelled) {
+		if e != nil || !run.Reconciled || !attempt.Finished() || (attempt.Outcome != factory.Failed && attempt.Outcome != factory.Cancelled) {
 			return empty, errors.New("previous planning attempt must settle before explicit continuation")
 		}
 	} else if !errors.Is(err, store.ErrNotFound) {

@@ -45,7 +45,8 @@ func currentPublishedImplementationTx(ctx context.Context, tx *sql.Tx, a, owner 
 	if len(run.ExecutionManifest) == 0 {
 		return nil
 	}
-	if source.Phase != project.ExecutionImplement || source.Repository != a.Repository || source.Issue != a.Issue || source.ActorID != a.ActorID || source.ProjectID != a.ProjectID || source.AttemptRoot != origin.AttemptRoot || source.PublicationAssignment != origin.ID || source.Acceptance != a.Acceptance || source.Stage != factory.AssignmentFinished || source.Outcome != factory.Succeeded || source.Result == nil || !source.Result.Reported || source.Result.Candidate != publishedHead || !run.Reconciled || run.Outcome != factory.Succeeded || run.ProjectID != a.ProjectID {
+	res, ok := source.Report()
+	if source.Phase != project.ExecutionImplement || source.Repository != a.Repository || source.Issue != a.Issue || source.ActorID != a.ActorID || source.ProjectID != a.ProjectID || source.AttemptRoot != origin.AttemptRoot || source.PublicationAssignment != origin.ID || source.Acceptance != a.Acceptance || !ok || res.Candidate != publishedHead || !run.Reconciled || run.Outcome != factory.Succeeded || run.ProjectID != a.ProjectID {
 		return errors.New("published implementation evidence is outside review grant")
 	}
 	var projected factory.CurrentContext

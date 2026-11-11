@@ -41,7 +41,7 @@ func recordExternalPlanningCommandTx(ctx context.Context,tx *sql.Tx,a factory.As
 // root allowance, source, policy and PR origin, including the planning charge.
 func (s *Store) RecordExternalPlanningPublication(ctx context.Context,a factory.Assignment,p factory.Publication,now time.Time) (factory.Publication,error) {
 	var empty factory.Publication
-	if a.Validate()!=nil || a.ExternalPlanning==nil || a.Stage!=factory.AssignmentFinished || a.Outcome!=factory.Succeeded || a.Result==nil || a.Result.PhaseResult==nil || a.Result.PhaseResult.Output==nil || a.Result.PhaseResult.Output.Plan==nil || a.Result.PhaseResult.Output.PlanReview=="" || p.Validate()!=nil || !reflect.DeepEqual(p,externalPlanningTarget(a,time.Unix(p.CreatedUnix,0))) { return empty,ErrAdmissionChanged }
+	if a.Validate()!=nil || a.ExternalPlanning==nil || !a.Succeeded() || a.Result==nil || a.Result.PhaseResult==nil || a.Result.PhaseResult.Output==nil || a.Result.PhaseResult.Output.Plan==nil || a.Result.PhaseResult.Output.PlanReview=="" || p.Validate()!=nil || !reflect.DeepEqual(p,externalPlanningTarget(a,time.Unix(p.CreatedUnix,0))) { return empty,ErrAdmissionChanged }
 	tx,err:=s.db.BeginTx(ctx,nil); if err!=nil { return empty,err }; defer tx.Rollback()
 	if err=checkDispatchOpenTx(ctx,tx,a.Repository); err!=nil { return empty,err }
 	var raw []byte

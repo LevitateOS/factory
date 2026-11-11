@@ -181,7 +181,7 @@ func (c *Coordinator) deliveryRepairCause(ctx context.Context, runID string) (fa
 	if err != nil {
 		return none, err
 	}
-	if a.Stage != factory.AssignmentFinished || a.Phase != project.ExecutionVerify || a.Subject.Delivery == nil || a.Outcome != factory.Succeeded || a.Result == nil || !a.Result.Reported || a.Result.PhaseResult == nil || a.Result.PhaseResult.Output == nil || a.Result.PhaseResult.Output.Verification == nil || a.Result.PhaseResult.BindAssignment(a) != nil || !run.Reconciled || run.Outcome != factory.Succeeded || !run.CredentialsReturned() {
+	if out, ok := a.PhaseOutput(); !ok || a.Phase != project.ExecutionVerify || a.Subject.Delivery == nil || out.Verification == nil || a.Result.PhaseResult.BindAssignment(a) != nil || !run.Reconciled || run.Outcome != factory.Succeeded || !run.CredentialsReturned() {
 		return none, errors.New("delivery repair requires a settled failed verification")
 	}
 	effective, err := c.EffectiveAuthority(ctx, a.Repository)
@@ -252,7 +252,7 @@ func (c *Coordinator) DeliveryRepairAvailable(ctx context.Context, runID string)
 	if err != nil {
 		return false, err
 	}
-	if a.Stage != factory.AssignmentFinished || a.Phase != project.ExecutionVerify || a.Subject.Delivery == nil || a.Result == nil || a.Result.PhaseResult == nil || a.Result.PhaseResult.Output == nil || a.Result.PhaseResult.Output.Verification == nil || a.Result.PhaseResult.Output.Verification.Outcome != factory.AppVerificationFailed {
+	if !a.Finished() || a.Phase != project.ExecutionVerify || a.Subject.Delivery == nil || a.Result == nil || a.Result.PhaseResult == nil || a.Result.PhaseResult.Output == nil || a.Result.PhaseResult.Output.Verification == nil || a.Result.PhaseResult.Output.Verification.Outcome != factory.AppVerificationFailed {
 		return false, nil
 	}
 	cause, err := c.deliveryRepairCause(ctx, runID)

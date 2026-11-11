@@ -609,7 +609,7 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1 FOR UPDATE`, p.AssignmentID).Scan(&raw); err != nil {
 		return fail(err)
 	}
-	if json.Unmarshal(raw, &a) != nil || a.Validate() != nil || a.RetainedPublication != nil || a.ID != a.AttemptRoot || a.PublicationAssignment != a.ID || a.Role != p.Role || a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || a.ProjectID != p.ProjectID || a.Repository != p.Repository || a.Issue != p.Issue || a.Acceptance != p.Acceptance {
+	if json.Unmarshal(raw, &a) != nil || a.Validate() != nil || a.RetainedPublication != nil || a.ID != a.AttemptRoot || a.PublicationAssignment != a.ID || a.Role != p.Role || !a.Succeeded() || a.ProjectID != p.ProjectID || a.Repository != p.Repository || a.Issue != p.Issue || a.Acceptance != p.Acceptance {
 		return fail(ErrMergeConflict)
 	}
 	owner, err := currentAttemptOwnerTx(ctx, tx, p.Repository, p.Issue, a.AttemptRoot)

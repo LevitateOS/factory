@@ -165,7 +165,7 @@ func (c *Coordinator) ReadApplicationVerificationContext(ctx context.Context, pr
 }
 
 func (c *Coordinator) verifyApplicationReport(ctx context.Context, a factory.Assignment) error {
-	if a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || a.Result == nil || !a.Result.Reported || a.Result.PhaseResult == nil || a.Result.PhaseResult.Output == nil || a.Result.PhaseResult.Output.Verification == nil {
+	if out, ok := a.PhaseOutput(); !ok || out.Verification == nil {
 		return errors.New("application verification has no completed report")
 	}
 	report := a.Result.PhaseResult.Output.Verification

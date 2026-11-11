@@ -231,7 +231,7 @@ func settleClosedAttemptForRunTx(ctx context.Context, tx *sql.Tx, runID string, 
 		return nil
 	}
 	flags := settleFlags{transition: allowance.Closed, closeRoot: allowance.Closed}
-	if latest.Stage == factory.AssignmentFinished && !(latest.Outcome == factory.Succeeded && latest.Reason == factory.AssignReasonReported) {
+	if latest.Finished() && !latest.SucceededReported() {
 		flags.transition = true
 	}
 	if latest.Stage == factory.AssignmentAssigned {

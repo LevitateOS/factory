@@ -130,7 +130,7 @@ func checkClearReviewer(published factory.Publication, in ClearAdmissionInput) (
 	if reviewer.Role != project.RoleReviewer || reviewer.Phase != project.ExecutionReview {
 		return empty, errors.New("clear review needs its phased reviewer assignment")
 	}
-	if reviewer.Stage != factory.AssignmentFinished || reviewer.Outcome != factory.Succeeded {
+	if !reviewer.Succeeded() {
 		return empty, errors.New("clear review needs its finished reviewer")
 	}
 	if reviewer.Result == nil || !reviewer.Result.Reported || reviewer.Result.Status != "completed" {

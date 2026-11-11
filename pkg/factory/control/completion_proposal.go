@@ -56,7 +56,7 @@ func (c *Coordinator) completionCoderReport(ctx context.Context, record store.Re
 	if !run.Reconciled || a.Stage == factory.AssignmentAssigned {
 		return nil, nil
 	}
-	if run.Outcome != factory.Succeeded || a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || a.Result == nil || !a.Result.Reported || a.Result.PhaseResult == nil {
+	if _, ok := a.PhaseReport(); run.Outcome != factory.Succeeded || !ok {
 		return nil, errors.New("reassessment_coder_failed")
 	}
 	if a.Phase != project.ExecutionReassess || a.Role != project.RoleCoder || a.Repository != record.Cycle.Repository || a.SourceCommit != record.Local.SourceCommit || a.Subject.Completion == nil || a.Subject.Completion.CycleID != record.Cycle.CycleID || a.Subject.Completion.CompletionID != record.Cycle.EventID || a.Subject.Completion.InventoryDigest != record.InventoryDigest {

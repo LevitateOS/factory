@@ -61,7 +61,7 @@ func (c *Coordinator) AdoptExternalPull(ctx context.Context, command,principal s
 	if request.Target.HeadRepository!=request.Repository { return empty,&factory.PublicationRefusal{Reason:"external_fork_execution_unavailable"} }
 	if request.PlanAssignment=="" { return c.planExternalPull(ctx,cmd,request) }
 	plan,err:=c.Store.Assignment(ctx,request.PlanAssignment)
-	if err!=nil || plan.Validate()!=nil || plan.Repository!=request.Repository || plan.Issue!=request.Issue || plan.Acceptance!=request.Acceptance || plan.Role!=project.RoleCoder || plan.Phase!=project.ExecutionInvestigate || plan.Stage!=factory.AssignmentFinished || plan.Outcome!=factory.Succeeded ||
+	if err!=nil || plan.Validate()!=nil || plan.Repository!=request.Repository || plan.Issue!=request.Issue || plan.Acceptance!=request.Acceptance || plan.Role!=project.RoleCoder || plan.Phase!=project.ExecutionInvestigate || !plan.Succeeded() ||
 		plan.Result==nil || plan.Result.PhaseResult==nil || plan.Result.PhaseResult.Output==nil || plan.Result.PhaseResult.Output.Plan==nil || plan.Result.PhaseResult.Output.PlanReview=="" || plan.SourceCommit!=request.Target.BaseOID || plan.Connection!=request.Connection {
 		return empty,&factory.PublicationRefusal{Reason:"external_issue_plan_required"}
 	}

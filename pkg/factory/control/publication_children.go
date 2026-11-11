@@ -298,7 +298,7 @@ func (c *Coordinator) admitNewPublicationChild(ctx context.Context, p factory.Pu
 			c.fenceChildPublication(ctx, p, report)
 			return true
 		}
-		if existing.Stage == factory.AssignmentFinished &&
+		if existing.Finished() &&
 			(existing.Outcome != factory.Succeeded || existing.Result == nil || !existing.Result.Reported || existing.Result.Status != "completed") {
 			c.fenceChildPublication(ctx, p, report)
 		}
@@ -457,7 +457,7 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 		}
 	}
 	run, err := c.Store.FactoryRun(ctx, prior.Run)
-	if err != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() || prior.Stage != factory.AssignmentFinished || prior.Outcome != factory.Succeeded {
+	if err != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() || !prior.Succeeded() {
 		return errors.New("publication predecessor retirement unconfirmed")
 	}
 	prepared, err := c.Store.CandidatePreparation(ctx, prior.Preparation)
@@ -752,7 +752,7 @@ func reviewerMatchesPublication(reviewer factory.Assignment, p factory.Publicati
 		reviewer.PublicationAssignment == owner.ID && reviewer.AttemptRoot == owner.AttemptRoot &&
 		reviewer.SourceCommit == p.Candidate && reviewer.Repository == p.Repository &&
 		reviewer.Issue == p.Issue && reviewer.Acceptance == p.Acceptance &&
-		reviewer.Stage == factory.AssignmentFinished && reviewer.Outcome == factory.Succeeded &&
+		reviewer.Succeeded() &&
 		reviewer.Result != nil && reviewer.Result.Reported && reviewer.Result.Status == "completed"
 }
 
@@ -795,7 +795,7 @@ func currentReviewOpCurrent(p factory.Publication, op factory.ReviewOperation) (
 func reviewAssignmentMatches(assignment factory.Assignment, p factory.Publication) bool {
 	return assignment.Validate() == nil && assignment.Role == project.RoleReviewer &&
 		assignment.PublicationAssignment == p.AssignmentID && assignment.SourceCommit == p.Candidate &&
-		assignment.Stage == factory.AssignmentFinished && assignment.Outcome == factory.Succeeded &&
+		assignment.Succeeded() &&
 		assignment.Result != nil && assignment.Result.Reported
 }
 
@@ -1038,7 +1038,7 @@ func (c *Coordinator) provePublishedCandidateForReview(ctx context.Context, p fa
 	}
 	if err != nil || candidateAssignment.Validate() != nil || candidateAssignment.Role != project.RoleCoder ||
 		candidateAssignment.PublicationAssignment != origin.ID || candidateAssignment.AttemptRoot != origin.AttemptRoot ||
-		candidateAssignment.Stage != factory.AssignmentFinished || candidateAssignment.Outcome != factory.Succeeded ||
+		!candidateAssignment.Succeeded() ||
 		candidateAssignment.Result == nil || !candidateAssignment.Result.Reported || candidateAssignment.Result.Status != "completed" ||
 		candidateAssignment.Result.Candidate != p.Candidate {
 		return nil, errors.New("published candidate lacks its exact recorded report")

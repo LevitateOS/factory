@@ -154,9 +154,8 @@ func checkCorrectionPublished(admission *correctionAdmission, report *Correction
 		correctionWait(report, p.ID, "publication_unpublished")
 		return false
 	}
-	if assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.Succeeded ||
-		assignment.Result == nil || !assignment.Result.Reported || assignment.Result.Status != "completed" ||
-		!factory.ValidCommit(assignment.Result.Candidate) {
+	if res, ok := assignment.Report(); !ok || res.Status != "completed" ||
+		!factory.ValidCommit(res.Candidate) {
 		correctionWait(report, p.ID, "candidate_invalid")
 		return false
 	}
@@ -556,9 +555,8 @@ func (c *Coordinator) replayCorrectionJournal(ctx context.Context, p factory.Pub
 // checkCorrectionCandidate requires the corrector's finished,
 // reported candidate behind one correction report.
 func checkCorrectionCandidate(assignment factory.Assignment, publicationID string, served *CorrectionReport) bool {
-	if assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.Succeeded ||
-		assignment.Result == nil || !assignment.Result.Reported || assignment.Result.Status != "completed" ||
-		!factory.ValidCommit(assignment.Result.Candidate) {
+	if res, ok := assignment.Report(); !ok || res.Status != "completed" ||
+		!factory.ValidCommit(res.Candidate) {
 		correctionWait(served, publicationID, "candidate_invalid")
 		return false
 	}

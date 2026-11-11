@@ -635,8 +635,7 @@ func validImplementLineage(a, parent factory.Assignment) bool {
 // a finished reported investigation owning the child's parent slot.
 func validImplementParent(a, parent factory.Assignment) bool {
 	return parent.Validate() == nil && parent.ID == a.ParentAssignment &&
-		parent.Phase == project.ExecutionInvestigate && parent.Stage == factory.AssignmentFinished &&
-		parent.Outcome == factory.Succeeded && parent.Reason == factory.AssignReasonReported &&
+		parent.Phase == project.ExecutionInvestigate && parent.SucceededReported() &&
 		parent.Result != nil && parent.Result.PhaseResult != nil
 }
 
@@ -881,7 +880,7 @@ func validCorrectLineage(a, owner, reviewer factory.Assignment) bool {
 func validCorrectReviewer(a, reviewer factory.Assignment) bool {
 	return reviewer.Validate() == nil && reviewer.ID == a.ParentAssignment &&
 		reviewer.Role == project.RoleReviewer && reviewer.Phase == project.ExecutionReview &&
-		reviewer.Stage == factory.AssignmentFinished && reviewer.Outcome == factory.Succeeded &&
+		reviewer.Succeeded() &&
 		reviewer.Result != nil && reviewer.Result.Reported && reviewer.Result.Status == "completed"
 }
 

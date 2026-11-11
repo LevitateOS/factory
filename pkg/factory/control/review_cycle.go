@@ -339,7 +339,7 @@ func (c *Coordinator) checkPriorReviewBindings(ctx context.Context, p factory.Pu
 func (c *Coordinator) processPriorReview(ctx context.Context, p factory.Publication, k *carriedCollector, recorded factory.ReviewCycle, reviewer factory.Assignment) error {
 	// A settled failed/cancelled session without a verdict verifies nothing.
 	// Keep its original cycle/run joins, while carrying every prior finding.
-	if reviewer.Stage == factory.AssignmentFinished && (reviewer.Outcome == factory.Failed || reviewer.Outcome == factory.Cancelled || reviewer.Outcome == factory.NeedsHuman) &&
+	if reviewer.Finished() && (reviewer.Outcome == factory.Failed || reviewer.Outcome == factory.Cancelled || reviewer.Outcome == factory.NeedsHuman) &&
 		reviewer.Result != nil && !reviewer.Result.Reported && reviewer.Result.Review == nil && len(reviewer.Result.Findings) == 0 &&
 		(reviewer.Result.PhaseResult == nil || reviewer.Result.PhaseResult.Output == nil) {
 		if reviewer.Validate() != nil {
@@ -666,7 +666,7 @@ func (c *Coordinator) SubmitReviewForRun(ctx context.Context, runID string) (fac
 	if head != p.Candidate {
 		return empty, errors.New("review head superseded by a correction")
 	}
-	if assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.Succeeded {
+	if !assignment.Succeeded() {
 		return empty, errors.New("review lacks its recorded report")
 	}
 	w, err := c.buildReviewWork(ctx, p, owner, run, assignment, head)

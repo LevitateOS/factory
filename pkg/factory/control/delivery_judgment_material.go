@@ -127,7 +127,7 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
 	reviewer, err := c.Store.Assignment(ctx, cycle.ReviewerAssignment)
-	if err != nil || reviewer.Stage != factory.AssignmentFinished || reviewer.Outcome != factory.Succeeded {
+	if err != nil || !reviewer.Succeeded() {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
 	reviewerRun, err := c.Store.FactoryRun(ctx, reviewer.Run)

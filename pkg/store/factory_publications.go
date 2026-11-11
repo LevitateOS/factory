@@ -331,9 +331,9 @@ func updatePublicationTx(ctx context.Context, tx *sql.Tx, p factory.Publication)
 		if err = tx.QueryRowContext(ctx, `SELECT data->>'attempt_root' FROM factory_assignments WHERE id=$1`, p.AssignmentID).Scan(&root); err != nil {
 			return err
 		}
+		res, ok := child.Report()
 		if child.Validate() != nil || child.Role != project.RoleReviewer || child.Phase != project.ExecutionReview ||
-			child.Stage != factory.AssignmentFinished || child.Outcome != factory.Succeeded ||
-			child.Result == nil || !child.Result.Reported || child.Result.Status != "completed" ||
+			!ok || res.Status != "completed" ||
 			child.AttemptRoot != root || child.PublicationAssignment != p.AssignmentID || child.ProjectID != p.ProjectID ||
 			child.Repository != p.Repository || child.Issue != p.Issue || child.Acceptance != p.Acceptance || child.SourceCommit != op.Work.HeadOID {
 			return ErrPublicationConflict

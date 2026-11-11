@@ -82,7 +82,8 @@ func currentReviewFactsTx(ctx context.Context, tx *sql.Tx, a factory.Assignment,
 }
 
 func currentReviewResultBound(source factory.Assignment) bool {
-	return source.Stage == factory.AssignmentFinished && source.Outcome == factory.Succeeded && source.Result != nil && source.Result.Reported && source.Result.PhaseResult != nil && source.Result.PhaseResult.Output != nil
+	_, ok := source.PhaseOutput()
+	return ok
 }
 
 func currentReviewAssessmentsTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, p factory.Publication, cycle factory.ReviewCycle, carried map[string]bool, current *factory.CurrentReviewContext) error {

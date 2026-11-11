@@ -467,8 +467,8 @@ func validateImplementChildTx(ctx context.Context, tx *sql.Tx, a factory.Assignm
 
 func checkInvestigationParentComplete(parent, a factory.Assignment) error {
 	if parent.ID != a.ParentAssignment || parent.Phase != project.ExecutionInvestigate ||
-		parent.Stage != factory.AssignmentFinished || parent.Outcome != factory.Succeeded ||
-		parent.Reason != factory.AssignReasonReported || parent.Result == nil || parent.Result.PhaseResult == nil {
+		!parent.SucceededReported() ||
+		parent.Result == nil || parent.Result.PhaseResult == nil {
 		return fmt.Errorf("%w: implementation parent is not a completed investigation", ErrAttemptRootMismatch)
 	}
 	phased := parent.Result.PhaseResult
@@ -734,10 +734,9 @@ func checkReassessmentCycleSealed(record ReassessmentRecord, a factory.Assignmen
 // publication slot and candidate; the correction cycle it consumes is
 // charged by the packet's allowance leg.
 func checkCorrectionReviewerIdentity(parent, a factory.Assignment) error {
-	if parent.ID != a.ParentAssignment || parent.Role != project.RoleReviewer ||
-		parent.Phase != project.ExecutionReview || parent.Stage != factory.AssignmentFinished ||
-		parent.Outcome != factory.Succeeded || parent.Result == nil || !parent.Result.Reported ||
-		parent.Result.Status != "completed" {
+	if res, ok := parent.Report(); parent.ID != a.ParentAssignment || parent.Role != project.RoleReviewer ||
+		parent.Phase != project.ExecutionReview || !ok ||
+		res.Status != "completed" {
 		return fmt.Errorf("%w: correction parent is not its current reviewer", ErrAttemptRootMismatch)
 	}
 	return nil

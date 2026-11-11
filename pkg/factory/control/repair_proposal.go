@@ -44,7 +44,7 @@ func (c *Coordinator) stallCoderReport(ctx context.Context, record store.StallRe
 	if !run.Reconciled || a.Stage == factory.AssignmentAssigned {
 		return nil, nil
 	}
-	if run.Outcome != factory.Succeeded || a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || a.Result == nil || !a.Result.Reported || a.Result.PhaseResult == nil {
+	if _, ok := a.PhaseReport(); run.Outcome != factory.Succeeded || !ok {
 		return nil, errors.New("repair investigator did not complete")
 	}
 	result := a.Result.PhaseResult

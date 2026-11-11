@@ -259,7 +259,7 @@ func loadRetryPriorAssignmentTx(ctx context.Context, tx *sql.Tx, priorRun string
 	if err = priorAssignment.Validate(); err != nil {
 		return empty, ErrExplicitRetryIneligible
 	}
-	if priorAssignment.Run != priorRun || priorAssignment.Acceptance != acceptance || priorAssignment.Stage != factory.AssignmentFinished ||
+	if priorAssignment.Run != priorRun || priorAssignment.Acceptance != acceptance || !priorAssignment.Finished() ||
 		!project.ValidFactoryRole(priorAssignment.Role) || !retryAssignmentOutcomeMatches(priorAssignment, priorOutcome) || !retryableRunOutcome(priorOutcome) ||
 		priorAssignment.Repository != repository || priorAssignment.Issue != issue {
 		return empty, ErrExplicitRetryIneligible
@@ -288,7 +288,7 @@ func loadRetryOwnerTx(ctx context.Context, tx *sql.Tx, priorAssignment factory.A
 	if err = json.Unmarshal(ownerData, &owner); err != nil {
 		return empty, err
 	}
-	if err = owner.Validate(); err != nil || owner.Stage != factory.AssignmentFinished || owner.Role != project.RoleCoder ||
+	if err = owner.Validate(); err != nil || !owner.Finished() || owner.Role != project.RoleCoder ||
 		owner.Acceptance != acceptance || owner.AttemptRoot != owner.ID || priorAssignment.AttemptRoot != owner.ID ||
 		priorAssignment.PublicationAssignment != owner.ID || latest.AttemptRoot != owner.ID || latest.PublicationAssignment != owner.ID ||
 		latest.Acceptance != acceptance || (latest.ID != priorAssignment.ID && priorAssignment.ID != owner.ID) {

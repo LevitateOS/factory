@@ -151,7 +151,7 @@ func (c *Coordinator) planExternalPull(ctx context.Context,cmd factory.Command,r
 }
 
 func (c *Coordinator) adoptCompletedExternalPlan(ctx context.Context,a factory.Assignment,report *PublishReport) {
-	if a.Validate()!=nil || a.ExternalPlanning==nil || a.Stage!=factory.AssignmentFinished || a.Outcome!=factory.Succeeded || advanceChildPlan(a)==nil || a.Result.PhaseResult.Output.PlanReview=="" { return }
+	if a.Validate()!=nil || a.ExternalPlanning==nil || !a.Succeeded() || advanceChildPlan(a)==nil || a.Result.PhaseResult.Output.PlanReview=="" { return }
 	if _,err:=c.Store.PublicationByAssignment(ctx,a.ID); err==nil { return } else if !errors.Is(err,store.ErrNotFound) { publicationError(report,a.ID,"store_unavailable"); return }
 	e:=a.ExternalPlanning
 	status,err:=c.AcceptanceStatus(ctx,a.Repository,strconv.FormatInt(a.Issue,10))

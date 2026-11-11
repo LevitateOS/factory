@@ -199,8 +199,8 @@ func (s *Store) RecordRetainedPublicationCommand(ctx context.Context, cmd factor
 	if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, latest).Scan(&raw); err != nil {
 		return factory.Publication{}, err
 	}
-	if json.Unmarshal(raw, &source) != nil || source.Validate() != nil || source.Stage != factory.AssignmentFinished ||
-		source.Outcome != factory.Succeeded || source.Result == nil || !source.Result.Reported || source.Result.Status != "completed" ||
+	if json.Unmarshal(raw, &source) != nil || source.Validate() != nil || !source.Succeeded() ||
+		source.Result == nil || !source.Result.Reported || source.Result.Status != "completed" ||
 		source.Repository != a.Repository || source.Issue != a.Issue || source.ProjectID != a.ProjectID || source.Preparation != a.Preparation ||
 		source.Acceptance != a.Acceptance || a.Acceptance != p.Acceptance || source.SourceCommit != a.SourceCommit ||
 		a.SourceCommit != p.BaseSHA || a.ProjectID != p.ProjectID || a.Repository != p.Repository || a.Issue != p.Issue ||
@@ -357,7 +357,7 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 		return fail(err)
 	}
 	var candidate factory.Assignment
-	if json.Unmarshal(raw, &candidate) != nil || candidate.Validate() != nil || candidate.Role != project.RoleCoder || candidate.Stage != factory.AssignmentFinished || candidate.Outcome != factory.Succeeded || candidate.Result == nil || !candidate.Result.Reported || candidate.Result.Status != "completed" || candidate.Result.Candidate != p.Candidate || candidate.Repository != p.Repository || candidate.Issue != p.Issue || candidate.ProjectID != p.ProjectID || candidate.Acceptance != p.Acceptance || candidate.Connection != origin.Connection {
+	if json.Unmarshal(raw, &candidate) != nil || candidate.Validate() != nil || candidate.Role != project.RoleCoder || !candidate.Succeeded() || candidate.Result == nil || !candidate.Result.Reported || candidate.Result.Status != "completed" || candidate.Result.Candidate != p.Candidate || candidate.Repository != p.Repository || candidate.Issue != p.Issue || candidate.ProjectID != p.ProjectID || candidate.Acceptance != p.Acceptance || candidate.Connection != origin.Connection {
 		return fail(fmt.Errorf("%w: original candidate report changed", ErrRetainedPublicationIneligible))
 	}
 	history, err := publicationReviewHistory(ctx, tx, p)
@@ -604,7 +604,7 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 			rows.Close()
 			return err
 		}
-		if json.Unmarshal(raw, &child) != nil || child.Validate() != nil || child.Stage != factory.AssignmentFinished || child.Result == nil || child.PublicationAssignment != p.AssignmentID || children >= 512 {
+		if json.Unmarshal(raw, &child) != nil || child.Validate() != nil || !child.Finished() || child.Result == nil || child.PublicationAssignment != p.AssignmentID || children >= 512 {
 			rows.Close()
 			return ErrRetainedPublicationIneligible
 		}
@@ -805,7 +805,7 @@ func publicationExecutionOwner(ctx context.Context, q grantCommandSQL, p factory
 			return factory.Assignment{}, err
 		}
 		var plan factory.Assignment
-		if json.Unmarshal(raw, &plan) != nil || plan.Validate() != nil || plan.Stage != factory.AssignmentFinished || plan.Outcome != factory.Succeeded ||
+		if json.Unmarshal(raw, &plan) != nil || plan.Validate() != nil || !plan.Succeeded() ||
 			plan.Phase != project.ExecutionInvestigate || plan.NativeTool == nil || plan.Result == nil || plan.Result.PhaseResult == nil || plan.Result.PhaseResult.Output == nil || plan.Result.PhaseResult.Output.Plan == nil || plan.Result.PhaseResult.Output.PlanReview == "" ||
 			plan.Repository != owner.Repository || plan.Issue != owner.Issue || plan.ProjectID != owner.ProjectID || plan.Acceptance != owner.Acceptance || plan.Preparation != owner.Preparation ||
 			plan.SourceCommit != owner.SourceCommit || plan.Connection != owner.ExternalPublication.Connection || !reflect.DeepEqual(p.External, &owner.ExternalPublication.Origin) {
@@ -822,7 +822,7 @@ func publicationExecutionOwner(ctx context.Context, q grantCommandSQL, p factory
 		return factory.Assignment{}, err
 	}
 	var origin factory.Assignment
-	if json.Unmarshal(raw, &origin) != nil || origin.Validate() != nil || origin.Stage != factory.AssignmentFinished || origin.Outcome != factory.Succeeded ||
+	if json.Unmarshal(raw, &origin) != nil || origin.Validate() != nil || !origin.Succeeded() ||
 		origin.Repository != owner.Repository || origin.Issue != owner.Issue || origin.ProjectID != owner.ProjectID || origin.Acceptance != owner.Acceptance ||
 		origin.Preparation != owner.Preparation || origin.SourceCommit != owner.SourceCommit || origin.Connection != r.Connection || origin.PublicationAssignment != origin.ID || origin.AttemptRoot != origin.ID {
 		return factory.Assignment{}, ErrRetainedPublicationIneligible

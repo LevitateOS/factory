@@ -114,14 +114,14 @@ func journeyPhaseEntryDTO(phase, state, assignment, run, root string) (journeyPh
 // recorded outcome must never fabricate successful completion.
 func journeyAssignmentState(assignment factory.Assignment) string {
 	switch {
-	case assignment.Stage == factory.AssignmentFinished &&
+	case assignment.Finished() &&
 		(assignment.Outcome == factory.Failed || assignment.Outcome == factory.Cancelled ||
 			assignment.Outcome == factory.NeedsHuman ||
 			assignment.Reason == factory.AssignReasonRunFailed || assignment.Reason == factory.AssignReasonCancelled):
 		return journeyAttention
-	case assignment.Stage == factory.AssignmentFinished && assignment.Outcome == factory.Succeeded:
+	case assignment.Succeeded():
 		return journeyComplete
-	case assignment.Stage == factory.AssignmentFinished:
+	case assignment.Finished():
 		return journeyAttention
 	default:
 		return journeyActive
