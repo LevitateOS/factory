@@ -195,59 +195,254 @@ impl Input {
             derived,
         })
     }
-    fn state(&self, completion: Option<&Completion>, retired: bool) -> Value {
-        let receipt = completion.and_then(|value| value.receipt.as_ref());
-        let phase = if retired {
-            "stopped"
-        } else if let Some(receipt) = receipt {
-            if !receipt.missing.is_empty() {
-                "waiting"
-            } else if !receipt.output_truncated
-                && receipt.setup_exit == Some(0)
-                && receipt.check_exit == Some(0)
-            {
-                "ready"
-            } else {
-                "failed"
-            }
-        } else if completion.is_some() {
-            "interrupted"
-        } else {
-            "running"
+    /// True when a retired.json exists for this input. A marker naming another
+    /// root or source bundle is refused. This is the only reading of the marker.
+    fn retired(&self, directory: &Path) -> io::Result<bool> {
+        let marker = directory.join("retired.json");
+        if !marker.try_exists()? {
+            return Ok(false);
+        }
+        let marker: Value = load(&marker)?;
+        if marker["root"] != self.key
+            || marker["bundle"] != digest(&self.effective_bundle(directory)?)
+        {
+            return Err(denied());
+        }
+        Ok(true)
+    }
+}
+const RESTARTED: &str = "interrupted native preparation requires a fresh identity";
+/// Why a preparation was interrupted. Only the error text reaches Go.
+#[derive(Clone)]
+enum Cause {
+    /// This process failed to finish setup (broker, setup or journal error).
+    Process(String),
+    /// A restart found a journal without completion.json.
+    Restart,
+}
+impl Cause {
+    fn text(&self) -> &str {
+        match self {
+            Self::Process(error) => error,
+            Self::Restart => RESTARTED,
+        }
+    }
+}
+#[derive(Clone)]
+enum Outcome {
+    Receipt(SetupReceipt),
+    Interrupted(Cause),
+}
+/// completion.json. Stored as `{receipt, error, source_sha256}`.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(from = "StoredCompletion", into = "StoredCompletion")]
+struct Completion {
+    outcome: Outcome,
+    source_sha256: Option<String>,
+}
+#[derive(Serialize, Deserialize)]
+struct StoredCompletion {
+    receipt: Option<SetupReceipt>,
+    error: Option<String>,
+    #[serde(default)]
+    source_sha256: Option<String>,
+}
+impl From<StoredCompletion> for Completion {
+    fn from(stored: StoredCompletion) -> Self {
+        let outcome = match stored.receipt {
+            Some(receipt) => Outcome::Receipt(receipt),
+            None => Outcome::Interrupted(Cause::Process(stored.error.unwrap_or_default())),
         };
+        Self {
+            outcome,
+            source_sha256: stored.source_sha256,
+        }
+    }
+}
+impl From<Completion> for StoredCompletion {
+    fn from(completion: Completion) -> Self {
+        let (receipt, error) = match completion.outcome {
+            Outcome::Receipt(receipt) => (Some(receipt), None),
+            Outcome::Interrupted(cause) => (None, Some(cause.text().to_owned())),
+        };
+        Self {
+            receipt,
+            error,
+            source_sha256: completion.source_sha256,
+        }
+    }
+}
+impl Completion {
+    fn failed(error: impl Into<String>) -> Self {
+        Self {
+            outcome: Outcome::Interrupted(Cause::Process(error.into())),
+            source_sha256: None,
+        }
+    }
+    fn restarted() -> Self {
+        Self {
+            outcome: Outcome::Interrupted(Cause::Restart),
+            source_sha256: None,
+        }
+    }
+}
+fn load_completion(directory: &Path) -> io::Result<Option<Completion>> {
+    match load(&directory.join("completion.json")) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+/// The lifecycle of one preparation, derived from its journal.
+enum Phase {
+    /// Fenced before any request was admitted (controller-not-started journal).
+    NotStarted,
+    Running,
+    Ready(SetupReceipt),
+    Waiting(SetupReceipt),
+    Failed(SetupReceipt),
+    Interrupted(Cause),
+    /// Retirement confirmed; `prior` is what setup had recorded, if anything.
+    Stopped {
+        prior: Option<Outcome>,
+    },
+}
+impl Phase {
+    fn of(completion: Option<Completion>, retired: bool) -> Self {
+        let outcome = completion.map(|completion| completion.outcome);
+        if retired {
+            return Self::Stopped { prior: outcome };
+        }
+        match outcome {
+            None => Self::Running,
+            Some(Outcome::Interrupted(cause)) => Self::Interrupted(cause),
+            Some(Outcome::Receipt(receipt)) => {
+                if !receipt.missing.is_empty() {
+                    Self::Waiting(receipt)
+                } else if !receipt.output_truncated
+                    && receipt.setup_exit == Some(0)
+                    && receipt.check_exit == Some(0)
+                {
+                    Self::Ready(receipt)
+                } else {
+                    Self::Failed(receipt)
+                }
+            }
+        }
+    }
+    fn stopped(&self) -> bool {
+        matches!(self, Self::NotStarted | Self::Stopped { .. })
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::NotStarted | Self::Stopped { .. } => "stopped",
+            Self::Running => "running",
+            Self::Ready(_) => "ready",
+            Self::Waiting(_) => "waiting",
+            Self::Failed(_) => "failed",
+            Self::Interrupted(_) => "interrupted",
+        }
+    }
+    fn receipt(&self) -> Option<&SetupReceipt> {
+        match self {
+            Self::Ready(receipt)
+            | Self::Waiting(receipt)
+            | Self::Failed(receipt)
+            | Self::Stopped {
+                prior: Some(Outcome::Receipt(receipt)),
+            } => Some(receipt),
+            _ => None,
+        }
+    }
+    fn error(&self) -> Option<&str> {
+        match self {
+            Self::Interrupted(cause)
+            | Self::Stopped {
+                prior: Some(Outcome::Interrupted(cause)),
+            } => Some(cause.text()),
+            _ => None,
+        }
+    }
+}
+enum Subject {
+    Fence(Value),
+    Input(Arc<Input>),
+}
+/// A preparation's phase with what Go is told about it.
+struct Status {
+    subject: Subject,
+    phase: Phase,
+    source_sha256: Option<String>,
+}
+impl Status {
+    fn fence(address: &Value) -> Self {
+        Self {
+            subject: Subject::Fence(address.clone()),
+            phase: Phase::NotStarted,
+            source_sha256: None,
+        }
+    }
+    fn of(input: &Arc<Input>, completion: Option<Completion>, retired: bool) -> Self {
+        Self {
+            subject: Subject::Input(input.clone()),
+            source_sha256: completion
+                .as_ref()
+                .and_then(|completion| completion.source_sha256.clone()),
+            phase: Phase::of(completion, retired),
+        }
+    }
+    /// The one derivation of a phase from the journal. `live` is the running
+    /// entry's completion when there is one (memory leads disk until it is
+    /// durable); otherwise completion.json is read.
+    fn load(
+        input: &Arc<Input>,
+        directory: &Path,
+        live: Option<Option<Completion>>,
+    ) -> io::Result<Self> {
+        let retired = input.retired(directory)?;
+        let completion = match live {
+            Some(completion) => completion,
+            None => load_completion(directory)?,
+        };
+        Ok(Self::of(input, completion, retired))
+    }
+    fn to_wire(&self) -> Value {
+        let input = match &self.subject {
+            Subject::Fence(address) => {
+                return json!({"id":address["id"],"project":address["workspace"],"native":address["native"],
+                    "phase":"stopped","ready":false,"stopped":true,"retirement":"confirmed"})
+            }
+            Subject::Input(input) => input,
+        };
+        let phase = &self.phase;
+        let receipt = phase.receipt();
         let tools: Vec<_> = receipt
             .into_iter()
             .flat_map(|value| value.tools.iter())
             .map(|(name, path)| json!({"name":name,"path":path}))
             .collect();
-        let source_sha = completion
-            .and_then(|value| value.source_sha256.as_deref())
-            .unwrap_or(if self.derived.is_none() {
-                &self.bundle_sha
+        let source_sha = self
+            .source_sha256
+            .as_deref()
+            .unwrap_or(if input.derived.is_none() {
+                &input.bundle_sha
             } else {
                 ""
             });
-        json!({"id":self.id,"project":self.workspace,"role":self.role.product(),
-            "source_commit":self.source,"setup_digest":self.setup,"source_bundle_sha256":source_sha,"native":self.native,
-            "phase":phase,"ready":phase=="ready","stopped":retired,"retirement":if retired {"confirmed"} else {""},
+        let stopped = phase.stopped();
+        json!({"id":input.id,"project":input.workspace,"role":input.role.product(),
+            "source_commit":input.source,"setup_digest":input.setup,"source_bundle_sha256":source_sha,"native":input.native,
+            "phase":phase.name(),"ready":matches!(phase,Phase::Ready(_)),"stopped":stopped,"retirement":if stopped {"confirmed"} else {""},
             "setup_exit":receipt.and_then(|value|value.setup_exit),"check_exit":receipt.and_then(|value|value.check_exit),"tools":tools,
             "missing":receipt.map(|value|value.missing.join(", ")).unwrap_or_default(),
-            "output":receipt.map(|value|value.output.clone()).or_else(||completion.and_then(|value|value.error.clone())).unwrap_or_default()})
+            "output":receipt.map(|value|value.output.clone()).or_else(||phase.error().map(str::to_owned)).unwrap_or_default()})
     }
-}
-#[derive(Clone, Serialize, Deserialize)]
-struct Completion {
-    receipt: Option<SetupReceipt>,
-    error: Option<String>,
-    #[serde(default)]
-    source_sha256: Option<String>,
 }
 struct Entry {
     input: Arc<Input>,
     completion: Arc<Mutex<Option<Completion>>>,
     job: Option<JoinHandle<()>>,
     cancellation: AgentCancellation,
-    retired: bool,
 }
 pub(crate) struct Preparations {
     directory: PathBuf,
@@ -265,14 +460,9 @@ struct Authority {
 }
 
 fn retire_input(input: &Input, directory: &Path, profile: &str) -> io::Result<Vec<u8>> {
-    let sha256 = digest(&input.effective_bundle(directory)?);
     let marker = directory.join("retired.json");
-    if marker.try_exists()? {
-        let prior: Value = load(&marker)?;
-        if prior["root"] != input.key || prior["bundle"] != sha256 {
-            return Err(denied());
-        }
-    } else {
+    if !input.retired(directory)? {
+        let sha256 = digest(&input.effective_bundle(directory)?);
         Broker::retire_unlaunched(&input.key, profile, &sha256)?;
         save(&marker, &json!({"root":input.key,"bundle":sha256}))?;
     }
@@ -309,7 +499,7 @@ impl Preparations {
                     "workspace":request["input"]["preparation"]["project"],"native":request["native"]})
             };
             if entry.file_name().to_str() != Some(self.key(&address)?.as_str())
-                || self.retained_retirement(&address)?["stopped"] != true
+                || !self.retained(&address)?.phase.stopped()
             {
                 return Err(denied());
             }
@@ -365,7 +555,7 @@ impl Preparations {
             return Err(denied());
         }
         let address = json!({"id":input.id,"workspace":input.workspace,"native":native});
-        if self.inspect(&address)?["ready"] != true {
+        if !matches!(self.status(&address)?.phase, Phase::Ready(_)) {
             return Err(denied());
         }
         Ok((
@@ -420,30 +610,13 @@ impl Preparations {
             ));
         }
         private_dir(&directory).map_err(|_| denied())?;
-        let mut retired = false;
         let completion = if existing {
             let prior: Value = load(&directory.join("request.json"))?;
             if prior != input.request {
                 return Err(denied());
             }
-            retired = directory.join("retired.json").try_exists()?;
-            if retired {
-                let marker: Value = load(&directory.join("retired.json"))?;
-                if marker["root"] != input.key
-                    || marker["bundle"] != digest(&input.effective_bundle(&directory)?)
-                {
-                    return Err(denied());
-                }
-            }
-            Some(match load(&directory.join("completion.json")) {
-                Ok(value) => value,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => Completion {
-                    receipt: None,
-                    error: Some("interrupted native preparation requires a fresh identity".into()),
-                    source_sha256: None,
-                },
-                Err(error) => return Err(error),
-            })
+            input.retired(&directory)?;
+            Some(load_completion(&directory)?.unwrap_or_else(Completion::restarted))
         } else {
             save(&directory.join("request.json"), &input.request)?;
             None
@@ -527,28 +700,19 @@ impl Preparations {
                         .unwrap_or_else(|_| Err(io::Error::other("native setup job failed")));
                         let mut result = match result {
                             Ok((receipt, sha256)) => Completion {
-                                receipt: Some(receipt),
-                                error: None,
+                                outcome: Outcome::Receipt(receipt),
                                 source_sha256: Some(sha256),
                             },
-                            Err(error) => Completion {
-                                receipt: None,
-                                error: Some(error.to_string()),
-                                source_sha256: None,
-                            },
+                            Err(error) => Completion::failed(error.to_string()),
                         };
                         if save(&directory.join("completion.json"), &result).is_err() {
-                            result = Completion {
-                                receipt: None,
-                                error: Some("native setup receipt was not durable".into()),
-                                source_sha256: None,
-                            };
+                            result = Completion::failed("native setup receipt was not durable");
                         }
                         *completion.lock().unwrap_or_else(|error| error.into_inner()) =
                             Some(result);
                         if input.controlled() {
                             if admitted {
-                                let ready = completion.lock().unwrap_or_else(|e|e.into_inner()).as_ref().is_some_and(|c|c.receipt.is_some());
+                                let ready = completion.lock().unwrap_or_else(|e|e.into_inner()).as_ref().is_some_and(|c|matches!(c.outcome, Outcome::Receipt(_)));
                                 // The claim owns the prepared checkout as well as
                                 // setup. Keep its watcher until physical retirement.
                                 if ready {
@@ -576,7 +740,6 @@ impl Preparations {
                 completion,
                 job,
                 cancellation,
-                retired,
             },
         );
         drop(entries);
@@ -612,7 +775,7 @@ impl Preparations {
                 return self.inspect(&address);
             }
         }
-        if self.inspect(source)?["ready"] != true {
+        if !matches!(self.status(source)?.phase, Phase::Ready(_)) {
             return Err(denied());
         }
         let source_key = self.key(source)?;
@@ -645,68 +808,52 @@ impl Preparations {
         self.prepare(standing, authority)
     }
     pub(crate) fn inspect(&self, address: &Value) -> io::Result<Value> {
+        Ok(self.status(address)?.to_wire())
+    }
+    fn status(&self, address: &Value) -> io::Result<Status> {
         if address["native"]["instance_id"] != self.instance {
-            return self.retained_retirement(address);
+            return self.retained(address);
         }
         let key = self.key(address)?;
-        let (input, completion, cancel, mut retired) = {
+        let (input, completion, cancel) = {
             let entries = self.entries.lock().map_err(|_| denied())?;
             let Some(entry) = entries.get(&key) else {
                 drop(entries);
-                return self.retained_retirement(address);
+                return self.retained(address);
             };
             if address["id"] != entry.input.id || address["workspace"] != entry.input.workspace {
                 return Err(denied());
             }
             let completion = entry.completion.lock().map_err(|_| denied())?.clone();
-            (
-                entry.input.clone(),
-                completion,
-                entry.cancellation.clone(),
-                entry.retired,
-            )
+            (entry.input.clone(), completion, entry.cancellation.clone())
         };
         if !self.alive.load(Ordering::SeqCst) {
             return Err(denied());
         }
-        let marker = self.directory.join(&key).join("retired.json");
-        if marker.try_exists()? {
-            let marker: Value = load(&marker)?;
-            if marker["root"] != key
-                || marker["bundle"] != digest(&input.effective_bundle(&self.directory.join(&key))?)
-            {
-                return Err(denied());
-            }
-            retired = true;
-        }
-        if !retired
-            && completion
-                .as_ref()
-                .is_some_and(|value| value.receipt.is_some())
-        {
+        let directory = self.directory.join(&key);
+        let status = Status::load(&input, &directory, Some(completion))?;
+        if let Phase::Ready(prior) | Phase::Waiting(prior) | Phase::Failed(prior) = &status.phase {
             let receipt = Broker::read_source_setup(
                 &key,
                 &self.profile,
-                &digest(&input.effective_bundle(&self.directory.join(&key))?),
+                &digest(&input.effective_bundle(&directory)?),
                 &input.source,
                 cancel,
             )?;
-            if receipt.setup_sha256 != input.setup
-                || completion.as_ref().and_then(|value| value.receipt.as_ref()) != Some(&receipt)
-            {
+            if receipt.setup_sha256 != input.setup || receipt != *prior {
                 return Err(denied());
             }
         }
         if !self.alive.load(Ordering::SeqCst) {
             return Err(denied());
         }
-        Ok(input.state(completion.as_ref(), retired))
+        Ok(status)
     }
     pub(crate) fn context(&self, request: &Value) -> io::Result<Value> {
         let meta = &request["input"];
         let address =
             json!({"id":meta["id"],"workspace":meta["project"],"native":request["native"]});
-        if self.inspect(&address)?["ready"] != true {
+        if !matches!(self.status(&address)?.phase, Phase::Ready(_)) {
             return Err(denied());
         }
         let key = self.key(&address)?;
@@ -787,6 +934,9 @@ impl Preparations {
         }
     }
     pub(crate) fn retire(&self, address: &Value) -> io::Result<Value> {
+        Ok(self.retire_status(address)?.to_wire())
+    }
+    fn retire_status(&self, address: &Value) -> io::Result<Status> {
         if address["native"]["instance_id"] != self.instance {
             return self.fence_unstarted(address);
         }
@@ -807,14 +957,13 @@ impl Preparations {
             job.join().map_err(|_| denied())?;
         }
         retire_input(&input, &self.directory.join(&key), &self.profile)?;
-        let mut entries = self.entries.lock().map_err(|_| denied())?;
-        let entry = entries.get_mut(&key).ok_or_else(denied)?;
-        entry.retired = true;
+        let entries = self.entries.lock().map_err(|_| denied())?;
+        let entry = entries.get(&key).ok_or_else(denied)?;
         let completion = entry.completion.lock().map_err(|_| denied())?.clone();
-        Ok(input.state(completion.as_ref(), true))
+        Ok(Status::of(&input, completion, true))
     }
 
-    fn fence_unstarted(&self, address: &Value) -> io::Result<Value> {
+    fn fence_unstarted(&self, address: &Value) -> io::Result<Status> {
         let key = self.key(address)?;
         let entries = self.entries.lock().map_err(|_| denied())?;
         if !self.alive.load(Ordering::SeqCst) || entries.contains_key(&key) {
@@ -837,12 +986,12 @@ impl Preparations {
                 &json!({"kind":"not_started","root":key,"address":address}))?;
         }
         drop(entries);
-        self.retained_retirement(address)
+        self.retained(address)
     }
 
     // Adopt an original owner's confirmed retirement, including for storage
     // accounting. This read never opens a workspace or renews its authority.
-    fn retained_retirement(&self, address: &Value) -> io::Result<Value> {
+    fn retained(&self, address: &Value) -> io::Result<Status> {
         let native = &address["native"];
         let instance = text(native, "instance_id", 32)?;
         if !self.alive.load(Ordering::SeqCst)
@@ -860,29 +1009,25 @@ impl Preparations {
             {
                 return Err(denied());
             }
-            return Ok(json!({"id":address["id"],"project":address["workspace"],"native":native,
-                "phase":"stopped","ready":false,"stopped":true,"retirement":"confirmed"}));
+            return Ok(Status::fence(address));
         }
-        let input = Input::decode(
+        let input = Arc::new(Input::decode(
             load(&directory.join("request.json"))?,
             &self.profile,
             instance,
-        )?;
+        )?);
         if input.native != *native
             || address["id"] != input.id
             || address["workspace"] != input.workspace
             || input.key != key
-            || marker["root"] != key
-            || marker["bundle"] != digest(&input.effective_bundle(&directory)?)
         {
             return Err(denied());
         }
-        let completion: Option<Completion> = match load(&directory.join("completion.json")) {
-            Ok(value) => Some(value),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
-        };
-        Ok(input.state(completion.as_ref(), true))
+        let status = Status::load(&input, &directory, None)?;
+        if !status.phase.stopped() {
+            return Err(denied());
+        }
+        Ok(status)
     }
     pub(crate) fn retire_all(&self) -> io::Result<()> {
         self.cancel_all();
@@ -935,31 +1080,35 @@ impl Preparations {
             runtime: tokio::runtime::Handle::current(),
         });
         let owner = self.clone();
-        let result = tokio::task::spawn_blocking(move || match call {
-            Call::Prepare { request } => owner.prepare(request, authority),
-            Call::Candidate { request, source } => {
-                owner.prepare_candidate(request, &source, authority)
-            }
-            Call::Context { request } => owner.context(&request),
-            Call::Inspect { address } => owner.inspect(&address),
-            Call::Retire { address } => owner.retire(&address),
+        let (result, status) = tokio::task::spawn_blocking(move || {
+            let reported = |status: Status| (status.to_wire(), Some(status));
+            Ok(match call {
+                Call::Prepare { request } => (owner.prepare(request, authority)?, None),
+                Call::Candidate { request, source } => {
+                    (owner.prepare_candidate(request, &source, authority)?, None)
+                }
+                Call::Context { request } => (owner.context(&request)?, None),
+                Call::Inspect { address } => reported(owner.status(&address)?),
+                Call::Retire { address } => reported(owner.retire_status(&address)?),
+            })
         })
         .await
         .map_err(|_| Failure::unavailable())?
-        .map_err(|error| {
+        .map_err(|error: io::Error| {
             eprintln!("native preparation callback: {error}");
             Failure::new(503, "native_preparation_unavailable")
         })?;
-        if let Some(address) = address {
-            if result["stopped"] == true {
+        if let (Some(address), Some(status)) = (address, status) {
+            if status.phase.stopped() {
                 let key = self.key(&address).map_err(|_| Failure::unavailable())?;
                 let directory = self.directory.join(&key);
-                let marker: Value = load(&directory.join("retired.json"))
+                let marker = load_bytes(&directory.join("retired.json"), 1024)
                     .map_err(|_| Failure::unavailable())?;
-                if marker["kind"] == "not_started" {
+                if matches!(status.phase, Phase::NotStarted) {
                     // The exact receiver fence proves that no request/claim was
                     // admitted. Reading it grants no new host operation.
-                    self.retained_retirement(&address).map_err(|_| Failure::unavailable())?;
+                    self.retained(&address)
+                        .map_err(|_| Failure::unavailable())?;
                     return Ok(result);
                 }
                 let request: Value =
@@ -981,8 +1130,6 @@ impl Preparations {
                         return Err(Failure::unavailable());
                     }
                     let credentials = recovery_credentials.ok_or_else(Failure::unavailable)?;
-                    let marker = load_bytes(&directory.join("retired.json"), 1024)
-                        .map_err(|_| Failure::unavailable())?;
                     super::controller::recover_preparation(
                         credentials,
                         self.channel
