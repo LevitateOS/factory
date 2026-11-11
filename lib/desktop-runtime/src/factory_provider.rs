@@ -48,7 +48,7 @@ pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
 pub use recovery::{NativeRecovery, NativeRecoveryEvidence};
-pub use run::{RunOwner, RunStart};
+pub use run::{RunOwner, RunStart, Settled};
 use serde_json::Value;
 pub use start::ExecutionStart;
 use std::collections::BTreeSet;

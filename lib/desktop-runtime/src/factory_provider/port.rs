@@ -388,26 +388,27 @@ fn snapshot(
             retired,
         ));
     }
-    let custody = ticket.custody().ok();
-    let (started, live, terminal) = match &outcome {
-        ExecutionOutcome::Complete(result) => (
+    // A completed outcome carries its retirement proof; only unfinished runs
+    // read live custody markers.
+    let (started, live, terminal, custody) = match &outcome {
+        ExecutionOutcome::Complete(result, settled) => (
             Some(super::AgentStarted {
                 worker_uid: result.worker_uid,
                 process: result.process.clone(),
             }),
             Some(false),
             Some(result),
+            Some(settled.custody().clone()),
         ),
-        _ => match ticket.inspect(Duration::from_secs(2)) {
-            Ok(observed) => (Some(observed.started), Some(observed.live), None),
-            Err(_) => (attempt.started.clone(), None, None),
-        },
+        _ => {
+            let custody = ticket.custody().ok();
+            match ticket.inspect(Duration::from_secs(2)) {
+                Ok(observed) => (Some(observed.started), Some(observed.live), None, custody),
+                Err(_) => (attempt.started.clone(), None, None, custody),
+            }
+        }
     };
-    let retired = terminal.is_some()
-        && attempt.phase == AttemptPhase::Retired
-        && custody
-            .as_ref()
-            .is_some_and(|custody| custody.state == CustodyState::Released);
+    let retired = terminal.is_some();
     if !alive.load(Ordering::SeqCst) {
         return Err(refused());
     }

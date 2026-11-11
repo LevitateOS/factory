@@ -3,7 +3,7 @@
 use super::receipt::ensure_receipts;
 use super::{
     write_retained, AgentCancellation, AgentObserver, AgentRun, AgentStarted, BoundOwner, Broker,
-    LaunchIntent, Owner, Policy, ReceiptScope, Role, RunCustody, WorkerMcp,
+    CustodyObservation, LaunchIntent, Owner, Policy, ReceiptScope, Role, RunCustody, WorkerMcp,
 };
 use crate::credentials::{Credentials, TokenCapability};
 use crate::private_fs::private_dir;
@@ -100,6 +100,21 @@ impl Staged {
 impl Drop for Staged {
     fn drop(&mut self) {
         let _ = self.abort();
+    }
+}
+
+/// Proof that this process durably retained the terminal receipt, then sealed
+/// local custody, retired the broker root and released custody. Only
+/// `RunOwner::retire_after_attempt` constructs it; recovery has no such proof.
+#[derive(Clone, Debug)]
+pub struct Settled {
+    custody: CustodyObservation,
+}
+
+impl Settled {
+    /// The released acquisition, as its markers stood when this was proven.
+    pub fn custody(&self) -> &CustodyObservation {
+        &self.custody
     }
 }
 
@@ -465,7 +480,7 @@ impl RunOwner {
         };
         let quiesced = Broker::quiesce_run(&self.run, &self.profile, &self.sha256);
         let released = if sealed.is_ok() && quiesced.is_ok() {
-            self.custody.release()
+            self.custody.release().map(drop)
         } else {
             Err(refused("provider custody retirement unconfirmed"))
         };
@@ -480,7 +495,7 @@ impl RunOwner {
         prompt: &[u8],
         executable: &Path,
         duration: Duration,
-    ) -> io::Result<AgentRun> {
+    ) -> io::Result<(AgentRun, Settled)> {
         self.execute_observed(prompt, executable, duration, |_| Ok(()))
     }
 
@@ -492,7 +507,7 @@ impl RunOwner {
         executable: &Path,
         duration: Duration,
         on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
-    ) -> io::Result<AgentRun> {
+    ) -> io::Result<(AgentRun, Settled)> {
         if self.attempted || self.retired {
             return Err(refused("provider run already consumed"));
         }
@@ -546,11 +561,10 @@ impl RunOwner {
         self.receipt_persisted = true;
         // Cancellation cannot discard an actual terminal receipt. Finish local
         // custody and root retirement before returning its observed stop reason.
-        let retired = self.retire_after_attempt();
-        if retired.is_err() {
-            return Err(refused("provider run retirement unconfirmed"));
+        match self.retire_after_attempt() {
+            Ok(Some(settled)) => Ok((run, settled)),
+            _ => Err(refused("provider run retirement unconfirmed")),
         }
-        Ok(run)
     }
 
     /// Before a receipt is durable, retirement quiesces the exact worker and
@@ -563,25 +577,28 @@ impl RunOwner {
             self.quiesce_uncertain()?;
             return Err(refused("provider run outcome unconfirmed"));
         }
-        self.retire_after_attempt()
+        self.retire_after_attempt().map(drop)
     }
 
-    fn retire_after_attempt(&mut self) -> io::Result<()> {
-        if !self.retired {
-            let stopped = self.owner.stop();
-            if !self.owner.locally_stopped() {
-                return Err(refused("provider local custody retirement unconfirmed"));
-            }
-            // Persist completed local cleanup before the separate root effect.
-            // A lost broker reply can then be recovered without guessing that
-            // the former socket/token owner stopped.
-            self.custody.seal()?;
-            stopped?;
-            self.owner.retire()?;
-            self.custody.release()?;
-            self.retired = true;
+    /// Yields `Settled` only when this call completed retirement after a
+    /// durable receipt; an earlier or receipt-less retirement proves nothing.
+    fn retire_after_attempt(&mut self) -> io::Result<Option<Settled>> {
+        if self.retired {
+            return Ok(None);
         }
-        Ok(())
+        let stopped = self.owner.stop();
+        if !self.owner.locally_stopped() {
+            return Err(refused("provider local custody retirement unconfirmed"));
+        }
+        // Persist completed local cleanup before the separate root effect.
+        // A lost broker reply can then be recovered without guessing that
+        // the former socket/token owner stopped.
+        self.custody.seal()?;
+        stopped?;
+        self.owner.retire()?;
+        let custody = self.custody.release()?;
+        self.retired = true;
+        Ok(self.receipt_persisted.then_some(Settled { custody }))
     }
 }
 

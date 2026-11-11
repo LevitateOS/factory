@@ -1,7 +1,7 @@
 //! Native ownership of one admitted attempt, independent of a request's lifetime.
 use super::{
     AgentCancellation, AgentObservation, AgentObserver, AgentRun, AgentStarted, RunCustody,
-    RunOwner,
+    RunOwner, Settled,
 };
 use std::io;
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ struct Shared {
 pub struct RunExecution {
     view: RunView,
     cancellation: AgentCancellation,
-    thread: Option<JoinHandle<io::Result<AgentRun>>>,
+    thread: Option<JoinHandle<io::Result<(AgentRun, Settled)>>>,
 }
 
 /// Read-only native observations. Keeping a view never keeps execution alive
@@ -117,11 +117,11 @@ impl RunExecution {
     }
 
     /// Join the native owner and consume the one complete terminal result.
-    pub fn finish(mut self) -> io::Result<AgentRun> {
+    pub fn finish(mut self) -> io::Result<(AgentRun, Settled)> {
         self.join()
     }
 
-    fn join(&mut self) -> io::Result<AgentRun> {
+    fn join(&mut self) -> io::Result<(AgentRun, Settled)> {
         let result = self
             .thread
             .take()

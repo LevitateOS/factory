@@ -2298,7 +2298,7 @@ async fn managed_execution(
                 ExecutionOutcome::Pending if std::time::Instant::now() < deadline => {
                     tokio::time::sleep(Duration::from_millis(20)).await
                 }
-                ExecutionOutcome::Complete(result)
+                ExecutionOutcome::Complete(result, _)
                     if result.exit_code == Some(0) && result.output_complete =>
                 {
                     break
@@ -2521,7 +2521,7 @@ async fn managed_execution(
                 ExecutionOutcome::Pending if std::time::Instant::now() < deadline => {
                     tokio::time::sleep(Duration::from_millis(20)).await
                 }
-                ExecutionOutcome::Complete(result) if mode == "finite" => {
+                ExecutionOutcome::Complete(result, _) if mode == "finite" => {
                     if candidate_check {
                         if result.candidate_state != soda_execution_protocol::CandidateState::Captured
                             || result.result_candidate.is_none()
@@ -2542,7 +2542,7 @@ async fn managed_execution(
                     }
                     break;
                 }
-                ExecutionOutcome::Complete(result) if mode == "cancel" => {
+                ExecutionOutcome::Complete(result, _) if mode == "cancel" => {
                     if result.reason != soda_execution_protocol::StopReason::Cancelled || !result.output_complete {
                         return Err("cancelled worker lacks its exact terminal receipt".into());
                     }

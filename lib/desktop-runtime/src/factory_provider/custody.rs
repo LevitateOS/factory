@@ -319,11 +319,15 @@ impl RunCustody {
         self.commit("sealed")
     }
 
-    pub(super) fn release(&self) -> io::Result<()> {
-        if !self.observe()?.sealed() {
+    /// Returns the observation the durable `released` marker now proves.
+    pub(super) fn release(&self) -> io::Result<CustodyObservation> {
+        let mut observed = self.observe()?;
+        if !observed.sealed() {
             return Err(refused("native custody release requires sealing"));
         }
-        self.commit("released")
+        self.commit("released")?;
+        observed.state = CustodyState::Released;
+        Ok(observed)
     }
 
     fn commit(&self, name: &str) -> io::Result<()> {

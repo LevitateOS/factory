@@ -110,7 +110,7 @@ impl OwnedAttempt {
         match self {
             Self::Worker(run) => run
                 .finish()
-                .map(|run| ExecutionOutcome::Complete(Arc::new(run))),
+                .map(|(run, settled)| ExecutionOutcome::Complete(Arc::new(run), settled)),
             Self::Muse(run) => run
                 .finish()
                 .map(|run| ExecutionOutcome::MuseComplete(Arc::new(run))),
@@ -220,7 +220,8 @@ impl ExecutionTicket {
 #[derive(Clone)]
 pub enum ExecutionOutcome {
     Pending,
-    Complete(Arc<AgentRun>),
+    /// Retirement already proven in this process; no custody re-read needed.
+    Complete(Arc<AgentRun>, super::Settled),
     MuseComplete(Arc<super::muse_attempt::MuseRun>),
     Uncertain,
 }
@@ -267,9 +268,7 @@ pub struct RetirementReport {
 impl RetirementReport {
     pub(crate) fn settled(&self) -> bool {
         match &self.outcome {
-            ExecutionOutcome::Complete(_) => {
-                matches!(&self.custody,Ok(custody) if custody.state == CustodyState::Released)
-            }
+            ExecutionOutcome::Complete(..) => true,
             ExecutionOutcome::MuseComplete(result) => result.root_retired,
             _ => false,
         }
@@ -470,12 +469,9 @@ impl Executions {
 
     fn completed_reference(entry: &Entry) -> Option<String> {
         match &entry.outcome {
-            ExecutionOutcome::Complete(_) => entry
-                .ticket
-                .custody()
-                .ok()
-                .filter(|custody| custody.state == CustodyState::Released)
-                .map(|custody| custody.acquisition_id),
+            ExecutionOutcome::Complete(_, settled) => {
+                Some(settled.custody().acquisition_id.clone())
+            }
             ExecutionOutcome::MuseComplete(result) if result.root_retired => {
                 Some(result.process.service.clone())
             }
