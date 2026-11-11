@@ -82,7 +82,26 @@ pub struct NativeSupervisor {
     collaboration: Option<crate::collaboration::Port>,
     executions: Option<Arc<Mutex<crate::factory_provider::Executions>>>,
     execution_profile: Option<PathBuf>,
-    execution_error: Arc<Mutex<Option<String>>>,
+    execution_error: Arc<Mutex<ExecutionReadiness>>,
+}
+/// Whether native execution may take new effects.
+pub(crate) enum ExecutionReadiness {
+    Starting,
+    Ready,
+    Unavailable(String),
+}
+impl ExecutionReadiness {
+    /// The text shown to the user while execution is not ready.
+    pub(crate) fn error(&self) -> Option<&str> {
+        match self {
+            Self::Starting => Some("Native execution is starting."),
+            Self::Ready => None,
+            Self::Unavailable(reason) => Some(reason),
+        }
+    }
+    pub(crate) fn is_ready(&self) -> bool {
+        matches!(self, Self::Ready)
+    }
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -93,7 +112,7 @@ impl NativeSupervisor {
         let profile = profile.to_path_buf();
         let alive = Arc::new(AtomicBool::new(true));
         let owner_alive = alive.clone();
-        let execution_error = Arc::new(Mutex::new(Some("Native execution is starting.".into())));
+        let execution_error = Arc::new(Mutex::new(ExecutionReadiness::Starting));
         let owner_execution_error = execution_error.clone();
         let owner = thread::Builder::new()
             .name("factory-native-owner".into())
@@ -130,10 +149,13 @@ impl NativeSupervisor {
                 *owner_execution_error
                     .lock()
                     .unwrap_or_else(|error| error.into_inner()) =
-                    children.broker_error.clone().or_else(|| {
+                    match children.broker_error.clone().or_else(|| {
                         (!children.broker)
                             .then(|| "Native worker isolation is not installed.".into())
-                    });
+                    }) {
+                        Some(error) => ExecutionReadiness::Unavailable(error),
+                        None => ExecutionReadiness::Ready,
+                    };
                 if children.broker {
                     let recovery = (|| {
                         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -153,7 +175,8 @@ impl NativeSupervisor {
                     if let Err(error) = recovery {
                         *owner_execution_error
                             .lock()
-                            .unwrap_or_else(|error| error.into_inner()) = Some(error);
+                            .unwrap_or_else(|error| error.into_inner()) =
+                            ExecutionReadiness::Unavailable(error);
                     }
                 }
                 let mut github =
@@ -326,7 +349,8 @@ impl NativeSupervisor {
             if let Err(error) = &result {
                 *execution_error
                     .lock()
-                    .unwrap_or_else(|error| error.into_inner()) = Some(error.clone());
+                    .unwrap_or_else(|error| error.into_inner()) =
+                    ExecutionReadiness::Unavailable(error.clone());
             }
             result
         }
@@ -336,7 +360,7 @@ impl NativeSupervisor {
     pub fn execution_error(&self) -> Option<String> {
         self.execution_error
             .lock()
-            .map(|error| error.clone())
+            .map(|readiness| readiness.error().map(str::to_owned))
             .unwrap_or_else(|_| Some("Native execution readiness is unavailable.".into()))
     }
     /// Owns request inputs and never borrows the supervisor while I/O is pending.

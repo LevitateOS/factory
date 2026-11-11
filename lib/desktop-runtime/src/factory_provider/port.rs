@@ -477,7 +477,7 @@ pub(crate) struct Callbacks<'a> {
     pub channel: &'a crate::supervisor::NativeChannel,
     pub signer: &'a crate::mcp_signing::Signer,
     pub alive: &'a Arc<AtomicBool>,
-    pub execution_error: &'a Mutex<Option<String>>,
+    pub execution_error: &'a Mutex<crate::supervisor::ExecutionReadiness>,
     pub executions: &'a Arc<Mutex<Executions>>,
     pub judgments: &'a Mutex<super::judgment::Judgments>,
     pub tools: &'a std::sync::RwLock<Option<Arc<super::Tools>>>,
@@ -562,7 +562,7 @@ impl Callbacks<'_> {
                     && self
                         .execution_error
                         .lock()
-                        .is_ok_and(|error| error.is_none());
+                        .is_ok_and(|readiness| readiness.is_ready());
                 return Ok(json!({"connection":connection,"label":"This Muse login",
                 "native":{"profile":self.channel.profile,"authentication":"muse_login"},
                 "execution_available":available,"judgment_available":judgment_available,"judgment_models":[crate::factory_provider::MODEL],"tool_status":tool_status}));
@@ -619,7 +619,7 @@ impl Callbacks<'_> {
                 if self
                     .execution_error
                     .lock()
-                    .map_or(true, |error| error.is_some())
+                    .map_or(true, |readiness| !readiness.is_ready())
                 {
                     return Err(Failure::new(503, "native_execution_unavailable"));
                 }

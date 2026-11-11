@@ -59,7 +59,7 @@ struct State {
     signer: Signer,
     provider: Client,
     alive: Arc<AtomicBool>,
-    execution_error: Arc<Mutex<Option<String>>>,
+    execution_error: Arc<Mutex<crate::supervisor::ExecutionReadiness>>,
     retired: watch::Sender<bool>,
     scopes: Mutex<BTreeMap<String, Weak<Scope>>>,
     background_credentials: RwLock<Option<Arc<Credentials>>>,
@@ -131,9 +131,9 @@ impl Port {
             .execution_error
             .lock()
             .map_err(|_| "native execution readiness unavailable")?
-            .as_ref()
+            .error()
         {
-            Some(error) => Err(error.clone()),
+            Some(error) => Err(error.to_owned()),
             None => Ok(()),
         }
     }
@@ -348,7 +348,7 @@ impl Owner {
         provider: Client,
         alive: Arc<AtomicBool>,
         executions: Arc<Mutex<crate::factory_provider::Executions>>,
-        execution_error: Arc<Mutex<Option<String>>>,
+        execution_error: Arc<Mutex<crate::supervisor::ExecutionReadiness>>,
     ) -> Result<Self> {
         let signer = Signer::open(
             channel
@@ -1320,7 +1320,7 @@ async fn dispatch(
         let execution_available = state
             .execution_error
             .lock()
-            .is_ok_and(|error| error.is_none());
+            .is_ok_and(|readiness| readiness.is_ready());
         let credentials = state.background_credentials.read().map_err(|_|Failure::unavailable())?.clone();
         return state
             .preparations
