@@ -328,6 +328,12 @@ func (a *issueAssessor) assess(ctx context.Context) (assessOutcome, error) {
 			blockers = append(blockers, acceptanceBlocker(factory.BlockerAcceptanceInvalid, reason))
 		}
 	}
+	// Closure withholds this issue's own work. Its accepted requirements and
+	// result-prerequisite evidence remain valid independently of this gate.
+	if a.evidence.Issue.Closed {
+		blockers = append(blockers, acceptanceBlocker(factory.BlockerIssueClosed, ""))
+		validity = append(validity, factory.BlockerIssueClosed)
+	}
 	authorityBlockers := a.authorityBlockers()
 	fingerprint := factory.FingerprintInput{
 		Acceptance: a.head, Authority: a.authorityHash, Validity: validity,

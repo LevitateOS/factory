@@ -7,6 +7,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/store"
 )
 
 // Reconciliation never depends on current actor credentials or open
@@ -293,6 +294,22 @@ func (c *Coordinator) currentMergeAttempt(ctx context.Context, m factory.Merge, 
 	if allowance.Closed && m.RetryCommand == "" {
 		mergeWait(report, m.ID, factory.ErrAttemptClosed.Error())
 		return false
+	}
+	control, err := c.Store.IssueControl(ctx, m.Repository, m.Issue)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		mergeError(report, m.ID, "issue_readiness_unavailable")
+		return false
+	}
+	if err == nil && control.Acceptance == m.Acceptance && control.HoldsClosedIssue() {
+		control, err = c.refreshReadiness(ctx, control)
+		if err != nil {
+			mergeWait(report, m.ID, "accepted_inputs_unavailable")
+			return false
+		}
+		if control.HoldsClosedIssue() {
+			mergeWait(report, m.ID, WaitIssueClosed)
+			return false
+		}
 	}
 	return true
 }

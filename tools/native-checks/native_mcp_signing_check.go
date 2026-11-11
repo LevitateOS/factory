@@ -13322,6 +13322,25 @@ type progressMergeObserver struct {
 	lookup func(string) (factory.OperationOutcome, error)
 }
 
+type progressClosedIssueReads struct {
+	closed               bool
+	acceptance, dispatch int
+}
+
+func (r *progressClosedIssueReads) ObserveNativeRevision(context.Context) (int64, bool, error) {
+	return 1, true, nil
+}
+
+func (r *progressClosedIssueReads) ReadAcceptanceEvidence(_ context.Context, _, issue string, _ []string) (control.AcceptanceEvidence, error) {
+	r.acceptance++
+	return control.AcceptanceEvidence{Revision: 1, Issue: control.AcceptanceIssueView{ID: "13", Index: issue, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: "3", ClosingOccurrence: "3", Visible: true, Closed: r.closed}}, nil
+}
+
+func (r *progressClosedIssueReads) ReadDispatchInputs(context.Context, string, string, []string, string) (control.DispatchInputs, error) {
+	r.dispatch++
+	return control.DispatchInputs{}, errors.New("closed issue reached dispatch inputs")
+}
+
 func (m progressMergeObserver) LookupOp(_ context.Context, id string) (factory.OperationOutcome, error) {
 	return m.lookup(id)
 }
@@ -13558,6 +13577,9 @@ func progressGateFixture() error {
 	if stored, err := db.CheckAssessment(ctx, p.Repository, p.PRNumber); err != nil || !reflect.DeepEqual(stored, beforeFailure) {
 		return errors.New("unreadable check retry manufactured or renewed stored evidence")
 	}
+	if err := progressClosedIssueFixture(ctx, db, raw, p, owner, allowance); err != nil {
+		return err
+	}
 	if err := progressMergeAttemptFixture(ctx, db, raw, p, owner, allowance); err != nil {
 		return err
 	}
@@ -13607,6 +13629,114 @@ func progressGateFixture() error {
 		return errors.New("stale observation created a generation")
 	}
 	fmt.Println("PASS: real PG coordinator holds a slow check observation; expired waiter exits without commands/assessments, live nested passes reuse admission, retired contexts cannot bypass it; passive checks wait one minute on the exact recorded tuple, elapsed/policy/head/base changes refresh immediately and explicit assessment bypasses the wait; graph observation permits independent admission and changed accepted revision refuses before journal/effects. Native observations declared.")
+	return nil
+}
+
+func progressClosedIssueFixture(ctx context.Context, db *store.Store, raw *sql.DB, p factory.Publication, owner factory.Assignment, allowance factory.AttemptAllowance) error {
+	priorPublication := p
+	p.Candidate, p.PRCreate.BaseOID = p.Publish.Work.Candidate, p.BaseSHA
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	encoded, _ := json.Marshal(p)
+	if _, err := raw.ExecContext(ctx, `UPDATE factory_publications SET data=$1 WHERE assignment=$2`, string(encoded), p.AssignmentID); err != nil {
+		return err
+	}
+	acceptance := factory.Acceptance{ID: owner.Acceptance, Repository: p.Repository, IssueIndex: fmt.Sprint(p.Issue), Approver: 7, NativeRev: 1, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVersion: 1, TitleOccurrence: factory.OriginalOccurrence}
+	if err := db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
+		return err
+	}
+	reads := &progressClosedIssueReads{}
+	native := factoryruntime.NativeExecution{Store: db}
+	c := control.NewCoordinator(db, native, native)
+	c.Publication, c.Reviews = factoryruntime.NativePublication{}, factoryruntime.NativeReviews{}
+	c.AcceptanceReads, c.DispatchReads = reads, reads
+	if _, _, err := c.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: "declared-open-issue", Repository: p.Repository, Issue: p.Issue}); err != nil {
+		return err
+	}
+	reads.closed, reads.acceptance = true, 0
+	first := c.PublishPass(ctx)
+	closed, err := db.IssueControl(ctx, p.Repository, p.Issue)
+	if err != nil || !closed.HoldsClosedIssue() || reads.acceptance != 1 || reads.dispatch != 0 {
+		return fmt.Errorf("first closed child assessment failed: %+v reads=%+v control=%+v error=%v", first, reads, closed, err)
+	}
+	c.PublishPass(ctx)
+	c.CheckPass(ctx)
+	if reads.acceptance != 1 || reads.dispatch != 0 {
+		return fmt.Errorf("recent closed child repeated native inputs: %+v", reads)
+	}
+	status, err := c.AcceptanceStatus(ctx, p.Repository, fmt.Sprint(p.Issue))
+	if err != nil || !status.Valid {
+		return fmt.Errorf("closed issue invalidated accepted prerequisite requirements: %+v %v", status, err)
+	}
+	reads.acceptance = 0
+	c.Readiness = reads // Due closed polling must refresh even at the same native revision.
+	m := factory.Merge{ID: factory.NewID(), PublicationID: p.ID, AssignmentID: p.AssignmentID, ProjectID: p.ProjectID, Role: p.Role, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue,
+		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: 7, ReviewerID: 7, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID,
+		Authority: factory.AuthorityRef{Policy: 1}, Operation: factory.MergeOperation{Kind: factory.OpMerge}, Stage: factory.MergeOpen, CreatedUnix: time.Now().Unix()}
+	if err := db.RecordMerge(ctx, m); err != nil {
+		return err
+	}
+	c.Merges = progressMergeObserver{lookup: func(string) (factory.OperationOutcome, error) {
+		return factory.OperationOutcome{}, errors.New("pristine closed merge reached original lookup")
+	}}
+	assertMergeHeld := func() error {
+		report := c.MergePass(ctx)
+		if len(report.Errors) != 0 || len(report.Waits) != 1 || report.Waits[0].Reason != control.WaitIssueClosed {
+			return fmt.Errorf("closed pristine merge did not hold before inputs: %+v", report)
+		}
+		return nil
+	}
+	if err := assertMergeHeld(); err != nil || reads.acceptance != 0 {
+		return fmt.Errorf("recent closed merge repeated inputs: %+v %v", reads, err)
+	}
+	if _, err := raw.ExecContext(ctx, `UPDATE issue_controls SET data=jsonb_set(data,'{assessed_unix}',to_jsonb($1::bigint)) WHERE repository=7 AND issue=12`, time.Now().Add(-time.Minute).Unix()); err != nil {
+		return err
+	}
+	if err := assertMergeHeld(); err != nil {
+		return err
+	}
+	refreshed, err := db.IssueControl(ctx, p.Repository, p.Issue)
+	if err != nil || reads.acceptance != 1 || refreshed.Revision != closed.Revision || refreshed.FirstSeenUnix != closed.FirstSeenUnix || refreshed.Fingerprint != closed.Fingerprint || refreshed.AssessedUnix < time.Now().Unix()-2 {
+		return fmt.Errorf("unchanged closed observation changed semantic authority or did not refresh poll time: %+v before=%+v reads=%+v error=%v", refreshed, closed, reads, err)
+	}
+	if stored, err := db.MergeByPublication(ctx, p.ID); err != nil || !reflect.DeepEqual(stored, m) {
+		return errors.New("closed readiness refresh changed original merge authority or receipt")
+	}
+	c.PublishPass(ctx)
+	if err := assertMergeHeld(); err != nil || reads.acceptance != 1 || reads.dispatch != 0 {
+		return fmt.Errorf("fresh closed negative was not reused by child and merge: %+v %v", reads, err)
+	}
+	reads.closed = false
+	c.DispatchReads = nil // Only the existing explicit intake assessment runs.
+	reopened, _, err := c.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: "declared-closed-issue-reopened", Repository: p.Repository, Issue: p.Issue})
+	if err != nil || reopened.HoldsClosedIssue() || reopened.Revision != closed.Revision+1 || reads.acceptance != 2 {
+		return fmt.Errorf("explicit reopen did not bypass recent negative observation: %+v reads=%+v error=%v", reopened, reads, err)
+	}
+	// Restore only this disposable fixture's declared publication/budget so the
+	// existing original-lookup scenarios below retain their independent scope.
+	for _, row := range []struct {
+		query string
+		value any
+	}{
+		{`UPDATE factory_publications SET revision=0,data=$1 WHERE assignment='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'`, priorPublication},
+		{`UPDATE factory_attempt_allowances SET revision=0,data=$1 WHERE root_assignment='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'`, allowance},
+	} {
+		encoded, err := json.Marshal(row.value)
+		if err != nil {
+			return err
+		}
+		if _, err := raw.ExecContext(ctx, row.query, string(encoded)); err != nil {
+			return err
+		}
+	}
+	if _, err := raw.ExecContext(ctx, `DELETE FROM factory_merges WHERE publication=$1`, p.ID); err != nil {
+		return err
+	}
+	if _, err := raw.ExecContext(ctx, `DELETE FROM issue_controls WHERE repository=7 AND issue=12`); err != nil {
+		return err
+	}
+	fmt.Println("PASS: real PG closed issue assessment stops child before dispatch inputs; Publish/Check/Merge reuse the recent negative, due same-closed refresh advances only observation time, accepted prerequisites remain valid, direct reopen bypasses the wait, and original merge authority/receipts remain unchanged. Native issue observations declared.")
 	return nil
 }
 

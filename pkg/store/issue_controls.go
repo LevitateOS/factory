@@ -47,7 +47,7 @@ func (s *Store) RecordIssueAssessment(ctx context.Context, candidate factory.Iss
 			return factory.IssueControl{}, false, err
 		}
 		if current.Fingerprint == candidate.Fingerprint {
-			if candidate.NativeRev > current.NativeRev {
+			if candidate.NativeRev > current.NativeRev || candidate.NativeRev == current.NativeRev && candidate.HoldsClosedIssue() && now.Unix() > current.AssessedUnix {
 				current.NativeRev = candidate.NativeRev
 				current.AssessedUnix = now.Unix()
 				data, marshalErr := json.Marshal(current)

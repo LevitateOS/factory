@@ -53,6 +53,7 @@ const (
 	BlockerAcceptanceInvalid  = "acceptance_invalid"
 	BlockerAuthorityMissing   = "authority_missing"
 	BlockerIssueInaccessible  = "issue_inaccessible"
+	BlockerIssueClosed        = "issue_closed"
 	BlockerEvidenceIncomplete = "evidence_incomplete"
 	BlockerCodePending        = "prereq_code_pending"
 	BlockerResultPending      = "prereq_result_pending"
@@ -74,7 +75,7 @@ const (
 func validBlockerCode(code string) bool {
 	switch code {
 	case BlockerAcceptanceMissing, BlockerAcceptanceInvalid,
-		BlockerAuthorityMissing, BlockerIssueInaccessible,
+		BlockerAuthorityMissing, BlockerIssueInaccessible, BlockerIssueClosed,
 		BlockerEvidenceIncomplete, BlockerCodePending,
 		BlockerResultPending, BlockerEndpointHidden,
 		BlockerCycle, BlockerDependencyDepth:
@@ -96,6 +97,8 @@ func BlockerResolution(code string) string {
 		return "Restore the missing factory authorization."
 	case BlockerIssueInaccessible:
 		return "The factory reader cannot see this issue; adjust native visibility."
+	case BlockerIssueClosed:
+		return "Reopen the issue before starting more work."
 	case BlockerEvidenceIncomplete:
 		return "The issue exceeds the bounded native read; reduce comments or edges under the limit."
 	case BlockerCodePending:
@@ -190,6 +193,15 @@ type IssueControl struct {
 	Reason        string                        `json:"reason"`
 	Fingerprint   string                        `json:"fingerprint"`
 	Authority     string                        `json:"authority"`
+}
+
+func (c IssueControl) HoldsClosedIssue() bool {
+	for _, blocker := range c.Blockers {
+		if blocker.Code == BlockerIssueClosed && blocker.EndpointRepo == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // MaxControlBlockers bounds the blockers recorded on one issue.

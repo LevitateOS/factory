@@ -12,6 +12,8 @@ import (
 
 const progressInterval = 10 * time.Second
 
+const closedIssuePollInterval = time.Minute
+
 type progressPassKey struct{}
 
 type progressPassOwner struct {
@@ -52,6 +54,13 @@ func (c *Coordinator) progressPass(ctx context.Context) (context.Context, func()
 // evidence; an unchanged acceptance keeps its semantic revision and allowance.
 // Store authority can reopen without advancing the native revision.
 func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.IssueControl) (factory.IssueControl, error) {
+	// A recent closed observation only denies new work. Explicit intake and
+	// direct assessments still read immediately; passive polling checks again
+	// after one minute so an ordinary reopen cannot remain hidden indefinitely.
+	now := time.Now().Unix()
+	if control.HoldsClosedIssue() && control.AssessedUnix <= now && now-control.AssessedUnix < int64(closedIssuePollInterval/time.Second) {
+		return control, nil
+	}
 	if c.Readiness == nil {
 		if c.AcceptanceReads != nil {
 			reserved, err := c.reserveIssueAssessment(ctx, factory.DependenceRef{Repository: control.Repository, Issue: control.Issue})
@@ -67,7 +76,7 @@ func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.Issu
 		return control, nil
 	}
 	authorityChanged := false
-	if control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing {
+	if control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing && !control.HoldsClosedIssue() {
 		authority, err := c.EffectiveAuthority(ctx, control.Repository)
 		if err != nil {
 			return factory.IssueControl{}, err
@@ -88,7 +97,7 @@ func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.Issu
 	if !idle {
 		return factory.IssueControl{}, ErrReadinessPassPending
 	}
-	if revision == control.NativeRev && !authorityChanged {
+	if revision == control.NativeRev && !authorityChanged && !control.HoldsClosedIssue() {
 		return control, nil
 	}
 	reserved, err := c.reserveIssueAssessment(ctx, factory.DependenceRef{Repository: control.Repository, Issue: control.Issue})
