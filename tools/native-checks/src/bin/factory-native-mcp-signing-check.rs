@@ -2624,7 +2624,7 @@ async fn managed_execution(
         {
             return Err("Quit lost the exact cancelled process receipt".into());
         }
-        assert!(ticket.custody()?.sealed);
+        assert!(ticket.custody()?.sealed());
         assert_eq!(
             ticket.custody()?.state,
             soda_desktop_runtime::factory_provider::CustodyState::Released

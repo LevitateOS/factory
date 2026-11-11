@@ -246,7 +246,7 @@ pub(crate) async fn call(
                 let result = super::read_retained(&profile, &scope)?
                     .ok_or_else(|| io::Error::other("native terminal receipt missing"))?;
                 let custody = super::read_custody(&profile, &scope, intent.connection())?
-                    .filter(|custody| custody.sealed && custody.state == CustodyState::Released)
+                    .filter(|custody| custody.state == CustodyState::Released)
                     .ok_or_else(|| io::Error::other("native credential release unconfirmed"))?;
                 if !alive.load(Ordering::SeqCst) {
                     return Err(io::Error::other("native owner retired"));
@@ -407,7 +407,7 @@ fn snapshot(
         && attempt.phase == AttemptPhase::Retired
         && custody
             .as_ref()
-            .is_some_and(|custody| custody.sealed && custody.state == CustodyState::Released);
+            .is_some_and(|custody| custody.state == CustodyState::Released);
     if !alive.load(Ordering::SeqCst) {
         return Err(refused());
     }
@@ -433,7 +433,7 @@ fn muse_observation(
         "namespace_pid":0,"host_pid":process.pid,"started_unix_ms":process.started_unix_ms,"stopped_unix_ms":process.stopped_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}));
     let output = complete.and_then(|result| result.product_output.as_deref());
     json!({"intent_digest":intent.digest(),"receipt":receipt,
-        "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":sealed},
+        "custody":super::custody::not_acquired_wire(sealed),
         "live":process.and_then(|process|process.live),"retired":retired,
         "reason":complete.and_then(|result|result.process.reason).map(|reason|reason.as_str()),"candidate_state":complete.map(|result|
             if result.candidate.is_some() {CandidateState::Captured} else if intent.has_tasks() {CandidateState::Dirty} else {CandidateState::Unchanged}.as_str()),
@@ -448,11 +448,7 @@ fn observation(
     live: Option<bool>,
     retired: bool,
 ) -> Value {
-    let custody_json = custody.map(|custody| json!({
-        "state":match custody.state { CustodyState::Held=>"held", CustodyState::Released=>"released", CustodyState::Uncertain=>"uncertain" },
-        "acquisition_id":custody.acquisition_id,"connection":custody.connection,
-        "generation":custody.generation.to_string(),"sealed":custody.sealed,
-    }));
+    let custody_json = custody.map(super::CustodyObservation::wire);
     let receipt = started.map(|started| json!({
         "worker_uid":started.worker_uid,"invocation":started.process.invocation,
         "system_instance":started.process.system_instance,"start_identity":started.process.start_identity,

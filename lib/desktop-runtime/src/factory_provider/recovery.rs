@@ -297,12 +297,13 @@ impl NativeRecovery {
             if !expected.acquisition_id.is_empty()
                 && (observed.acquisition_id != expected.acquisition_id
                     || observed.generation.to_string() != expected.generation)
-                || expected.state == "released" && observed.state != CustodyState::Released
-                || self.run.native.sealed && !observed.sealed
+                || expected.state == CustodyState::Released.as_str()
+                    && observed.state != CustodyState::Released
+                || self.run.native.sealed && !observed.sealed()
             {
                 return Err(refused("native recovery custody differs"));
             }
-        } else if expected.state == "released" {
+        } else if expected.state == CustodyState::Released.as_str() {
             return Err(refused("native recovery released custody unconfirmed"));
         }
         self.context.current()?;
@@ -332,7 +333,7 @@ impl NativeRecovery {
             super::muse_receipt::service_stopped(&self.context.directory, &result.process)?;
             let process = &result.process;
             let body = serde_json::to_vec(&serde_json::json!({"intent":intent.raw(),
-                "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":true},
+                "custody":super::custody::not_acquired_wire(true),
                 "receipt":{"worker_uid":0,"connector_uid":process.uid,"service":process.service,"namespace_pid":0,"host_pid":process.pid,
                     "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
                     "started_unix_ms":process.started_unix_ms,"stopped_unix_ms":process.stopped_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}}))?;
@@ -348,11 +349,7 @@ impl NativeRecovery {
         let receipt = evidence
             .receipt
             .ok_or_else(|| refused("native recovery receipt not observed"))?;
-        let custody = evidence.custody.as_ref().map(|custody|serde_json::json!({
-            "state":match custody.state {CustodyState::Held=>"held",CustodyState::Uncertain=>"uncertain",CustodyState::Released=>"released"},
-            "acquisition_id":custody.acquisition_id,"connection":custody.connection,
-            "generation":custody.generation.to_string(),"sealed":custody.sealed,
-        }));
+        let custody = evidence.custody.as_ref().map(CustodyObservation::wire);
         let body = serde_json::to_vec(&serde_json::json!({"intent":intent.raw(),"custody":custody,"receipt":{
             "worker_uid":receipt.worker_uid,"invocation":receipt.process.invocation,
             "system_instance":receipt.process.system_instance,"start_identity":receipt.process.start_identity,
@@ -445,7 +442,7 @@ impl NativeRecovery {
         let custody = evidence
             .custody
             .ok_or_else(|| refused("native recovery acquisition missing"))?;
-        if !custody.sealed
+        if !custody.sealed()
             || !receipt.output_complete
             || Role::from_any(&self.run.role) != Some(Role::Reviewer)
                 && !matches!(
@@ -532,7 +529,7 @@ impl NativeRecovery {
         let native = &self.run.native.provenance;
         if native.trust_mode != "cli_managed_provider"
             || native.isolation.is_some()
-            || native.custody.state != "not_acquired"
+            || native.custody.state != CustodyState::NotAcquired.as_str()
             || !native.custody.acquisition_id.is_empty()
             || !native.custody.connection.is_empty()
             || native.custody.generation != "0"

@@ -9,11 +9,37 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+/// Everything the `acquisition.json`/`sealed`/`released` markers and the live
+/// owner can express. Go's vocabulary folds `Interrupted` and `Sealed` into
+/// "uncertain"; `as_str` is the one mapping to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CustodyState {
+    /// No credential acquisition exists (CLI-managed providers).
+    NotAcquired,
+    /// The live native owner holds an unsealed acquisition.
     Held,
-    Uncertain,
+    /// Acquired and unsealed without a live owner: local cleanup unconfirmed.
+    Interrupted,
+    /// Local token use durably stopped; release unconfirmed.
+    Sealed,
+    /// Sealed and released.
     Released,
+}
+
+impl CustodyState {
+    /// Go's wire value (pkg/factory/execution/provenance.go).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotAcquired => "not_acquired",
+            Self::Held => "held",
+            Self::Interrupted | Self::Sealed => "uncertain",
+            Self::Released => "released",
+        }
+    }
+
+    pub fn sealed(self) -> bool {
+        matches!(self, Self::Sealed | Self::Released)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,8 +51,43 @@ pub struct CustodyObservation {
     /// One acquisition per immutable run identity. This is not an OS credential
     /// revision, process incarnation, placement or Go capability generation.
     pub generation: u64,
-    pub sealed: bool,
     pub state: CustodyState,
+}
+
+impl CustodyObservation {
+    pub fn sealed(&self) -> bool {
+        self.state.sealed()
+    }
+
+    /// The custody object Go receives in observations and recovery records.
+    pub(super) fn wire(&self) -> serde_json::Value {
+        wire(
+            self.state,
+            &self.acquisition_id,
+            &self.connection,
+            self.generation,
+            self.sealed(),
+        )
+    }
+}
+
+/// A CLI provider acquires nothing; its `sealed` reports the caller's own
+/// retirement fact rather than a custody marker.
+pub(super) fn not_acquired_wire(sealed: bool) -> serde_json::Value {
+    wire(CustodyState::NotAcquired, "", "", 0, sealed)
+}
+
+fn wire(
+    state: CustodyState,
+    acquisition_id: &str,
+    connection: &str,
+    generation: u64,
+    sealed: bool,
+) -> serde_json::Value {
+    serde_json::json!({
+        "state":state.as_str(),"acquisition_id":acquisition_id,"connection":connection,
+        "generation":generation.to_string(),"sealed":sealed,
+    })
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -149,13 +210,11 @@ fn snapshot(directory: &Path, expected: &Header, active: bool) -> io::Result<Cus
         acquisition_id: header.acquisition_id,
         connection: header.connection,
         generation: header.generation,
-        sealed,
-        state: if released {
-            CustodyState::Released
-        } else if active && !sealed {
-            CustodyState::Held
-        } else {
-            CustodyState::Uncertain
+        state: match (sealed, released) {
+            (_, true) => CustodyState::Released,
+            (true, false) => CustodyState::Sealed,
+            (false, false) if active => CustodyState::Held,
+            (false, false) => CustodyState::Interrupted,
         },
     })
 }
@@ -236,7 +295,7 @@ impl RunCustody {
             .lock()
             .map_err(|_| refused("native custody unavailable"))?;
         let observed = snapshot(&self.0.directory, &self.0.header, false)?;
-        if *active || observed.sealed || self.0.cancellation.cancelled() {
+        if *active || observed.sealed() || self.0.cancellation.cancelled() {
             return Err(refused("native custody activation unavailable"));
         }
         *active = true;
@@ -261,7 +320,7 @@ impl RunCustody {
     }
 
     pub(super) fn release(&self) -> io::Result<()> {
-        if !self.observe()?.sealed {
+        if !self.observe()?.sealed() {
             return Err(refused("native custody release requires sealing"));
         }
         self.commit("released")
@@ -329,7 +388,7 @@ pub(super) fn release_recovered(
 ) -> io::Result<()> {
     let current = read_custody(profile_dir, scope, &expected.connection)?
         .ok_or_else(|| refused("native recovery custody missing"))?;
-    if !current.sealed
+    if !current.sealed()
         || current.acquisition_id != expected.acquisition_id
         || current.generation != expected.generation
     {

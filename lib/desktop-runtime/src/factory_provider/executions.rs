@@ -268,7 +268,7 @@ impl RetirementReport {
     pub(crate) fn settled(&self) -> bool {
         match &self.outcome {
             ExecutionOutcome::Complete(_) => {
-                matches!(&self.custody,Ok(custody) if custody.sealed && custody.state==CustodyState::Released)
+                matches!(&self.custody,Ok(custody) if custody.state == CustodyState::Released)
             }
             ExecutionOutcome::MuseComplete(result) => result.root_retired,
             _ => false,
@@ -349,7 +349,6 @@ impl Executions {
                     &captured.connection,
                 )
                 || observed.state != CustodyState::Held
-                || observed.sealed
                 || cancel.cancelled()
             {
                 return Err(refused("native prepared owner differs or retired"));
@@ -475,7 +474,7 @@ impl Executions {
                 .ticket
                 .custody()
                 .ok()
-                .filter(|custody| custody.sealed && custody.state == CustodyState::Released)
+                .filter(|custody| custody.state == CustodyState::Released)
                 .map(|custody| custody.acquisition_id),
             ExecutionOutcome::MuseComplete(result) if result.root_retired => {
                 Some(result.process.service.clone())
