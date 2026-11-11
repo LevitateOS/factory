@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import {check, id, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {activityKinds, parseFactoryActivity} from '../api/activity-response.js';
@@ -49,11 +50,13 @@ export class SodaFactoryActivity extends LitElement {
   declare private busy: boolean;
   declare private draft: ActivityDraft | undefined;
   declare private ready: boolean;
-  private current: ActivityContext | undefined;
+  private bound = new ScopedBinding<ActivityContext>(
+    (a, b) => a.transport === b.transport && a.repository === b.repository,
+    () => {
+      this.context = undefined;
+    }
+  );
   private confirmedUnix = 0;
-  private serial = 0;
-  private generation = '';
-  private lifetime = new AbortController();
   private address: ActivityAddress | undefined;
   constructor() {
     super();
@@ -71,21 +74,11 @@ export class SodaFactoryActivity extends LitElement {
           typeof context.transport.generation === 'string' &&
           !!context.transport.generation
       );
-    const prior = this.current;
-    if (
-      context?.transport === prior?.transport &&
-      context?.repository === prior?.repository &&
-      context?.transport.generation === this.generation
-    ) {
-      this.current = context;
+    const prior = this.bound.current;
+    if (this.bound.bind(context) === 'same') {
       if (context?.presentItem !== prior?.presentItem || context?.editable !== prior?.editable) this.requestUpdate();
       return;
     }
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.generation = context?.transport.generation ?? '';
-    this.serial++;
-    this.current = context;
     this.activity = undefined;
     this.draft = undefined;
     this.address = undefined;
@@ -98,20 +91,12 @@ export class SodaFactoryActivity extends LitElement {
     this.context = undefined;
     super.disconnectedCallback();
   }
-  private live(serial: number, context: ActivityContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   private async identity(context: ActivityContext, serial: number): Promise<boolean> {
     this.ready = false;
     try {
       if (!context.commandScope) throw Error('Identity missing');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]));
+      if (!this.bound.live(serial, context)) return false;
       const address = {scope, repository: context.repository},
         stored = readActivityDraft(address);
       this.address = address;
@@ -124,7 +109,7 @@ export class SodaFactoryActivity extends LitElement {
       this.message = stored.draft ? 'Saved activity preferences restored. Review them before saving.' : '';
       return true;
     } catch {
-      if (this.live(serial, context))
+      if (this.bound.live(serial, context))
         this.message = 'Activity account identity is unavailable. Refresh before saving preferences.';
       return false;
     }
@@ -132,7 +117,7 @@ export class SodaFactoryActivity extends LitElement {
   private async request(context: ActivityContext, serial: number, draft?: ActivityDraft) {
     const response = await context.transport.request(`repositories/${context.repository}/factory/activity`, {
       method: draft ? 'PUT' : 'GET',
-      signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+      signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
       ...(draft
         ? {
             headers: {'Content-Type': 'application/json'},
@@ -140,24 +125,24 @@ export class SodaFactoryActivity extends LitElement {
           }
         : {}),
     });
-    if (!this.live(serial, context)) throw Error('Activity context retired');
+    if (!this.bound.live(serial, context)) throw Error('Activity context retired');
     if (!response.ok) throw new ActivityRequestError(response.status);
     return parseFactoryActivity(await readSodaJSON(response), context.repository);
   }
   private async load(save = false) {
-    const context = this.current,
-      serial = this.serial;
-    if (!context || !this.live(serial, context) || this.busy) return;
+    const context = this.bound.current,
+      serial = this.bound.serial;
+    if (!context || !this.bound.live(serial, context) || this.busy) return;
     const shown = this.draft,
       scope = this.address?.scope;
     this.busy = true;
     try {
       const admitted = await this.identity(context, serial);
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       let issued: ActivityDraft | undefined;
       const address = this.address;
       if (save) {
-        if (!admitted || !this.current?.editable || !address) return;
+        if (!admitted || !this.bound.current?.editable || !address) return;
         if (scope !== address.scope || !shown || !this.draft || !sameActivityDraft(shown, this.draft)) {
           this.ready = false;
           this.message = 'Saved preferences or account changed. Refresh before saving.';
@@ -173,7 +158,7 @@ export class SodaFactoryActivity extends LitElement {
         }
       }
       const activity = await this.request(context, serial, issued);
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       if (issued)
         check(activity.revision > issued.expected_revision && sameActivitySettings(activity.settings, issued.settings));
       if (
@@ -195,7 +180,7 @@ export class SodaFactoryActivity extends LitElement {
             ? 'Saved activity preferences restored. Review them before saving.'
             : '';
     } catch (error) {
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       this.ready = false;
       if (error instanceof ActivityRequestError && [401, 403].includes(error.status)) {
         this.activity = undefined;
@@ -204,14 +189,14 @@ export class SodaFactoryActivity extends LitElement {
       this.message = error instanceof ActivityRequestError ? error.message : 'Factory activity is unavailable.';
       if (this.activity) this.message += ' Last confirmed activity is shown; refresh before saving.';
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   private choose(kind: ActivityKind, event: Event) {
-    const context = this.current;
+    const context = this.bound.current;
     if (
       !context ||
-      !this.live(this.serial, context) ||
+      !this.bound.live(this.bound.serial, context) ||
       !context.editable ||
       !this.ready ||
       this.busy ||
@@ -242,9 +227,9 @@ export class SodaFactoryActivity extends LitElement {
   };
   private reviewCurrent = () => {
     if (
-      !this.current ||
-      !this.live(this.serial, this.current) ||
-      !this.current.editable ||
+      !this.bound.current ||
+      !this.bound.live(this.bound.serial, this.bound.current) ||
+      !this.bound.current.editable ||
       !this.ready ||
       this.busy ||
       !this.draft ||
@@ -263,7 +248,7 @@ export class SodaFactoryActivity extends LitElement {
     }
   };
   protected render() {
-    if (!this.current) return html``;
+    if (!this.bound.current) return html``;
     const activity = this.activity,
       confirmed = activityTimestamp(this.confirmedUnix);
     return html`<section aria-label="Factory activity">
@@ -278,13 +263,13 @@ export class SodaFactoryActivity extends LitElement {
   }
   private renderFeed(activity: FactoryActivity) {
     const items = activity.items.flatMap((item) => {
-      const link = this.current?.presentItem ? this.current.presentItem(item, activity) : {};
+      const link = this.bound.current?.presentItem ? this.bound.current.presentItem(item, activity) : {};
       return link ? [{item, link}] : [];
     });
     const visible = items.filter(({item}) => activity.settings[item.kind]);
     const observed = activityTimestamp(activity.observed_unix),
       settings = this.draft?.settings ?? activity.settings;
-    const disabled = this.busy || !this.ready || !this.current?.editable;
+    const disabled = this.busy || !this.ready || !this.bound.current?.editable;
     return html`<p>
         Local activity shows recorded work. Display settings do not change execution or send notifications.
       </p>
