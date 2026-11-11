@@ -1,7 +1,7 @@
 //! Fountain uses the same owned/cancellable desktop sign-in lifecycle as GitHub.
 use super::{
     caller,
-    signin::{Prompt, View},
+    signin::{Phase, Prompt, View},
     Desktop,
 };
 use soda_desktop_runtime::{
@@ -15,18 +15,17 @@ fn update(
     app: &tauri::AppHandle,
     attempt: u64,
     epoch: u64,
-    phase: &str,
-    prompt: Option<Prompt>,
+    next: Phase,
 ) -> Result<(), Error> {
-    let desktop = app.state::<Desktop>();
-    if epoch != desktop.generation.load(Ordering::SeqCst)
-        || desktop.quitting.load(Ordering::SeqCst)
-        || desktop.starting.load(Ordering::SeqCst)
-        || !desktop.fountain_signin.update(attempt, phase, prompt)
+    if app
+        .state::<Desktop>()
+        .fountain_signin
+        .update(app, attempt, epoch, next)
     {
-        return Err(Error::Unavailable);
+        Ok(())
+    } else {
+        Err(Error::Unavailable)
     }
-    Ok(())
 }
 fn message(error: Error) -> String {
     match error {
@@ -79,22 +78,21 @@ pub(super) async fn fountain_sign_in(
                         &worker,
                         attempt,
                         epoch,
-                        "waiting",
-                        Some(Prompt::browser(
+                        Phase::Waiting(Prompt::browser(
                             prompt.authorization_uri.clone(),
                             prompt.expires_at,
                         )),
                     )?;
                     let (account, grant) = authorization.wait().await?;
-                    update(&worker, attempt, epoch, "verifying", None)?;
+                    update(&worker, attempt, epoch, Phase::Verifying)?;
                     let owner = worker.state::<Desktop>();
                     let _saving = owner.fountain_signin.saving.lock().await;
-                    update(&worker, attempt, epoch, "saving", None)?;
+                    update(&worker, attempt, epoch, Phase::Saving)?;
                     store
                         .store_grant(account, grant)
                         .await
                         .map_err(Error::Credential)?;
-                    update(&worker, attempt, epoch, "complete", None)
+                    update(&worker, attempt, epoch, Phase::Complete)
                 }
                 .await;
                 if let Err(error) = result {
@@ -159,7 +157,7 @@ pub(super) async fn fountain_refresh(
         .start(window.label(), move |attempt| {
             tauri::async_runtime::spawn(async move {
                 let result = async {
-                    update(&worker, attempt, epoch, "verifying", None)?;
+                    update(&worker, attempt, epoch, Phase::Verifying)?;
                     let saved = store
                         .status()
                         .await
@@ -180,7 +178,7 @@ pub(super) async fn fountain_refresh(
                         _ => return Err(Error::Reauthorize),
                     };
                     client.refresh(&store, &cap).await?;
-                    update(&worker, attempt, epoch, "complete", None)
+                    update(&worker, attempt, epoch, Phase::Complete)
                 }
                 .await;
                 if let Err(error) = result {

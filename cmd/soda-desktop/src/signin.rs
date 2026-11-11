@@ -29,24 +29,76 @@ impl Prompt {
 #[derive(Clone, Serialize)]
 pub(super) struct View {
     attempt: u64,
-    phase: String,
+    phase: &'static str,
     prompt: Option<Prompt>,
     error: Option<String>,
 }
-impl Default for View {
-    fn default() -> Self {
-        Self {
-            attempt: 0,
-            phase: "idle".into(),
-            prompt: None,
-            error: None,
+/// Lifecycle: Requesting -> Waiting -> Verifying -> Saving -> Complete, or
+/// Failed/Cancelled from any active phase. A refresh goes Requesting ->
+/// Verifying -> Complete. Prompt and error exist only in their own phase.
+pub(super) enum Phase {
+    Idle,
+    Requesting,
+    Waiting(Prompt),
+    Verifying,
+    Saving,
+    Complete,
+    Failed(String),
+    Cancelled,
+}
+impl Phase {
+    fn active(&self) -> bool {
+        matches!(
+            self,
+            Phase::Requesting | Phase::Waiting(_) | Phase::Verifying | Phase::Saving
+        )
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Phase::Idle => "idle",
+            Phase::Requesting => "requesting",
+            Phase::Waiting(_) => "waiting",
+            Phase::Verifying => "verifying",
+            Phase::Saving => "saving",
+            Phase::Complete => "complete",
+            Phase::Failed(_) => "failed",
+            Phase::Cancelled => "cancelled",
         }
     }
 }
 struct State {
-    view: View,
+    attempt: u64,
+    phase: Phase,
     owner: String,
     task: Option<tauri::async_runtime::JoinHandle<()>>,
+}
+impl State {
+    fn view(&self) -> View {
+        View {
+            attempt: self.attempt,
+            phase: self.phase.name(),
+            prompt: match &self.phase {
+                Phase::Waiting(prompt) => Some(prompt.clone()),
+                _ => None,
+            },
+            error: match &self.phase {
+                Phase::Failed(error) => Some(error.clone()),
+                _ => None,
+            },
+        }
+    }
+    // The only phase transition: attempt and owner must match (when given) and
+    // the current phase must be active.
+    fn advance(&mut self, attempt: Option<u64>, owner: Option<&str>, next: Phase) -> bool {
+        if attempt.is_some_and(|id| id != self.attempt)
+            || owner.is_some_and(|owner| owner != self.owner)
+            || !self.phase.active()
+        {
+            return false;
+        }
+        self.phase = next;
+        true
+    }
 }
 pub(super) struct SignIn {
     state: Mutex<State>,
@@ -58,7 +110,8 @@ impl SignIn {
     pub fn new() -> Self {
         Self {
             state: Mutex::new(State {
-                view: View::default(),
+                attempt: 0,
+                phase: Phase::Idle,
                 owner: String::new(),
                 task: None,
             }),
@@ -66,7 +119,7 @@ impl SignIn {
         }
     }
     pub fn view(&self) -> View {
-        self.state.lock().unwrap().view.clone()
+        self.state.lock().unwrap().view()
     }
     pub fn retire(&self) -> Option<tauri::async_runtime::JoinHandle<()>> {
         let mut state = self.state.lock().unwrap();
@@ -74,9 +127,7 @@ impl SignIn {
         if let Some(task) = &task {
             task.abort();
         }
-        state.view.phase = "idle".into();
-        state.view.prompt = None;
-        state.view.error = None;
+        state.phase = Phase::Idle;
         task
     }
     pub(super) fn start(
@@ -85,65 +136,61 @@ impl SignIn {
         spawn: impl FnOnce(u64) -> tauri::async_runtime::JoinHandle<()>,
     ) -> Result<View, String> {
         let mut state = self.state.lock().unwrap();
-        if active(&state.view.phase) {
+        if state.phase.active() {
             return Err("Sign-in is already in progress.".into());
         }
-        let attempt = state
-            .view
+        state.attempt = state
             .attempt
             .checked_add(1)
             .ok_or("Restart Factory before signing in again")?;
-        state.view = View {
-            attempt,
-            phase: "requesting".into(),
-            prompt: None,
-            error: None,
-        };
+        state.phase = Phase::Requesting;
         state.owner = owner.into();
-        state.task = Some(spawn(attempt));
-        Ok(state.view.clone())
+        state.task = Some(spawn(state.attempt));
+        Ok(state.view())
     }
-    pub(super) fn update(&self, attempt: u64, phase: &str, prompt: Option<Prompt>) -> bool {
-        let mut state = self.state.lock().unwrap();
-        if state.view.attempt != attempt || !active(&state.view.phase) {
+    /// Worker-side transition: refused when the runtime changed (epoch,
+    /// quitting, starting) or the attempt is no longer the active one.
+    pub(super) fn update(
+        &self,
+        app: &tauri::AppHandle,
+        attempt: u64,
+        epoch: u64,
+        next: Phase,
+    ) -> bool {
+        let desktop = app.state::<Desktop>();
+        if epoch != desktop.generation.load(Ordering::SeqCst)
+            || desktop.quitting.load(Ordering::SeqCst)
+            || desktop.starting.load(Ordering::SeqCst)
+        {
             return false;
         }
-        state.view.phase = phase.into();
-        state.view.prompt = prompt;
-        true
+        self.state
+            .lock()
+            .unwrap()
+            .advance(Some(attempt), None, next)
     }
     pub(super) fn failed(&self, attempt: u64, message: String) {
-        let mut state = self.state.lock().unwrap();
-        if state.view.attempt == attempt && active(&state.view.phase) {
-            state.view.phase = "failed".into();
-            state.view.prompt = None;
-            state.view.error = Some(message);
-        }
+        self.state
+            .lock()
+            .unwrap()
+            .advance(Some(attempt), None, Phase::Failed(message));
     }
     pub(super) fn browser_prompt(&self, attempt: u64, owner: &str) -> Result<Prompt, String> {
         let state = self.state.lock().unwrap();
-        if state.view.attempt != attempt || state.owner != owner || state.view.phase != "waiting" {
-            return Err("Sign-in is no longer waiting.".into());
+        match &state.phase {
+            Phase::Waiting(prompt) if state.attempt == attempt && state.owner == owner => {
+                Ok(prompt.clone())
+            }
+            _ => Err("Sign-in is no longer waiting.".into()),
         }
-        state
-            .view
-            .prompt
-            .clone()
-            .ok_or("Sign-in is unavailable.".into())
     }
     pub async fn cancel(&self, attempt: Option<u64>, owner: Option<&str>) -> View {
         let _saving = self.saving.lock().await;
         let task = {
             let mut state = self.state.lock().unwrap();
-            if attempt.is_some_and(|id| id != state.view.attempt)
-                || owner.is_some_and(|owner| owner != state.owner)
-                || !active(&state.view.phase)
-            {
-                return state.view.clone();
+            if !state.advance(attempt, owner, Phase::Cancelled) {
+                return state.view();
             }
-            state.view.phase = "cancelled".into();
-            state.view.prompt = None;
-            state.view.error = None;
             state.task.take()
         };
         if let Some(task) = task {
@@ -152,9 +199,6 @@ impl SignIn {
         }
         self.view()
     }
-}
-fn active(phase: &str) -> bool {
-    matches!(phase, "requesting" | "waiting" | "verifying" | "saving")
 }
 fn message(error: Error) -> String {
     match error {
@@ -173,23 +217,13 @@ fn update(
     app: &tauri::AppHandle,
     attempt: u64,
     epoch: u64,
-    phase: &str,
-    prompt: Option<Prompt>,
+    next: Phase,
 ) -> Result<(), Error> {
-    let desktop = app.state::<Desktop>();
-    if epoch != desktop.generation.load(Ordering::SeqCst)
-        || desktop.quitting.load(Ordering::SeqCst)
-        || desktop.starting.load(Ordering::SeqCst)
-    {
-        return Err(Error::Unavailable);
+    if app.state::<Desktop>().signin.update(app, attempt, epoch, next) {
+        Ok(())
+    } else {
+        Err(Error::Unavailable)
     }
-    let mut state = desktop.signin.state.lock().unwrap();
-    if state.view.attempt != attempt || !active(&state.view.phase) {
-        return Err(Error::Unavailable);
-    }
-    state.view.phase = phase.into();
-    state.view.prompt = prompt;
-    Ok(())
 }
 
 #[tauri::command]
@@ -218,14 +252,14 @@ pub(super) async fn github_refresh(
     let _saving=desktop.signin.saving.lock().await;
     desktop.signin.start(window.label(),move |attempt|tauri::async_runtime::spawn(async move {
         let result=async {
-            update(&worker,attempt,epoch,"verifying",None)?;
+            update(&worker,attempt,epoch,Phase::Verifying)?;
             let owner=worker.state::<Desktop>();
             let refresh={
                 let runtime=owner.runtime.lock().unwrap();
                 runtime.as_ref().ok_or(Error::Unavailable)?.github_refresh(&store,&cap)
             };
             refresh.await?;
-            update(&worker,attempt,epoch,"complete",None)
+            update(&worker,attempt,epoch,Phase::Complete)
         }.await;
         if let Err(error)=result { worker.state::<Desktop>().signin.failed(attempt,message(error)); }
     }))
@@ -258,34 +292,27 @@ pub(super) async fn github_sign_in(
                     &worker,
                     attempt,
                     epoch,
-                    "waiting",
-                    Some(Prompt {
+                    Phase::Waiting(Prompt {
                         user_code: prompt.user_code.clone(),
                         verification_uri: prompt.verification_uri.clone(),
                         expires_at: prompt.expires_at,
                     }),
                 )?;
                 let grant = authorization.wait().await?;
-                update(&worker, attempt, epoch, "verifying", None)?;
+                update(&worker, attempt, epoch, Phase::Verifying)?;
                 let (account, grant) = verifier.verify(grant).await?;
                 let owner = worker.state::<Desktop>();
                 let _saving = owner.signin.saving.lock().await;
-                update(&worker, attempt, epoch, "saving", None)?;
+                update(&worker, attempt, epoch, Phase::Saving)?;
                 store
                     .store_grant(account, grant)
                     .await
                     .map_err(Error::Credential)?;
-                update(&worker, attempt, epoch, "complete", None)
+                update(&worker, attempt, epoch, Phase::Complete)
             }
             .await;
             if let Err(error) = result {
-                let owner = worker.state::<Desktop>();
-                let mut state = owner.signin.state.lock().unwrap();
-                if state.view.attempt == attempt && active(&state.view.phase) {
-                    state.view.phase = "failed".into();
-                    state.view.prompt = None;
-                    state.view.error = Some(message(error));
-                }
+                worker.state::<Desktop>().signin.failed(attempt, message(error));
             }
         })
     })
