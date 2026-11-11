@@ -38,6 +38,7 @@ type Result<T> = std::result::Result<T, String>;
 const MAX_OPERATIONS: usize = 16;
 const LIFETIME: Duration = Duration::from_secs(20);
 const CALL_TIMEOUT: Duration = Duration::from_secs(8);
+const CONNECTION_TIMEOUT: Duration = Duration::from_secs(16);
 
 struct Scope {
     credentials: Arc<Credentials>,
@@ -441,7 +442,7 @@ impl Owner {
                             tasks.spawn(async move {
                                 let _permit = permit;
                                 let service = service_fn(move |request| serve(request, state.clone()));
-                                let _ = tokio::time::timeout(Duration::from_secs(9), http1::Builder::new()
+                                let _ = tokio::time::timeout(CONNECTION_TIMEOUT, http1::Builder::new()
                                     .keep_alive(false).max_headers(32).max_buf_size(16384)
                                     .serve_connection(TokioIo::new(stream), service)).await;
                             });
@@ -614,7 +615,11 @@ enum BackgroundEffect {
     },
 }
 
-async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Value, Failure> {
+async fn background_read(
+    state: &State,
+    body: &[u8],
+    started: Instant,
+) -> std::result::Result<Value, Failure> {
     let call: BackgroundCall = serde_json::from_slice(body).map_err(|_| Failure::invalid())?;
     if !opaque_id(&call.connection) || !remote_id(&call.account) || !remote_id(&call.repository) {
         return Err(Failure::invalid());
@@ -792,7 +797,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         .clone()
         .try_acquire_owned()
         .map_err(|_| Failure::unavailable())?;
-    let deadline = Instant::now() + CALL_TIMEOUT;
+    let deadline = started + effect.timeout();
     let work = async {
         let capability = credentials
             .capability(&call.connection)
@@ -968,6 +973,14 @@ enum Operation {
     Current,
     Read(Read),
     Mutation(Command),
+}
+impl Operation {
+    fn timeout(&self) -> Duration {
+        match self {
+            Self::Read(query) => query.timeout(),
+            _ => CALL_TIMEOUT,
+        }
+    }
 }
 impl From<Effect> for Operation {
     fn from(effect: Effect) -> Self {
@@ -1217,7 +1230,7 @@ async fn serve(
     request: Request<Incoming>,
     state: Arc<State>,
 ) -> std::result::Result<Response<Full<Bytes>>, Infallible> {
-    let response = tokio::time::timeout(CALL_TIMEOUT, dispatch(request, &state))
+    let response = tokio::time::timeout(CONNECTION_TIMEOUT, dispatch(request, &state))
         .await
         .unwrap_or_else(|_| Err(Failure::new(504, "native_collaboration_deadline")));
     // Recheck immediately before serialization; a retired owner never returns
@@ -1254,6 +1267,8 @@ async fn dispatch(
     request: Request<Incoming>,
     state: &State,
 ) -> std::result::Result<Value, Failure> {
+    let started = Instant::now();
+    let deadline = started + CALL_TIMEOUT;
     if !state.alive.load(Ordering::SeqCst) {
         return Err(Failure::unavailable());
     }
@@ -1308,13 +1323,16 @@ async fn dispatch(
     } else {
         512 * 1024
     };
-    let body = Limited::new(request.into_body(), body_limit)
-        .collect()
-        .await
-        .map_err(|_| Failure::invalid())?
-        .to_bytes();
+    let body = tokio::time::timeout_at(
+        deadline.into(),
+        Limited::new(request.into_body(), body_limit).collect(),
+    )
+    .await
+    .map_err(|_| Failure::new(504, "native_collaboration_deadline"))?
+    .map_err(|_| Failure::invalid())?
+    .to_bytes();
     if background {
-        return background_read(state, &body).await;
+        return background_read(state, &body, started).await;
     }
     if preparation {
         let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
@@ -1323,15 +1341,17 @@ async fn dispatch(
             .lock()
             .is_ok_and(|readiness| readiness.is_ready());
         let credentials = state.background_credentials.read().map_err(|_|Failure::unavailable())?.clone();
-        return state
+        let work = state
             .preparations
             .clone()
-            .callback(call, execution_available, credentials)
-            .await;
+            .callback(call, execution_available, credentials);
+        return tokio::time::timeout_at(deadline.into(), work)
+            .await
+            .map_err(|_| Failure::new(504, "native_collaboration_deadline"))?;
     }
     if execution {
         let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
-        return crate::factory_provider::port::Callbacks {
+        let callbacks = crate::factory_provider::port::Callbacks {
             channel: &state.channel,
             signer: &state.signer,
             alive: &state.alive,
@@ -1343,9 +1363,10 @@ async fn dispatch(
             execution_accounts: &state.execution_accounts,
             credentials: &state.background_credentials,
             work: &state.work,
-        }
-        .call(call)
-        .await;
+        };
+        return tokio::time::timeout_at(deadline.into(), callbacks.call(call))
+            .await
+            .map_err(|_| Failure::new(504, "native_collaboration_deadline"))?;
     }
     if signing {
         let call: SignCall = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
@@ -1401,7 +1422,12 @@ async fn dispatch(
         .and_then(Weak::upgrade)
         .filter(|scope| scope.current())
         .ok_or_else(|| Failure::new(401, "native_operation_retired"))?;
-    observe_scope(state, scope, &effect).await
+    tokio::time::timeout_at(
+        (started + effect.timeout()).into(),
+        observe_scope(state, scope, &effect),
+    )
+    .await
+    .map_err(|_| Failure::new(504, "native_collaboration_deadline"))?
 }
 
 fn validate_mutation(scope: &Scope, command: &Command) -> std::result::Result<(), Failure> {
@@ -1498,7 +1524,7 @@ async fn observe_scope(
         }
         scope
         .credentials
-        .with_token_operation(&scope.capability, async |token: &[u8]| match effect {
+        .with_token_operation_timeout(&scope.capability, effect.timeout(), async |token: &[u8]| match effect {
             Operation::Current => Ok(Value::Null),
             Operation::Read(query) => {
                 state

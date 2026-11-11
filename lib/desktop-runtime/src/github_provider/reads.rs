@@ -4,7 +4,6 @@ use super::{records as r, Client, Failure, Read, Result};
 use crate::credentials::Token;
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use std::time::Duration;
 
 impl Client {
     /// Native semantic reads with an opaque token. This does not store credentials,
@@ -31,7 +30,7 @@ impl Client {
         ) {
             return Err(Failure::invalid());
         }
-        tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::time::timeout(query.timeout(), async {
             let identity = self.identity(token).await?;
             if identity.external_id != expected {
                 return Err(Failure::new(409, "github_account_changed"));

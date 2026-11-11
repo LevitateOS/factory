@@ -320,6 +320,13 @@ pub(super) fn branch_name(value: &str) -> bool {
             .all(|p| !p.is_empty() && !p.starts_with('.') && !p.ends_with(".lock"))
 }
 impl Read {
+    pub(crate) fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(match self {
+            Self::PullRequiredChecks { .. } | Self::AutomationChecks { .. } => 15,
+            _ => 8,
+        })
+    }
+
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
         if let Self::OperationGrant { grant_id, .. } = self {

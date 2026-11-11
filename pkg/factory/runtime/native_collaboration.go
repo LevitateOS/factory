@@ -232,15 +232,22 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	if err != nil || len(body) > limit {
 		return zero, errors.New("invalid native operation")
 	}
-	// Leave room to receive the native owner's bounded refusal, including its
-	// eight-second deadline, rather than losing that outcome to a tied timer.
-	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	// Leave room to receive the native owner's bounded refusal. Paired CI reads
+	// have a longer native deadline than other operations.
+	timeout := 9 * time.Second
+	if read, ok := effect.(nativeReadEffect); ok {
+		switch read.Query.Kind {
+		case "pull_required_checks", "automation_checks":
+			timeout = 16 * time.Second
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return nativePortDial(ctx, p.operation.config)
 		},
-		DisableKeepAlives: true, MaxResponseHeaderBytes: 16384, ResponseHeaderTimeout: 9 * time.Second,
+		DisableKeepAlives: true, MaxResponseHeaderBytes: 16384, ResponseHeaderTimeout: timeout,
 	}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

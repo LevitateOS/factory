@@ -686,7 +686,15 @@ impl Credentials {
         cap: &TokenCapability,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
-        self.with_secret_operation(cap, false, operation).await
+        self.with_secret_operation(cap, false, OPERATION, operation).await
+    }
+    pub(crate) async fn with_token_operation_timeout<T>(
+        &self,
+        cap: &TokenCapability,
+        timeout: Duration,
+        operation: impl AsyncFnOnce(&[u8]) -> T,
+    ) -> Result<T> {
+        self.with_secret_operation(cap, false, timeout, operation).await
     }
     /// Reissue a short lease only while the same native owner, connection,
     /// account and OS revision remain current. A run may use this between
@@ -824,15 +832,16 @@ impl Credentials {
         cap: &TokenCapability,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
-        self.with_secret_operation(cap, true, operation).await
+        self.with_secret_operation(cap, true, OPERATION, operation).await
     }
     async fn with_secret_operation<T>(
         &self,
         cap: &TokenCapability,
         refresh: bool,
+        timeout: Duration,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
-        let deadline = cap.expires.min(Instant::now() + OPERATION);
+        let deadline = cap.expires.min(Instant::now() + timeout);
         let work = async {
             let token = self
                 .with_secret(cap, refresh, |bytes| Token(Zeroizing::new(bytes.to_vec())))
