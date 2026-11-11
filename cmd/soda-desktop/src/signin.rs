@@ -300,7 +300,7 @@ pub(super) async fn github_sign_in_cancel(
     Ok(app
         .state::<Desktop>()
         .signin
-        .cancel(Some(attempt), None)
+        .cancel(Some(attempt), Some(window.label()))
         .await)
 }
 #[tauri::command]
@@ -310,10 +310,10 @@ pub(super) async fn github_sign_in_open(
     attempt: u64,
 ) -> Result<(), String> {
     caller(&window)?;
-    let view = app.state::<Desktop>().signin.view();
-    if view.attempt != attempt || view.phase != "waiting" {
-        return Err("Start GitHub sign-in to open the verification page.".into());
-    }
+    app.state::<Desktop>()
+        .signin
+        .browser_prompt(attempt, window.label())
+        .map_err(|_| "Start GitHub sign-in to open the verification page.")?;
     tauri::async_runtime::spawn_blocking(move || {
         app.opener()
             .open_url("https://github.com/login/device", None::<&str>)
