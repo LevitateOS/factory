@@ -16,7 +16,7 @@ import {
 } from './planning-record.js';
 import type {PendingPlanning} from './planning-record.js';
 import {LitElement, html, css} from 'lit';
-import type {PropertyValues} from 'lit';
+import type {PropertyValues, TemplateResult} from 'lit';
 import {object, check, id, SodaRequestError} from '../api/models.js';
 import {readGeneration, retainGeneration, settleGeneration, generationReceipt} from './generation-record.js';
 import type {PendingGeneration, GenerationReceipt} from './generation-record.js';
@@ -61,6 +61,8 @@ import {
   reviewReady,
 } from './request-view.js';
 import {canStartAttempt, planPhase, planStage} from './plan-phase.js';
+import {freshRecovery, offers, recoveryText, withNotice, withoutOffer} from './recovery-state.js';
+import type {Recovery, RecoveryKind, RecoveryState} from './recovery-state.js';
 import type {IntentView} from './request-view.js';
 
 export type IntentAPI = (path: string, body?: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
@@ -82,18 +84,7 @@ export class SodaIntent extends LitElement {
     busy: {state: true},
     busyNote: {state: true},
     dirty: {state: true},
-    explorationCommandNotice: {state: true},
-    explorationCanResume: {state: true},
-    explorationCanRelease: {state: true},
-    planningCommandNotice: {state: true},
-    planningCanResume: {state: true},
-    planningCanRelease: {state: true},
-    generationCommandNotice: {state: true},
-    generationCanResume: {state: true},
-    generationCanRelease: {state: true},
-    saveNotice: {state: true},
-    saveRetry: {state: true},
-    saveObsolete: {state: true},
+    recovery: {state: true},
     draftNotice: {state: true},
     draftPreview: {state: true},
     error: {state: true},
@@ -290,18 +281,7 @@ export class SodaIntent extends LitElement {
   declare plan: IntentPlanStatus | undefined;
   declare planNotice: string;
   declare planIntent: string;
-  declare private explorationCommandNotice: string;
-  declare private explorationCanResume: boolean;
-  declare private explorationCanRelease: boolean;
-  declare private planningCommandNotice: string;
-  declare private planningCanResume: boolean;
-  declare private planningCanRelease: boolean;
-  declare private generationCommandNotice: string;
-  declare private generationCanResume: boolean;
-  declare private generationCanRelease: boolean;
-  declare private saveNotice: string;
-  declare private saveRetry: boolean;
-  declare private saveObsolete: boolean;
+  declare private recovery: Recovery;
   private identityUpdating = false;
   private requestEpoch = 0;
   private requestLifetime = new AbortController();
@@ -361,10 +341,8 @@ export class SodaIntent extends LitElement {
     this.changeOpen = false;
     this.generation = undefined;
     this.generationError = '';
-    this.explorationCommandNotice = this.planningCommandNotice = this.generationCommandNotice = '';
-    this.saveNotice = this.generationNotice = '';
-    this.explorationCanResume = this.explorationCanRelease = this.planningCanResume = this.planningCanRelease = false;
-    this.generationCanResume = this.generationCanRelease = this.saveRetry = this.saveObsolete = false;
+    this.resetRecovery();
+    this.generationNotice = '';
     this.savedSnapshot = undefined;
     this.maxIssues = 20;
     this.planOperation = 'propose_intent';
@@ -448,17 +426,30 @@ export class SodaIntent extends LitElement {
     // A committed save updates its own route while the same action continues.
     if (!this.operation || this.resumeController || value !== this.revision?.intent) {
       this.retireRequests();
-      this.explorationCommandNotice = '';
-      this.explorationCanResume = this.explorationCanRelease = false;
-      this.planningCommandNotice = '';
-      this.planningCanResume = this.planningCanRelease = false;
-      this.generationCommandNotice = '';
-      this.generationCanResume = this.generationCanRelease = false;
-      this.saveNotice = '';
-      this.saveRetry = this.saveObsolete = false;
+      this.resetRecovery();
     }
     this.requestValue = value;
     this.requestUpdate('request', previous);
+  }
+  private resetRecovery() {
+    this.recovery = freshRecovery();
+  }
+  private setRecovery(kind: RecoveryKind, state: RecoveryState) {
+    this.recovery = {...this.recovery, [kind]: state};
+  }
+  // Text only: an offer already shown stays.
+  private recoveryNotice(kind: RecoveryKind, notice: string) {
+    this.setRecovery(kind, withNotice(this.recovery[kind], notice));
+  }
+  // Text with no resume/release offer.
+  private recoveryClosed(kind: RecoveryKind, notice: string) {
+    this.setRecovery(kind, withNotice({kind: 'none'}, notice));
+  }
+  private recoveryUnrecorded(kind: RecoveryKind, head: 'same' | 'moved') {
+    this.setRecovery(kind, {kind: 'unrecorded', head, notice: recoveryText(this.recovery[kind])});
+  }
+  private recoveryWithdraw(kind: RecoveryKind, head?: 'same' | 'moved') {
+    this.setRecovery(kind, withoutOffer(this.recovery[kind], head));
   }
   private retireRequests() {
     this.requestEpoch++;
@@ -483,15 +474,7 @@ export class SodaIntent extends LitElement {
   }
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('actor') || changed.has('draftScope')) {
-      this.explorationCommandNotice = '';
-      this.explorationCanResume = this.explorationCanRelease = false;
-      this.planningCommandNotice = '';
-      this.planningCanResume = this.planningCanRelease = false;
-      this.generationCommandNotice = '';
-      this.generationCanResume = this.generationCanRelease = false;
-      this.saveNotice = '';
-      this.saveRetry = false;
-      this.saveObsolete = false;
+      this.resetRecovery();
       this.draftReads.clear();
       this.draftNotice = '';
       this.draftPreview = undefined;
@@ -780,15 +763,7 @@ export class SodaIntent extends LitElement {
     // never cross-device: the history endpoint retains the saved graph but
     // the UI restores the shelf from local state alone.
     this.rememberDraft();
-    this.explorationCommandNotice = '';
-    this.explorationCanResume = this.explorationCanRelease = false;
-    this.planningCommandNotice = '';
-    this.planningCanResume = this.planningCanRelease = false;
-    this.generationCommandNotice = '';
-    this.generationCanResume = this.generationCanRelease = false;
-    this.saveNotice = '';
-    this.saveRetry = false;
-    this.saveObsolete = false;
+    this.resetRecovery();
     this.retireRequests();
     this.scopeGateArmed = false;
     this.taskShelf.reset();
@@ -1825,8 +1800,8 @@ export class SodaIntent extends LitElement {
     const address = this.draftAddress();
     const pendingRead = readSave(address);
     if (pendingRead.blocked || pendingRead.pending) {
-      this.saveNotice =
-        'An earlier save needs confirmation. Check its saved result before saving again. Current writing is kept.';
+      this.recoveryNotice('save',
+        'An earlier save needs confirmation. Check its saved result before saving again. Current writing is kept.');
       throw Error('Unresolved saved request');
     }
     const before = this.captureDraft();
@@ -1845,14 +1820,12 @@ export class SodaIntent extends LitElement {
     const host = await this.saveIdentity(signal);
     const pending: PendingSave = {host, revision: next, before, after};
     if (!(await retainSave(address, pending))) {
-      this.saveNotice =
-        'The exact save could not be retained durably, or another save is pending. No request was sent. Current writing is kept.';
+      this.recoveryNotice('save',
+        'The exact save could not be retained durably, or another save is pending. No request was sent. Current writing is kept.');
       throw Error('Save persistence unavailable');
     }
     signal.throwIfAborted();
-    this.saveNotice = 'This save is awaiting confirmation. Check its saved result if the reply is lost.';
-    this.saveRetry = false;
-    this.saveObsolete = false;
+    this.recoveryClosed('save', 'This save is awaiting confirmation. Check its saved result if the reply is lost.');
     const saved = savedReceipt(
       await this.call('/api/factory/intents', {...pending.revision}, signal),
       address.actor,
@@ -1877,20 +1850,20 @@ export class SodaIntent extends LitElement {
   ) {
     if (!(await settleSave(address, pending))) {
       signal.throwIfAborted();
-      this.saveNotice =
-        'The saved result was confirmed, but its recovery metadata could not be retained. Current writing and the pending save are kept; check again after storage is available.';
+      this.recoveryNotice('save',
+        'The saved result was confirmed, but its recovery metadata could not be retained. Current writing and the pending save are kept; check again after storage is available.');
       return false;
     }
     signal.throwIfAborted();
-    this.saveRetry = false;
+    this.recoveryWithdraw('save', 'same');
     const writing = JSON.stringify(this.captureDraft());
     const sameWriting =
       writing === JSON.stringify(pending.before) ||
       (this.revision?.id === saved.id &&
         writing === JSON.stringify({...pending.before, base: saved.id, repository: saved.repository}));
     if (!sameWriting || !currentHead) {
-      this.saveNotice =
-        'The original save was confirmed. Later writing or a newer saved revision was kept; no planning or generation was started.';
+      this.recoveryNotice('save',
+        'The original save was confirmed. Later writing or a newer saved revision was kept; no planning or generation was started.');
       return false;
     }
     this.taskShelf.reset(pending.after);
@@ -1903,7 +1876,7 @@ export class SodaIntent extends LitElement {
     this.savedHistorySkipped = 0;
     this.savedHistoryHead = '';
     this.maybeRecoverFromHistory();
-    this.saveNotice = '';
+    this.recoveryNotice('save', '');
     return true;
   }
   private recoverSave = (retry = false, release = false) => {
@@ -1930,18 +1903,19 @@ export class SodaIntent extends LitElement {
         } catch (error) {
           signal.throwIfAborted();
           if (!retry && error instanceof SodaRequestError && error.status === 404) {
-            this.saveObsolete = false;
+            this.recoveryWithdraw('save', 'moved');
             try {
               const head = intentRevision(
                 await this.call('/api/factory/intents/' + pending.revision.intent, undefined, signal)
               );
               check(head.intent === pending.revision.intent && decisionID(head.id));
-              this.saveObsolete = head.id !== pending.revision.id && head.id !== pending.revision.predecessor;
+              if (head.id !== pending.revision.id && head.id !== pending.revision.predecessor)
+                this.recoveryUnrecorded('save', 'moved');
             } catch (headError) {
               signal.throwIfAborted();
               if (!(headError instanceof SodaRequestError && headError.status === 404)) throw headError;
             }
-            if (this.saveObsolete) {
+            if (offers(this.recovery.save, 'moved')) {
               // Read absence after observing the advanced head: a save could have
               // committed between the first lookup and that head read.
               try {
@@ -1960,21 +1934,23 @@ export class SodaIntent extends LitElement {
                 signal.throwIfAborted();
                 if (!(receiptError instanceof SodaRequestError && receiptError.status === 404)) throw receiptError;
               }
-              this.saveRetry = false;
+              this.recoveryWithdraw('save', 'same');
               if (release) {
                 check(await releaseObsoleteSave(address, pending));
                 signal.throwIfAborted();
-                this.saveObsolete = false;
-                this.saveNotice =
-                  'The obsolete save was released. Current writing was kept; open the current saved request before saving a successor.';
+                this.recoveryClosed('save',
+                  'The obsolete save was released. Current writing was kept; open the current saved request before saving a successor.');
               } else
-                this.saveNotice =
-                  'The original save is absent and its expected predecessor has been replaced. It cannot replace the saved request. You can release this obsolete save while keeping current writing.';
+                this.recoveryNotice('save',
+                  'The original save is absent and its expected predecessor has been replaced. It cannot replace the saved request. You can release this obsolete save while keeping current writing.');
               return;
             }
-            this.saveRetry = true;
-            this.saveNotice =
-              'The original save is not recorded yet. It may still finish. Check again, or explicitly retry that same save identity; current writing stays kept.';
+            this.setRecovery('save', {
+              kind: 'unrecorded',
+              head: 'same',
+              notice:
+                'The original save is not recorded yet. It may still finish. Check again, or explicitly retry that same save identity; current writing stays kept.',
+            });
             return;
           }
           throw error;
@@ -1984,8 +1960,8 @@ export class SodaIntent extends LitElement {
         check(head.intent === saved.intent && decisionID(head.id));
         const adopted = await this.confirmSave(address, pending, saved, head.id === saved.id, signal);
         if (adopted) {
-          this.saveNotice =
-            'The original save was confirmed. Continue explicitly when ready; no planning or generation was started.';
+          this.recoveryNotice('save',
+            'The original save was confirmed. Continue explicitly when ready; no planning or generation was started.');
           this.dispatchEvent(
             new CustomEvent('intent-saved', {
               detail: {intent: saved.intent, revision: saved.id, state: saved.state},
@@ -1998,31 +1974,53 @@ export class SodaIntent extends LitElement {
       retry ? 'Retrying the original save…' : 'Checking the saved request…'
     );
   };
-  private saveRecovery() {
-    if (!this.actorValid()) return '';
-    const read = readSave(this.draftAddress());
-    if (!read.pending && !read.blocked && !this.saveNotice) return '';
-    return html`<section aria-label="Request save recovery">
-      <p role="status">
-        ${read.blocked ? 'Saved command ownership or contents could not be verified. Its bytes were preserved; no new save can be sent.' : this.saveNotice || 'An earlier save needs confirmation. Current writing is kept; no command was replayed.'}
-      </p>
+  private recoveryPanel(
+    kind: RecoveryKind,
+    o: {
+      label: string;
+      blocked: boolean;
+      blockedText: string;
+      fallback: string;
+      details: TemplateResult | undefined;
+      check: string;
+      resume: string;
+      release: string;
+      run: (resume?: boolean, release?: boolean) => void;
+    }
+  ) {
+    const state = this.recovery[kind],
+      notice = recoveryText(state);
+    if (!o.details && !o.blocked && !notice) return '';
+    const disabled = this.busy || this.blocked || !this.active;
+    return html`<section aria-label=${o.label}>
+      <p role="status">${o.blocked ? o.blockedText : notice || o.fallback}</p>
       ${
-        read.pending
-          ? html`<label
-                >Original saved outcome<textarea readonly .value=${read.pending.revision.objective}></textarea>
-              </label>
-              <button
-                type="button"
-                ?disabled=${this.busy || this.blocked || !this.active}
-                @click=${() => this.recoverSave()}
-              >
-                Check saved result
-              </button>
-              ${this.saveRetry ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverSave(true)}>Retry original save</button>` : ''}
-              ${this.saveObsolete ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverSave(false, true)}>Release obsolete save</button>` : ''}`
+        o.details
+          ? html`${o.details}
+              <button type="button" ?disabled=${disabled} @click=${() => o.run()}>${o.check}</button>
+              ${offers(state, 'same') ? html`<button type="button" ?disabled=${disabled} @click=${() => o.run(true)}>${o.resume}</button>` : ''}
+              ${offers(state, 'moved') ? html`<button type="button" ?disabled=${disabled} @click=${() => o.run(false, true)}>${o.release}</button>` : ''}`
           : ''
       }
     </section>`;
+  }
+  private saveRecovery() {
+    if (!this.actorValid()) return '';
+    const read = readSave(this.draftAddress());
+    return this.recoveryPanel('save', {
+      label: 'Request save recovery',
+      blocked: read.blocked,
+      blockedText:
+        'Saved command ownership or contents could not be verified. Its bytes were preserved; no new save can be sent.',
+      fallback: 'An earlier save needs confirmation. Current writing is kept; no command was replayed.',
+      details: read.pending
+        ? html`<label>Original saved outcome<textarea readonly .value=${read.pending.revision.objective}></textarea></label>`
+        : undefined,
+      check: 'Check saved result',
+      resume: 'Retry original save',
+      release: 'Release obsolete save',
+      run: this.recoverSave,
+    });
   }
 
   private explorationBlocked(): boolean {
@@ -2030,8 +2028,8 @@ export class SodaIntent extends LitElement {
     if (!address) return false;
     const read = readExplorationCommand(address);
     if (!read.blocked && !read.pending) return false;
-    this.explorationCommandNotice =
-      'An earlier exploration needs confirmation. Current writing is kept; check its original result before saving or continuing.';
+    this.recoveryNotice('exploration',
+      'An earlier exploration needs confirmation. Current writing is kept; check its original result before saving or continuing.');
     return true;
   }
   private explorationPath(revision: IntentRevision) {
@@ -2050,14 +2048,13 @@ export class SodaIntent extends LitElement {
         writing: this.captureDraft(),
       };
       if (!(await retainExploration(address, pending))) {
-        this.explorationCommandNotice =
-          'The exact exploration request could not be saved on this device, or another request is pending. No exploration was sent; current writing is kept.';
+        this.recoveryNotice('exploration',
+          'The exact exploration request could not be saved on this device, or another request is pending. No exploration was sent; current writing is kept.');
         return;
       }
       signal.throwIfAborted();
-      this.explorationCanResume = this.explorationCanRelease = false;
-      this.explorationCommandNotice =
-        'The original exploration is awaiting confirmation. Check its saved result if the reply is lost.';
+      this.recoveryClosed('exploration',
+        'The original exploration is awaiting confirmation. Check its saved result if the reply is lost.');
       const result = await this.postExploration(address, pending, signal);
       await this.confirmExploration(address, pending, result, true, signal);
     } catch (error) {
@@ -2084,8 +2081,8 @@ export class SodaIntent extends LitElement {
       if (this.explorationRefused(error)) {
         if (await settleExploration(address, pending)) {
           signal.throwIfAborted();
-          this.explorationCommandNotice =
-            'The original exploration was refused. Its writing was kept; no proposal was confirmed.';
+          this.recoveryNotice('exploration',
+            'The original exploration was refused. Its writing was kept; no proposal was confirmed.');
         }
       }
       throw error;
@@ -2101,14 +2098,13 @@ export class SodaIntent extends LitElement {
   ) {
     if (!(await settleExploration(address, pending, result))) {
       signal.throwIfAborted();
-      this.explorationCommandNotice =
-        'The original exploration result is recorded, but its writing or pending identity could not be saved. Both copies are kept; check again after storage is available.';
+      this.recoveryNotice('exploration',
+        'The original exploration result is recorded, but its writing or pending identity could not be saved. Both copies are kept; check again after storage is available.');
       return;
     }
     signal.throwIfAborted();
-    this.explorationCanResume = this.explorationCanRelease = false;
-    this.explorationCommandNotice =
-      'The original exploration is confirmed. Current writing is kept; no planning, acceptance or work was started.';
+    this.recoveryClosed('exploration',
+      'The original exploration is confirmed. Current writing is kept; no planning, acceptance or work was started.');
     if (
       !currentHead ||
       this.revision?.id !== pending.revision.id ||
@@ -2174,28 +2170,27 @@ export class SodaIntent extends LitElement {
             await this.confirmExploration(address, pending, result, head.id === result.revision.id, signal);
             return;
           }
-          this.explorationCanResume = head.id === pending.revision.id;
-          this.explorationCanRelease = !this.explorationCanResume;
-          if (release && this.explorationCanRelease) {
+          const same = head.id === pending.revision.id;
+          this.recoveryUnrecorded('exploration', same ? 'same' : 'moved');
+          if (release && !same) {
             check(await settleExploration(address, pending));
             signal.throwIfAborted();
-            this.explorationCanRelease = false;
-            this.explorationCommandNotice =
-              'No exploration result was recorded for the superseded input. Its pending request was released; current writing is kept.';
+            this.recoveryClosed('exploration',
+              'No exploration result was recorded for the superseded input. Its pending request was released; current writing is kept.');
           } else
-            this.explorationCommandNotice =
-              'The original exploration is not recorded yet. Consultation may still finish and may have consumed credit. Current writing and the exact request are kept.';
+            this.recoveryNotice('exploration',
+              'The original exploration is not recorded yet. Consultation may still finish and may have consumed credit. Current writing and the exact request are kept.');
         } catch (error) {
           signal.throwIfAborted();
-          this.explorationCanResume = this.explorationCanRelease = false;
+          this.recoveryWithdraw('exploration');
           const address = this.generationAddress(),
             read = address && readExplorationCommand(address);
           if (this.explorationRefused(error) && read && !read.blocked && !read.pending) {
             this.exploreFailed(error);
             return;
           }
-          this.explorationCommandNotice =
-            'The original exploration result could not be verified. Current writing and its exact saved request are kept; check again when access is available.';
+          this.recoveryNotice('exploration',
+            'The original exploration result could not be verified. Current writing and its exact saved request are kept; check again when access is available.');
         }
       },
       resume ? 'Resuming the original exploration…' : 'Checking the original exploration…'
@@ -2205,29 +2200,21 @@ export class SodaIntent extends LitElement {
     const address = this.generationAddress();
     if (!address) return '';
     const read = readExplorationCommand(address);
-    if (!read.pending && !read.blocked && !this.explorationCommandNotice) return '';
-    return html`<section aria-label="Exploration recovery">
-      <p role="status">
-        ${read.blocked ? 'Saved exploration ownership or contents could not be verified. Its bytes were preserved; no new exploration can be sent.' : this.explorationCommandNotice || 'An earlier exploration needs confirmation. No command was replayed.'}
-      </p>
-      ${
-        read.pending
-          ? html`<label
-                >Original exploration outcome<textarea readonly .value=${read.pending.revision.objective}></textarea>
-              </label>
-              ${read.pending.writing.changeText ? html`<label>Original exploration notes<textarea readonly .value=${read.pending.writing.changeText}></textarea></label>` : ''}
-              <button
-                type="button"
-                ?disabled=${this.busy || this.blocked || !this.active}
-                @click=${() => this.recoverExploration()}
-              >
-                Check exploration result
-              </button>
-              ${this.explorationCanResume ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverExploration(true)}>Resume original exploration</button>` : ''}
-              ${this.explorationCanRelease ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverExploration(false, true)}>Release superseded exploration</button>` : ''}`
-          : ''
-      }
-    </section>`;
+    return this.recoveryPanel('exploration', {
+      label: 'Exploration recovery',
+      blocked: read.blocked,
+      blockedText:
+        'Saved exploration ownership or contents could not be verified. Its bytes were preserved; no new exploration can be sent.',
+      fallback: 'An earlier exploration needs confirmation. No command was replayed.',
+      details: read.pending
+        ? html`<label>Original exploration outcome<textarea readonly .value=${read.pending.revision.objective}></textarea></label>
+            ${read.pending.writing.changeText ? html`<label>Original exploration notes<textarea readonly .value=${read.pending.writing.changeText}></textarea></label>` : ''}`
+        : undefined,
+      check: 'Check exploration result',
+      resume: 'Resume original exploration',
+      release: 'Release superseded exploration',
+      run: this.recoverExploration,
+    });
   }
   private exploreFailed(error: unknown) {
     if (error instanceof SodaRequestError && error.code === 'planning_unavailable')
@@ -2399,8 +2386,8 @@ export class SodaIntent extends LitElement {
     try {
       const current = readGeneration(address);
       if (current.blocked || current.pending) {
-        this.generationCommandNotice =
-          'An earlier work-creation request needs confirmation. Current writing is kept; check its original result before continuing.';
+        this.recoveryNotice('generation',
+          'An earlier work-creation request needs confirmation. Current writing is kept; check its original result before continuing.');
         return;
       }
       const host = await this.saveIdentity(signal);
@@ -2412,14 +2399,13 @@ export class SodaIntent extends LitElement {
         writing,
       };
       if (!(await retainGeneration(address, pending))) {
-        this.generationCommandNotice =
-          'The exact work-creation request could not be retained durably, or another request is pending. No command was sent. Current writing is kept.';
+        this.recoveryNotice('generation',
+          'The exact work-creation request could not be retained durably, or another request is pending. No command was sent. Current writing is kept.');
         return;
       }
       signal.throwIfAborted();
-      this.generationCanResume = this.generationCanRelease = false;
-      this.generationCommandNotice =
-        'The original work-creation request is awaiting confirmation. Check its saved result if the reply is lost.';
+      this.recoveryClosed('generation',
+        'The original work-creation request is awaiting confirmation. Check its saved result if the reply is lost.');
       const body = await this.call(
         '/api/factory/intents/' + accepted.intent + '/generate',
         {revision: accepted.id},
@@ -2443,25 +2429,24 @@ export class SodaIntent extends LitElement {
     signal: AbortSignal
   ) {
     if (receipt.state === 'not_requested' || receipt.state === 'pending' || receipt.state === 'committed') {
-      this.generationCommandNotice =
+      this.recoveryNotice('generation',
         receipt.state === 'not_requested'
           ? 'No work creation is recorded for the original revision yet. It may still finish; check again before explicitly resuming that same request.'
-          : 'The original work-creation operation is recorded, but its final outcome is not confirmed. Check again or explicitly resume that same operation.';
-      this.generationCanResume = true;
+          : 'The original work-creation operation is recorded, but its final outcome is not confirmed. Check again or explicitly resume that same operation.');
+      this.recoveryUnrecorded('generation', 'same');
       return;
     }
     if (!(await settleGeneration(address, pending))) {
       signal.throwIfAborted();
-      this.generationCommandNotice =
-        'The original result was confirmed, but its writing could not be archived or its pending record cleared. Current writing and the saved command are kept; check again after storage is available.';
+      this.recoveryNotice('generation',
+        'The original result was confirmed, but its writing could not be archived or its pending record cleared. Current writing and the saved command are kept; check again after storage is available.');
       return;
     }
     signal.throwIfAborted();
-    this.generationCanResume = this.generationCanRelease = false;
-    this.generationCommandNotice =
+    this.recoveryClosed('generation',
       receipt.state === 'completed'
         ? 'The original work-creation request is recorded as completed. Current writing is kept.'
-        : 'The original work-creation request was refused. Current writing is kept.';
+        : 'The original work-creation request was refused. Current writing is kept.');
     if (this.revision?.id === pending.revision.id && this.revision.intent === pending.revision.intent) {
       this.generation = intentGeneration(receipt.raw);
       this.generationIntent = pending.revision.id;
@@ -2495,7 +2480,7 @@ export class SodaIntent extends LitElement {
               )
             : await this.call(this.generationPath(pending.revision), undefined, signal);
           if (planWait(body)) {
-            this.generationCommandNotice = generationWaitNotice(body);
+            this.recoveryNotice('generation', generationWaitNotice(body));
             return;
           }
           const receipt = generationReceipt(body, pending.revision, pending.operation);
@@ -2505,30 +2490,28 @@ export class SodaIntent extends LitElement {
                 await this.call('/api/factory/intents/' + pending.revision.intent, undefined, signal)
               );
             check(head.intent === pending.revision.intent && decisionID(head.id));
-            this.generationCanResume = head.id === pending.revision.id;
-            this.generationCanRelease = !this.generationCanResume;
-            if (release && this.generationCanRelease) {
+            const same = head.id === pending.revision.id;
+            this.recoveryUnrecorded('generation', same ? 'same' : 'moved');
+            if (release && !same) {
               // Absence was read after the advanced head: the durable-before-effect
               // store fence prevents a late original command from creating work.
               check(await settleGeneration(address, pending));
               signal.throwIfAborted();
-              this.generationCanRelease = false;
-              this.generationCommandNotice =
-                'The superseded request had no recorded generation and was released. Current writing is kept.';
+              this.recoveryClosed('generation',
+                'The superseded request had no recorded generation and was released. Current writing is kept.');
             } else
-              this.generationCommandNotice = this.generationCanRelease
+              this.recoveryNotice('generation', !same
                 ? 'The original revision was superseded and no generation was recorded. Release this saved request explicitly to continue with a newer direction; current writing is kept.'
-                : 'No work creation is recorded for the original revision yet. It may still finish; check again or explicitly resume that same request.';
+                : 'No work creation is recorded for the original revision yet. It may still finish; check again or explicitly resume that same request.');
             return;
           }
           await this.confirmGeneration(address, pending, receipt, signal);
         } catch (error) {
           signal.throwIfAborted();
-          this.generationCanResume = this.generationCanRelease = false;
-          this.generationCommandNotice =
+          this.recoveryClosed('generation',
             error instanceof SodaRequestError && error.code === 'stale_revision'
               ? 'The original accepted direction has changed. Check its recorded result before continuing with a newer direction.'
-              : 'The original work-creation result could not be verified. Current writing and the saved request are kept; check again when access is available.';
+              : 'The original work-creation result could not be verified. Current writing and the saved request are kept; check again when access is available.');
         }
       },
       resume ? 'Resuming the original work-creation request…' : 'Checking the original work-creation result…'
@@ -2538,29 +2521,21 @@ export class SodaIntent extends LitElement {
     const address = this.generationAddress();
     if (!address) return '';
     const read = readGeneration(address);
-    if (!read.pending && !read.blocked && !this.generationCommandNotice) return '';
-    return html`<section aria-label="Work creation recovery">
-      <p role="status">
-        ${read.blocked ? 'Saved work-creation ownership or contents could not be verified. Its bytes were preserved; no new command can be sent.' : this.generationCommandNotice || 'An earlier work-creation request needs confirmation. No command was replayed.'}
-      </p>
-      ${
-        read.pending
-          ? html`<label
-                >Original requested outcome<textarea readonly .value=${read.pending.revision.objective}></textarea>
-              </label>
-              ${read.pending.writing.changeText ? html`<label>Original request notes<textarea readonly .value=${read.pending.writing.changeText}></textarea></label>` : ''}
-              <button
-                type="button"
-                ?disabled=${this.busy || this.blocked || !this.active}
-                @click=${() => this.recoverGeneration()}
-              >
-                Check work creation
-              </button>
-              ${this.generationCanResume ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverGeneration(true)}>Resume original work creation</button>` : ''}
-              ${this.generationCanRelease ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverGeneration(false, true)}>Release superseded request</button>` : ''} `
-          : ''
-      }
-    </section>`;
+    return this.recoveryPanel('generation', {
+      label: 'Work creation recovery',
+      blocked: read.blocked,
+      blockedText:
+        'Saved work-creation ownership or contents could not be verified. Its bytes were preserved; no new command can be sent.',
+      fallback: 'An earlier work-creation request needs confirmation. No command was replayed.',
+      details: read.pending
+        ? html`<label>Original requested outcome<textarea readonly .value=${read.pending.revision.objective}></textarea></label>
+            ${read.pending.writing.changeText ? html`<label>Original request notes<textarea readonly .value=${read.pending.writing.changeText}></textarea></label>` : ''}`
+        : undefined,
+      check: 'Check work creation',
+      resume: 'Resume original work creation',
+      release: 'Release superseded request',
+      run: this.recoverGeneration,
+    });
   }
   private planWork = () => {
     const revision = this.revision;
@@ -2626,8 +2601,8 @@ export class SodaIntent extends LitElement {
     if (!address) return false;
     const read = readPlanning(address);
     if (!read.pending && !read.blocked) return false;
-    this.planningCommandNotice =
-      'An earlier planning request needs confirmation. Current writing is kept; check its original result before saving or planning again.';
+    this.recoveryNotice('planning',
+      'An earlier planning request needs confirmation. Current writing is kept; check its original result before saving or planning again.');
     return true;
   }
   private planningPath(revision: IntentRevision): string {
@@ -2653,14 +2628,13 @@ export class SodaIntent extends LitElement {
       const prior = planningReceipt(await this.call(this.planningPath(revision), undefined, signal), pending);
       if (prior.state !== 'none') pending = {...pending, assignment: prior.assignment!, run: prior.run!};
       if (!(await retainPlanning(address, pending))) {
-        this.planningCommandNotice =
-          'The planning request could not be saved on this device, or another request is pending. No planning command was sent; current writing is kept.';
+        this.recoveryNotice('planning',
+          'The planning request could not be saved on this device, or another request is pending. No planning command was sent; current writing is kept.');
         return;
       }
       signal.throwIfAborted();
-      this.planningCanResume = this.planningCanRelease = false;
-      this.planningCommandNotice =
-        'The original planning request is awaiting confirmation. Check its recorded result if the reply is lost.';
+      this.recoveryClosed('planning',
+        'The original planning request is awaiting confirmation. Check its recorded result if the reply is lost.');
       const outcome = await runPlanWork(
         async () => {
           const posted = await this.call(
@@ -2672,8 +2646,8 @@ export class SodaIntent extends LitElement {
           const bound = planningLaunch(posted, pending);
           if (!(await bindPlanning(address, pending, bound))) {
             signal.throwIfAborted();
-            this.planningCommandNotice =
-              'The planning reply was received, but its run identity could not be saved durably. Keep this window open and check the original result after storage is available.';
+            this.recoveryNotice('planning',
+              'The planning reply was received, but its run identity could not be saved durably. Keep this window open and check the original result after storage is available.');
             throw Error('Planning identity persistence failed');
           }
           pending = bound;
@@ -2690,9 +2664,9 @@ export class SodaIntent extends LitElement {
         revision.id
       );
       signal.throwIfAborted();
-      this.planningCommandNotice = outcome.status
+      this.recoveryNotice('planning', outcome.status
         ? ''
-        : 'Planning is waiting for preparation. Its exact request is kept; check before explicitly resuming.';
+        : 'Planning is waiting for preparation. Its exact request is kept; check before explicitly resuming.');
       this.planNotice = outcome.notice;
       this.generationNotice = '';
       if (outcome.status !== undefined) {
@@ -2733,7 +2707,7 @@ export class SodaIntent extends LitElement {
               signal
             );
             if (planWait(posted)) {
-              this.planningCommandNotice = 'Planning is still waiting for preparation. The original request is kept.';
+              this.recoveryNotice('planning', 'Planning is still waiting for preparation. The original request is kept.');
               return;
             }
             const bound = planningLaunch(posted, pending);
@@ -2758,17 +2732,17 @@ export class SodaIntent extends LitElement {
                 await this.call('/api/factory/intents/' + pending.revision.intent, undefined, signal)
               );
             check(head.intent === pending.revision.intent && decisionID(head.id));
-            this.planningCanResume = head.id === pending.revision.id && !pending.assignment;
-            this.planningCanRelease = head.id !== pending.revision.id && !pending.assignment;
-            if (release && this.planningCanRelease) {
+            const same = head.id === pending.revision.id;
+            if (pending.assignment) this.recoveryWithdraw('planning');
+            else this.recoveryUnrecorded('planning', same ? 'same' : 'moved');
+            if (release && !pending.assignment && !same) {
               check(await settlePlanning(address, pending));
               signal.throwIfAborted();
-              this.planningCanRelease = false;
-              this.planningCommandNotice =
-                'The superseded request had no recorded planning attempt and was released. Current writing is kept.';
+              this.recoveryClosed('planning',
+                'The superseded request had no recorded planning attempt and was released. Current writing is kept.');
             } else
-              this.planningCommandNotice =
-                'The original planning attempt is not recorded yet. It may still finish. Current writing and the exact request are kept.';
+              this.recoveryNotice('planning',
+                'The original planning attempt is not recorded yet. It may still finish. Current writing and the exact request are kept.');
             return;
           }
           if (!pending.assignment) {
@@ -2785,14 +2759,13 @@ export class SodaIntent extends LitElement {
             pending = observed.pending;
           }
           if (!(await settlePlanning(address, pending))) {
-            this.planningCommandNotice =
-              'The original planning result is recorded, but its writing or pending identity could not be saved. Both copies are kept; check again after storage is available.';
+            this.recoveryNotice('planning',
+              'The original planning result is recorded, but its writing or pending identity could not be saved. Both copies are kept; check again after storage is available.');
             return;
           }
           signal.throwIfAborted();
-          this.planningCanResume = this.planningCanRelease = false;
-          this.planningCommandNotice =
-            'The original planning request is recorded. Current writing is kept; no new run was started by this check.';
+          this.recoveryClosed('planning',
+            'The original planning request is recorded. Current writing is kept; no new run was started by this check.');
           if (this.revision?.id === pending.revision.id && this.revision.intent === pending.revision.intent) {
             this.plan = receipt;
             this.planIntent = pending.revision.id;
@@ -2810,9 +2783,8 @@ export class SodaIntent extends LitElement {
           }
         } catch {
           signal.throwIfAborted();
-          this.planningCanResume = this.planningCanRelease = false;
-          this.planningCommandNotice =
-            'The original planning result could not be verified. Current writing and its exact saved request are kept; check again when access is available.';
+          this.recoveryClosed('planning',
+            'The original planning result could not be verified. Current writing and its exact saved request are kept; check again when access is available.');
         }
       },
       resume ? 'Resuming the original planning request…' : 'Checking the original planning result…'
@@ -2822,30 +2794,22 @@ export class SodaIntent extends LitElement {
     const address = this.generationAddress();
     if (!address) return '';
     const read = readPlanning(address);
-    if (!read.pending && !read.blocked && !this.planningCommandNotice) return '';
-    return html`<section aria-label="Planning recovery">
-      <p role="status">
-        ${read.blocked ? 'Saved planning ownership or contents could not be verified. Its bytes were preserved; no new planning command can be sent.' : this.planningCommandNotice || 'An earlier planning request needs confirmation. No command was replayed.'}
-      </p>
-      ${
-        read.pending
-          ? html`<label
-                >Original planning outcome<textarea readonly .value=${read.pending.revision.objective}></textarea>
-              </label>
-              ${!read.durable ? html`<p role="status">Observed run identities are kept in this window only. Copy the details before closing or reloading.</p>` : ''}
-              ${read.pending.assignment ? html`<p>Recorded assignment: ${read.pending.assignment}<br />Recorded run: ${read.pending.run}</p>` : ''}
-              <button
-                type="button"
-                ?disabled=${this.busy || this.blocked || !this.active}
-                @click=${() => this.recoverPlanning()}
-              >
-                Check planning result
-              </button>
-              ${this.planningCanResume ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverPlanning(true)}>Resume original planning</button>` : ''}
-              ${this.planningCanRelease ? html`<button type="button" ?disabled=${this.busy || this.blocked || !this.active} @click=${() => this.recoverPlanning(false, true)}>Release superseded planning</button>` : ''} `
-          : ''
-      }
-    </section>`;
+    return this.recoveryPanel('planning', {
+      label: 'Planning recovery',
+      blocked: read.blocked,
+      blockedText:
+        'Saved planning ownership or contents could not be verified. Its bytes were preserved; no new planning command can be sent.',
+      fallback: 'An earlier planning request needs confirmation. No command was replayed.',
+      details: read.pending
+        ? html`<label>Original planning outcome<textarea readonly .value=${read.pending.revision.objective}></textarea></label>
+            ${!read.durable ? html`<p role="status">Observed run identities are kept in this window only. Copy the details before closing or reloading.</p>` : ''}
+            ${read.pending.assignment ? html`<p>Recorded assignment: ${read.pending.assignment}<br />Recorded run: ${read.pending.run}</p>` : ''}`
+        : undefined,
+      check: 'Check planning result',
+      resume: 'Resume original planning',
+      release: 'Release superseded planning',
+      run: this.recoverPlanning,
+    });
   }
   private prepareProject = () => {
     const revision = this.revision;
