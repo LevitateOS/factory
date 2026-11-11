@@ -790,11 +790,11 @@ fn muse_connector(
         if !result.tree_retired
             || !result.output_complete
             || result.uid != unsafe { libc::geteuid() }
-            || result.reason.as_deref()
+            || result.reason
                 != Some(if *mode == "cancel" {
-                    "cancelled"
+                    soda_execution_protocol::StopReason::Cancelled
                 } else {
-                    "exited"
+                    soda_execution_protocol::StopReason::Exited
                 })
             || *mode != "cancel" && result.exit_code != Some(0)
         {
@@ -860,7 +860,7 @@ fn muse_connector(
             let output = fs::read(directory.join(&result.invocation).join("terminal.log"))?;
             let digest: String = sha2::Sha256::digest(&output).iter().map(|b| format!("{b:02x}")).collect();
             if !result.finished || !result.tree_retired || !result.output_complete || result.stopped_unix_ms.is_none()
-                || result.reason.as_deref() != Some("cancelled") || result.uid != unsafe { libc::geteuid() }
+                || result.reason != Some(soda_execution_protocol::StopReason::Cancelled) || result.uid != unsafe { libc::geteuid() }
                 || result.service != service || binding["run"] != result.run || binding["executable_sha256"] != result.executable_sha256
                 || binding["prompt_sha256"] != result.prompt_sha256 || output.len() != result.output_length
                 || result.output_sha256.as_deref() != Some(digest.as_str()) {
@@ -1388,7 +1388,7 @@ fn workspace_receipt_readback(root: &Path) -> Result<(), Box<dyn std::error::Err
 fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error::Error>> {
     use sha2::Digest;
     use soda_desktop_runtime::factory_provider::{AgentCancellation, Broker, ReceiptScope, Role};
-    use soda_execution_protocol::workspace::{Command as WorkspaceCommand, Reply};
+    use soda_execution_protocol::workspace::{Command as WorkspaceCommand, Reply, Status};
     let source_path = std::env::var("SODA_NATIVE_CHECK_BUNDLE")?;
     let bundle = fs::read(&source_path)?;
     let candidate = std::env::var("SODA_NATIVE_CHECK_COMMIT")?;
@@ -1486,7 +1486,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             let pending_start = WorkspaceCommand::StartAfter { task: "second".into(), expected_head: candidate.clone() };
             let pending_start_receipt = if mode == "ready" {
                 let pending = workspace.command(&pending_start)?;
-                if pending.status != "task_busy" || serde_json::to_vec(&workspace.command(&pending_start)?)? != serde_json::to_vec(&pending)? {
+                if pending.status != Status::TaskBusy || serde_json::to_vec(&workspace.command(&pending_start)?)? != serde_json::to_vec(&pending)? {
                     return Err("premature task start did not retain its exact refusal".into());
                 }
                 if workspace.command(&WorkspaceCommand::Observe)?.head != candidate { return Err("premature task start changed the candidate".into()); }
@@ -1524,7 +1524,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 expected: "stale preimage".into(), replacement: "must not appear".into(),
             };
             let refused = workspace.command(&stale)?;
-            if refused.status != "preimage_mismatch"
+            if refused.status != Status::PreimageMismatch
                 || serde_json::to_vec(&workspace.command(&stale)?)? != serde_json::to_vec(&refused)? {
                 return Err("stale edit did not retain its exact refusal".into());
             }
@@ -1577,7 +1577,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             }
             let refused_mode=WorkspaceCommand::SetExecutable {operation_id:"wrong-mode-preimage".into(),task:"first".into(),path:"native-task.txt".into(),expected_digest:"0".repeat(64),executable:true};
             let refused=workspace.command(&refused_mode)?;
-            if refused.status!="preimage_mismatch" || serde_json::to_vec(&workspace.command(&refused_mode)?)?!=serde_json::to_vec(&refused)? {
+            if refused.status != Status::PreimageMismatch || serde_json::to_vec(&workspace.command(&refused_mode)?)?!=serde_json::to_vec(&refused)? {
                 return Err("executable preimage refusal/replay differs".into());
             }
             for (operation,enabled) in [("set-executable",true),("clear-executable",false),("restore-executable",true)] {
@@ -1626,7 +1626,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 serde_json::to_vec(&first)?,
             )?;
             if mode == "failed" {
-                if first.status != "failed"
+                if first.status != Status::Failed
                     || first.head != candidate
                     || first.checks.len() != 1
                     || first.checks[0].passed
@@ -1651,7 +1651,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 workspace.command(&WorkspaceCommand::Close)?;
                 return Ok(());
             }
-            if first.status != "committed"
+            if first.status != Status::Committed
                 || first.head == candidate
                 || first.checks.len() != 1
                 || !first.checks[0].passed
@@ -1708,7 +1708,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                     task: "first".into(),
                     expected_head: candidate.clone(),
                 })?;
-                if stale_start.status != "stale_head"
+                if stale_start.status != Status::StaleHead
                     || stale_start.head != first.head
                     || workspace.command(&WorkspaceCommand::Observe)?.head != first.head
                 {
@@ -1735,7 +1735,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 expected_head: first.head.clone(),
                 output_digest: released.output_digest,
             })?;
-            if second.status != "committed" || second.head == first.head {
+            if second.status != Status::Committed || second.head == first.head {
                 return Err("second task checkpoint incomplete".into());
             }
             let final_command = WorkspaceCommand::Final {
@@ -1746,7 +1746,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 serde_json::to_vec(&final_command)?,
             )?;
             let final_result: Reply = workspace.command(&final_command)?;
-            if final_result.status != "committed"
+            if final_result.status != Status::Committed
                 || final_result.head != second.head
                 || final_result.bundle.is_empty()
                 || final_result.checks.len() != 1
@@ -2523,7 +2523,7 @@ async fn managed_execution(
                 }
                 ExecutionOutcome::Complete(result) if mode == "finite" => {
                     if candidate_check {
-                        if result.candidate_state != "captured"
+                        if result.candidate_state != soda_execution_protocol::CandidateState::Captured
                             || result.result_candidate.is_none()
                             || result.candidate_bundle.is_empty()
                         {
@@ -2543,7 +2543,7 @@ async fn managed_execution(
                     break;
                 }
                 ExecutionOutcome::Complete(result) if mode == "cancel" => {
-                    if result.reason != "cancelled" || !result.output_complete {
+                    if result.reason != soda_execution_protocol::StopReason::Cancelled || !result.output_complete {
                         return Err("cancelled worker lacks its exact terminal receipt".into());
                     }
                     break;
@@ -2618,7 +2618,7 @@ async fn managed_execution(
             &prompt_digest,
         )?;
         let result = read_retained(&profile, &scope)?.ok_or("Quit terminal receipt missing")?;
-        if result.reason != "cancelled"
+        if result.reason != soda_execution_protocol::StopReason::Cancelled
             || !result.output_complete
             || ticket.observe().started.map(|started| started.process) != Some(result.process)
         {

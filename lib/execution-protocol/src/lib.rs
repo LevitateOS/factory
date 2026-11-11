@@ -327,6 +327,97 @@ impl HarnessProfile {
         }
     }
 }
+/// Why a supervised process stopped. `Unconfirmed` is written when no reason
+/// was observed; Muse receipts do not accept it.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StopReason {
+    Exited,
+    Cancelled,
+    Deadline,
+    OutputLimit,
+    OutputUnavailable,
+    InputUnavailable,
+    ObservationUnavailable,
+    Unconfirmed,
+}
+impl StopReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Exited => "exited",
+            Self::Cancelled => "cancelled",
+            Self::Deadline => "deadline",
+            Self::OutputLimit => "output_limit",
+            Self::OutputUnavailable => "output_unavailable",
+            Self::InputUnavailable => "input_unavailable",
+            Self::ObservationUnavailable => "observation_unavailable",
+            Self::Unconfirmed => "unconfirmed",
+        }
+    }
+}
+
+/// `Unavailable` is read-only: persisted receipts may carry it, no producer emits it.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateState {
+    NotApplicable,
+    Unchanged,
+    Dirty,
+    Captured,
+    Unavailable,
+}
+impl CandidateState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotApplicable => "not_applicable",
+            Self::Unchanged => "unchanged",
+            Self::Dirty => "dirty",
+            Self::Captured => "captured",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+/// Worker role on the wire and in receipts ("reviewer"/"coder"). The Go product
+/// names ("soda-reviewer"/"soda-coder") are separate and parsed explicitly.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    Reviewer,
+    Coder,
+}
+impl Role {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Reviewer => "reviewer",
+            Self::Coder => "coder",
+        }
+    }
+    pub fn product(self) -> &'static str {
+        match self {
+            Self::Reviewer => "soda-reviewer",
+            Self::Coder => "soda-coder",
+        }
+    }
+    pub fn from_product(name: &str) -> Option<Self> {
+        match name {
+            "soda-reviewer" => Some(Self::Reviewer),
+            "soda-coder" => Some(Self::Coder),
+            _ => None,
+        }
+    }
+    pub fn from_wire(name: &str) -> Option<Self> {
+        match name {
+            "reviewer" => Some(Self::Reviewer),
+            "coder" => Some(Self::Coder),
+            _ => None,
+        }
+    }
+    /// Accepts both the product and the worker spelling.
+    pub fn from_any(name: &str) -> Option<Self> {
+        Self::from_product(name).or_else(|| Self::from_wire(name))
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -336,7 +427,7 @@ pub struct AgentStarted<S = String> {
     pub run: S,
     pub profile: S,
     pub candidate: S,
-    pub role: S,
+    pub role: Role,
     pub tool_sha256: S,
     pub prompt_sha256: S,
     pub worker_uid: u32,
@@ -356,7 +447,7 @@ pub struct AgentExecution<S = String> {
     pub run: S,
     pub profile: S,
     pub candidate: S,
-    pub role: S,
+    pub role: Role,
     pub tool_sha256: S,
     pub prompt_sha256: S,
     pub worker_uid: u32,
@@ -366,56 +457,137 @@ pub struct AgentExecution<S = String> {
     pub start_identity: S,
     pub namespace_pid: u32,
     pub started_unix_ms: u64,
-    pub reason: S,
+    pub reason: StopReason,
     pub exit_code: Option<i32>,
     pub exit_signal: Option<i32>,
     pub tree_retired: bool,
     pub output_complete: bool,
     pub output_length: usize,
     pub output_sha256: S,
-    pub candidate_state: S,
+    pub candidate_state: CandidateState,
     pub result_candidate: Option<S>,
     pub bundle_length: usize,
     pub bundle_sha256: Option<S>,
 }
 
+/// What the supervising process expects an agent worker to report.
+pub struct AgentExpectation<'a> {
+    pub run: &'a str,
+    pub profile: &'a str,
+    pub candidate: &'a str,
+    pub role: Role,
+    pub tool_sha256: &'a str,
+    pub prompt_sha256: &'a str,
+    /// The supervisor's own uid; the worker must run as a different one.
+    pub supervisor_uid: u32,
+}
+
+fn boot_id(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+}
+
+impl<S: AsRef<str>> AgentStarted<S> {
+    pub fn valid(&self, expected: &AgentExpectation<'_>) -> bool {
+        self.kind.as_ref() == "agent_started"
+            && self.version == 1
+            && self.run.as_ref() == expected.run
+            && self.profile.as_ref() == expected.profile
+            && self.candidate.as_ref() == expected.candidate
+            && self.role == expected.role
+            && self.tool_sha256.as_ref() == expected.tool_sha256
+            && self.prompt_sha256.as_ref() == expected.prompt_sha256
+            && self.worker_uid != 0
+            && self.worker_uid != expected.supervisor_uid
+            && self.peer_uid == 0
+            && hex(self.invocation.as_ref(), 32)
+            && boot_id(self.system_instance.as_ref())
+            && matches!(self.start_identity.as_ref().parse::<u64>(), Ok(ticks) if ticks > 0)
+            && self.namespace_pid != 0
+            && self.started_unix_ms != 0
+    }
+}
+
 impl<S: AsRef<str>> AgentExecution<S> {
     pub fn candidate_valid(&self) -> bool {
         candidate_result_valid(
-            self.role.as_ref(),
+            self.role,
             self.candidate.as_ref(),
-            self.candidate_state.as_ref(),
+            self.candidate_state,
             self.result_candidate.as_ref().map(AsRef::as_ref),
             self.bundle_length,
             self.bundle_sha256.as_ref().map(AsRef::as_ref),
         )
     }
+    /// Full admission of an execution reply against the expectation and the
+    /// start announcement of the same process.
+    pub fn valid(&self, expected: &AgentExpectation<'_>, started: &AgentStarted<S>) -> bool {
+        self.kind.as_ref() == "agent_executed"
+            && self.version == 3
+            && self.run.as_ref() == expected.run
+            && self.profile.as_ref() == expected.profile
+            && self.candidate.as_ref() == expected.candidate
+            && self.role == expected.role
+            && self.tool_sha256.as_ref() == expected.tool_sha256
+            && self.prompt_sha256.as_ref() == expected.prompt_sha256
+            && self.worker_uid != 0
+            && self.worker_uid != expected.supervisor_uid
+            && self.peer_uid == 0
+            && hex(self.invocation.as_ref(), 32)
+            && boot_id(self.system_instance.as_ref())
+            && matches!(self.start_identity.as_ref().parse::<u64>(), Ok(ticks) if ticks > 0)
+            && self.namespace_pid != 0
+            && self.started_unix_ms != 0
+            && self.worker_uid == started.worker_uid
+            && self.invocation.as_ref() == started.invocation.as_ref()
+            && self.system_instance.as_ref() == started.system_instance.as_ref()
+            && self.start_identity.as_ref() == started.start_identity.as_ref()
+            && self.namespace_pid == started.namespace_pid
+            && self.started_unix_ms == started.started_unix_ms
+            && self.tree_retired
+            && self.output_length <= MAX_OUTPUT
+            && hex(self.output_sha256.as_ref(), 64)
+            && self.candidate_valid()
+            && self.exit_code.is_none_or(|code| (0..=255).contains(&code))
+            && self
+                .exit_signal
+                .is_none_or(|signal| (1..=64).contains(&signal))
+            && !(self.exit_code.is_some() && self.exit_signal.is_some())
+            && (self.reason != StopReason::Exited
+                || self.exit_code.is_some()
+                || self.exit_signal.is_some())
+    }
 }
 
 pub fn candidate_result_valid(
-    role: &str,
+    role: Role,
     candidate: &str,
-    state: &str,
+    state: CandidateState,
     result: Option<&str>,
     bundle_length: usize,
     bundle_sha256: Option<&str>,
 ) -> bool {
-    if role == "reviewer" {
-        return state == "not_applicable"
+    if role == Role::Reviewer {
+        return state == CandidateState::NotApplicable
             && result.is_none()
             && bundle_length == 0
             && bundle_sha256.is_none();
     }
-    if role != "coder" {
-        return false;
-    }
-    if state == "captured" {
+    if state == CandidateState::Captured {
         return result.is_some_and(|commit| hex(commit, 40) && commit != candidate)
             && (1..=MAX_CANDIDATE_BUNDLE).contains(&bundle_length)
             && bundle_sha256.is_some_and(|digest| hex(digest, 64));
     }
-    matches!(state, "unchanged" | "dirty" | "unavailable")
-        && result.is_none()
+    matches!(
+        state,
+        CandidateState::Unchanged | CandidateState::Dirty | CandidateState::Unavailable
+    ) && result.is_none()
         && bundle_length == 0
         && bundle_sha256.is_none()
 }

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{
     AgentExecution as AgentExecutionReply, AgentStarted as AgentStartedReply, MAX_EXECUTABLE,
-    MAX_EXECUTION_REPLY as MAX_AGENT_REPLY, MAX_OUTPUT, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
+    MAX_EXECUTION_REPLY as MAX_AGENT_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
     MAX_START_REPLY,
 };
 use std::fs::{self, DirBuilder, File, OpenOptions};
@@ -387,17 +387,6 @@ fn id(value: &str, length: usize) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
-
-fn boot_id(value: &str) -> bool {
-    value.len() == 36
-        && value.bytes().enumerate().all(|(index, byte)| {
-            if matches!(index, 8 | 13 | 18 | 23) {
-                byte == b'-'
-            } else {
-                byte.is_ascii_hexdigit()
-            }
-        })
 }
 
 fn private_dir(path: &Path, mode: u32) -> io::Result<()> {
@@ -1546,6 +1535,17 @@ fn execute_agent<R: Read, W: Write>(
         prompt_sha256,
         false,
     )?;
+    let role = soda_execution_protocol::Role::from_wire(role)
+        .ok_or_else(|| denied("agent role invalid"))?;
+    let expected = soda_execution_protocol::AgentExpectation {
+        run,
+        profile,
+        candidate,
+        role,
+        tool_sha256,
+        prompt_sha256,
+        supervisor_uid: desktop_uid,
+    };
     let directory = PathBuf::from(STATE).join("preparations").join(run);
     let result = (|| {
         private_dir(&directory, 0o700)?;
@@ -1603,23 +1603,7 @@ fn execute_agent<R: Read, W: Write>(
         read_worker(&mut worker, &mut bytes, deadline, &mut queries)?;
         let started: AgentStartedReply = serde_json::from_slice(&bytes)
             .map_err(|_| denied("agent start announcement shape invalid"))?;
-        if started.kind != "agent_started"
-            || started.version != 1
-            || started.run != run
-            || started.profile != profile
-            || started.candidate != candidate
-            || started.role != role
-            || started.tool_sha256 != tool_sha256
-            || started.prompt_sha256 != prompt_sha256
-            || started.worker_uid == 0
-            || started.worker_uid == desktop_uid
-            || started.peer_uid != 0
-            || !id(&started.invocation, 32)
-            || !boot_id(&started.system_instance)
-            || !matches!(started.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
-            || started.namespace_pid == 0
-            || started.started_unix_ms == 0
-        {
+        if !started.valid(&expected) {
             return Err(denied("agent start announcement identity invalid"));
         }
         output.write_all(&(bytes.len() as u32).to_le_bytes())?;
@@ -1642,52 +1626,7 @@ fn execute_agent<R: Read, W: Write>(
         };
         let reply: AgentExecutionReply = serde_json::from_slice(&bytes)
             .map_err(|_| denied("agent execution reply shape invalid"))?;
-        if reply.kind != "agent_executed"
-            || reply.version != 3
-            || reply.run != run
-            || reply.profile != profile
-            || reply.candidate != candidate
-            || reply.role != role
-            || reply.tool_sha256 != tool_sha256
-            || reply.prompt_sha256 != prompt_sha256
-            || reply.worker_uid == 0
-            || reply.worker_uid == desktop_uid
-            || reply.peer_uid != 0
-            || !id(&reply.invocation, 32)
-            || !boot_id(&reply.system_instance)
-            || !matches!(reply.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
-            || reply.namespace_pid == 0
-            || reply.started_unix_ms == 0
-            || reply.worker_uid != started.worker_uid
-            || reply.invocation != started.invocation
-            || reply.system_instance != started.system_instance
-            || reply.start_identity != started.start_identity
-            || reply.namespace_pid != started.namespace_pid
-            || reply.started_unix_ms != started.started_unix_ms
-            || reply
-                .exit_code
-                .is_some_and(|code| !(0..=255).contains(&code))
-            || reply
-                .exit_signal
-                .is_some_and(|signal| !(1..=64).contains(&signal))
-            || reply.exit_code.is_some() && reply.exit_signal.is_some()
-            || reply.reason == "exited" && reply.exit_code.is_none() && reply.exit_signal.is_none()
-            || !reply.tree_retired
-            || reply.output_length > MAX_OUTPUT
-            || !id(&reply.output_sha256, 64)
-            || !reply.candidate_valid()
-            || !matches!(
-                reply.reason.as_str(),
-                "exited"
-                    | "cancelled"
-                    | "deadline"
-                    | "output_limit"
-                    | "output_unavailable"
-                    | "input_unavailable"
-                    | "observation_unavailable"
-                    | "unconfirmed"
-            )
-        {
+        if !reply.valid(&expected, &started) {
             return Err(denied("agent execution identity invalid"));
         }
         let mut body = vec![0u8; reply.output_length];
@@ -2330,12 +2269,12 @@ fn serve() -> io::Result<()> {
             match task_receipts::read(&directory, &command) {
                 Ok(Some(reply)) => reply,
                 Ok(None) => serde_json::to_vec(&soda_execution_protocol::workspace::Reply {
-                    status: "not_requested".into(),
+                    status: soda_execution_protocol::workspace::Status::NotRequested,
                     ..Default::default()
                 })?,
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     serde_json::to_vec(&soda_execution_protocol::workspace::Reply {
-                        status: "pending".into(),
+                        status: soda_execution_protocol::workspace::Status::Pending,
                         ..Default::default()
                     })?
                 }

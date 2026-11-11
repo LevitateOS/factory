@@ -5,7 +5,10 @@ use super::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use soda_execution_protocol::workspace::{Command as TaskCommand, Parent, Reply as TaskReply};
+use soda_execution_protocol::workspace::{
+    Command as TaskCommand, Parent, Reply as TaskReply, Status,
+};
+use soda_execution_protocol::CandidateState;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{
@@ -122,7 +125,7 @@ pub(crate) async fn call(
                 let reply = match ticket.task(&parent, &command) {
                     Ok(reply) => reply,
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => TaskReply {
-                        status: "busy".into(),
+                        status: Status::Busy,
                         ..TaskReply::default()
                     },
                     Err(e) => return Err(e),
@@ -432,8 +435,8 @@ fn muse_observation(
     json!({"intent_digest":intent.digest(),"receipt":receipt,
         "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":sealed},
         "live":process.and_then(|process|process.live),"retired":retired,
-        "reason":complete.and_then(|result|result.process.reason.as_deref()),"candidate_state":complete.map(|result|
-            if result.candidate.is_some() {"captured"} else if intent.has_tasks() {"dirty"} else {"unchanged"}),
+        "reason":complete.and_then(|result|result.process.reason).map(|reason|reason.as_str()),"candidate_state":complete.map(|result|
+            if result.candidate.is_some() {CandidateState::Captured} else if intent.has_tasks() {CandidateState::Dirty} else {CandidateState::Unchanged}.as_str()),
         "candidate":complete.and_then(|result|result.candidate.as_deref()),"output":output,"output_complete":complete.is_some_and(|result|result.process.output_complete)&&output.is_some()})
 }
 

@@ -5,7 +5,8 @@ use super::{LaunchIntent, MuseRun};
 use crate::private_fs::publish_bytes as publish;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use soda_execution_protocol::{MuseObservation, MAX_OUTPUT};
+use soda_execution_protocol::workspace::Status;
+use soda_execution_protocol::{MuseObservation, StopReason, MAX_OUTPUT};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -104,22 +105,13 @@ fn valid_process(
         && process.live == Some(false)
         && process.sequence == 0
         && process.tree_retired
-        && (process.output_complete || process.reason.as_deref() == Some("output_limit"))
+        && (process.output_complete || process.reason == Some(StopReason::OutputLimit))
         && output.len() <= limit
         && process.output_length == output.len()
         && process.output_sha256.as_deref() == Some(&digest(output))
-        && matches!(
-            process.reason.as_deref(),
-            Some(
-                "exited"
-                    | "cancelled"
-                    | "deadline"
-                    | "output_limit"
-                    | "input_unavailable"
-                    | "output_unavailable"
-                    | "observation_unavailable"
-            )
-        )
+        && process
+            .reason
+            .is_some_and(|reason| reason != StopReason::Unconfirmed)
         && (process.exit_code.is_some() != process.exit_signal.is_some())
         && process.exit_code.is_none_or(|v| (0..=255).contains(&v))
         && process.exit_signal.is_none_or(|v| (1..=64).contains(&v))
@@ -244,8 +236,10 @@ pub(super) fn task_candidate(
     )
     .ok()?;
     let result = receipts.final_receipt().ok()??;
-    (result.status == "committed" && super::hex(&result.head, 40) && !result.bundle.is_empty())
-        .then_some(result.head)
+    (result.status == Status::Committed
+        && super::hex(&result.head, 40)
+        && !result.bundle.is_empty())
+    .then_some(result.head)
 }
 
 // Earlier connector components retained the same process/output facts in their

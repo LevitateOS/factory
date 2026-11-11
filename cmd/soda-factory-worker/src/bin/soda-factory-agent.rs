@@ -4,8 +4,8 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{
-    AgentExecution as Execution, AgentStarted as Started, MAX_EXECUTABLE, MAX_EXECUTION_REPLY,
-    MAX_OUTPUT, MAX_PROMPT, MAX_START_REPLY,
+    AgentExecution as Execution, AgentStarted as Started, CandidateState, Role, MAX_EXECUTABLE,
+    MAX_EXECUTION_REPLY, MAX_OUTPUT, MAX_PROMPT, MAX_START_REPLY,
 };
 use soda_native_process::{Executable, Invocation, Limits, Processes, StopReason};
 use std::collections::BTreeMap;
@@ -252,7 +252,7 @@ fn process_owner(run: &str, worker_uid: u32) -> io::Result<Processes> {
         .map_err(|_| refused("agent process scope unavailable"))
 }
 
-fn manifest(run: &str) -> io::Result<(String, String, String, String, String)> {
+fn manifest(run: &str) -> io::Result<(Role, String, String, String, String)> {
     let path = Path::new(ROLE);
     let metadata = path.symlink_metadata()?;
     if !metadata.is_file()
@@ -294,8 +294,8 @@ fn manifest(run: &str) -> io::Result<(String, String, String, String, String)> {
         .next()
         .and_then(|value| value.strip_prefix("FACTORY_PROMPT_SHA256="))
         .ok_or_else(|| refused("agent prompt digest missing"))?;
-    if !matches!(role, "reviewer" | "coder")
-        || !id(profile, 32)
+    let role = Role::from_wire(role).ok_or_else(|| refused("agent role manifest invalid"))?;
+    if !id(profile, 32)
         || !id(candidate, 40)
         || !id(digest, 64)
         || !id(tool_sha256, 64)
@@ -307,7 +307,7 @@ fn manifest(run: &str) -> io::Result<(String, String, String, String, String)> {
         return Err(refused("agent role manifest invalid"));
     }
     Ok((
-        role.into(),
+        role,
         profile.into(),
         candidate.into(),
         tool_sha256.into(),
@@ -597,19 +597,6 @@ impl Read for TimedInput<'_> {
     }
 }
 
-fn reason(reason: Option<StopReason>) -> &'static str {
-    match reason {
-        Some(StopReason::Exited) => "exited",
-        Some(StopReason::Cancelled) => "cancelled",
-        Some(StopReason::Deadline) => "deadline",
-        Some(StopReason::OutputLimit) => "output_limit",
-        Some(StopReason::OutputUnavailable) => "output_unavailable",
-        Some(StopReason::InputUnavailable) => "input_unavailable",
-        Some(StopReason::ObservationUnavailable) => "observation_unavailable",
-        None => "unconfirmed",
-    }
-}
-
 fn peer_disconnected(stream: &UnixStream) -> io::Result<bool> {
     let mut byte = [0u8; 1];
     let received = unsafe {
@@ -638,7 +625,7 @@ fn execute_agent(
     run: &str,
     profile: &str,
     candidate: &str,
-    role: &str,
+    role: Role,
     tool_sha256: &str,
     prompt_sha256: &str,
     worker_uid: u32,
@@ -681,7 +668,11 @@ fn execute_agent(
     if peer_disconnected(stream)? {
         return Err(refused("agent request contains extra bytes or closed peer"));
     }
-    let workspace = if role == "coder" { WORKSPACE } else { SOURCE };
+    let workspace = if role == Role::Coder {
+        WORKSPACE
+    } else {
+        SOURCE
+    };
     let mut arguments = [
         "exec",
         "--json",
@@ -722,7 +713,7 @@ fn execute_agent(
     .into_iter()
     .map(OsString::from)
     .collect::<Vec<_>>();
-    if role == "reviewer" {
+    if role == Role::Reviewer {
         arguments.extend(["--disable-shell", "--disable-write"].map(OsString::from));
     }
     arguments.extend([
@@ -757,7 +748,11 @@ fn execute_agent(
         .launch_with_stdin(
             Invocation {
                 executable: &executable,
-                directory: Path::new(if role == "coder" { WORKSPACE } else { PRIVATE }),
+                directory: Path::new(if role == Role::Coder {
+                    WORKSPACE
+                } else {
+                    PRIVATE
+                }),
                 arguments,
                 environment,
                 limits: Limits {
@@ -849,19 +844,19 @@ fn execute_agent(
     }
     let output_sha256 = sha256(&output);
     let (candidate_state, result_candidate, bundle, bundle_sha256): (
-        &str,
+        CandidateState,
         Option<&str>,
         &[u8],
         Option<&str>,
     ) = match &captured {
-        Candidate::NotApplicable => ("not_applicable", None, &[], None),
-        Candidate::Unchanged => ("unchanged", None, &[], None),
-        Candidate::Dirty => ("dirty", None, &[], None),
+        Candidate::NotApplicable => (CandidateState::NotApplicable, None, &[], None),
+        Candidate::Unchanged => (CandidateState::Unchanged, None, &[], None),
+        Candidate::Dirty => (CandidateState::Dirty, None, &[], None),
         Candidate::Captured {
             commit,
             bundle,
             sha256,
-        } => ("captured", Some(commit), bundle, Some(sha256)),
+        } => (CandidateState::Captured, Some(commit), bundle, Some(sha256)),
     };
     let started_unix_ms = observed
         .started_at
@@ -886,7 +881,7 @@ fn execute_agent(
         start_identity: &observed.start_identity,
         namespace_pid: observed.pid,
         started_unix_ms,
-        reason: reason(observed.reason),
+        reason: observed.reason.unwrap_or(StopReason::Unconfirmed),
         exit_code: observed.exit.and_then(|exit| exit.code),
         exit_signal: observed.exit.and_then(|exit| exit.signal),
         tree_retired: true,
@@ -930,11 +925,15 @@ fn serve() -> io::Result<()> {
     let (role, profile, candidate, tool_sha256, prompt_sha256) = manifest(&args[1])?;
     source(&candidate, &mut processes)?;
     let approved = agent_environment::approved()?;
-    if role == "coder" {
+    if role == Role::Coder {
         coder_workspace(&candidate, worker_uid, &mut processes, approved.is_some())?;
     }
     if let Some(approved) = &approved {
-        let workspace = if role == "coder" { WORKSPACE } else { SOURCE };
+        let workspace = if role == Role::Coder {
+            WORKSPACE
+        } else {
+            SOURCE
+        };
         agent_environment::check(&mut processes, Path::new(workspace), approved)?;
         head(workspace, &candidate, &mut processes)?;
         let safe = format!("safe.directory={workspace}");
@@ -959,7 +958,7 @@ fn serve() -> io::Result<()> {
             Duration::from_secs(3),
         )?;
     }
-    let candidate_identity = if role == "coder" {
+    let candidate_identity = if role == Role::Coder {
         Some(repository_identity(Path::new(WORKSPACE))?)
     } else {
         None
@@ -1008,7 +1007,7 @@ fn serve() -> io::Result<()> {
                 || run != args[1]
                 || requested_profile != profile
                 || requested_candidate != candidate
-                || role != "coder"
+                || role != Role::Coder
                 || !id(&manifest_digest, 64)
             {
                 return Err(refused("task workspace binding invalid"));
@@ -1042,13 +1041,13 @@ fn serve() -> io::Result<()> {
                 run: &args[1],
                 profile: &profile,
                 candidate: &candidate,
-                role: &role,
+                role: role.as_str(),
                 tool_sha256: &tool_sha256,
                 prompt_sha256: &prompt_sha256,
                 worker_uid,
                 peer_uid: 0,
                 readonly_source: true,
-                coder_workspace: role == "coder",
+                coder_workspace: role == Role::Coder,
                 execution_available: false,
             })?;
             stream.write_all(&(reply.len() as u32).to_le_bytes())?;
@@ -1082,7 +1081,7 @@ fn serve() -> io::Result<()> {
                 &run,
                 &profile,
                 &candidate,
-                &role,
+                role,
                 &tool_sha256,
                 &prompt_sha256,
                 worker_uid,

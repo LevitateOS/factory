@@ -8,7 +8,7 @@ use base64::Engine;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::workspace::{
-    CheckResult, Command, Event, Reply, MAX_COMMAND, MAX_REPLY, MAX_TEXT,
+    CheckResult, Command, Event, Reply, Status, MAX_COMMAND, MAX_REPLY, MAX_TEXT,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
@@ -440,7 +440,7 @@ impl<'a> Workspace<'a> {
             return Err(refused("workspace task check failed"));
         }
         let mut reply = Reply {
-            status: "ok".into(),
+            status: Status::Ok,
             head: self.head.clone(),
             ..Reply::default()
         };
@@ -459,7 +459,7 @@ impl<'a> Workspace<'a> {
                 self.active = Some(0);
                 reply.events = self.events.clone();
             }
-            reply.status = "bound".into();
+            reply.status = Status::Bound;
             return Ok(reply);
         }
         if self.invocation.is_empty() {
@@ -468,7 +468,7 @@ impl<'a> Workspace<'a> {
         let guarded_start = matches!(&command, Command::StartAfter { .. });
         if let Command::StartAfter { expected_head, .. } = &command {
             if expected_head != &self.head {
-                reply.status = "stale_head".into();
+                reply.status = Status::StaleHead;
                 return Ok(reply);
             }
         }
@@ -482,7 +482,7 @@ impl<'a> Workspace<'a> {
                 }
                 if self.active.is_some() || self.completed.contains(&task) {
                     if guarded_start {
-                        reply.status = if self.completed.contains(&task) { "task_completed" } else { "task_busy" }.into();
+                        reply.status = if self.completed.contains(&task) { Status::TaskCompleted } else { Status::TaskBusy };
                         return Ok(reply);
                     }
                     return Err(refused("workspace task already active or complete"));
@@ -498,7 +498,7 @@ impl<'a> Workspace<'a> {
                     .iter()
                     .any(|id| !self.completed.contains(id))
                 {
-                    if guarded_start { reply.status = "dependency_pending".into(); return Ok(reply); }
+                    if guarded_start { reply.status = Status::DependencyPending; return Ok(reply); }
                     return Err(refused("workspace dependency incomplete"));
                 }
                 self.event("parent_task_started", &task, String::new())?;
@@ -525,7 +525,7 @@ impl<'a> Workspace<'a> {
                 let mut file = match open {
                     Ok(file) => file,
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                        reply.status = "missing".into();
+                        reply.status = Status::Missing;
                         return Ok(reply);
                     }
                     Err(error) => return Err(error),
@@ -612,7 +612,7 @@ impl<'a> Workspace<'a> {
                     || !text.is_char_boundary(end)
                     || bytes.len() - expected.len() + replacement.len() > MAX_FILE as usize
                 {
-                    reply.status = "preimage_mismatch".into();
+                    reply.status = Status::PreimageMismatch;
                     reply.events = self.events.clone();
                     return Ok(reply);
                 }
@@ -645,7 +645,7 @@ impl<'a> Workspace<'a> {
                 let mut bytes=Vec::new();
                 (&file).take(MAX_FILE+1).read_to_end(&mut bytes)?;
                 if digest(&bytes)!=expected_digest {
-                    reply.status="preimage_mismatch".into();
+                    reply.status=Status::PreimageMismatch;
                     reply.events=self.events.clone();
                     return Ok(reply);
                 }
@@ -759,7 +759,7 @@ impl<'a> Workspace<'a> {
                 if reply.checks.iter().any(|c| !c.passed) {
                     self.event("task_failed", &task, "check_failed".into())?;
                     self.failed = true;
-                    reply.status = "failed".into();
+                    reply.status = Status::Failed;
                     reply.events = self.events.clone();
                     return Ok(reply);
                 }
@@ -789,7 +789,7 @@ impl<'a> Workspace<'a> {
                 self.completed.insert(task);
                 self.active = None;
                 self.frozen = None;
-                reply.status = "committed".into();
+                reply.status = Status::Committed;
                 reply.head = commit;
                 reply.tree = frozen;
             }
@@ -810,7 +810,7 @@ impl<'a> Workspace<'a> {
                     .collect::<Vec<_>>();
                 reply.checks = self.checks(&ids)?;
                 if reply.checks.iter().any(|c| !c.passed) {
-                    reply.status = "failed".into();
+                    reply.status = Status::Failed;
                     reply.events = self.events.clone();
                     return Ok(reply);
                 }
@@ -836,11 +836,11 @@ impl<'a> Workspace<'a> {
                 if commit != self.head {
                     return Err(refused("workspace final bundle identity differs"));
                 }
-                reply.status = "committed".into();
+                reply.status = Status::Committed;
                 reply.tree = tree;
                 reply.bundle = bundle;
             }
-            Command::Close => reply.status = "closed".into(),
+            Command::Close => reply.status = Status::Closed,
         }
         reply.events = self.events.clone();
         Ok(reply)
@@ -866,7 +866,7 @@ pub(super) fn serve(
     send(
         stream,
         &Reply {
-            status: "ready".into(),
+            status: Status::Ready,
             head: candidate.into(),
             ..Reply::default()
         },
@@ -892,7 +892,7 @@ pub(super) fn serve(
         let command =
             serde_json::from_slice(&bytes).map_err(|_| refused("workspace command invalid"))?;
         let reply = workspace.command(command)?;
-        let closed = reply.status == "closed";
+        let closed = reply.status == Status::Closed;
         send(stream, &reply)?;
         if closed {
             return Ok(());

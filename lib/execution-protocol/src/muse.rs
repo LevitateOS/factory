@@ -1,7 +1,7 @@
 //! Private native connector input, never a product API or browser command.
 //! Muse owns authentication and provider request limits. No account credential
 //! crosses this contract; MCP authorization is an ephemeral Factory run secret.
-use super::{HarnessProfile, MAX_OUTPUT, MAX_PROMPT};
+use super::{HarnessProfile, StopReason, MAX_OUTPUT, MAX_PROMPT};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -104,5 +104,5 @@ pub struct MuseObservation {
     pub output_sha256: Option<String>,
     pub exit_code: Option<i32>,
     pub exit_signal: Option<i32>,
-    pub reason: Option<String>,
+    pub reason: Option<StopReason>,
 }

@@ -3,6 +3,7 @@ use super::{read_intent, read_retained, LaunchIntent};
 use crate::private_fs::{private_dir, read_bytes, write_bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use soda_execution_protocol::CandidateState;
 use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::fs::{self, File, OpenOptions};
@@ -191,13 +192,13 @@ impl Work {
             }
         } else {
             let receipt = read_retained(&self.profile, &scope)?.ok_or_else(denied)?;
-            match receipt.candidate_state.as_str() {
-                "captured" => (
+            match receipt.candidate_state {
+                CandidateState::Captured => (
                     receipt.result_candidate.ok_or_else(denied)?,
                     Some(receipt.candidate_bundle),
                 ),
-                "unchanged" => (scope.candidate.to_owned(), None),
-                "not_applicable" if scope.role == super::Role::Reviewer => {
+                CandidateState::Unchanged => (scope.candidate.to_owned(), None),
+                CandidateState::NotApplicable if scope.role == super::Role::Reviewer => {
                     (scope.candidate.to_owned(), None)
                 }
                 _ => return Err(denied()),

@@ -113,11 +113,7 @@ impl Input {
         {
             return Err(denied());
         }
-        let role = match text(meta, "role", 32)? {
-            "soda-coder" => Role::Coder,
-            "soda-reviewer" => Role::Reviewer,
-            _ => return Err(denied()),
-        };
+        let role = Role::from_product(text(meta, "role", 32)?).ok_or_else(denied)?;
         let source = text(meta, "source_commit", 40)?.to_owned();
         let setup = text(meta, "setup_digest", 64)?.to_owned();
         if !super::hex(&source, 40)
@@ -231,7 +227,7 @@ impl Input {
             } else {
                 ""
             });
-        json!({"id":self.id,"project":self.workspace,"role":match self.role {Role::Coder=>"soda-coder",Role::Reviewer=>"soda-reviewer"},
+        json!({"id":self.id,"project":self.workspace,"role":self.role.product(),
             "source_commit":self.source,"setup_digest":self.setup,"source_bundle_sha256":source_sha,"native":self.native,
             "phase":phase,"ready":phase=="ready","stopped":retired,"retirement":if retired {"confirmed"} else {""},
             "setup_exit":receipt.and_then(|value|value.setup_exit),"check_exit":receipt.and_then(|value|value.check_exit),"tools":tools,
@@ -719,10 +715,7 @@ impl Preparations {
             let entry = entries.get(&key).ok_or_else(denied)?;
             (entry.input.clone(), entry.cancellation.clone())
         };
-        let role = match input.role {
-            Role::Coder => "soda-coder",
-            Role::Reviewer => "soda-reviewer",
-        };
+        let role = input.role.product();
         if meta["source_commit"] != input.source || request["role"] != role {
             return Err(denied());
         }

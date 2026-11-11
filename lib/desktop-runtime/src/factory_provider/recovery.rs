@@ -9,6 +9,7 @@ use crate::product::Products;
 use crate::supervisor::NativeChannel;
 use serde::Deserialize;
 use serde_json::Value;
+use soda_execution_protocol::CandidateState;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{
@@ -207,11 +208,8 @@ impl NativeRecovery {
     }
 
     fn scope(&self) -> io::Result<ReceiptScope<'_>> {
-        let role = match self.run.role.as_str() {
-            "soda-coder" | "coder" => Role::Coder,
-            "soda-reviewer" | "reviewer" => Role::Reviewer,
-            _ => return Err(refused("native recovery worker role unsupported")),
-        };
+        let role = Role::from_any(&self.run.role)
+            .ok_or_else(|| refused("native recovery worker role unsupported"))?;
         ReceiptScope::new(
             &self.run.native.provenance.broker_run,
             &self.context.profile,
@@ -449,8 +447,11 @@ impl NativeRecovery {
             .ok_or_else(|| refused("native recovery acquisition missing"))?;
         if !custody.sealed
             || !receipt.output_complete
-            || !matches!(self.run.role.as_str(), "soda-reviewer" | "reviewer")
-                && !matches!(receipt.candidate_state.as_str(), "captured" | "unchanged")
+            || Role::from_any(&self.run.role) != Some(Role::Reviewer)
+                && !matches!(
+                    receipt.candidate_state,
+                    CandidateState::Captured | CandidateState::Unchanged
+                )
         {
             return Err(refused(
                 "native recovery local seal or complete work unconfirmed",

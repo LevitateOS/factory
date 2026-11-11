@@ -2,6 +2,7 @@
 use super::{read_intent, read_retained, LaunchIntent};
 use base64::Engine;
 use serde_json::{json, Value};
+use soda_execution_protocol::{workspace::Status, CandidateState};
 use std::io;
 use std::path::Path;
 
@@ -24,7 +25,7 @@ pub(super) fn muse_bundle(
             expected_head: candidate.into(),
         },
     )?;
-    if result.status != "committed" || result.bundle.is_empty() {
+    if result.status != Status::Committed || result.bundle.is_empty() {
         return Err(io::Error::other("native candidate unavailable"));
     }
     Ok(result.bundle)
@@ -73,7 +74,7 @@ pub(super) fn export(
         );
     }
     let receipt = read_retained(profile, &scope)?.ok_or_else(denied)?;
-    if receipt.candidate_state != "captured"
+    if receipt.candidate_state != CandidateState::Captured
         || receipt.result_candidate.as_deref() != Some(candidate)
     {
         return Ok(json!({"intent_digest":intent.digest(),"status":"candidate_mismatch"}));

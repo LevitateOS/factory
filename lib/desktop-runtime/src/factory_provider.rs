@@ -63,11 +63,7 @@ const MAX_OUTPUT_TOKENS: u64 = 65_536;
 const MAX_OUTPUT_PER_REQUEST: u64 = 4_096;
 pub const MODEL: &str = "muse-spark-1.3-contributor";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Role {
-    Reviewer,
-    Coder,
-}
+pub use soda_execution_protocol::Role;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Route {

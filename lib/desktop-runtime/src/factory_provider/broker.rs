@@ -4,10 +4,12 @@ use super::{AgentObserver, Role};
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use soda_execution_protocol::workspace::Status;
 use soda_execution_protocol::{
-    AgentExecution as AgentExecuted, AgentObserved, AgentStarted as AgentStartedReply,
-    MAX_EXECUTABLE, MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_OUTPUT, MAX_PROMPT,
-    MAX_STAGE_BUNDLE as MAX_BUNDLE, MAX_START_REPLY,
+    AgentExecution as AgentExecuted, AgentExpectation, AgentObserved,
+    AgentStarted as AgentStartedReply, CandidateState, StopReason, MAX_EXECUTABLE,
+    MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
+    MAX_START_REPLY,
 };
 use std::collections::BTreeSet;
 use std::fs::OpenOptions;
@@ -39,17 +41,6 @@ fn id(value: &str, length: usize) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
-
-fn boot_id(value: &str) -> bool {
-    value.len() == 36
-        && value.bytes().enumerate().all(|(index, byte)| {
-            if matches!(index, 8 | 13 | 18 | 23) {
-                byte == b'-'
-            } else {
-                byte.is_ascii_hexdigit()
-            }
-        })
 }
 
 fn peer_is_root(stream: &UnixStream) -> bool {
@@ -325,12 +316,12 @@ pub struct AgentStarted {
 pub struct AgentRun {
     pub worker_uid: u32,
     pub process: AgentProcess,
-    pub reason: String,
+    pub reason: StopReason,
     pub exit_code: Option<i32>,
     pub exit_signal: Option<i32>,
     pub output_complete: bool,
     pub output: Vec<u8>,
-    pub candidate_state: String,
+    pub candidate_state: CandidateState,
     pub result_candidate: Option<String>,
     pub candidate_bundle: Vec<u8>,
     pub bundle_sha256: Option<String>,
@@ -421,15 +412,6 @@ impl Drop for AgentWatch {
         let _ = self.stream.shutdown(std::net::Shutdown::Both);
         if let Some(watcher) = self.watcher.take() {
             let _ = watcher.join();
-        }
-    }
-}
-
-impl Role {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Reviewer => "reviewer",
-            Self::Coder => "coder",
         }
     }
 }
@@ -915,7 +897,7 @@ impl TaskReceiptAddress {
             None,
             soda_execution_protocol::workspace::MAX_REPLY,
         )?;
-        if matches!(reply.status.as_str(), "pending" | "not_requested") {
+        if matches!(reply.status, Status::Pending | Status::NotRequested) {
             return Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
                 "task outcome remains pending",
@@ -969,7 +951,7 @@ impl TaskWorkspace {
             self.stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
             self.stream.write_all(&bytes)?;
             let reply = self.reply()?;
-            if reply.status != "bound" || reply.head != self.address.candidate {
+            if reply.status != Status::Bound || reply.head != self.address.candidate {
                 return Err(refused("workspace parent acknowledgement differs"));
             }
             receipts.complete(&command, &reply)?;
@@ -1109,7 +1091,7 @@ impl Broker {
             usable: true,
         };
         let ready = session.reply()?;
-        if ready.status != "ready" || ready.head != scope.candidate {
+        if ready.status != Status::Ready || ready.head != scope.candidate {
             return Err(refused("workspace readiness differs"));
         }
         session
@@ -1556,36 +1538,28 @@ impl Broker {
         }
         let mut bytes = vec![0u8; length];
         stream.read_exact(&mut bytes)?;
-        let started: AgentStartedReply = serde_json::from_slice(&bytes)
+        let announced: AgentStartedReply = serde_json::from_slice(&bytes)
             .map_err(|_| refused("agent start announcement shape invalid"))?;
-        let uid = unsafe { libc::geteuid() };
-        if started.kind != "agent_started"
-            || started.version != 1
-            || started.run != run
-            || started.profile != profile
-            || started.candidate != candidate
-            || started.role != role.as_str()
-            || started.tool_sha256 != tool_sha256
-            || started.prompt_sha256 != prompt_sha256
-            || started.worker_uid == 0
-            || started.worker_uid == uid
-            || started.peer_uid != 0
-            || !id(&started.invocation, 32)
-            || !boot_id(&started.system_instance)
-            || !matches!(started.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
-            || started.namespace_pid == 0
-            || started.started_unix_ms == 0
-        {
+        let expected = AgentExpectation {
+            run,
+            profile,
+            candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+            supervisor_uid: unsafe { libc::geteuid() },
+        };
+        if !announced.valid(&expected) {
             return Err(refused("agent start announcement identity invalid"));
         }
         let started = AgentStarted {
-            worker_uid: started.worker_uid,
+            worker_uid: announced.worker_uid,
             process: AgentProcess {
-                invocation: started.invocation,
-                system_instance: started.system_instance,
-                start_identity: started.start_identity,
-                namespace_pid: started.namespace_pid,
-                started_unix_ms: started.started_unix_ms,
+                invocation: announced.invocation.clone(),
+                system_instance: announced.system_instance.clone(),
+                start_identity: announced.start_identity.clone(),
+                namespace_pid: announced.namespace_pid,
+                started_unix_ms: announced.started_unix_ms,
             },
         };
         let observation = observer.attach(&stream, &started)?;
@@ -1610,53 +1584,7 @@ impl Broker {
         };
         let reply: AgentExecuted = serde_json::from_slice(&bytes)
             .map_err(|_| refused("agent execution reply shape invalid"))?;
-        let uid = unsafe { libc::geteuid() };
-        if reply.kind != "agent_executed"
-            || reply.version != 3
-            || reply.run != run
-            || reply.profile != profile
-            || reply.candidate != candidate
-            || reply.role != role.as_str()
-            || reply.tool_sha256 != tool_sha256
-            || reply.prompt_sha256 != prompt_sha256
-            || reply.worker_uid == 0
-            || reply.worker_uid == uid
-            || reply.peer_uid != 0
-            || !id(&reply.invocation, 32)
-            || !boot_id(&reply.system_instance)
-            || !matches!(reply.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
-            || reply.namespace_pid == 0
-            || reply.started_unix_ms == 0
-            || reply.worker_uid != started.worker_uid
-            || reply.invocation != started.process.invocation
-            || reply.system_instance != started.process.system_instance
-            || reply.start_identity != started.process.start_identity
-            || reply.namespace_pid != started.process.namespace_pid
-            || reply.started_unix_ms != started.process.started_unix_ms
-            || !reply.tree_retired
-            || reply.output_length > MAX_OUTPUT
-            || !id(&reply.output_sha256, 64)
-            || !reply.candidate_valid()
-            || reply
-                .exit_code
-                .is_some_and(|code| !(0..=255).contains(&code))
-            || reply
-                .exit_signal
-                .is_some_and(|signal| !(1..=64).contains(&signal))
-            || reply.exit_code.is_some() && reply.exit_signal.is_some()
-            || reply.reason == "exited" && reply.exit_code.is_none() && reply.exit_signal.is_none()
-            || !matches!(
-                reply.reason.as_str(),
-                "exited"
-                    | "cancelled"
-                    | "deadline"
-                    | "output_limit"
-                    | "output_unavailable"
-                    | "input_unavailable"
-                    | "observation_unavailable"
-                    | "unconfirmed"
-            )
-        {
+        if !reply.valid(&expected, &announced) {
             return Err(refused("agent execution identity invalid"));
         }
         let mut output = vec![0u8; reply.output_length];

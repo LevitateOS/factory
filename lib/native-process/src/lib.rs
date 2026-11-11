@@ -97,16 +97,7 @@ pub struct Invocation<'a> {
     pub columns: u16,
     pub rows: u16,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StopReason {
-    Exited,
-    Cancelled,
-    Deadline,
-    OutputLimit,
-    OutputUnavailable,
-    InputUnavailable,
-    ObservationUnavailable,
-}
+pub use soda_execution_protocol::StopReason;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Exit {
     pub code: Option<i32>,

@@ -362,11 +362,8 @@ impl LaunchIntent {
         Ok(profile)
     }
     pub(super) fn scope(&self) -> io::Result<ReceiptScope<'_>> {
-        let role = match self.wire.role.as_str() {
-            "soda-coder" => Role::Coder,
-            "soda-reviewer" => Role::Reviewer,
-            _ => return Err(refused("native intent role unsupported")),
-        };
+        let role = Role::from_product(&self.wire.role)
+            .ok_or_else(|| refused("native intent role unsupported"))?;
         ReceiptScope::new(
             &self.wire.native.broker_run,
             &self.wire.native.workspace.profile,

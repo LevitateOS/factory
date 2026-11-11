@@ -192,10 +192,33 @@ impl Event {
     }
 }
 
+/// Closed set of workspace reply outcomes. `Busy` is produced desktop-side when
+/// the task channel is occupied; every other value comes from the worker/broker.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Status {
+    #[default]
+    Ok,
+    Bound,
+    StaleHead,
+    TaskCompleted,
+    TaskBusy,
+    DependencyPending,
+    Missing,
+    PreimageMismatch,
+    Failed,
+    Committed,
+    Closed,
+    Ready,
+    NotRequested,
+    Pending,
+    Busy,
+}
+
 #[derive(Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reply {
-    pub status: String,
+    pub status: Status,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub head: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]

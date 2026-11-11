@@ -324,24 +324,7 @@ mod connector {
                 .then_some(state.exit)
                 .flatten()
                 .and_then(|e| e.signal),
-            reason: state
-                .finished
-                .then_some(state.reason)
-                .flatten()
-                .map(|reason| {
-                    match reason {
-                        soda_native_process::StopReason::Exited => "exited",
-                        soda_native_process::StopReason::Cancelled => "cancelled",
-                        soda_native_process::StopReason::Deadline => "deadline",
-                        soda_native_process::StopReason::OutputLimit => "output_limit",
-                        soda_native_process::StopReason::OutputUnavailable => "output_unavailable",
-                        soda_native_process::StopReason::InputUnavailable => "input_unavailable",
-                        soda_native_process::StopReason::ObservationUnavailable => {
-                            "observation_unavailable"
-                        }
-                    }
-                    .into()
-                }),
+            reason: state.finished.then_some(state.reason).flatten(),
         })
     }
     fn reply(output: &mut impl Write, value: &MuseObservation, bytes: &[u8]) -> io::Result<()> {

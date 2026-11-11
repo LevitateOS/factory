@@ -11,3 +11,4 @@ libc = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
 sha2 = { workspace = true }
 zeroize = { workspace = true }
+soda-execution-protocol = { path = "../execution-protocol" }

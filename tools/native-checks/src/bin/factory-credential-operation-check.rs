@@ -1441,7 +1441,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         match supervisor.execution_outcome(&intent)? {
             ExecutionOutcome::Pending if Instant::now()<until => tokio::time::sleep(Duration::from_millis(20)).await,
             ExecutionOutcome::MuseComplete(result) if result.root_retired && result.process.output_complete &&
-                (if withdraw {result.process.reason.as_deref()==Some("cancelled") && result.process.tree_retired} else {result.process.exit_code==Some(0)}) => break,
+                (if withdraw {result.process.reason==Some(soda_execution_protocol::StopReason::Cancelled) && result.process.tree_retired} else {result.process.exit_code==Some(0)}) => break,
             _ => return Err("host-controlled native worker did not retire successfully".into()),
         }
     }

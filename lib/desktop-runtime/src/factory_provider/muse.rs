@@ -1,7 +1,9 @@
 //! Native owner of the fixed CLI-managed provider connector. It has no generic
 //! command/argv operation and never opens Muse's authentication store.
 use sha2::{Digest, Sha256};
-use soda_execution_protocol::{MuseInvocation, MuseObservation, MAX_MUSE_INPUT, MAX_OUTPUT};
+use soda_execution_protocol::{
+    MuseInvocation, MuseObservation, StopReason, MAX_MUSE_INPUT, MAX_OUTPUT,
+};
 use std::fs::{DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
@@ -479,7 +481,7 @@ impl MuseConnector {
             .ok_or_else(|| refused("Muse native result unavailable"))?;
         if !terminal.0.tree_retired
             || !terminal.0.output_complete
-                && !(account_truncated && terminal.0.reason.as_deref() == Some("output_limit"))
+                && !(account_truncated && terminal.0.reason == Some(StopReason::OutputLimit))
         {
             return Err(refused("Muse native process retirement unconfirmed"));
         }

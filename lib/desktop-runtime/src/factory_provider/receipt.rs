@@ -6,7 +6,8 @@ use super::Role;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{
-    candidate_result_valid, MAX_CANDIDATE_BUNDLE as MAX_BUNDLE, MAX_OUTPUT,
+    candidate_result_valid, CandidateState, StopReason, MAX_CANDIDATE_BUNDLE as MAX_BUNDLE,
+    MAX_OUTPUT,
 };
 use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -122,10 +123,7 @@ impl<'a> ReceiptScope<'a> {
                 self.profile,
                 self.source_sha256,
                 self.candidate,
-                match self.role {
-                    Role::Reviewer => "reviewer",
-                    Role::Coder => "coder",
-                },
+                self.role.as_str(),
                 self.tool_sha256,
                 self.prompt_sha256
             )
@@ -173,7 +171,7 @@ struct Header {
     profile: String,
     source_sha256: String,
     candidate: String,
-    role: String,
+    role: Role,
     tool_sha256: String,
     prompt_sha256: String,
     desktop_uid: u32,
@@ -183,27 +181,24 @@ struct Header {
     start_identity: String,
     namespace_pid: u32,
     started_unix_ms: u64,
-    reason: String,
+    reason: StopReason,
     exit_code: Option<i32>,
     exit_signal: Option<i32>,
     output_complete: bool,
     output_length: usize,
     output_sha256: String,
-    candidate_state: String,
+    candidate_state: CandidateState,
     result_candidate: Option<String>,
     bundle_length: usize,
     bundle_sha256: Option<String>,
 }
 
 fn valid(header: &Header, scope: &ReceiptScope<'_>) -> bool {
-    let role = match scope.role {
-        Role::Reviewer => "reviewer",
-        Role::Coder => "coder",
-    };
+    let role = scope.role;
     let candidate = candidate_result_valid(
         role,
         &header.candidate,
-        &header.candidate_state,
+        header.candidate_state,
         header.result_candidate.as_deref(),
         header.bundle_length,
         header.bundle_sha256.as_deref(),
@@ -226,17 +221,6 @@ fn valid(header: &Header, scope: &ReceiptScope<'_>) -> bool {
         && matches!(header.start_identity.parse::<u64>(), Ok(value) if value > 0)
         && header.namespace_pid != 0
         && header.started_unix_ms != 0
-        && matches!(
-            header.reason.as_str(),
-            "exited"
-                | "cancelled"
-                | "deadline"
-                | "output_limit"
-                | "output_unavailable"
-                | "input_unavailable"
-                | "observation_unavailable"
-                | "unconfirmed"
-        )
         && header
             .exit_code
             .is_none_or(|code| (0..=255).contains(&code))
@@ -244,7 +228,9 @@ fn valid(header: &Header, scope: &ReceiptScope<'_>) -> bool {
             .exit_signal
             .is_none_or(|signal| (1..=64).contains(&signal))
         && !(header.exit_code.is_some() && header.exit_signal.is_some())
-        && (header.reason != "exited" || header.exit_code.is_some() || header.exit_signal.is_some())
+        && (header.reason != StopReason::Exited
+            || header.exit_code.is_some()
+            || header.exit_signal.is_some())
         && header.output_length <= MAX_OUTPUT
         && hex(&header.output_sha256, 64)
         && candidate
@@ -262,10 +248,6 @@ pub fn write_retained(
     if run.output.len() > MAX_OUTPUT || run.candidate_bundle.len() > MAX_BUNDLE {
         return Err(refused("native receipt body bound exceeded"));
     }
-    let role = match scope.role {
-        Role::Reviewer => "reviewer",
-        Role::Coder => "coder",
-    };
     let header = Header {
         kind: "native_agent_receipt".into(),
         version: 2,
@@ -273,7 +255,7 @@ pub fn write_retained(
         profile: scope.profile.into(),
         source_sha256: scope.source_sha256.into(),
         candidate: scope.candidate.into(),
-        role: role.into(),
+        role: scope.role,
         tool_sha256: scope.tool_sha256.into(),
         prompt_sha256: scope.prompt_sha256.into(),
         desktop_uid: unsafe { libc::geteuid() },
@@ -283,13 +265,13 @@ pub fn write_retained(
         start_identity: run.process.start_identity.clone(),
         namespace_pid: run.process.namespace_pid,
         started_unix_ms: run.process.started_unix_ms,
-        reason: run.reason.clone(),
+        reason: run.reason,
         exit_code: run.exit_code,
         exit_signal: run.exit_signal,
         output_complete: run.output_complete,
         output_length: run.output.len(),
         output_sha256: digest(&run.output),
-        candidate_state: run.candidate_state.clone(),
+        candidate_state: run.candidate_state,
         result_candidate: run.result_candidate.clone(),
         bundle_length: run.candidate_bundle.len(),
         bundle_sha256: run.bundle_sha256.clone(),
