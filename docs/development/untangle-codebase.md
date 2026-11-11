@@ -1,5 +1,96 @@
 # Factory untangling decisions
 
+## Bounded live GitHub/Muse correction journey (2026-11-11)
+
+**INCOMPLETE: the bounded journey ended without a re-inspection verdict.**
+Real planning, an independent Inspector finding, Fixer candidate, conditional
+publication, expired-send recovery and green CI passed. The second Inspector
+timed out; no clear verdict or merge is claimed. This is not Q15/Q17/Q30 closure.
+
+Implementation: `345208ebc58c0781d8519b51ae50d51a060ea8fb`, based on
+`ad00c6588c266b13faae74b7b77f1c7a6e4cdf47`. Four defining owners changed:
+authenticated exact-PR purpose/complete patches now reach external Architect;
+Rust permits the pinned first-page read (at most ten files); candidate export
+uses the validated Fixer preparation; causal correction adoption supplies the
+retained run and advances candidate/run/verification tuple atomically.
+The tuple carries its merge-base only in the proved native descendant case:
+old head equals corrector input, and base equals diff-base and captured
+comparison. Other triples wait for an actual native observation. No tuple or
+current permission check was weakened. External planning still refuses
+incomplete/binary/truncated/oversized patches; one complete page and 32KiB of
+candidate material are supported.
+
+Installed composite inventory
+`61cf9690574f6947bda31324308a8fdf94677544816b0d3ac149e903a825df42`
+contains these exact product bytes (source7.patch digest e964643a7b5fb20d).
+Warm Go/Rust builds and existing distribution integrity passed; previous assets,
+profiles, keyrings and all intermediate packages remain. This reuses the
+qualified installed app/UI/provider helpers, not a fresh full release gate.
+Guest SSH22209, installed launcher /home/factory/q25-prefix9/bin/factory,
+profile /home/factory/q28-format102/profile, instance301883fd47ded86e7328b72121dec7ea,
+developer session4df821724b7fe8da42eaa3ce2e903965. UI actions used semantic
+developer controls; no new screenshot evidence substitutes for product results.
+
+Fixture: LevitateOS/factory-installed-github-check-20261109 issue54 / PR56.
+Original command `b191af3f22ad4122b1e7b28956571c03` admitted at
+2026-11-11T00:16:28Z; head3dd5ed757827304b472d6d7ff5e982539a66abaa,
+base0954a2d9ef2f6a9343b20e178c3c224d49b5f28d. No initial Builder or old model
+was replayed. All roles/judgments use Muse source3d34808251c58eb6555cad0ea58065b9,
+model muse-spark-1.3-contributor, verified executable1.4.15-R8339.1
+(abe0a72878c62b570c6eed6c17c5fc3c520a990ecf040511741c00092312a3d5).
+
+| Role | Retained run | Result |
+| --- | --- | --- |
+| Architect | 16329740ae2b93f444c81dc4eabadaba | Succeeded; accepted plan-completeness opinion |
+| Inspector | 2c8a34791c0f43a8c15710c81f9d5061 | Succeeded; genuine missing second help Usage form |
+| Fixer | 2b2cd7780401ed59eb9cf6265ec17084 | Succeeded; e91506e903852da8166a541fbcdc4f3bc6a05ab9, only note.sh changed |
+| Independent re-inspection | 590f13b1b8d004d58ca71b75dccd1509 | Deadline cancellation; no submitted verdict |
+
+Finding ad34025fdf74289c3d5ffc5cd863e5f8 has GitHub COMMENT review5851605422
+with agent verdict REQUEST_CHANGES; personal-account inspection never votes.
+Fixer retained the finding key/set, fixed disposition and commit/path evidence.
+The second Inspector received that carried finding on the exact corrected head.
+Human issue/PR text and pre-existing reviews remain intact.
+
+Correction operation soda-b191af3f22ad4122b1e7b28956571c03-publish-2 / native
+command6e3ffc80ca23fe95d189f4ac0e82c49f has a committed/complete causal receipt:
+old3dd5ed75, newe91506e9, comparison0954a2d9, bundlef3156b58,
+provider response81da2ad0. Original NotAfter1794357555 remained unchanged;
+reopen adopted it at1794357923, 368 seconds after expiry, with tuple revision1.
+No second send was authorized by lookup absence. Real GitHub CI42932424356
+passed on e91506e9; PR56 remains open/unmerged.
+
+The second Inspector ran 00:50:43–00:55:37Z and retired/sealed after its captured
+deadline. Frozen output proves four successful tools and four completed model
+streams; the last event opens the fifth Meta model stream, with no subsequent
+completion/error or finish-review proposal. No tool rejection or contradictory
+requirement is observed in this run; the underlying provider/stream delay
+remains unknown. Do not classify it as a wrong model verdict or replay that
+uncertain inference to replace this evidence.
+
+Accounting: source153→177 of the unchanged180-minute allowance: four worker
+charges total12 minutes and twelve judgment charges total12. Exactly two review
+assignments and one correction were consumed; the original five-minute/run
+attempt is closed/inactive. No active/unsettled run remains. Normal UI restored
+the prior15-minute default (policy7) and global capacity1 (revision3).
+Temporary capacity2 let this GitHub lineage proceed without altering the
+separate retained Fountain allowance or contacting its host. Original uncertain
+publication0bc012940c247259280c0c90166c388c remains fenced/effect_indeterminate.
+
+Private evidence: /home/vince/Projects/factory-real-cycle-20261110/ contains
+final-ledger.json, correction-causal-outcome.json, reinspection-diagnosis.json,
+the original frozen re-inspection receipt, original UI command, exact source/
+build inputs and stage/archive lineage. The app is idle under guest child8.sh;
+no check/model is running. Unrelated implementation-tasks.md edits are preserved.
+
+Remaining gate/next action: a successful fresh independent Inspector verdict
+with exact-head coverage is required before any allowed merge. The closed
+two-review allowance cannot launch it; a future bounded continuation must use
+a fresh command and sufficient finite source room (only three minutes remain),
+reusing PR56, its completed candidate and all original receipts. No automatic
+retry, allowance increase, model replay or old authority renewal was performed
+or left running.
+
 ## Deterministic role-contract exercise (2026-11-10)
 
 Status: scoped deterministic role contracts, automatic native handoffs and
