@@ -89,6 +89,10 @@ const deliveryBuckets: Record<DeliveryState, keyof OverviewCounts> = {
   not_authorized: 'attention',
   cancelled: 'other',
   unrecorded: 'other',
+  merge_fenced: 'attention',
+  merge_failed: 'attention',
+  checks_superseded: 'attention',
+  unrecognized: 'other',
 };
 function bucketDelivery(delivery: DeliveryState): keyof OverviewCounts {
   return deliveryBuckets[delivery];

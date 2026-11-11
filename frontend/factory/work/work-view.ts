@@ -33,7 +33,11 @@ export type DeliveryState =
   | 'queued'
   | 'not_authorized'
   | 'recorded_complete_without_merge'
-  | 'unrecorded';
+  | 'unrecorded'
+  | 'merge_fenced'
+  | 'merge_failed'
+  | 'checks_superseded'
+  | 'unrecognized';
 
 export interface WorkDetailModel {
   readonly delivery: DeliveryState;
@@ -71,20 +75,55 @@ function describeBlocker(blocker: {
   return {code: blocker.code, resolution: blocker.resolution, ...(endpoint === undefined ? {} : {endpoint})};
 }
 
+function unreachable(value: never): never {
+  throw new Error(`Unhandled delivery input: ${String(value)}`);
+}
+
 function mergeDelivery(detail: FactoryIssueDetail): DeliveryState | undefined {
-  if (detail.merge?.stage !== 'merged') return undefined;
-  return detail.closure.state === 'confirmed' ? 'delivered' : 'merge_confirmed_closure_pending';
+  const stage = detail.merge?.stage;
+  switch (stage) {
+    case undefined:
+    case 'open':
+    case 'withdrawn':
+      return undefined;
+    case 'merged':
+      return detail.closure.state === 'confirmed' ? 'delivered' : 'merge_confirmed_closure_pending';
+    case 'fenced':
+      return 'merge_fenced';
+    case 'failed':
+      return 'merge_failed';
+    case 'unknown':
+      return 'unrecognized';
+    default:
+      return unreachable(stage);
+  }
 }
 
 function checksDelivery(detail: FactoryIssueDetail): DeliveryState | undefined {
-  if (detail.checks?.verdict === 'failed') return 'checks_failed';
-  if (detail.checks?.verdict === 'pending') return 'checks_pending';
-  if (detail.checks?.verdict === 'refused') return 'evidence_refused';
-  return undefined;
+  const verdict = detail.checks?.verdict;
+  const stale = detail.checks?.stale === true;
+  switch (verdict) {
+    case undefined:
+    case 'pass':
+      return undefined;
+    case 'failed':
+      return stale ? 'checks_superseded' : 'checks_failed';
+    case 'pending':
+      return stale ? 'checks_superseded' : 'checks_pending';
+    case 'refused':
+      return 'evidence_refused';
+    case 'unknown':
+      return 'unrecognized';
+    default:
+      return unreachable(verdict);
+  }
 }
 
 function readinessDelivery(detail: FactoryIssueDetail): DeliveryState {
-  switch (detail.readiness?.readiness) {
+  const readiness = detail.readiness?.readiness;
+  switch (readiness) {
+    case undefined:
+      return 'unrecorded';
     case 'cancelled':
       return 'cancelled';
     case 'needs_intervention':
@@ -99,8 +138,10 @@ function readinessDelivery(detail: FactoryIssueDetail): DeliveryState {
       return 'not_authorized';
     case 'completed':
       return 'recorded_complete_without_merge';
+    case 'unknown':
+      return 'unrecognized';
     default:
-      return 'unrecorded';
+      return unreachable(readiness);
   }
 }
 
@@ -122,6 +163,10 @@ const deliveryCopy: Record<DeliveryState, string> = {
   not_authorized: 'Not authorized.',
   recorded_complete_without_merge: 'Recorded complete without merge evidence.',
   unrecorded: 'No recorded work yet.',
+  merge_fenced: 'Merge needs attention: its outcome is unknown and a person must resolve it.',
+  merge_failed: 'Merge failed.',
+  checks_superseded: 'Checks are for a superseded candidate.',
+  unrecognized: 'Status not recognized by this view.',
 };
 
 function acceptanceCopy(detail: FactoryIssueDetail): {text: string; invalid: boolean} {
