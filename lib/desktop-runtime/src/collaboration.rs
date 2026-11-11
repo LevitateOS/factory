@@ -724,6 +724,15 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         BackgroundEffect::Current => Operation::Current,
         BackgroundEffect::Read { query }
             if matches!(
+                &query,
+                Read::PullFiles { base, head, page: 1, limit: 1..=10, .. }
+                    if !base.is_empty() && !head.is_empty()
+            ) =>
+        {
+            Operation::Read(query)
+        }
+        BackgroundEffect::Read { query }
+            if matches!(
                 query,
                 Read::Identity
                     | Read::OperationGrant { .. }

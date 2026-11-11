@@ -6,13 +6,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
+	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -131,6 +134,89 @@ func (p NativeReviews) ReadExternalPullTarget(ctx context.Context,repository,num
 	}
 	return factory.ReviewObservation{NativeRev: revision, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: raw.HeadTip, BaseOID: raw.BaseTip}, nil
 }
+
+// ReadExternalPullContext captures candidate evidence before paid planning. The
+// prepared workspace remains at the approved base; authenticated PR reads own
+// the distinct candidate diff. Unsupported or incomplete diffs stay unavailable.
+func (p NativeReviews) ReadExternalPullContext(ctx context.Context, request factory.ExternalPullAdoption) (collaboration.PullRequest, collaboration.PullFiles, factory.ReviewObservation, error) {
+	var pull collaboration.PullRequest
+	var files collaboration.PullFiles
+	fail := func(reason string, cause error) (collaboration.PullRequest, collaboration.PullFiles, factory.ReviewObservation, error) {
+		// Retain the original error for callers, but log only defining stage and
+		// bounded native status/sentinel classes; never provider error text.
+		class, status := "owner", 0
+		var native *NativePortError
+		switch {
+		case errors.As(cause, &native):
+			class, status = "native", native.Status
+		case errors.Is(cause, context.DeadlineExceeded):
+			class = "deadline"
+		case errors.Is(cause, errNativeRead):
+			class = "projection"
+		case errors.Is(cause, factoryservice.ErrPullFilesChanged):
+			class = "diff_changed"
+		case errors.Is(cause, factoryservice.ErrPullFilesTooLarge):
+			class = "diff_too_large"
+		case errors.Is(cause, factoryservice.ErrPullFilesUnavailable), errors.Is(cause, factoryservice.ErrCollaborationPullUnavailable):
+			class = "unavailable"
+		}
+		log.Printf("external pull context refused stage=%q class=%q native_status=%d", reason, class, status)
+		return pull, files, factory.ReviewObservation{}, errors.Join(&factory.PublicationRefusal{Reason: reason}, cause)
+	}
+	if request.Validate() != nil || request.Target.HeadRepository != request.Repository {
+		return fail("external_pr_context_request", errNativeReadScope)
+	}
+	policy, err := p.Store.RepositoryPolicy(ctx, request.Repository)
+	if err != nil || policy.Revision != request.Policy || policy.TargetBranch != request.Target.BaseRef {
+		return fail("external_pr_context_policy", err)
+	}
+	t := request.Target
+	w := factory.ReviewWork{Repository: request.Repository, ActorID: policy.Review.ActorID, PRNumber: request.PRNumber, PRID: request.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: t.HeadOID, BaseOID: t.BaseOID}
+	account, err := p.account(ctx, strconv.FormatInt(request.Repository, 10), factory.OpReviewSubmit)
+	if err != nil {
+		return fail("external_pr_context_account", err)
+	}
+	if int64(account.binding.Actor.ID) != w.ActorID || account.binding.Connection.ID != policy.Review.NativeConnection || p.Config.Profile != policy.Review.NativeProfile {
+		return fail("external_pr_context_authority", nil)
+	}
+	reads := nativeCollaborationReads{account}
+	actor, repository := account.binding.Actor.ID, account.repository.ID
+	pulls, err := (factoryservice.CollaborationPulls{Source: reads}).Read(ctx, actor, repository, factoryservice.CollaborationPullQuery{Number: request.PRNumber, Limit: 1})
+	if err != nil {
+		return fail("external_pr_context_pull_read", err)
+	}
+	if len(pulls.Items) != 1 || !pulls.Complete {
+		return fail("external_pr_context_pull_page", errNativeRead)
+	}
+	pull = pulls.Items[0]
+	if pull.Ref.ExternalID != strconv.FormatInt(request.PRID, 10) || pull.State != "open" || pull.Draft == nil || *pull.Draft || pull.Author == nil || int64(pull.Author.ID) != t.AuthorID || pull.Head.Repository == nil || int64(pull.Head.Repository.ID) != request.Repository || pull.Base.Repository == nil || int64(pull.Base.Repository.ID) != request.Repository || pull.Head.Commit == nil || pull.Base.Commit == nil || string(*pull.Head.Commit) != t.HeadOID || string(*pull.Base.Commit) != t.BaseOID || pull.Head.Name != strings.TrimPrefix(t.HeadRef, "refs/heads/") || pull.Base.Name != strings.TrimPrefix(t.BaseRef, "refs/heads/") {
+		return fail("external_pr_context_pull_identity", nil)
+	}
+	// One complete page is the fixed pre-planning evidence bound. Never silently
+	// truncate a candidate or substitute the base workspace's empty diff.
+	files, err = (factoryservice.CollaborationPullFiles{Source: reads}).Read(ctx, actor, repository, request.PRNumber, factoryservice.PullFilesQuery{Base: collaboration.CommitID(t.BaseOID), Head: collaboration.CommitID(t.HeadOID), Limit: 10})
+	if err != nil {
+		return fail("external_pr_context_files_read", err)
+	}
+	if !files.Files.Complete || files.Diff.Pull != pull.Ref {
+		return fail("external_pr_context_files_complete", nil)
+	}
+	for _, file := range files.Files.Items {
+		if file.PatchState != "complete" || file.Patch == nil || file.Change == "unknown" {
+			return fail("external_pr_context_patch", nil)
+		}
+	}
+	// The initial Pull identity and the native diff owner's before/after pins
+	// precede this full-tuple observation. Reuse it as the origin instead of
+	// spending the bounded request on additional identical authenticated reads.
+	observed, err := p.ObserveReview(ctx, w)
+	if err != nil {
+		return fail("external_pr_context_observe_after", err)
+	}
+	// ObserveReview's defining read already verifies current background custody.
+	return pull, files, observed, nil
+}
+
 func nativeReviewOutcome(w factory.ReviewWork, lookup collaboration.OperationLookup) factory.OperationOutcome {
 	if lookup.Record == nil {
 		return factory.OperationOutcome{OperationID: w.OperationID, NotObserved: true}

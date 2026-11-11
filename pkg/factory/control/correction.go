@@ -228,6 +228,7 @@ func (c *Coordinator) prepareCorrectionWork(ctx context.Context, admission *corr
 	}
 	q := p
 	q.Run, q.Candidate = runID, admission.reported.Candidate
+	q.Preparation = admission.assignment.Preparation
 	bundle, terminal, wait := c.exportCandidate(ctx, q, admission.run)
 	if wait != nil {
 		correctionWait(report, p.ID, wait.Reason)
@@ -682,14 +683,51 @@ func (c *Coordinator) adoptCorrectionOutcome(ctx context.Context, p *factory.Pub
 		return false
 	}
 	if op.Effect == factory.OpEffectCommitted {
-		if op.Work == nil || op.RunID == "" {
-			c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
+		if !c.adoptCorrectionHead(ctx, p, report) {
 			return false
 		}
-		p.Candidate = op.Work.Candidate
-		p.Run = op.RunID
 	}
 	return c.storeCorrection(ctx, p, report)
+}
+
+// adoptCorrectionHead validates the original causal receipt with its retained
+// run before moving the candidate and verification tuple together. Native
+// candidate export proves descent from the run input. When the recorded base
+// was already an ancestor of that input, it remains the actual merge-base of
+// the corrected descendant. Other triples require a fresh native observation.
+func (c *Coordinator) adoptCorrectionHead(ctx context.Context, p *factory.Publication, report *CorrectionReport) bool {
+	op := &p.Corrections[len(p.Corrections)-1]
+	if op.Work == nil || !factory.ValidID(op.RunID) {
+		c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
+		return false
+	}
+	run, err := c.Store.FactoryRun(ctx, op.RunID)
+	if err != nil {
+		correctionError(report, p.ID, "store_unavailable")
+		return false
+	}
+	work := op.Work.Apply(factory.PublicationWork{AssignmentID: p.AssignmentID, Publication: p.ID, RunID: op.RunID, Run: run})
+	if _, err := c.Publication.AdoptBranch(ctx, work, operationOutcomeOf(*op)); err != nil {
+		c.correctionCallError(report, p.ID, err)
+		return false
+	}
+	if p.Tuple != nil && p.Tuple.Head != op.Work.Candidate {
+		tuple := p.Tuple
+		if run.Native == nil || !run.Native.Settled() || !run.Reconciled ||
+			tuple.Head != op.Work.ExpectedOld || run.InputSHA != tuple.Head ||
+			tuple.Base != tuple.DiffBase || tuple.Base != op.Work.ComparisonOID {
+			correctionWait(report, p.ID, "candidate_tuple_observation_required")
+			return false
+		}
+		advanced, err := tuple.Advance(tuple.Revision, op.Work.Candidate, tuple.Base, tuple.DiffBase)
+		if err != nil {
+			correctionWait(report, p.ID, "candidate_tuple_observation_required")
+			return false
+		}
+		p.Tuple = &advanced
+	}
+	p.Candidate, p.Run = op.Work.Candidate, op.RunID
+	return true
 }
 
 // linkCorrection verifies one committed correction receipt against its
@@ -697,9 +735,7 @@ func (c *Coordinator) adoptCorrectionOutcome(ctx context.Context, p *factory.Pub
 // publication instead of linking a moved head.
 func (c *Coordinator) linkCorrection(ctx context.Context, p *factory.Publication, a factory.Assignment, report *CorrectionReport) {
 	op := &p.Corrections[len(p.Corrections)-1]
-	adopt := op.Work.Apply(factory.PublicationWork{AssignmentID: a.ID, Publication: p.ID})
-	if _, err := c.Publication.AdoptBranch(ctx, adopt, operationOutcomeOf(*op)); err != nil {
-		c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
+	if !c.adoptCorrectionHead(ctx, p, report) {
 		return
 	}
 	report.Corrected = append(report.Corrected, CorrectionLink{
@@ -722,15 +758,7 @@ func (c *Coordinator) cancelRecordedCorrection(ctx context.Context, p *factory.P
 		return
 	}
 	if !outcome.NotObserved && op.Effect == factory.OpEffectCommitted {
-		if op.Work == nil {
-			c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
-			return
-		}
-		p.Candidate = op.Work.Candidate
-		p.Run = op.RunID
-		work := op.Work.Apply(factory.PublicationWork{AssignmentID: p.AssignmentID, Publication: p.ID})
-		if _, err := c.Publication.AdoptBranch(ctx, work, operationOutcomeOf(*op)); err != nil {
-			c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
+		if !c.adoptCorrectionHead(ctx, p, report) {
 			return
 		}
 	}
