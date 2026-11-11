@@ -226,7 +226,7 @@ impl Reader<'_> {
         let variables = json!({"pull":r::text(&raw,"node_id")?});
         let graph = self.client.provider_request(move |http| {
             Ok((super::transport::graphql(http, &token, query, variables)?, 65536))
-        }, true).await?.value;
+        }, None).await?.value;
         let pull = &graph["data"]["node"];
         if pull["__typename"] != "PullRequest" || pull["id"] != raw["node_id"]
             || pull["repository"]["id"] != raw["base"]["repo"]["node_id"]

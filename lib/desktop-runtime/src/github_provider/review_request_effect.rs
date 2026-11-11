@@ -128,12 +128,12 @@ impl Client {
                 }
             }
             let selector = r::text(target, if team { "slug" } else { "login" })?;
-            permit.dispatch("github_review_request_expired")?;
+            let proof = permit.dispatch("github_review_request_expired")?;
             let response = if q.requested {
-                self.post_review_request(pull_node, target_node, team, token)
+                self.post_review_request(&proof, pull_node, target_node, team, token)
                     .await?
             } else {
-                self.remove_review_request(&reader.name, q.number, selector, team, token)
+                self.remove_review_request(&proof, &reader.name, q.number, selector, team, token)
                     .await?
             };
             let actor = if q.requested {
@@ -228,6 +228,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_review_request(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         pull: &str,
         target: &str,
         team: bool,
@@ -259,12 +260,13 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }
     pub(super) async fn remove_review_request(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         repository: &str,
         number: u64,
         selector: &str,
@@ -312,7 +314,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

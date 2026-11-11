@@ -157,8 +157,8 @@ impl Client {
             {
                 return Err(Failure::new(409, "github_review_body_required"));
             }
-            permit.dispatch("github_review_submission_expired")?;
-            let response = self.post_pending_review(q, token).await?;
+            let proof = permit.dispatch("github_review_submission_expired")?;
+            let response = self.post_pending_review(&proof, q, token).await?;
             let raw = &response.value["data"][if q.event == "draft" { "updatePullRequestReview" } else { "submitPullRequestReview" }]["pullRequestReview"];
             let id = r::big_id(&raw["fullDatabaseId"])?;
             if raw["id"] != q.review_node_id
@@ -200,6 +200,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_pending_review(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         q: &super::PendingReviewSubmit,
         token: &[u8],
     ) -> super::Result<super::transport::MutationResponse> {
@@ -228,7 +229,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

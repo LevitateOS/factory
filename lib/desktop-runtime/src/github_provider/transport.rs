@@ -305,6 +305,16 @@ impl Client {
         }
         Ok((wire.bytes.to_vec(), sha256(&wire.bytes)))
     }
+    pub(super) async fn git_push(
+        &self,
+        _proof: &super::writes::Dispatched<'_>,
+        name: &str,
+        token: &[u8],
+        body: Vec<u8>,
+    ) -> Result<(Vec<u8>, String)> {
+        self.git_request(name, token, GitService::ReceivePack, Some(body))
+            .await
+    }
     // Retire the whole admitted native operation as well as each wire request.
     // This includes waits for Go mapping and native conditional credential I/O.
     pub(crate) async fn scope<F: std::future::Future>(&self, work: F) -> Result<F::Output> {
@@ -426,7 +436,7 @@ impl Client {
     pub(super) async fn provider_request<F>(
         &self,
         build: F,
-        read_query: bool,
+        write: Option<&super::writes::Dispatched<'_>>,
     ) -> Result<MutationResponse>
     where
         F: FnOnce(&Http) -> Result<(reqwest::RequestBuilder, usize)> + Send + 'static,
@@ -436,7 +446,7 @@ impl Client {
             if matches!(wire.status, 400 | 422) {
                 return Err(Failure::new(
                     400,
-                    if read_query {
+                    if write.is_none() {
                         "github_query_rejected"
                     } else {
                         "github_write_rejected"

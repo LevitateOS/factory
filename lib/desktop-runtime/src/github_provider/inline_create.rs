@@ -122,7 +122,7 @@ impl Client {
             if !q.draft {
                 input["event"] = json!("COMMENT");
             }
-            permit.dispatch("github_inline_creation_expired")?;
+            let proof = permit.dispatch("github_inline_creation_expired")?;
             let response = self
                 .provider_request(
                     move |http| {
@@ -131,7 +131,7 @@ impl Client {
                             1024 * 1024,
                         ))
                     },
-                    false,
+                    Some(&proof),
                 )
                 .await?;
             let review = &response.value["data"]["addPullRequestReview"]["pullRequestReview"];

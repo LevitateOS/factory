@@ -101,7 +101,7 @@ impl Client {
                         2 * 1024 * 1024,
                     ))
                 },
-                true,
+                None,
             )
             .await?
             .value)

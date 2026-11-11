@@ -94,9 +94,9 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            permit.dispatch("github_comment_expired")?;
+            let proof = permit.dispatch("github_comment_expired")?;
             let response = self
-                .post_comment(subject_node, &comment.body, token)
+                .post_comment(&proof, subject_node, &comment.body, token)
                 .await?;
             let payload = &response.value["data"]["addComment"];
             let raw = &payload["commentEdge"]["node"];
@@ -151,6 +151,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_comment(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         node: &str,
         body: &str,
         token: &[u8],
@@ -173,7 +174,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

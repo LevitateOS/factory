@@ -63,7 +63,7 @@ impl Reader<'_> {
                         128 * 1024,
                     ))
                 },
-                true,
+                None,
             )
             .await?;
         let repo = &response.value["data"]["node"];
@@ -125,8 +125,8 @@ impl Client {
    let query=format!("mutation FactoryDependency($input:{input}!){{{operation}(input:$input){{issue{{id fullDatabaseId number repository{{id nameWithOwner}}}} blockingIssue{{id fullDatabaseId number repository{{id nameWithOwner}}}}}}}}");
    let variables=json!({"input":{"issueId":issue_node,"blockingIssueId":blocking_node}});
    let token=zeroize::Zeroizing::new(token.to_vec());
-   permit.dispatch("github_dependency_expired")?;
-   let response=self.provider_request(move |http|Ok((super::transport::graphql(http,&token,&query,variables)?,128*1024)),false).await?;
+   let proof = permit.dispatch("github_dependency_expired")?;
+   let response=self.provider_request(move |http|Ok((super::transport::graphql(http,&token,&query,variables)?,128*1024)),Some(&proof)).await?;
    let payload=&response.value["data"][operation];
    for (key,id,node,number) in [("issue",edit.issue_id.as_str(),issue_node,edit.number),("blockingIssue",edit.blocking_id.as_str(),blocking_node,edit.blocking_number)] {
     let raw=&payload[key];

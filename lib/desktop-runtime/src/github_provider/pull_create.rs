@@ -165,8 +165,8 @@ impl Client {
             } else {
                 format!("{head_owner}:{}", q.head_branch)
             };
-            permit.dispatch("github_pull_creation_expired")?;
-            let response = self.post_pull(q, &head_ref, token).await?;
+            let proof = permit.dispatch("github_pull_creation_expired")?;
+            let response = self.post_pull(&proof, q, &head_ref, token).await?;
             let raw = &response.value["data"]["createPullRequest"]["pullRequest"];
             let id = r::big_id(&raw["fullDatabaseId"])?;
             let number = raw["number"]
@@ -246,6 +246,7 @@ fn verify_side(raw: &Value, side: &str, branch: &str, pin: &PullBranchPin) -> Re
 impl Client {
     pub(super) async fn post_pull(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         q: &super::PullCreate,
         head_ref: &str,
         token: &[u8],
@@ -282,6 +283,6 @@ impl Client {
                 )?,
                 1024 * 1024,
             )
-        }), false).await
+        }), Some(proof)).await
     }
 }

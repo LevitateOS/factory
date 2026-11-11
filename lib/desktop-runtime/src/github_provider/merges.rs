@@ -95,7 +95,7 @@ impl Reader<'_> {
                             1024 * 1024,
                         ))
                     },
-                    true,
+                    None,
                 )
                 .await?
                 .value;
@@ -229,10 +229,10 @@ impl Client {
                 || facts["archived"] != false || facts["disabled"] != false || facts["push"] != true
                 || facts["methods"][&q.method] != true
             { return Err(Failure::new(403,"github_merge_unavailable")); }
-            permit.dispatch("github_merge_expired")?;
+            let proof = permit.dispatch("github_merge_expired")?;
             let input = q.input();
             let token = zeroize::Zeroizing::new(token.to_vec());
-            let response = self.provider_request(move |http| Ok((super::transport::graphql(http,&token,MERGE,json!({"input":input}))?,1024*1024)),false).await?;
+            let response = self.provider_request(move |http| Ok((super::transport::graphql(http,&token,MERGE,json!({"input":input}))?,1024*1024)),Some(&proof)).await?;
             let payload = &response.value["data"]["mergePullRequest"];
             let pull = &payload["pullRequest"];
             let merged = &pull["mergeCommit"];

@@ -125,8 +125,8 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            permit.dispatch("github_state_expired")?;
-            let response = self.post_state(subject_node, mutation, token).await?;
+            let proof = permit.dispatch("github_state_expired")?;
+            let response = self.post_state(&proof, subject_node, mutation, token).await?;
             let (field, kind) = mutation.payload();
             let raw = &response.value["data"][field][kind];
             if raw["id"] != subject_node
@@ -166,6 +166,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_state(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         node: &str,
         mutation: super::states::StateMutation,
         token: &[u8],
@@ -188,7 +189,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

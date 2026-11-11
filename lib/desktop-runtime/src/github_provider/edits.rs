@@ -121,9 +121,10 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            permit.dispatch("github_edit_expired")?;
+            let proof = permit.dispatch("github_edit_expired")?;
             let response = self
                 .post_edit(
+                    &proof,
                     subject_node,
                     pull,
                     edit.title.as_deref(),
@@ -175,6 +176,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_edit(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         node: &str,
         pull: bool,
         title: Option<&str>,
@@ -212,7 +214,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

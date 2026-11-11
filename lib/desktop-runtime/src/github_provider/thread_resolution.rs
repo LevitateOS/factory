@@ -145,9 +145,9 @@ impl Client {
             if thread[action].as_bool() != Some(true) {
                 return Err(Failure::new(403, "github_thread_resolution_denied"));
             }
-            permit.dispatch("github_thread_expired")?;
+            let proof = permit.dispatch("github_thread_expired")?;
             let response = self
-                .post_thread_resolution(&q.thread_id, q.resolved, token)
+                .post_thread_resolution(&proof, &q.thread_id, q.resolved, token)
                 .await?;
             let mutation = if q.resolved {
                 "resolveReviewThread"
@@ -197,6 +197,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_thread_resolution(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         node: &str,
         resolved: bool,
         token: &[u8],
@@ -219,7 +220,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

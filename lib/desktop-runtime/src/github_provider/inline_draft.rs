@@ -129,8 +129,8 @@ impl Client {
             } else {
                 r::text(file, "new_path")?
             };
-            permit.dispatch("github_inline_creation_expired")?;
-            let response = self.post_inline_draft(q, path, token).await?;
+            let proof = permit.dispatch("github_inline_creation_expired")?;
+            let response = self.post_inline_draft(&proof, q, path, token).await?;
             let thread = &response.value["data"]["addPullRequestReviewThread"]["thread"];
             let side = if q.anchor.side == "old" {
                 "LEFT"
@@ -259,6 +259,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_inline_draft(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         q: &super::InlineDraft,
         path: &str,
         token: &[u8],
@@ -277,7 +278,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

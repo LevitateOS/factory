@@ -219,6 +219,6 @@ impl Client {
                 )?,
                 1024 * 1024,
             )
-        }), true).await?.value)
+        }), None).await?.value)
     }
 }

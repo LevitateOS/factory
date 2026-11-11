@@ -72,17 +72,21 @@ impl Mutation {
     }
 }
 
+/// Proof that `MutationPermit::dispatch` recorded the attempt. Only `dispatch`
+/// can build it, and every mutating provider request requires it.
+pub(super) struct Dispatched<'a>(std::marker::PhantomData<&'a ()>);
+
 impl MutationPermit<'_> {
     // Calling the fixed transport after this fence is an attempted effect even
     // when its reply is lost, cancelled, malformed or exceeds the receipt bound.
-    pub fn dispatch(&mut self, expired: &'static str) -> Result<()> {
+    pub fn dispatch(&mut self, expired: &'static str) -> Result<Dispatched<'_>> {
         self.client.current()?;
         if Instant::now() >= self.mutation.deadline {
             return Err(Failure::new(409, expired));
         }
         *self.next = Instant::now() + Duration::from_secs(1);
         self.mutation.attempted.store(true, Ordering::SeqCst);
-        Ok(())
+        Ok(Dispatched(std::marker::PhantomData))
     }
 }
 

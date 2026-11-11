@@ -139,8 +139,8 @@ impl Client {
                 }
                 Some(reader.merge_base(&q.base,&q.head).await?)
             } else { None };
-            permit.dispatch("github_review_creation_expired")?;
-            let response = self.post_review(q, token).await?;
+            let proof = permit.dispatch("github_review_creation_expired")?;
+            let response = self.post_review(&proof, q, token).await?;
             let raw = &response.value["data"]["addPullRequestReview"]["pullRequestReview"];
             let id = r::big_id(&raw["fullDatabaseId"])?;
             if !r::text(raw, "id").is_ok_and(node_id)
@@ -187,6 +187,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_review(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         q: &super::ReviewCreate,
         token: &[u8],
     ) -> super::Result<super::transport::MutationResponse> {
@@ -214,7 +215,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

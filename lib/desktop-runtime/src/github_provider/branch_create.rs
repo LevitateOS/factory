@@ -167,8 +167,8 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_branch_write_unavailable"));
             }
-            permit.dispatch("github_branch_creation_expired")?;
-            let response = self.post_branch(q, token).await?;
+            let proof = permit.dispatch("github_branch_creation_expired")?;
+            let response = self.post_branch(&proof, q, token).await?;
             let branch = project_branch(
                 &response.value["data"]["createRef"]["ref"],
                 &q.repository_node_id,
@@ -211,10 +211,11 @@ impl Client {
                 )?,
                 1024 * 1024,
             )
-        }), true).await?.value)
+        }), None).await?.value)
     }
     pub(super) async fn post_branch(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         q: &super::BranchCreate,
         token: &[u8],
     ) -> super::Result<super::transport::MutationResponse> {
@@ -238,6 +239,6 @@ impl Client {
                 )?,
                 1024 * 1024,
             )
-        }), false).await
+        }), Some(proof)).await
     }
 }

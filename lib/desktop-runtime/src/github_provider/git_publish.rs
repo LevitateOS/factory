@@ -185,8 +185,8 @@ impl Client {
             let command = format!("{old} {} {target}\0report-status ofs-delta\n", q.candidate);
             let mut body = format!("{:04x}{command}0000", command.len() + 4).into_bytes();
             body.extend_from_slice(&pack);
-            permit.dispatch("github_publication_expired")?;
-            let (reply, response_sha256) = self.git_request(&reader.name, token, GitService::ReceivePack, Some(body)).await?;
+            let proof = permit.dispatch("github_publication_expired")?;
+            let (reply, response_sha256) = self.git_push(&proof, &reader.name, token, body).await?;
             let mut bytes = reply.as_slice();
             let unpack = packet(&mut bytes)?;
             let status = packet(&mut bytes)?;

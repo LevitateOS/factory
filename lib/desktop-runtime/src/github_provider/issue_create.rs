@@ -81,9 +81,9 @@ impl Client {
             if repository["has_issues"].as_bool() != Some(true) {
                 return Err(Failure::new(403, "github_issues_unavailable"));
             }
-            permit.dispatch("github_issue_creation_expired")?;
+            let proof = permit.dispatch("github_issue_creation_expired")?;
             let response = self
-                .post_issue(repository_node, &issue.title, &issue.body, token)
+                .post_issue(&proof, repository_node, &issue.title, &issue.body, token)
                 .await?;
             let raw = &response.value["data"]["createIssue"]["issue"];
             let id = r::big_id(&raw["fullDatabaseId"])?;
@@ -122,6 +122,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_issue(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         node: &str,
         title: &str,
         body: &str,
@@ -146,7 +147,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }

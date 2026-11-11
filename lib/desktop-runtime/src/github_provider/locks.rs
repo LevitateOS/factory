@@ -102,9 +102,9 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            permit.dispatch("github_lock_expired")?;
+            let proof = permit.dispatch("github_lock_expired")?;
             let response = self
-                .post_lock(subject_node, lock.lock, reason, token)
+                .post_lock(&proof, subject_node, lock.lock, reason, token)
                 .await?;
             let (mutation, field) = if lock.lock {
                 ("lockLockable", "lockedRecord")
@@ -151,6 +151,7 @@ impl Client {
 impl Client {
     pub(super) async fn post_lock(
         &self,
+        proof: &super::writes::Dispatched<'_>,
         node: &str,
         lock: bool,
         reason: Option<&str>,
@@ -180,7 +181,7 @@ impl Client {
                     1024 * 1024,
                 ))
             },
-            false,
+            Some(proof),
         )
         .await
     }
