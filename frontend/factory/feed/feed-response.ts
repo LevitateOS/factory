@@ -29,6 +29,9 @@ export type FeedCommunicationKind =
   | 'journey'
   | 'diagnosis'
   | 'repair_draft';
+export const feedStates = ['needs_you', 'problem', 'waiting', 'in_progress', 'done', 'decided', 'info'] as const;
+export type FeedState = (typeof feedStates)[number];
+
 export type FeedActivity = 'merged' | 'completed' | 'judgment' | FeedCommunicationKind;
 
 export interface FeedEntry {
@@ -45,6 +48,8 @@ export interface FeedEntry {
   project?: string;
   at?: number;
   status?: string;
+  // The server's classification of the entry; status is display text only.
+  state?: FeedState;
   issue?: number;
   pr?: number;
   ref?: string;
@@ -291,6 +296,7 @@ export function parseFeedPageView(value: unknown): FeedPageView {
       const entry = object(raw);
       check(typeof entry.id === 'string' && id(entry.repository) && typeof entry.seq === 'number');
       const parsed = camelize({...entry, post: undefined}) as FeedEntry;
+      if (!feedStates.includes(parsed.state as FeedState)) delete parsed.state;
       if (entry.post !== undefined) parsed.post = parseFeedPostDetail(entry.post);
       else delete parsed.post;
       return [parsed];
@@ -582,17 +588,6 @@ export function newIdempotencyKey(): string {
 
 export function postAttemptsExhausted(state: PostPipelineState): boolean {
   return state.attempts !== undefined && state.attemptLimit !== undefined && state.attempts >= state.attemptLimit;
-}
-
-// postUnsettled reports whether one pipeline still advances on the
-// server; the feed refresh picks up its next state.
-export function postUnsettled(state: PostPipelineState): boolean {
-  if (state.productChange || postAttemptsExhausted(state)) return false;
-  if (state.judgment === 'pending') return true;
-  if (state.judgment === 'failed') return false;
-  if (state.route === 'new_issue')
-    return state.draft === 'pending' || (state.draft !== 'invalid' && state.effect === 'pending');
-  return state.route === 'existing_work' && state.effect === 'pending';
 }
 
 // mergeFeedEntries folds one older page behind the shown entries,

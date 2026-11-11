@@ -1,4 +1,4 @@
-import type {FeedCommunication, FeedEntry, FeedJudgment} from './feed-response.js';
+import type {FeedCommunication, FeedEntry, FeedJudgment, FeedState} from './feed-response.js';
 
 // Parent links connect one logical thread. Main-feed placement is independent:
 // starts, handoffs, outcomes and attention surface; routine replies stay inside.
@@ -6,7 +6,7 @@ import type {FeedCommunication, FeedEntry, FeedJudgment} from './feed-response.j
 import {roleKey, roleLabel} from './roles.js';
 export {roleLabel} from './roles.js';
 
-export type FeedState = 'needs_you' | 'problem' | 'waiting' | 'in_progress' | 'done' | 'decided' | 'info';
+export type {FeedState};
 export type FeedLevel = 'post' | 'update' | 'reply';
 
 export const feedStateWords: Readonly<Record<FeedState, string>> = {
@@ -51,30 +51,10 @@ function communicationState(communication: FeedCommunication, entry: FeedEntry):
     case 'answer':
       return 'decided';
     case 'system':
-      return statusState(entry);
+      return entry.state ?? 'info';
     default:
       return 'info';
   }
-}
-
-// statusState reads the recorded status words of one record or event. An
-// unknown status is information, never success.
-function statusState(entry: FeedEntry): FeedState {
-  const status = (entry.status ?? '').toLowerCase();
-  if (/needs-human|clarify/.test(status)) return 'needs_you';
-  if (/paused|pending|queued|waiting|settling/.test(status)) return 'waiting';
-  if (
-    /fail|error|refus|reject|invalid|blocked|stuck|unconfirmed|cancel|stopped|request-changes|exhaust|denied|conflict/.test(
-      status
-    )
-  )
-    return 'problem';
-  if (status === 'run:succeeded') return 'info';
-  if (/judgment|decid|declined|route:/.test(status)) return 'decided';
-  if (/finished:succeeded|completed|merged|verified|applied|accepted|delivered|created|valid/.test(status))
-    return 'done';
-  if (/running|assigned|assess|progress|working|submitted|draft|:/.test(status)) return 'in_progress';
-  return 'info';
 }
 
 // feedState gives one entry exactly one of the seven states. It reads the
@@ -86,7 +66,7 @@ export function feedState(entry: FeedEntry): FeedState {
   if (entry.activity === 'judgment' || payload?.judgment) return 'decided';
   if (entry.activity === 'merged' || entry.activity === 'completed') return 'done';
   if (entry.kind === 'post') return 'info';
-  return statusState(entry);
+  return entry.state ?? 'info';
 }
 
 // Posts keep their own position in the timeline. Parentage supplies context;
@@ -214,12 +194,9 @@ export function describePostLine(entry: FeedEntry, state: FeedState): PostLine {
   } else if (entry.kind === 'record') {
     const verbs = roleVerbs[roleKey(entry.actor)];
     const reviewer = roleKey(entry.actor) === 'inspector';
-    const status = entry.status ?? '';
-    const verdict = /verdict:([a-z_-]+)/.exec(status)?.[1] ?? entry.payload?.review?.verdict ?? '';
+    const verdict = entry.payload?.review?.verdict ?? '';
     if (reviewer && /request|changes|fail/.test(verdict)) headline = `${who} asked for changes on ${target}`;
     else if (reviewer && /approve|pass|clear/.test(verdict)) headline = `${who} approved ${target}`;
-    else if (status === 'dispatch:assigned') headline = `${who} started on ${target}`;
-    else if (status === 'run:succeeded') headline = `${who}'s run on ${target} ended`;
     else if (verbs && state === 'in_progress') headline = `${who} is ${verbs[0]} ${target}`;
     else if (verbs && state === 'done') headline = `${who} ${verbs[1]} ${target}`;
     else if (verbs && state === 'problem') headline = `${who} hit a problem ${verbs[0]} ${target}`;
