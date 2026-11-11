@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {check, id, object} from '../api/models.js';
 import {factoryCommandId} from '../api/run-response.js';
@@ -46,10 +47,12 @@ export class SodaFactoryCompletionRetry extends LitElement {
     {read: readCompletionRetry, retain: retainCompletionRetry, settle: settleCompletionRetry, same: sameCompletionRetry},
     () => this.requestUpdate()
   );
-  private current: RetryContext | undefined;
-  private serial = 0;
-  private generation = '';
-  private lifetime = new AbortController();
+  private bound = new ScopedBinding<RetryContext>(
+    (a, b) => a.transport === b.transport && a.repository === b.repository && a.issue === b.issue,
+    () => {
+      this.context = undefined;
+    }
+  );
 
   constructor() {
     super();
@@ -68,22 +71,11 @@ export class SodaFactoryCompletionRetry extends LitElement {
           typeof context.transport.generation === 'string' &&
           !!context.transport.generation
       );
-    const prior = this.current;
-    if (
-      context?.transport === prior?.transport &&
-      context?.repository === prior?.repository &&
-      context?.transport.generation === this.generation &&
-      context?.issue === prior?.issue
-    ) {
-      this.current = context && {...context};
+    const prior = this.bound.current;
+    if (this.bound.bind(context, context && {...context}) === 'same') {
       if (context?.observation !== prior?.observation && context) this.observe(context);
       return;
     }
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.generation = context?.transport.generation ?? '';
-    this.current = context && {...context};
-    this.serial++;
     this.gates = [];
     this.allowed = this.busy = false;
     this.cmd.reset();
@@ -94,14 +86,6 @@ export class SodaFactoryCompletionRetry extends LitElement {
     this.context = undefined;
     super.disconnectedCallback();
   }
-  private live(serial: number, context: RetryContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   private observe(context: RetryContext) {
     const observation = currentWorkObservation(context);
     this.allowed =
@@ -110,14 +94,14 @@ export class SodaFactoryCompletionRetry extends LitElement {
       !!observation.access.viewer.session_current;
     this.gates = observation?.journey?.gates.filter((gate) => gate.state === 'attention' && gate.retryable) ?? [];
     if (!this.allowed) this.message = 'Current completion review authority is unavailable. Refresh the work detail.';
-    else if (!this.busy) void this.resolveIdentity(context, this.serial);
+    else if (!this.busy) void this.resolveIdentity(context, this.bound.serial);
   }
   private async resolveIdentity(context: RetryContext, serial: number): Promise<boolean> {
     this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing completion retry identity');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]));
+      if (!this.bound.live(serial, context)) return false;
       const address: CompletionRetryAddress = {scope, repository: context.repository, issue: context.issue};
       if (this.cmd.adopt(address) === 'blocked') {
         this.message =
@@ -130,7 +114,7 @@ export class SodaFactoryCompletionRetry extends LitElement {
       else if (this.cmd.state.kind !== 'confirmed') this.message = '';
       return true;
     } catch {
-      if (this.live(serial, context)) {
+      if (this.bound.live(serial, context)) {
         this.cmd.unresolve();
         this.message = 'Completion retry identity could not be read. Refresh completion reviews before retrying.';
       }
@@ -151,11 +135,11 @@ export class SodaFactoryCompletionRetry extends LitElement {
     this.dispatchEvent(new CustomEvent('soda-completion-retry-queued', {bubbles: true, composed: true}));
   }
   private async retry(gate?: JourneyGate) {
-    const context = this.current,
-      serial = this.serial;
+    const context = this.bound.current,
+      serial = this.bound.serial;
     if (
       !context ||
-      !this.live(serial, context) ||
+      !this.bound.live(serial, context) ||
       !this.allowed ||
       !this.cmd.ready ||
       this.busy ||
@@ -173,7 +157,7 @@ export class SodaFactoryCompletionRetry extends LitElement {
         this.message = 'The saved completion retry or account changed. Review it before retrying.';
         return;
       }
-      if (!this.allowed || !this.live(serial, context)) return;
+      if (!this.allowed || !this.bound.live(serial, context)) return;
       if (!this.cmd.pending && gate && !this.gates.includes(gate)) return;
       if (!gate && !this.cmd.pending) return;
       const command: PendingCompletionRetry = this.cmd.pending ?? {
@@ -184,13 +168,13 @@ export class SodaFactoryCompletionRetry extends LitElement {
       this.message = 'Requesting a new completion review…';
       const outcome = await this.cmd.submit({
         command,
-        live: () => this.live(serial, context),
+        live: () => this.bound.live(serial, context),
         classifyRefusal,
         send: () =>
           context.transport.request(`repositories/${context.repository}/factory/actions`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+            signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(90000)]),
             body: JSON.stringify({
               command_id: command.command,
               action: 'retry_completion',
@@ -224,12 +208,12 @@ export class SodaFactoryCompletionRetry extends LitElement {
         this.message =
           'No retry was confirmed. The exact request remains saved. Retry this same request or refresh completion reviews.';
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   protected render() {
     const shown = this.cmd.pending ?? this.confirmedShown;
-    if (!this.current || (!this.gates.length && !this.message && !shown)) return html``;
+    if (!this.bound.current || (!this.gates.length && !this.message && !shown)) return html``;
     return html`<section aria-label="Completion review needs attention">
       ${this.gates.map(
         (gate) => html`<p>
