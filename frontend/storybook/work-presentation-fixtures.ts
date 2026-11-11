@@ -143,8 +143,6 @@ export function renderPresentation(
     return renderWorkOverview(
       describeWorkOverview({
         ...(source === 'ready' ? {revision} : {}),
-        issues: source === 'ready' ? [detail] : [],
-        unreadIssues: source === 'unavailable' ? ['13'] : [],
         links,
         intentState: source,
         generationState: 'missing',

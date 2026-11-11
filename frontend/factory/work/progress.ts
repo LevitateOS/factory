@@ -193,8 +193,6 @@ async function readOverview(
   return {
     model: describeWorkOverview({
       ...(summary === undefined ? {} : {summary}),
-      issues: [],
-      unreadIssues: [],
       links: context.links,
       intentState: 'missing' as SourceState,
       generationState: 'missing' as SourceState,

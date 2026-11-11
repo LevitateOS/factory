@@ -6,9 +6,8 @@ import type {IntentRevision} from '../api/request-response.js';
 import {activityTimestamp} from '../shared/format.js';
 import {allowanceHoldText} from '../feed/allowance.js';
 import type {FactoryIssueDetail, FactoryRepositorySummary, WorkCapabilities} from '../api/work-response.js';
-import {describeIssueDetail, workIssueLink} from './work-view.js';
+import {workIssueLink} from './work-view.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
-import type {DeliveryState} from './work-view.js';
 import type {
   FactoryAccess,
   IssuePlan,
@@ -36,8 +35,6 @@ export interface WorkOverviewInput {
   readonly revision?: IntentRevision;
   readonly generation?: IntentGeneration;
   readonly summary?: FactoryRepositorySummary;
-  readonly issues: readonly FactoryIssueDetail[];
-  readonly unreadIssues: readonly string[];
   readonly links: FactoryWorkLinks | undefined;
   readonly intentState: SourceState;
   readonly generationState: SourceState;
@@ -64,9 +61,7 @@ export interface DependencyRow {
 }
 export interface WorkOverviewModel {
   readonly direction: string;
-  readonly counts: OverviewCounts;
   readonly countsText: string;
-  readonly attention: readonly AttentionItem[];
   readonly dependencies: readonly DependencyRow[];
   readonly setupText: string;
   readonly allowanceText: string;
@@ -75,45 +70,6 @@ export interface WorkOverviewModel {
   readonly dispatch?: FactoryRepositorySummary['dispatch'];
 }
 
-const deliveryBuckets: Record<DeliveryState, keyof OverviewCounts> = {
-  delivered: 'delivered',
-  working: 'working',
-  queued: 'working',
-  waiting: 'waiting',
-  checks_pending: 'waiting',
-  merge_confirmed_closure_pending: 'waiting',
-  recorded_complete_without_merge: 'waiting',
-  needs_attention: 'attention',
-  checks_failed: 'attention',
-  evidence_refused: 'attention',
-  not_authorized: 'attention',
-  cancelled: 'other',
-  unrecorded: 'other',
-  merge_fenced: 'attention',
-  merge_failed: 'attention',
-  checks_superseded: 'attention',
-  unrecognized: 'other',
-};
-function bucketDelivery(delivery: DeliveryState): keyof OverviewCounts {
-  return deliveryBuckets[delivery];
-}
-function countIssues(input: WorkOverviewInput): {counts: OverviewCounts; attention: AttentionItem[]} {
-  const counts = {delivered: 0, working: 0, waiting: 0, attention: 0, other: 0};
-  const attention: AttentionItem[] = [];
-  for (const issue of input.issues) {
-    const model = describeIssueDetail(issue, input.links);
-    counts[bucketDelivery(model.delivery)] += 1;
-    if (bucketDelivery(model.delivery) === 'attention')
-      attention.push({issue: issue.issue, text: `Issue #${issue.issue}: ${model.deliveryText}`, link: model.issueLink});
-  }
-  for (const issue of input.unreadIssues)
-    attention.push({
-      issue,
-      text: `Issue #${issue} could not be read; it is not counted above.`,
-      link: workIssueLink(input.links, issue),
-    });
-  return {counts, attention};
-}
 function countsText(counts: OverviewCounts): string {
   const parts: string[] = [];
   if (counts.delivered > 0) parts.push(`${counts.delivered} delivered`);
@@ -154,39 +110,31 @@ function setupText(input: WorkOverviewInput): string {
   if (!input.summary.preparation) return 'Project setup missing: no preparation recorded.';
   return input.summary.preparation.ready ? 'Project setup ready.' : 'Project setup missing: preparation incomplete.';
 }
-function outcomeNote(input: WorkOverviewInput, counts: OverviewCounts): string {
-  if (input.issues.length === 0 && input.summary && input.summary.queue.queued + input.summary.queue.active > 0)
+function outcomeNote(input: WorkOverviewInput): string {
+  if (input.summary && input.summary.queue.queued + input.summary.queue.active > 0)
     return 'Work is recorded in this repository’s queue. Its outcome evidence has not been loaded.';
-  if (input.issues.length === 0) return 'No work items recorded, so no outcome evidence exists yet.';
-  if (counts.delivered === input.issues.length && input.unreadIssues.length === 0)
-    return 'Every counted work item is delivered. Product-outcome evidence is not yet recorded separately.';
-  return 'Overall completion needs evidence for the accepted product outcomes, not closed work items alone.';
+  return 'No work items recorded, so no outcome evidence exists yet.';
 }
 function availabilityNote(input: WorkOverviewInput): string {
   const missing: string[] = [];
   if (input.intentState === 'unavailable') missing.push('accepted direction');
   if (input.generationState === 'unavailable') missing.push('native work mappings');
   if (input.summaryState === 'unavailable') missing.push('queue and setup');
-  if (input.unreadIssues.length > 0)
-    missing.push(`${input.unreadIssues.length} work item${input.unreadIssues.length === 1 ? '' : 's'}`);
   return missing.length > 0 ? `Unavailable right now: ${missing.join(', ')}.` : '';
 }
 // describeWorkOverview projects the accepted direction, factual
 // work-item counts, attention, dependency rows and setup state. Each
 // section reflects only its own read; unavailable reads are named.
 export function describeWorkOverview(input: WorkOverviewInput): WorkOverviewModel {
-  const {counts, attention} = countIssues(input);
   return {
     direction: directionText(input),
-    counts,
-    countsText: input.issues.length === 0 && input.summary
+    countsText: input.summary
       ? `Repository queue: ${input.summary.queue.queued} queued · ${input.summary.queue.active} active. Work-item outcomes have not been read.`
-      : countsText(counts),
-    attention,
+      : 'No counted work.',
     dependencies: dependencyRows(input),
     setupText: setupText(input),
     allowanceText: allowanceHoldText(input.summary?.allowance ?? []),
-    outcomeNote: outcomeNote(input, counts),
+    outcomeNote: outcomeNote(input),
     availabilityNote: availabilityNote(input),
     ...(input.summary?.dispatch ? {dispatch: input.summary.dispatch} : {}),
   };
@@ -199,18 +147,6 @@ export function renderWorkOverview(model: WorkOverviewModel): TemplateResult {
       <p role="status">${model.countsText}</p>
       ${model.allowanceText ? html`<p role="alert">${model.allowanceText}</p>` : ''}
       ${model.availabilityNote ? html`<p>${model.availabilityNote}</p>` : ''}
-      ${
-        model.attention.length > 0
-          ? html`<ul>
-              ${model.attention.map(
-                (item) =>
-                  html`<li>
-                    ${item.text} ${item.link ? html`<a href=${item.link}>Open issue #${item.issue}</a>` : ''}
-                  </li>`
-              )}
-            </ul>`
-          : ''
-      }
       <p>${model.setupText}</p>
       ${model.dispatch ? html`<details>
         <summary>Dispatch status</summary>
