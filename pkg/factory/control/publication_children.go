@@ -436,7 +436,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 	return plan, preparationID, contextPreparation, false
 }
 
-// A finished native review/correction still owns its candidate preparation.
+// A finished native implementation/review/correction still owns its candidate preparation.
 // Release that exact custody before admitting the next session, independently
 // of the retained run, report and exported candidate evidence.
 func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factory.Publication, owner factory.Assignment, role string) error {
@@ -460,6 +460,10 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 		if err != nil {
 			return err
 		}
+	}
+	if prior.NativeTool != nil && prior.Phase == project.ExecutionImplement && role == project.RoleReviewer &&
+		p.External == nil && owner.RetainedPublication == nil && owner.ExternalPublication == nil {
+		return c.retirePublicationImplementation(ctx, p, owner, prior)
 	}
 	if prior.NativeTool == nil || prior.Phase != project.ExecutionReview && prior.Phase != project.ExecutionCorrect {
 		return nil
@@ -502,6 +506,81 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 		return nil
 	}
 	return c.retireCandidatePreparation(ctx, prepared.Preparation)
+}
+
+// A private source checkout belongs to the investigation root and is shared
+// only with its implementation child. Its admission is not a publication
+// preparation; the completed Builder report, rather than a review child ID,
+// proves which checkout may be released before independent review setup.
+func (c *Coordinator) retirePublicationImplementation(ctx context.Context, p factory.Publication, owner, prior factory.Assignment) error {
+	prepared, err := c.Store.CandidatePreparation(ctx, prior.Preparation)
+	if err != nil {
+		// Standing recipes remain available for other work. Only the private
+		// candidate admission above transfers custody to this issue root.
+		standing, readErr := c.Store.StandingProjectPreparations(ctx, prior.ProjectID)
+		if readErr != nil {
+			return readErr
+		}
+		for _, recipe := range standing {
+			if recipe.Preparation.ID == prior.Preparation {
+				return nil
+			}
+		}
+		return err
+	}
+	if prior.Validate() != nil || !prior.Succeeded() || prior.Role != project.RoleCoder || prior.Run != p.Run ||
+		owner.Phase != project.ExecutionInvestigate || !owner.Succeeded() || owner.ID != owner.AttemptRoot ||
+		owner.Repository != p.Repository || owner.Issue != p.Issue || owner.ProjectID != p.ProjectID || owner.Acceptance != p.Acceptance ||
+		prior.Repository != p.Repository || prior.Issue != p.Issue || prior.ProjectID != p.ProjectID || prior.Acceptance != p.Acceptance ||
+		prior.PublicationAssignment != owner.ID || prior.AttemptRoot != owner.AttemptRoot || prior.ParentAssignment != owner.ID ||
+		prior.Preparation != owner.Preparation || p.Preparation != prior.Preparation || prior.SourceCommit != owner.SourceCommit ||
+		prior.Result == nil || !prior.Result.Reported || prior.Result.Status != "completed" || prior.Result.Candidate != p.Candidate {
+		return errors.New("published implementation predecessor differs")
+	}
+	meta, preparation := prepared.Admission, prepared.Preparation
+	if preparation.Native == nil || preparation.Native.WorktreeID != prior.Preparation || preparation.Preparation.ID != prior.Preparation ||
+		preparation.Preparation.Project != owner.ProjectID || preparation.Preparation.Role != project.RoleCoder ||
+		preparation.Preparation.SourceCommit != prior.SourceCommit || meta.Repository != p.Repository || meta.Issue != p.Issue ||
+		meta.Project != owner.ProjectID || meta.PublicationID != "" || meta.OwnerAssignment != owner.ID ||
+		meta.ChildAssignment != owner.ID || meta.AttemptRoot != owner.AttemptRoot || meta.ActorID != owner.ActorID ||
+		meta.Connection != owner.Connection || !meta.Authority.SameGrants(owner.Authority) {
+		return errors.New("implementation predecessor preparation differs")
+	}
+	run, err := c.Store.FactoryRun(ctx, prior.Run)
+	if err != nil || !run.Reconciled || run.Outcome != factory.Succeeded || run.Native == nil || !run.Native.Settled() ||
+		run.ProjectID != prior.ProjectID || run.Role != prior.Role || run.InputSHA != prior.SourceCommit ||
+		run.Native.Provenance.Profile != preparation.Native.Profile || run.Native.Provenance.InstanceID != preparation.Native.InstanceID ||
+		run.Native.Provenance.WorktreeID != preparation.Native.WorktreeID || !reflect.DeepEqual(prior.NativeTool, &run.Native.Tool) {
+		return errors.New("implementation predecessor retirement unconfirmed")
+	}
+	if prepared.Stopped && prepared.Retirement == "confirmed" {
+		return nil
+	}
+	// This enrolled workspace serves one repository session. A still
+	// reconciling run, assigned consumer or held admission keeps its checkout.
+	runs, err := c.Store.ProjectUnsettledRuns(ctx, prior.ProjectID, 1)
+	if err != nil || len(runs) != 0 {
+		return errors.New("implementation preparation has unsettled consumers")
+	}
+	assigned, err := c.Store.AssignedAssignments(ctx, store.MaxHeldReservations)
+	if err != nil || len(assigned) == store.MaxHeldReservations {
+		return errors.New("implementation preparation consumers unavailable")
+	}
+	for _, consumer := range assigned {
+		if consumer.ProjectID == prior.ProjectID && consumer.Preparation == prior.Preparation {
+			return errors.New("implementation preparation has an assigned consumer")
+		}
+	}
+	held, err := c.Store.HeldReservations(ctx, store.MaxHeldReservations)
+	if err != nil || len(held) == store.MaxHeldReservations {
+		return errors.New("implementation preparation reservations unavailable")
+	}
+	for _, reservation := range held {
+		if reservation.Repository == p.Repository {
+			return errors.New("implementation preparation has a held admission")
+		}
+	}
+	return c.retireCandidatePreparation(ctx, preparation)
 }
 
 func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptPlan, p factory.Publication, owner factory.Assignment, preparationID string, contextPreparation execution.PreparationRecord, role string, in childReviewInput, cycle factory.ReviewCycle, phasedChild bool, report *PublishReport) (*factory.InvestigationPlan, bool) {

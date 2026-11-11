@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -677,6 +678,10 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	if err := recordDispatchTestPacket(t, ctx, db, a, reservation, run, view); err != nil {
 		t.Fatal(err)
 	}
+	reviewer := factory.NewID()
+	if consumed, exhausted, err := db.ChargeReviewDispatch(ctx, a.Repository, a.Issue, a.AttemptRoot, reviewer, strings.Repeat("2", 40), false); err != nil || !consumed || exhausted {
+		t.Fatalf("first review charge: consumed=%t exhausted=%t err=%v", consumed, exhausted, err)
+	}
 	withdrawal, err := db.WithdrawDispatch(ctx, a.Repository, factory.CauseControlPaused, "soda-tester")
 	if err != nil {
 		t.Fatal(err)
@@ -714,6 +719,22 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	}
 	if _, err := db.db.ExecContext(ctx, `UPDATE project_preparations SET data=$1 WHERE id=$2`, string(raw), native.Preparation.ID); err != nil {
 		t.Fatal(err)
+	}
+	retainedEvidence := func() string {
+		t.Helper()
+		var evidence string
+		if err := db.db.QueryRowContext(ctx, `SELECT jsonb_build_object(
+			'assignment',(SELECT to_jsonb(a) FROM factory_assignments a WHERE id=$1),
+			'run',(SELECT to_jsonb(r) FROM factory_runs r WHERE id=$2),
+			'publications',(SELECT jsonb_agg(to_jsonb(p) ORDER BY assignment) FROM factory_publications p WHERE assignment=$1))::text`, a.ID, run.ID).Scan(&evidence); err != nil {
+			t.Fatal(err)
+		}
+		return evidence
+	}
+	beforeEvidence := retainedEvidence()
+	beforeStop, err := db.AttemptAllowance(ctx, a.Repository, a.Issue)
+	if err != nil || beforeStop.Closed || len(beforeStop.Reviews) != 1 || beforeStop.Reviews[0] != reviewer {
+		t.Fatalf("allocated open review allowance: %+v %v", beforeStop, err)
 	}
 	// Closed roots release transferred checkouts only after their actual run
 	// rows settle. Keep this pause fixture's original allowance unchanged.
@@ -802,6 +823,17 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 				t.Fatal("native preparation released active attempt time", err)
 			}
 		}
+		afterStop, err := db.AttemptAllowance(ctx, a.Repository, a.Issue)
+		comparisonTime := time.Now()
+		if err != nil || afterStop.Closed || afterStop.RootAssignment != beforeStop.RootAssignment || afterStop.Limits != beforeStop.Limits ||
+			!reflect.DeepEqual(afterStop.Reviews, beforeStop.Reviews) || !reflect.DeepEqual(afterStop.ReviewedHeads, beforeStop.ReviewedHeads) ||
+			!reflect.DeepEqual(afterStop.UnchangedHeadExtra, beforeStop.UnchangedHeadExtra) || !reflect.DeepEqual(afterStop.Corrections, beforeStop.Corrections) ||
+			afterStop.ActiveSeconds < beforeStop.ActiveSeconds || afterStop.RemainingSeconds(comparisonTime) > beforeStop.RemainingSeconds(comparisonTime) {
+			t.Fatalf("empty-publication retirement changed the open review grant: before=%+v after=%+v err=%v", beforeStop, afterStop, err)
+		}
+		if got := retainedEvidence(); got != beforeEvidence {
+			t.Fatal("preparation retirement rewrote retained assignment, run or publication evidence")
+		}
 	}
 	if err = db.FreezeAttemptAllowances(ctx, a.Repository, withdrawal.Revision, time.Now()); err != nil {
 		t.Fatal(err)
@@ -812,6 +844,9 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	}
 	if _, _, err = db.ReopenDispatch(ctx, a.Repository, withdrawal.Revision); err != nil {
 		t.Fatal(err)
+	}
+	if consumed, exhausted, err := db.ChargeReviewDispatch(ctx, a.Repository, a.Issue, a.AttemptRoot, reviewer, strings.Repeat("2", 40), false); err != nil || consumed || exhausted {
+		t.Fatalf("first review replay after retirement: consumed=%t exhausted=%t err=%v", consumed, exhausted, err)
 	}
 	if err = db.FreezeAttemptAllowances(ctx, a.Repository, withdrawal.Revision, time.Now()); !errors.Is(err, ErrStaleRevision) {
 		t.Fatalf("freeze accepted stale closed-gate revision: %v", err)
