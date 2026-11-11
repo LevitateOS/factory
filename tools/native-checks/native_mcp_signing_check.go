@@ -14394,8 +14394,52 @@ func externalPreparationFixture() error {
 	if after, err := db.PublicationByID(ctx, command); err != nil || !reflect.DeepEqual(after, promoted) {
 		return errors.New("discovery changed the original external publication receipt")
 	}
+	// The external Architect owns its publication directly; equal IDs do not
+	// turn its captured external candidate into a retained Builder result.
+	merge := factory.Merge{ID: factory.NewID(), PublicationID: promoted.ID, AssignmentID: stored.ID, ProjectID: stored.ProjectID, Role: project.RoleCoder, Authority: stored.Authority, Acceptance: stored.Acceptance, Repository: stored.Repository, Issue: stored.Issue, PRNumber: request.PRNumber, PRID: request.PRID, IssueID: request.Target.IssueID, PRAuthorID: request.Target.AuthorID, ReviewerID: int64(actor.ID), HeadRef: request.Target.HeadRef, BaseRef: request.Target.BaseRef, HeadOID: request.Target.HeadOID, BaseOID: request.Target.BaseOID, Stage: factory.MergeOpen, CreatedUnix: time.Now().Add(-2 * time.Minute).Unix(), Operation: factory.MergeOperation{Kind: factory.OpMerge}}
+	if err = db.RecordMerge(ctx, merge); err != nil {
+		return err
+	}
+	// Registration creates an unbound row. Only this disposable fixture then
+	// declares the expired historical binding; no fresh authority is issued.
+	merge.Authorization = factory.MergeAuthorization{Generation: factory.MergeGeneration{Authority: merge.Authority, PublicationID: promoted.ID, Generation: 1, NativeOperationID: factory.MergeGenerationOperationID(promoted.ID, 1), Fingerprint: strings.Repeat("e", 64), Head: merge.HeadOID, Base: merge.BaseOID, DiffBase: merge.BaseOID, ReviewRound: 1, AssessmentRevision: 1, ChecksDigest: factory.ChecksDigest(policy.Checks), ObservedNativeRev: revision, NotAfter: time.Now().Add(-time.Second).Unix(), AcceptanceID: factory.NewID(), AcceptanceKind: factory.AcceptanceCleanReview, AttemptRoot: command, OriginReceipt: factory.NewID()}, ResolutionsConfirmed: true}
+	if err = merge.Validate(); err != nil {
+		return err
+	}
+	if err = write(`UPDATE factory_merges SET data=$2 WHERE publication=$1`, merge, promoted.ID); err != nil {
+		return err
+	}
+	offer, err := db.UnsentMergePreparation(ctx, promoted.ID)
+	if err != nil || !offer.RetryNoSend || offer.MergeID != merge.ID || offer.Head != merge.HeadOID || offer.Base != merge.BaseOID {
+		return fmt.Errorf("external Architect merge-only preparation unavailable: %+v %v", offer, err)
+	}
+	mergeCommand := factory.NewID()
+	preparedMerge, err := db.PrepareUnsentMerge(ctx, mergeCommand, "declared-merge-only", offer, time.Now())
+	if err != nil || preparedMerge.MergeID != mergeCommand || preparedMerge.NotAfter <= time.Now().Unix() || preparedMerge.NotAfter > time.Now().Add(5*time.Minute).Unix() {
+		return fmt.Errorf("external Architect finite merge preparation failed: %+v %v", preparedMerge, err)
+	}
+	currentMerge, err := db.MergeByPublication(ctx, promoted.ID)
+	if err != nil || currentMerge.RetryCommand != mergeCommand || len(currentMerge.History) != 1 || !reflect.DeepEqual(currentMerge.History[0].Authorization, merge.Authorization) || !reflect.DeepEqual(currentMerge.History[0].Operation, merge.Operation) || currentMerge.Operation.Attempts != 0 || currentMerge.Operation.Work != nil {
+		return errors.New("fresh external merge preparation changed expired operation or authority")
+	}
+	if after, err := db.AttemptAllowance(ctx, stored.Repository, stored.Issue); err != nil || !reflect.DeepEqual(after, allowanceAfter) {
+		return errors.New("merge-only preparation changed inference allowance")
+	}
+	if after, err := db.Assignment(ctx, command); err != nil || !reflect.DeepEqual(after, stored) {
+		return errors.New("merge-only preparation replayed external planning")
+	}
+	if after, err := db.PublicationByID(ctx, command); err != nil || !reflect.DeepEqual(after, promoted) {
+		return errors.New("merge-only preparation changed external publication")
+	}
+	if after, err := db.CandidatePreparation(ctx, preparation.Preparation.ID); err != nil || !reflect.DeepEqual(after, afterPromotion) {
+		return errors.New("merge-only preparation renewed source preparation")
+	}
+	if replay, err := db.PrepareUnsentMerge(ctx, mergeCommand, "declared-merge-only", offer, time.Now()); err != nil || replay != preparedMerge {
+		return fmt.Errorf("external merge-only command did not replay: %v", err)
+	}
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
 	fmt.Println("PASS: ordinary startup discovery skips a retained automatic PR/head command before fresh offer/authority reads, while a changed head reaches a fresh offer; original assignment and publication remain unchanged. Discovery facts declared; no provider, model or native send.")
+	fmt.Println("PASS: external Architect publication offers and admits an explicit five-minute merge-only command after a declared unallocated generation expires; original authorization/operation are retained, command replay is idempotent, and assignment/publication/source preparation/inference allowance remain unchanged. Expired merge/review binding declared; no inference or native send.")
 	return nil
 }

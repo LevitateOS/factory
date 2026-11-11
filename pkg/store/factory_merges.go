@@ -587,14 +587,14 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 	if !factory.ValidID(id) {
 		return fail(ErrMergeConflict)
 	}
-	var raw []byte
-	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1`, id).Scan(&raw); err != nil {
+	var raw, ownerData []byte
+	if err := tx.QueryRowContext(ctx, `SELECT p.data,a.data FROM factory_publications p JOIN factory_assignments a ON a.id=p.assignment WHERE p.data->>'id'=$1`, id).Scan(&raw, &ownerData); err != nil {
 		return fail(err)
 	}
-	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.ID != id {
+	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.ID != id || json.Unmarshal(ownerData, &a) != nil || a.Validate() != nil {
 		return fail(ErrMergeConflict)
 	}
-	if p.ID == p.AssignmentID {
+	if a.RetainedPublication != nil {
 		p, a, g, err := retainedFundingScopeTx(ctx, tx, id)
 		// Merge preparation consumes current authority; funding keeps the
 		// original execution/planning owner immutable for provenance checks.
