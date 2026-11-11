@@ -27,7 +27,7 @@ func (s *Store) CompletionIntentRevision(ctx context.Context, scope factory.Comp
 	if err := revision.Validate(); err != nil {
 		return revision, err
 	}
-	if revision.State != "accepted" || revision.Repository != scope.Repository || revision.Digest() != scope.RevisionDigest {
+	if revision.State != factory.IntentAccepted || revision.Repository != scope.Repository || revision.Digest() != scope.RevisionDigest {
 		return factory.IntentRevision{}, errors.New("completion revision differs from its sealed accepted scope")
 	}
 	return revision, nil

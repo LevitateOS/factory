@@ -93,7 +93,7 @@ type AdoptedVerificationManifest struct {
 }
 
 func (m AdoptedVerificationManifest) ValidateFor(r IntentRevision) error {
-	if r.State != "accepted" || r.Validate() != nil || m.Intent != r.Intent || m.AcceptedRevision != r.ID || m.ScopeDigest != r.Digest() || m.Catalog.Validate() != nil {
+	if r.State != IntentAccepted || r.Validate() != nil || m.Intent != r.Intent || m.AcceptedRevision != r.ID || m.ScopeDigest != r.Digest() || m.Catalog.Validate() != nil {
 		return errors.New("adopted verification manifest differs from accepted scope")
 	}
 	if err := m.Proposal.ValidateOutcomes(r); err != nil {

@@ -117,7 +117,7 @@ func (c *Coordinator) matchGraphRepairEffects(ctx context.Context, baseline fact
 			newAcceptances[binding.AcceptanceID] = true
 			changedControls[binding.IssueIndex] = binding.AcceptanceID
 		}
-		scope, err := factory.NewCompletionIntentScope(entry.Revision, "accepted", true, &generation, bindings)
+		scope, err := factory.NewCompletionIntentScope(entry.Revision, factory.IntentAccepted, true, &generation, bindings)
 		if err != nil {
 			return err
 		}
@@ -211,7 +211,7 @@ func (c *Coordinator) matchGraphRepairEffects(ctx context.Context, baseline fact
 		}
 		if activated[scope.IntentID] {
 			old, ok := oldScopes[scope.RevisionID]
-			if !ok || scope.CurrentState != "accepted" || scope.LatestAccepted {
+			if !ok || scope.CurrentState != factory.IntentAccepted || scope.LatestAccepted {
 				return errors.New("reassessment accepted predecessor chain changed")
 			}
 			scope.LatestAccepted = old.LatestAccepted

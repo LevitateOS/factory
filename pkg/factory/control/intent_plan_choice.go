@@ -58,7 +58,7 @@ func (c *Coordinator) GenerateAcceptedIntentFromRecordedPlan(ctx context.Context
 	if !project.ValidDecisionID(expectedRevision) || r.ID != expectedRevision {
 		return empty, nil, store.ErrStaleRevision
 	}
-	if r.State != "accepted" {
+	if r.State != factory.IntentAccepted {
 		return empty, nil, errors.New("planned choice serves the accepted direction")
 	}
 	if _, err := c.Store.IntentGeneration(ctx, r.ID); err == nil {
@@ -162,7 +162,7 @@ func (c *Coordinator) ResolveAcceptedPlanChoice(ctx context.Context, owner int64
 // admitAcceptedChoiceHead proves the caller serves the owning accepted
 // direction carrying a reviewed draft before any recorded-plan read.
 func admitAcceptedChoiceHead(r factory.IntentRevision, owner int64) error {
-	if r.State != "accepted" {
+	if r.State != factory.IntentAccepted {
 		return errors.New("planned choice serves the accepted direction")
 	}
 	if r.Owner != owner || r.Owner <= 0 {
@@ -432,7 +432,7 @@ func (c *Coordinator) validateGenerationBinding(ctx context.Context, g factory.I
 	if err != nil {
 		return nil, fmt.Errorf("%w: accepted head unreadable", ErrPlanChoiceStore)
 	}
-	if r.ID != g.RevisionID || r.Intent != g.IntentID || r.Digest() != g.IntentDigest || r.State != "accepted" {
+	if r.ID != g.RevisionID || r.Intent != g.IntentID || r.Digest() != g.IntentDigest || r.State != factory.IntentAccepted {
 		return nil, fmt.Errorf("%w: generation answers another accepted direction", ErrPlanChoiceStale)
 	}
 	in, err := bindRecordedPlanInput(a, subj.OwnerID, r)

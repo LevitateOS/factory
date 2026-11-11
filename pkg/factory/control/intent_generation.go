@@ -66,7 +66,7 @@ func IntentGraphPlan(r factory.IntentRevision) (collaboration.GraphIntent, error
 	if err := r.Validate(); err != nil {
 		return collaboration.GraphIntent{}, err
 	}
-	if r.State != "accepted" {
+	if r.State != factory.IntentAccepted {
 		return collaboration.GraphIntent{}, errors.New("product direction is not accepted")
 	}
 	p := collaboration.GraphIntent{}
@@ -251,7 +251,7 @@ func (c *Coordinator) generateAcceptedIntent(ctx context.Context, intentID, expe
 	if !project.ValidDecisionID(expectedRevision) || r.ID != expectedRevision {
 		return factory.IntentGeneration{}, store.ErrStaleRevision
 	}
-	if r.State != "accepted" {
+	if r.State != factory.IntentAccepted {
 		return factory.IntentGeneration{}, errors.New("product direction is not accepted")
 	}
 	// This read grants no journal/effect ownership. Revalidate the accepted head
@@ -519,7 +519,7 @@ func (c *Coordinator) currentAcceptedIntent(ctx context.Context, r factory.Inten
 	if err != nil {
 		return err
 	}
-	if head.ID != r.ID || head.State != "accepted" || head.Digest() != r.Digest() {
+	if head.ID != r.ID || head.State != factory.IntentAccepted || head.Digest() != r.Digest() {
 		return store.ErrStaleRevision
 	}
 	return nil

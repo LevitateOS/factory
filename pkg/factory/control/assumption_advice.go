@@ -22,7 +22,7 @@ func (c *Coordinator) JudgeAssumptions(_ context.Context, r factory.IntentRevisi
 	if err := content.Validate(); err != nil {
 		return factory.AssumptionReview{}, err
 	}
-	if r.State != "draft" || content.Revision != r.ID || content.Intent != r.Intent {
+	if r.State != factory.IntentDraft || content.Revision != r.ID || content.Intent != r.Intent {
 		return factory.AssumptionReview{}, errors.New("assumption review needs the matching draft revision")
 	}
 	var review factory.AssumptionReview

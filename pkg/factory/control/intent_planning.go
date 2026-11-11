@@ -164,7 +164,7 @@ func (c *Coordinator) ChoosePlannedCandidate(ctx context.Context, r factory.Inte
 	if err := r.Validate(); err != nil {
 		return ChosenIntentPlan{}, err
 	}
-	if r.State != "accepted" {
+	if r.State != factory.IntentAccepted {
 		return ChosenIntentPlan{}, errors.New("planned choice serves the accepted direction")
 	}
 	if err := factory.AssessSemanticOutput(in, out); err != nil {

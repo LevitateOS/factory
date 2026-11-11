@@ -80,7 +80,7 @@ func (m ApprovedAppCheck) BindsIntent(revision IntentRevision) bool {
 	want, got := slices.Clone(ResolvedScope(revision)), slices.Clone(m.Outcomes)
 	slices.Sort(want)
 	slices.Sort(got)
-	return revision.State == "accepted" && m.IntentID == revision.Intent && m.AcceptedRevision == revision.ID && slices.Equal(want, got)
+	return revision.State == IntentAccepted && m.IntentID == revision.Intent && m.AcceptedRevision == revision.ID && slices.Equal(want, got)
 }
 
 // DeliveryPreparationDigest identifies immutable preparation inputs, excluding

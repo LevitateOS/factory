@@ -125,7 +125,7 @@ func admitIntentPredecessorTx(ctx context.Context, tx *sql.Tx, r factory.IntentR
 	if err := json.Unmarshal(headRaw, &headRev); err != nil {
 		return err
 	}
-	if headRev.State == "accepted" && r.Repository != headRev.Repository {
+	if headRev.State == factory.IntentAccepted && r.Repository != headRev.Repository {
 		return errors.New("repository change needs a separate build request")
 	}
 	// The first commitment pins the repository for the whole intent:

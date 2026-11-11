@@ -31,7 +31,7 @@ func (c *Coordinator) JudgeConsolidation(ctx context.Context, r factory.IntentRe
 	if err := content.Validate(); err != nil {
 		return factory.ConsolidatedProposal{}, err
 	}
-	if r.State != "draft" || content.Revision != r.ID || content.Intent != r.Intent {
+	if r.State != factory.IntentDraft || content.Revision != r.ID || content.Intent != r.Intent {
 		return factory.ConsolidatedProposal{}, errors.New("consolidation needs the matching draft revision")
 	}
 	if !content.Supported {

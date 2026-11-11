@@ -15,7 +15,7 @@ import (
 // typed journal preflight; this boundary compares its exact persisted
 // progress under the cycle lock before any head changes.
 func (s *Store) ActivateReassessmentIntent(ctx context.Context, cycleID string, expected, next json.RawMessage, revision factory.IntentRevision, generation factory.IntentGeneration) error {
-	if !factory.ValidID(cycleID) || !json.Valid(expected) || !json.Valid(next) || generation.ReassessmentCycle != cycleID || revision.State != "accepted" || generation.RevisionID != revision.ID || generation.IntentID != revision.Intent || generation.IntentDigest != revision.Digest() {
+	if !factory.ValidID(cycleID) || !json.Valid(expected) || !json.Valid(next) || generation.ReassessmentCycle != cycleID || revision.State != factory.IntentAccepted || generation.RevisionID != revision.ID || generation.IntentID != revision.Intent || generation.IntentDigest != revision.Digest() {
 		return errors.New("invalid reassessment activation")
 	}
 	if err := revision.Validate(); err != nil {

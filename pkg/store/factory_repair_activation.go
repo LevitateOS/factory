@@ -12,7 +12,7 @@ import (
 // owners as completion adoption. Its genuine stall cycle and journal CAS are
 // committed in the same transaction as the head, operation and copied bindings.
 func (s *Store) ActivateStallRepairIntent(ctx context.Context, repository int64, event, cycleID string, expected, next json.RawMessage, revision factory.IntentRevision, generation factory.IntentGeneration) error {
-	if !factory.ValidID(cycleID) || !json.Valid(expected) || !json.Valid(next) || generation.RepairCycle != cycleID || generation.ReassessmentCycle != "" || revision.Repository != repository || revision.State != "accepted" || generation.RevisionID != revision.ID || generation.IntentID != revision.Intent || generation.IntentDigest != revision.Digest() {
+	if !factory.ValidID(cycleID) || !json.Valid(expected) || !json.Valid(next) || generation.RepairCycle != cycleID || generation.ReassessmentCycle != "" || revision.Repository != repository || revision.State != factory.IntentAccepted || generation.RevisionID != revision.ID || generation.IntentID != revision.Intent || generation.IntentDigest != revision.Digest() {
 		return errors.New("invalid stall repair activation")
 	}
 	if err := revision.Validate(); err != nil {

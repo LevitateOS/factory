@@ -919,7 +919,7 @@ func SuccessorIntentRevision(
 	createdUnix int64,
 ) (factory.IntentRevision, error) {
 	var empty factory.IntentRevision
-	if prior.State != "accepted" {
+	if prior.State != factory.IntentAccepted {
 		return empty, errors.New("reassessment successor needs its accepted prior")
 	}
 	if change.IntentID == "" || change.IntentID != prior.Intent {
@@ -947,7 +947,7 @@ func SuccessorIntentRevision(
 		Approach:          prior.Approach,
 		Ideas:             prior.Ideas,
 		Tasks:             tasks,
-		State:             "accepted",
+		State:             factory.IntentAccepted,
 		MaxIssues:         prior.MaxIssues,
 		PlanningCalls:     prior.PlanningCalls,
 		CreatedUnix:       createdUnix,

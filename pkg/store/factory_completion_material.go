@@ -186,7 +186,7 @@ func completionIntentScopesTx(ctx context.Context, tx *sql.Tx, repository int64)
 		}
 		latestMarked := false
 		for _, revision := range chain {
-			if revision.State != "accepted" {
+			if revision.State != factory.IntentAccepted {
 				continue
 			}
 			latest := !latestMarked

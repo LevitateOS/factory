@@ -52,7 +52,7 @@ func (c *Coordinator) JudgeConsistency(ctx context.Context, r factory.IntentRevi
 	if err := proposal.Validate(); err != nil {
 		return factory.ConsistencyReport{}, err
 	}
-	if r.State != "draft" || content.Revision != r.ID || content.Intent != r.Intent || proposal.Revision != r.ID || proposal.Intent != r.Intent {
+	if r.State != factory.IntentDraft || content.Revision != r.ID || content.Intent != r.Intent || proposal.Revision != r.ID || proposal.Intent != r.Intent {
 		return factory.ConsistencyReport{}, errors.New("consistency review needs the matching draft revision")
 	}
 	report := factory.ConsistencyReport{Producer: factory.AuthoredProducer, Intent: r.Intent, Revision: r.ID}

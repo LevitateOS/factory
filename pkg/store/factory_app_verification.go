@@ -17,7 +17,7 @@ import (
 // controller-owned F10 fact used by delivery admission. A worker finish or a
 // historical accepted revision never supplies current outcome evidence.
 func (s *Store) VerifiedApplicationOutcomeCount(ctx context.Context, revision factory.IntentRevision) (int, error) {
-	if revision.State != "accepted" || revision.Repository <= 0 {
+	if revision.State != factory.IntentAccepted || revision.Repository <= 0 {
 		return 0, nil
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -99,7 +99,7 @@ func applicationVerificationPrerequisitesTx(ctx context.Context, tx *sql.Tx, a f
 	if err := json.Unmarshal(raw, &revision); err != nil {
 		return revision, nil, err
 	}
-	if revision.Repository != a.Repository || revision.State != "accepted" || revision.Validate() != nil || revision.Digest() != subject.ScopeDigest {
+	if revision.Repository != a.Repository || revision.State != factory.IntentAccepted || revision.Validate() != nil || revision.Digest() != subject.ScopeDigest {
 		return revision, nil, errors.New("accepted application scope changed")
 	}
 	tasks, err := deliveredIntentTaskEvidenceTx(ctx, tx, revision)

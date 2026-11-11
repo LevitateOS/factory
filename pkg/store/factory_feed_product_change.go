@@ -65,7 +65,7 @@ func (s *Store) assignmentPostProduct(ctx context.Context, a factory.Assignment)
 
 func (s *Store) postPostProduct(ctx context.Context, detail FeedPostDetail) (*factory.PostProductSource, error) {
 	if detail.Payload != nil && detail.Payload.Communication != nil {
-		if source := detail.Payload.Communication.IntentSource; source != nil && source.State == "accepted" {
+		if source := detail.Payload.Communication.IntentSource; source != nil && source.State == factory.IntentAccepted {
 			return s.acceptedPostProduct(ctx, detail.Record.Repository, source.Intent, source.Revision)
 		}
 	}
@@ -114,7 +114,7 @@ func (s *Store) PostProductChange(ctx context.Context, detail FeedPostDetail, pi
 		return view, nil
 	}
 	if binding.Draft == "" {
-		if head.ID == p.AcceptedRevision && head.State == "accepted" && pipe.Issue == 0 && pipe.Draft == factory.PostDraftPending && pipe.Effect == factory.PostEffectPending {
+		if head.ID == p.AcceptedRevision && head.State == factory.IntentAccepted && pipe.Issue == 0 && pipe.Draft == factory.PostDraftPending && pipe.Effect == factory.PostEffectPending {
 			view.State = "review_required"
 			view.CanReview = head.Owner == actor
 		}
@@ -125,12 +125,12 @@ func (s *Store) PostProductChange(ctx context.Context, detail FeedPostDetail, pi
 	if err != nil {
 		return nil, err
 	}
-	if descended && head.State == "accepted" && effectivePostProductIdea(head, detail) {
+	if descended && head.State == factory.IntentAccepted && effectivePostProductIdea(head, detail) {
 		view.State = "accepted"
 		// Only the head owner may open the private build request behind
 		// the accepted direction; this bit authorizes navigation only.
 		view.CanReview = head.Owner == actor
-	} else if descended && head.State == "draft" {
+	} else if descended && head.State == factory.IntentDraft {
 		view.State = "draft"
 		view.CanReview = head.Owner == actor
 	}
@@ -210,7 +210,7 @@ func (s *Store) ReviewPostProductChange(ctx context.Context, id string, revision
 		}
 		return head, tx.Commit()
 	}
-	if head.ID != p.AcceptedRevision || head.State != "accepted" {
+	if head.ID != p.AcceptedRevision || head.State != factory.IntentAccepted {
 		return empty, ErrStaleRevision
 	}
 	draft, err := postProductDraft(head, detail, at)
@@ -314,7 +314,7 @@ func postProductDraft(head factory.IntentRevision, detail FeedPostDetail, at int
 	idea := factory.ProductIdea{ID: factory.PostDecisionID("product-idea", detail.Record.ID, detail.Record.Revision), Description: detail.Body, Consequence: "The requested product change is reviewed, implemented and verified while preserving unaffected outcomes.", Decision: "accept", Source: "requested", Provenance: "human", Actor: head.Owner, Evidence: fmt.Sprintf("Feed comment %s revision %d by Factory actor %s; admitted for draft planning by the product owner.", detail.Record.ID, detail.Record.Revision, detail.Record.Author)}
 	draft := head
 	draft.Predecessor, draft.ID = head.ID, factory.PostDecisionID("product-review", detail.Record.ID, detail.Record.Revision)
-	draft.State, draft.CreatedUnix = "draft", at
+	draft.State, draft.CreatedUnix = factory.IntentDraft, at
 	draft.Ideas = append(append([]factory.ProductIdea(nil), head.Ideas...), idea)
 	draft.EffectiveOutcomes = append([]string(nil), head.EffectiveOutcomes...)
 	if len(draft.EffectiveOutcomes) == 0 {

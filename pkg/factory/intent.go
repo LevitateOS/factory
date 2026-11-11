@@ -155,7 +155,7 @@ func checkIntentBounds(r IntentRevision) error {
 	if r.Repository < 0 || r.MaxIssues < 1 || r.MaxIssues > 64 || r.PlanningCalls < 0 || r.PlanningCalls > 100 || len(r.Ideas) > 50 || len(r.Tasks) > r.MaxIssues || len(r.EffectiveOutcomes) > 50 {
 		return errors.New("invalid intent bounds")
 	}
-	if r.State == "accepted" && (r.Repository == 0 || len(r.Tasks) == 0) {
+	if r.State == IntentAccepted && (r.Repository == 0 || len(r.Tasks) == 0) {
 		return errors.New("accepted intent needs repository and work")
 	}
 	return nil
@@ -243,7 +243,7 @@ func checkIdeaBasis(r IntentRevision, idea ProductIdea) error {
 	if idea.Evidence != "" && !intentText(idea.Evidence, 4000) {
 		return errors.New("invalid choice evidence")
 	}
-	if r.State == "accepted" && idea.Decision != "pending" && (idea.Source == "" || idea.Provenance == "") {
+	if r.State == IntentAccepted && idea.Decision != "pending" && (idea.Source == "" || idea.Provenance == "") {
 		return errors.New("effective work needs an explicit decision basis")
 	}
 	return nil
@@ -296,7 +296,7 @@ func indexRevisionTasks(r IntentRevision, ideas map[string]ProductIdea, effectiv
 }
 
 func checkTaskIdeaBinding(r IntentRevision, idea ProductIdea, id string, effective map[string]bool) error {
-	if r.State != "accepted" {
+	if r.State != IntentAccepted {
 		return nil
 	}
 	if idea.Decision == "pending" {

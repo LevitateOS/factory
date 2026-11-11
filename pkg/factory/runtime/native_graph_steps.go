@@ -169,7 +169,7 @@ func (s NativeGraphs) guard(ctx context.Context, g factory.IntentGeneration, p n
 	if err != nil {
 		return nil, err
 	}
-	if revision.ID != g.RevisionID || revision.State != "accepted" || revision.Digest() != g.IntentDigest || g.AuthRevision != revision.ID+":"+revision.Digest() {
+	if revision.ID != g.RevisionID || revision.State != factory.IntentAccepted || revision.Digest() != g.IntentDigest || g.AuthRevision != revision.ID+":"+revision.Digest() {
 		return nil, store.ErrStaleRevision
 	}
 	authority, err := s.CheckIntentOwner(ctx, p.Repository, revision.Owner, g.ActorID)

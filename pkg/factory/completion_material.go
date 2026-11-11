@@ -64,12 +64,7 @@ type CompletionIntentScope struct {
 // validCompletionIntentState reports whether state is known intent
 // revision metadata. There is no "reviewed" state.
 func validCompletionIntentState(state string) bool {
-	switch state {
-	case "draft", "accepted", "declined", "rejected", "abandoned":
-		return true
-	default:
-		return false
-	}
+	return ValidIntentState(state)
 }
 
 // Validate checks one scope entry: identities, the effective filter that
@@ -313,7 +308,7 @@ func admitScopeRevision(revision IntentRevision, headState string) error {
 	if err := revision.Validate(); err != nil {
 		return err
 	}
-	if revision.State != "accepted" {
+	if revision.State != IntentAccepted {
 		return errors.New("completion scope needs its accepted revision")
 	}
 	if !validCompletionIntentState(headState) {

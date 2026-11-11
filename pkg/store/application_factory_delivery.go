@@ -77,7 +77,7 @@ func (s *Store) verifiedFactoryBuildInput(ctx context.Context, repository int64,
 			return out, err
 		}
 	}
-	if a.Validate() != nil || run.Validate() != nil || revision.Validate() != nil || a.Subject.Delivery == nil || a.Run != run.ID || a.Repository != repository || revision.Repository != repository || revision.State != "accepted" {
+	if a.Validate() != nil || run.Validate() != nil || revision.Validate() != nil || a.Subject.Delivery == nil || a.Run != run.ID || a.Repository != repository || revision.Repository != repository || revision.State != factory.IntentAccepted {
 		return out, errors.New("application build delivery is invalid")
 	}
 	delivery, checks := a.Subject.Delivery, run.VerificationChecks
@@ -153,7 +153,7 @@ func (s *Store) VerifiedApplicationDelivery(ctx context.Context, id string) (*Ap
 			return nil, err
 		}
 	}
-	if a.Validate() != nil || run.Validate() != nil || revision.Validate() != nil || a.Subject.Delivery == nil || a.Run != run.ID || a.Repository != repository || revision.Repository != repository || revision.State != "accepted" {
+	if a.Validate() != nil || run.Validate() != nil || revision.Validate() != nil || a.Subject.Delivery == nil || a.Run != run.ID || a.Repository != repository || revision.Repository != repository || revision.State != factory.IntentAccepted {
 		return nil, errors.New("application delivery binding is invalid")
 	}
 	delivery := a.Subject.Delivery

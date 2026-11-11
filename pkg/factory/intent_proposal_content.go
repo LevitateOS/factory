@@ -55,7 +55,7 @@ func ComposeProposalContent(r IntentRevision) (ProposalContent, error) {
 	if err := r.Validate(); err != nil {
 		return ProposalContent{}, err
 	}
-	if r.State != "draft" {
+	if r.State != IntentDraft {
 		return ProposalContent{}, errors.New("proposal content needs a draft revision")
 	}
 	content := ProposalContent{Producer: AuthoredProducer, Intent: r.Intent, Revision: r.ID, Objective: r.Objective, Facts: []string{r.Objective}}

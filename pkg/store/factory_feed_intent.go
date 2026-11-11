@@ -23,7 +23,7 @@ func recordIntentRevisionFeedTx(ctx context.Context, tx *sql.Tx, r factory.Inten
 	if intake {
 		return nil
 	}
-	label := map[string]string{"draft": "Design proposal recorded", "accepted": "Design accepted", "declined": "Design declined", "rejected": "Design rejected", "abandoned": "Design abandoned"}[r.State]
+	label := map[string]string{factory.IntentDraft: "Design proposal recorded", factory.IntentAccepted: "Design accepted", factory.IntentDeclined: "Design declined", factory.IntentRejected: "Design rejected", factory.IntentAbandoned: "Design abandoned"}[r.State]
 	if label == "" {
 		return nil
 	}

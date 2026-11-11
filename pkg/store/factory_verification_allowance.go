@@ -134,7 +134,7 @@ func (s *Store) AppVerificationAllowance(ctx context.Context, intent string, own
 		return view, err
 	}
 	view.Repository = head.Repository
-	view.CanIncrease = head.State == "accepted" && head.Repository > 0
+	view.CanIncrease = head.State == factory.IntentAccepted && head.Repository > 0
 	return view, tx.Commit()
 }
 
@@ -196,7 +196,7 @@ func (s *Store) IncreaseAppVerificationAllowance(ctx context.Context, intent str
 		if change.ExpectedRevision != view.Revision {
 			return none, ErrStaleRevision
 		}
-		if head.State != "accepted" || head.Repository <= 0 {
+		if head.State != factory.IntentAccepted || head.Repository <= 0 {
 			return none, factory.ErrVerificationAllowanceState
 		}
 		if !verificationLimitsIncrease(view.Limits, change.Limits) {
@@ -209,6 +209,6 @@ func (s *Store) IncreaseAppVerificationAllowance(ctx context.Context, intent str
 		view.UpdateRemaining()
 	}
 	view.CommandID, view.Repository = change.CommandID, head.Repository
-	view.CanIncrease = head.State == "accepted" && head.Repository > 0
+	view.CanIncrease = head.State == factory.IntentAccepted && head.Repository > 0
 	return view, tx.Commit()
 }

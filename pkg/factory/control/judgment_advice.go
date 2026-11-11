@@ -37,7 +37,7 @@ func (c *Coordinator) checkIntentAdvice(ctx context.Context, draft factory.Inten
 		return c.Store.CheckIntentJudgment(ctx, draft)
 	}
 	accepted := *c.acceptedAdvice
-	if c.Planning != nil || accepted.State != "accepted" || accepted.Predecessor != draft.ID || accepted.Intent != draft.Intent || accepted.Owner != draft.Owner || bindAcceptedScope(accepted, draft) != nil {
+	if c.Planning != nil || accepted.State != factory.IntentAccepted || accepted.Predecessor != draft.ID || accepted.Intent != draft.Intent || accepted.Owner != draft.Owner || bindAcceptedScope(accepted, draft) != nil {
 		return store.ErrStaleRevision
 	}
 	return c.currentAcceptedIntent(ctx, accepted)

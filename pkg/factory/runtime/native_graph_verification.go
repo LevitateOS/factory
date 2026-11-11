@@ -82,7 +82,7 @@ func (s NativeGraphs) verifyGraph(ctx context.Context, g factory.IntentGeneratio
 	if err != nil {
 		return nil, err
 	}
-	if revision.Intent != g.IntentID || revision.State != "accepted" || revision.Digest() != g.IntentDigest {
+	if revision.Intent != g.IntentID || revision.State != factory.IntentAccepted || revision.Digest() != g.IntentDigest {
 		return nil, store.ErrStaleRevision
 	}
 	// Fully committed writes may be verified after expiry or reconnect. This

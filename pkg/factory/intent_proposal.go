@@ -31,7 +31,7 @@ func ValidateDraftPlanningScope(r IntentRevision) error {
 	if err := r.Validate(); err != nil {
 		return err
 	}
-	if r.State != "draft" {
+	if r.State != IntentDraft {
 		return errors.New("intent planning needs a draft revision")
 	}
 	ideas := map[string]ProductIdea{}
@@ -186,7 +186,7 @@ func checkProposedTaskCoverage(r IntentRevision, tasks []IntentTask) error {
 // judgments can advise between these concrete alternatives; people decide the
 // material product direction before any native issue is created.
 func ProposeIntent(r IntentRevision, ids []string) IntentRevision {
-	r.State = "draft"
+	r.State = IntentDraft
 	if len(r.Ideas) == 0 {
 		r.Ideas = []ProductIdea{
 			{ID: ids[0], Description: proposalObjective(r.Objective), Consequence: "Build the smallest complete workflow for this objective. Additional capabilities need a new product decision.", Decision: "pending", Source: "autonomous", Provenance: "autonomous"},

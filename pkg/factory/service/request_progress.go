@@ -55,7 +55,7 @@ func (s RequestExploration) planningHead(ctx context.Context, actor collaboratio
 	if err != nil {
 		return factory.IntentRevision{}, err
 	}
-	if head.State != "draft" {
+	if head.State != factory.IntentDraft {
 		return factory.IntentRevision{}, ErrRequestNotDraft
 	}
 	return head, nil
@@ -77,7 +77,7 @@ func (s Requests) SavedPlanning(ctx context.Context, actor collaboration.ActorID
 	if err != nil {
 		return empty, err
 	}
-	if selected.State != "draft" {
+	if selected.State != factory.IntentDraft {
 		return empty, ErrRequestNotFound
 	}
 	attempt, err := s.Store.IntentPlanAttempt(ctx, selected.Intent, selected.ID)
@@ -219,7 +219,7 @@ func (s Requests) SavedGeneration(ctx context.Context, actor collaboration.Actor
 	if err != nil {
 		return nil, err
 	}
-	if selected.State != "accepted" {
+	if selected.State != factory.IntentAccepted {
 		return nil, ErrRequestNotFound
 	}
 	generation, err := s.Store.IntentGeneration(ctx, selected.ID)

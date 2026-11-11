@@ -130,7 +130,7 @@ func (s RequestExploration) Explore(ctx context.Context, actor collaboration.Act
 	if err != nil {
 		return empty, err
 	}
-	if current.ID != revision || current.State != "draft" {
+	if current.ID != revision || current.State != factory.IntentDraft {
 		return empty, store.ErrStaleRevision
 	}
 	content, err := factory.ComposeProposalContent(current)
@@ -272,7 +272,7 @@ func (s Requests) SavedExploration(ctx context.Context, actor collaboration.Acto
 	if err != nil {
 		return empty, err
 	}
-	if selected.State != "draft" || selected.Validate() != nil {
+	if selected.State != factory.IntentDraft || selected.Validate() != nil {
 		return empty, ErrRequestNotFound
 	}
 	review, err := s.Store.IntentExplorationReview(ctx, intent, basis, int64(actor))
@@ -290,7 +290,7 @@ func (s Requests) SavedExploration(ctx context.Context, actor collaboration.Acto
 	if err != nil {
 		return empty, err
 	}
-	if proposal.State != "draft" || proposal.Predecessor != selected.ID || proposal.Repository != selected.Repository || proposal.Validate() != nil {
+	if proposal.State != factory.IntentDraft || proposal.Predecessor != selected.ID || proposal.Repository != selected.Repository || proposal.Validate() != nil {
 		return empty, ErrRequestNotFound
 	}
 	result := attachExploration(proposal, review.Content, review.Challenges, review.Settled, review.Recommendation, review.Consistency)

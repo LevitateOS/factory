@@ -84,7 +84,7 @@ func checkGenerationHeadTx(ctx context.Context, tx *sql.Tx, g factory.IntentGene
 	if err := json.Unmarshal(intentRaw, &r); err != nil {
 		return err
 	}
-	if r.State != "accepted" || r.Digest() != g.IntentDigest {
+	if r.State != factory.IntentAccepted || r.Digest() != g.IntentDigest {
 		return ErrStaleRevision
 	}
 	if err := checkGenerationManifestTx(ctx, tx, r, g); err != nil {
@@ -536,7 +536,7 @@ func (s *Store) PreviousGeneratedIntent(ctx context.Context, intent, revision st
 		if err := json.Unmarshal(raw, &r); err != nil {
 			return factory.IntentRevision{}, err
 		}
-		if cursor != revision && r.State == "accepted" {
+		if cursor != revision && r.State == factory.IntentAccepted {
 			g, err := s.IntentGeneration(ctx, cursor)
 			if err == nil && (g.State == "committed" || g.State == "completed") {
 				return r, nil

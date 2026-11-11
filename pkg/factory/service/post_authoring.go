@@ -148,7 +148,7 @@ func postDraftIntent(comment store.FeedPostDetail, author int64, createdUnix int
 		Repository: comment.Record.Repository,
 		Objective:  body,
 		Ideas:      ideas,
-		State:      "draft", MaxIssues: 1, CreatedUnix: createdUnix,
+		State:      factory.IntentDraft, MaxIssues: 1, CreatedUnix: createdUnix,
 		EffectiveOutcomes: []string{ideaID},
 	}
 	if err := head.Validate(); err != nil {

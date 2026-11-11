@@ -62,7 +62,7 @@ func (s WorkerVerification) planning(ctx context.Context, cap factory.MCPCapabil
 	if err != nil {
 		return a, p, err
 	}
-	if head.ID != a.Subject.Intent.RevisionID || head.Repository != a.Repository || head.State != "draft" || head.Digest() != a.Subject.Intent.ScopeDigest {
+	if head.ID != a.Subject.Intent.RevisionID || head.Repository != a.Repository || head.State != factory.IntentDraft || head.Digest() != a.Subject.Intent.ScopeDigest {
 		return a, p, errors.New("planning catalog draft changed")
 	}
 	requirements, err := s.Store.RequirementHead(ctx, a.ProjectID)

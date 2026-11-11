@@ -85,7 +85,7 @@ func (s *Store) AdmitDeliveryRepairJudgment(ctx context.Context, repository int6
 // stall/completion adoption. Withdrawal fences new activation while already
 // active operations retain their exact reconciliation owner.
 func (s *Store) ActivateDeliveryRepairIntent(ctx context.Context, repository int64, failedRun, cycleID string, expected, next json.RawMessage, revision factory.IntentRevision, generation factory.IntentGeneration) error {
-	if !factory.ValidID(cycleID) || !json.Valid(expected) || !json.Valid(next) || generation.RepairCycle != cycleID || generation.ReassessmentCycle != "" || revision.Repository != repository || revision.State != "accepted" || generation.RevisionID != revision.ID || generation.IntentID != revision.Intent || generation.IntentDigest != revision.Digest() || revision.Validate() != nil {
+	if !factory.ValidID(cycleID) || !json.Valid(expected) || !json.Valid(next) || generation.RepairCycle != cycleID || generation.ReassessmentCycle != "" || revision.Repository != repository || revision.State != factory.IntentAccepted || generation.RevisionID != revision.ID || generation.IntentID != revision.Intent || generation.IntentDigest != revision.Digest() || revision.Validate() != nil {
 		return errors.New("invalid delivery repair activation")
 	}
 	if err := checkSubmittedGenerationGraph(generation); err != nil {

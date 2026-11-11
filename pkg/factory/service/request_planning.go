@@ -61,7 +61,7 @@ func (s RequestPlanning) Plan(ctx context.Context, actor collaboration.ActorID, 
 	if current.ID != revision {
 		return empty, store.ErrStaleRevision
 	}
-	if current.State != "draft" {
+	if current.State != factory.IntentDraft {
 		return empty, ErrRequestNotDraft
 	}
 	if err := s.Requests.authorizeWrite(ctx, actor, current.Repository); err != nil {
@@ -128,7 +128,7 @@ func (s RequestPlanning) Generate(ctx context.Context, actor collaboration.Actor
 	if current.ID != revision {
 		return empty, nil, store.ErrStaleRevision
 	}
-	if current.State != "accepted" {
+	if current.State != factory.IntentAccepted {
 		return empty, nil, ErrRequestNotAccepted
 	}
 	if err := s.Requests.authorizeWrite(ctx, actor, current.Repository); err != nil {
