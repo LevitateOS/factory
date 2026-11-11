@@ -58,6 +58,13 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    ExternalPullCandidates {
+        repository: String,
+        #[serde(default)]
+        number: u32,
+        #[serde(default)]
+        cursor: String,
+    },
     AutomationChecks {
         repository: String,
         number: u32,
@@ -323,6 +330,15 @@ impl Read {
         if let Self::IssueCreatorPermission { creator, .. } = self {
             if !remote_id(creator) { return Err(Failure::invalid()); }
         }
+        if let Self::ExternalPullCandidates { number, cursor, .. } = self {
+            if *number > i32::MAX as u32
+                || *number != 0 && !cursor.is_empty()
+                || cursor.len() > 4096
+                || cursor.chars().any(char::is_control)
+            {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::TargetTip { target_ref, .. } = self {
             if !target_ref.strip_prefix("refs/heads/").is_some_and(branch_name) {
                 return Err(Failure::invalid());
@@ -482,6 +498,7 @@ impl Read {
         if value
             .get("number")
             .is_some_and(|n| n.as_u64().is_none_or(|n| n == 0))
+            && !matches!(self, Self::ExternalPullCandidates { number: 0, .. })
         {
             return Err(Failure::invalid());
         }

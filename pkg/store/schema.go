@@ -8,10 +8,9 @@ import (
 	"sync"
 )
 
-// Schema 105 retains external publication origins, non-executing allowance
-// owners and authenticated PR preparation sources. Older writers must refuse
-// rather than erase these meanings or reinterpret them as own publication.
-const schemaFormatVersion = 105
+// Schema 106 retains separate automatic external-PR authority. Older writers
+// must refuse rather than ignore its current association and author checks.
+const schemaFormatVersion = 106
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -714,15 +713,27 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate captured review retry format: %w", err))
 			}
 		}
-		version=104
+		version = 104
 	}
-	if version==104 {
+	if version == 104 {
 		// The JSON contracts changed; their command payload bound did not.
 		// Preserve every command/receipt and refuse any unknown prior shape.
-		if err=verifyCommandPayloadCheck(ctx,t,104); err!=nil { return err }
-		if _,err=t.ExecContext(ctx,`UPDATE schema_version SET version=105 WHERE version=104`); err!=nil {
+		if err = verifyCommandPayloadCheck(ctx, t, 104); err != nil {
+			return err
+		}
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=105 WHERE version=104`); err != nil {
 			rollback()
-			return reopenAfterLostUpgradeRace(ctx,db,fmt.Errorf("migrate external publication contract: %w",err))
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate external publication contract: %w", err))
+		}
+		version = 105
+	}
+	if version == 105 {
+		if err = verifyCommandPayloadCheck(ctx, t, 105); err != nil {
+			return err
+		}
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=106 WHERE version=105`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate automatic external publication authority: %w", err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

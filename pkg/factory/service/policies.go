@@ -20,24 +20,25 @@ type PolicyActor struct {
 }
 
 type PolicyChange struct {
-	ExecutionActor      *PolicyActor                     `json:"execution_actor,omitempty"`
-	AttemptLimits       *factory.AttemptLimits           `json:"attempt_limits"`
-	Roles               map[string]factory.RoleSelection `json:"roles"`
-	Judgments           *factory.RoleSelection           `json:"judgments,omitempty"`
-	PublishActor        PolicyActor                      `json:"publish_actor"`
-	CreateActor         PolicyActor                      `json:"create_actor"`
-	ReviewActor         PolicyActor                      `json:"review_actor"`
-	AutomationReviewer  *PolicyActor                     `json:"automation_reviewer,omitempty"`
-	ResolveActor        *PolicyActor                     `json:"resolve_actor,omitempty"`
-	MergeActor          PolicyActor                      `json:"merge_actor"`
-	TargetBranch        string                           `json:"target_branch"`
-	MergeMethod         string                           `json:"merge_method"`
-	RequiredChecks      []string                         `json:"required_checks"`
-	ExpectedRevision    int64                            `json:"expected_revision"`
-	ReassessmentMinutes int                              `json:"reassessment_minutes"`
-	IntentMinutes       int                              `json:"intent_minutes"`
-	Enabled             bool                             `json:"enabled"`
-	Paused              bool                             `json:"paused"`
+	ExecutionActor         *PolicyActor                     `json:"execution_actor,omitempty"`
+	AttemptLimits          *factory.AttemptLimits           `json:"attempt_limits"`
+	Roles                  map[string]factory.RoleSelection `json:"roles"`
+	Judgments              *factory.RoleSelection           `json:"judgments,omitempty"`
+	PublishActor           PolicyActor                      `json:"publish_actor"`
+	CreateActor            PolicyActor                      `json:"create_actor"`
+	ReviewActor            PolicyActor                      `json:"review_actor"`
+	AutomationReviewer     *PolicyActor                     `json:"automation_reviewer,omitempty"`
+	ResolveActor           *PolicyActor                     `json:"resolve_actor,omitempty"`
+	MergeActor             PolicyActor                      `json:"merge_actor"`
+	TargetBranch           string                           `json:"target_branch"`
+	MergeMethod            string                           `json:"merge_method"`
+	RequiredChecks         []string                         `json:"required_checks"`
+	ExpectedRevision       int64                            `json:"expected_revision"`
+	ReassessmentMinutes    int                              `json:"reassessment_minutes"`
+	IntentMinutes          int                              `json:"intent_minutes"`
+	Enabled                bool                             `json:"enabled"`
+	Paused                 bool                             `json:"paused"`
+	AutomaticExternalPulls bool                             `json:"automatic_external_pulls"`
 }
 
 // PolicyWriter retains the existing transactional grant/CAS and withdrawal
@@ -142,7 +143,7 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 	}
 	policy := factory.RepositoryPolicy{Execution: execution,
 		Repository: int64(repository), Revision: in.ExpectedRevision, GrantedBy: int64(actor),
-		Enabled: in.Enabled, Paused: in.Paused, TargetBranch: in.TargetBranch, Roles: roles, Judgments: judgments,
+		Enabled: in.Enabled, Paused: in.Paused, AutomaticExternalPulls: in.AutomaticExternalPulls, TargetBranch: in.TargetBranch, Roles: roles, Judgments: judgments,
 		Checks: in.RequiredChecks, MergeMethod: in.MergeMethod,
 		Publish: publish, Create: create, Review: review, Resolve: resolve, Merge: merge,
 		AttemptLimits:       factory.EffectiveAttemptLimits(in.AttemptLimits),

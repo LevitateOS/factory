@@ -53,8 +53,12 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	}
 	if !policy.Enabled || policy.Paused {
 		delete(c.creationIdlePolls, repository)
+		delete(c.externalPullPolls, repository)
 		return nil
 	}
+	// Optional PR discovery has separate provider reads and consent. Its
+	// unavailability must not stop the original issue recovery owner.
+	_ = c.recoverExternalPulls(ctx, repository, policy)
 	now := time.Now().Unix()
 	if poll, ok := c.creationIdlePolls[repository]; ok {
 		if poll.position == after && poll.policyRevision == policy.Revision && poll.notBefore > now && poll.notBefore <= now+idleCreationPollSeconds {

@@ -23,6 +23,7 @@ type nativeRead struct {
 	GrantID              string                      `json:"grant_id,omitempty"`
 	Paths                []string                    `json:"paths,omitempty"`
 	Creator              string                      `json:"creator,omitempty"`
+	Cursor               string                      `json:"cursor,omitempty"`
 	Comments             []string                    `json:"comments,omitempty"`
 	TargetRef            string                      `json:"target_ref,omitempty"`
 	ReviewerKind         string                      `json:"reviewer_kind,omitempty"`
@@ -145,33 +146,34 @@ func (b *nativeProductAccount) read(ctx context.Context, query nativeRead, body 
 }
 func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body any) (NativeIdentity, error) {
 	var envelope struct {
-		RequiredChecks   json.RawMessage             `json:"required_checks"`
-		DeliveryOpinions json.RawMessage             `json:"delivery_opinions"`
-		AutomationReview json.RawMessage             `json:"automation_review"`
-		AutomationChecks json.RawMessage             `json:"automation_checks"`
-		Inputs           json.RawMessage             `json:"inputs"`
-		Capabilities     json.RawMessage             `json:"capabilities"`
-		Kind             string                      `json:"kind"`
-		Account          collaboration.ObservedActor `json:"account"`
-		Issues           json.RawMessage             `json:"issues"`
-		Pulls            json.RawMessage             `json:"pulls"`
-		Discussion       json.RawMessage             `json:"discussion"`
-		ReviewComments   json.RawMessage             `json:"review_comments"`
-		Reviews          json.RawMessage             `json:"reviews"`
-		Threads          json.RawMessage             `json:"threads"`
-		Files            json.RawMessage             `json:"files"`
-		Commits          json.RawMessage             `json:"commits"`
-		Checks           json.RawMessage             `json:"checks"`
-		Statuses         json.RawMessage             `json:"statuses"`
-		Workflows        json.RawMessage             `json:"workflow_runs"`
-		Jobs             json.RawMessage             `json:"jobs"`
-		Protection       json.RawMessage             `json:"protection"`
-		ReviewRequests   json.RawMessage             `json:"review_requests"`
-		ReviewerLookup   json.RawMessage             `json:"reviewer_lookup"`
-		Branches         json.RawMessage             `json:"branches"`
-		Preparation      json.RawMessage             `json:"preparation"`
-		Publication      json.RawMessage             `json:"publication"`
-		Preservation     json.RawMessage             `json:"preservation"`
+		RequiredChecks         json.RawMessage             `json:"required_checks"`
+		DeliveryOpinions       json.RawMessage             `json:"delivery_opinions"`
+		AutomationReview       json.RawMessage             `json:"automation_review"`
+		ExternalPullCandidates json.RawMessage             `json:"external_pull_candidates"`
+		AutomationChecks       json.RawMessage             `json:"automation_checks"`
+		Inputs                 json.RawMessage             `json:"inputs"`
+		Capabilities           json.RawMessage             `json:"capabilities"`
+		Kind                   string                      `json:"kind"`
+		Account                collaboration.ObservedActor `json:"account"`
+		Issues                 json.RawMessage             `json:"issues"`
+		Pulls                  json.RawMessage             `json:"pulls"`
+		Discussion             json.RawMessage             `json:"discussion"`
+		ReviewComments         json.RawMessage             `json:"review_comments"`
+		Reviews                json.RawMessage             `json:"reviews"`
+		Threads                json.RawMessage             `json:"threads"`
+		Files                  json.RawMessage             `json:"files"`
+		Commits                json.RawMessage             `json:"commits"`
+		Checks                 json.RawMessage             `json:"checks"`
+		Statuses               json.RawMessage             `json:"statuses"`
+		Workflows              json.RawMessage             `json:"workflow_runs"`
+		Jobs                   json.RawMessage             `json:"jobs"`
+		Protection             json.RawMessage             `json:"protection"`
+		ReviewRequests         json.RawMessage             `json:"review_requests"`
+		ReviewerLookup         json.RawMessage             `json:"reviewer_lookup"`
+		Branches               json.RawMessage             `json:"branches"`
+		Preparation            json.RawMessage             `json:"preparation"`
+		Publication            json.RawMessage             `json:"publication"`
+		Preservation           json.RawMessage             `json:"preservation"`
 	}
 	var effect any = nativeReadEffect{Kind: "read", Query: query}
 	if query.Kind == "inline_preparation" && query.Anchor != nil {
@@ -184,7 +186,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if envelope.Kind != query.Kind || !nativeActor(envelope.Account) || envelope.Account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
 		return NativeIdentity{}, errNativeRead
 	}
-	fields := []json.RawMessage{envelope.DeliveryOpinions, envelope.RequiredChecks, envelope.AutomationReview, envelope.AutomationChecks, envelope.Inputs, envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Commits, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.ReviewerLookup, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
+	fields := []json.RawMessage{envelope.ExternalPullCandidates, envelope.DeliveryOpinions, envelope.RequiredChecks, envelope.AutomationReview, envelope.AutomationChecks, envelope.Inputs, envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Commits, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.ReviewerLookup, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
 	var selected json.RawMessage
 	count := 0
 	for _, field := range fields {
@@ -203,6 +205,9 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	}
 	if query.Kind == "issue_creator_permission" || query.Kind == "operation_grant" {
 		expected = envelope.Capabilities
+	}
+	if query.Kind == "external_pull_candidates" {
+		expected = envelope.ExternalPullCandidates
 	}
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead

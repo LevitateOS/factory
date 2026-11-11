@@ -110,6 +110,12 @@ impl Client {
                             "delivery_opinions",
                             reader.delivery_opinions(q["number"].as_u64().ok_or_else(Failure::invalid)?).await?,
                         ),
+                        "external_pull_candidates" => {
+                            let Read::ExternalPullCandidates { number, cursor, .. } = query else {
+                                return Err(Failure::invalid());
+                            };
+                            ("external_pull_candidates", reader.external_pull_candidates(*number, cursor, &identity).await?)
+                        }
                         "automation_checks" => (
                             "automation_checks",
                             reader

@@ -37,7 +37,7 @@ func commandPayloadExpression(version int) (string, error) {
 		history = HumanPullCreateJournalUpgradeDDL
 	case version >= 90 && version <= 103:
 		history = HumanBranchCreateDispatchUpgradeDDL
-	case version == 104 || version == 105:
+	case version >= 104 && version <= 106:
 		history = reviewRetryCommandUpgradeDDL
 	default:
 		return "", fmt.Errorf("command payload constraint has no schema %d contract", version)

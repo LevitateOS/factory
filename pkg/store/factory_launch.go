@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -79,6 +80,33 @@ func (s *Store) AuthorizeFactoryLaunch(ctx context.Context, request execution.La
 	}
 	if err = checkAssignmentAuthorityTx(ctx, tx, assignment.Authority, assignment, grants); err != nil {
 		return empty, err
+	}
+	var automatic *factory.ExternalPullAdoption
+	root := assignment.ID
+	if assignment.ExternalPlanning != nil && assignment.ExternalPlanning.Request.Automatic {
+		automatic = &assignment.ExternalPlanning.Request
+	} else if assignment.PublicationAssignment != "" {
+		var publication factory.Publication
+		err = tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE assignment=$1`, assignment.PublicationAssignment).Scan(&raw)
+		if err == nil {
+			if json.Unmarshal(raw, &publication) != nil || publication.Validate() != nil {
+				return empty, ErrAdmissionChanged
+			}
+			if captured, ok := publication.AutomaticExternalAdoption(grants.policy); ok {
+				automatic = &captured
+				root = publication.AssignmentID
+			}
+		} else if err != sql.ErrNoRows {
+			return empty, err
+		}
+	}
+	if automatic != nil {
+		if !grants.policy.AutomaticExternalPulls || grants.policy.Revision != automatic.Policy || automatic.ForkConsent {
+			return empty, ErrAdmissionChanged
+		}
+		if err = checkExternalPullOrigin(ctx, tx, *automatic, root); err != nil {
+			return empty, err
+		}
 	}
 	if request.Kind == collaboration.Native {
 		if err = checkNativeControllerTx(ctx, tx, assignment.Repository, request.Native.Workspace.Profile, grants.policy.Execution); err != nil {

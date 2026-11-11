@@ -99,6 +99,12 @@ func (s *Store) RecordExternalPublicationCommand(ctx context.Context, cmd factor
 }
 
 func checkExternalAdmissionTx(ctx context.Context, tx *sql.Tx, request factory.ExternalPullAdoption, a factory.Assignment, p factory.Publication, now time.Time, fresh bool) error {
+	if request.Automatic != p.External.Automatic {
+		return ErrAdmissionChanged
+	}
+	if err := checkExternalPullOrigin(ctx, tx, request, a.ID); err != nil {
+		return err
+	}
 	if p.External.ObservedUnix > now.Unix() || fresh && now.Unix()-p.External.ObservedUnix > 30 || (p.External.Target.HeadRepository != p.Repository) != request.ForkConsent {
 		return ErrAdmissionChanged
 	}
@@ -117,6 +123,9 @@ func checkExternalAdmissionTx(ctx context.Context, tx *sql.Tx, request factory.E
 	grants, err := loadAdmissionGrantsTx(ctx, tx, p.Repository, request.Connection)
 	if err != nil {
 		return err
+	}
+	if request.Automatic && (!grants.policy.AutomaticExternalPulls || request.ForkConsent) {
+		return ErrAdmissionChanged
 	}
 	// Both model roles must use the explicitly funded source. Saving policy,
 	// enrollment or placement cannot silently redirect this command's spend.
@@ -204,6 +213,37 @@ func checkExternalAdmissionTx(ctx context.Context, tx *sql.Tx, request factory.E
 	 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(data->'corrections','[]'::jsonb)) o WHERE (o->>'attempts')::int>0 AND o->>'completion' IS DISTINCT FROM 'complete')
 	 OR ((data#>>'{publish,attempts}')::int>0 AND data#>>'{publish,completion}' IS DISTINCT FROM 'complete')
 	 OR ((data#>>'{pr_create,attempts}')::int>0 AND data#>>'{pr_create,completion}' IS DISTINCT FROM 'complete')))`, p.Repository, p.Issue, p.PRNumber).Scan(&unsafe)
+	if err != nil {
+		return err
+	}
+	if unsafe {
+		return ErrAttemptRunsPending
+	}
+	return nil
+}
+
+// Causal publication records identify Factory-created work. An account may also
+// author human PRs; its account identity alone cannot exclude those PRs.
+func (s *Store) ExternalPullOriginAvailable(ctx context.Context, request factory.ExternalPullAdoption) error {
+	if request.Validate() != nil {
+		return ErrAdmissionChanged
+	}
+	return checkExternalPullOrigin(ctx, s.db, request, "")
+}
+
+func checkExternalPullOrigin(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, request factory.ExternalPullAdoption, owner string) error {
+	var unsafe bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_publications WHERE repository=$1 AND assignment<>$4 AND
+	 ((NOT (data ? 'external') AND ((data->>'pr_number')::bigint=$2 OR
+	 (COALESCE((data#>>'{pr_create,attempts}')::int,0)>0 AND
+	 (data#>>'{pr_create,completion}' IS DISTINCT FROM 'complete' OR COALESCE(data#>>'{pr_create,effect}','') NOT IN ('committed','not_committed') OR
+	 (data#>>'{pr_create,effect}'='committed' AND COALESCE((data->>'pr_number')::bigint,0)=0)))))
+	 OR (data ? 'external' AND (data#>>'{external,target,head_oid}'=$3 OR (data->>'pr_number')::bigint=$2 AND stage NOT IN ('fenced','withdrawn')))))
+	 OR EXISTS(SELECT 1 FROM factory_assignments WHERE repository=$1 AND id<>$4 AND data ? 'external_planning'
+	 AND (data#>>'{external_planning,request,target,head_oid}'=$3 OR (data#>>'{external_planning,request,pr_number}')::bigint=$2)
+	 AND NOT EXISTS(SELECT 1 FROM factory_publications p WHERE p.assignment=factory_assignments.id AND p.stage IN ('fenced','withdrawn') AND p.data#>>'{external,target,head_oid}'<>$3))`, request.Repository, request.PRNumber, request.Target.HeadOID, owner).Scan(&unsafe)
 	if err != nil {
 		return err
 	}

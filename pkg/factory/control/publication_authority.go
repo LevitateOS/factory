@@ -53,6 +53,20 @@ func (c *Coordinator) publicationAuthority(ctx context.Context, p factory.Public
 // exception applies only to the explicit non-executing publication command;
 // all standing grants, source consent, dispatch and accepted inputs still apply.
 func (c *Coordinator) currentPublicationAuthority(ctx context.Context, p factory.Publication, retained bool) (factory.AuthorityRef, error) {
+	if p.External != nil && p.External.Automatic {
+		policy, err := c.Store.RepositoryPolicy(ctx, p.Repository)
+		if err != nil {
+			return factory.AuthorityRef{}, err
+		}
+		request, _ := p.AutomaticExternalAdoption(policy)
+		reader, ok := c.Reviews.(automaticExternalPullSource)
+		if !ok {
+			return factory.AuthorityRef{}, ErrIneffectiveAuthority
+		}
+		if err = reader.CheckAutomaticExternalPull(ctx, request); err != nil {
+			return factory.AuthorityRef{}, err
+		}
+	}
 	in, err := c.Store.FactoryAuthorityInput(ctx, p.Repository)
 	if err != nil {
 		return factory.AuthorityRef{}, err

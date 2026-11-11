@@ -194,26 +194,27 @@ func EffectiveReassessmentMinutes(minutes int) int {
 // enrolled native actor references. It grants no appliance capacity,
 // provider sponsorship or environment permission.
 type RepositoryPolicy struct {
-	Execution           *ActorBindingRef         `json:"execution_actor,omitempty"`
-	Roles               map[string]RoleSelection `json:"roles"`
-	Judgments           *RoleSelection           `json:"judgments,omitempty"`
-	Publish             ActorBindingRef          `json:"publish_actor"`
-	Create              ActorBindingRef          `json:"create_actor"`
-	Review              ActorBindingRef          `json:"review_actor"`
-	AutomationReviewer  *ActorBindingRef         `json:"automation_reviewer,omitempty"`
-	Resolve             ActorBindingRef          `json:"resolve_actor,omitempty"`
-	Merge               ActorBindingRef          `json:"merge_actor"`
-	Repository          int64                    `json:"repository,string"`
-	Revision            int64                    `json:"revision"`
-	GrantedBy           int64                    `json:"granted_by,string"`
-	TargetBranch        string                   `json:"target_branch"`
-	Checks              []string                 `json:"required_checks"`
-	MergeMethod         string                   `json:"merge_method"`
-	AttemptLimits       AttemptLimits            `json:"attempt_limits"`
-	ReassessmentMinutes int                      `json:"reassessment_minutes"`
-	IntentMinutes       int                      `json:"intent_minutes"`
-	Enabled             bool                     `json:"enabled"`
-	Paused              bool                     `json:"paused"`
+	Execution              *ActorBindingRef         `json:"execution_actor,omitempty"`
+	Roles                  map[string]RoleSelection `json:"roles"`
+	Judgments              *RoleSelection           `json:"judgments,omitempty"`
+	Publish                ActorBindingRef          `json:"publish_actor"`
+	Create                 ActorBindingRef          `json:"create_actor"`
+	Review                 ActorBindingRef          `json:"review_actor"`
+	AutomationReviewer     *ActorBindingRef         `json:"automation_reviewer,omitempty"`
+	Resolve                ActorBindingRef          `json:"resolve_actor,omitempty"`
+	Merge                  ActorBindingRef          `json:"merge_actor"`
+	Repository             int64                    `json:"repository,string"`
+	Revision               int64                    `json:"revision"`
+	GrantedBy              int64                    `json:"granted_by,string"`
+	TargetBranch           string                   `json:"target_branch"`
+	Checks                 []string                 `json:"required_checks"`
+	MergeMethod            string                   `json:"merge_method"`
+	AttemptLimits          AttemptLimits            `json:"attempt_limits"`
+	ReassessmentMinutes    int                      `json:"reassessment_minutes"`
+	IntentMinutes          int                      `json:"intent_minutes"`
+	Enabled                bool                     `json:"enabled"`
+	Paused                 bool                     `json:"paused"`
+	AutomaticExternalPulls bool                     `json:"automatic_external_pulls"`
 }
 
 func (p RepositoryPolicy) Validate() error {
@@ -252,6 +253,9 @@ func (p RepositoryPolicy) Validate() error {
 	}
 	if err := p.AttemptLimits.Validate(); err != nil {
 		return err
+	}
+	if p.AutomaticExternalPulls && (p.Roles[project.RoleCoder].Account == "" || p.Roles[project.RoleCoder].Account != p.Roles[project.RoleReviewer].Account || p.Judgments != nil && p.Judgments.Account != p.Roles[project.RoleCoder].Account || p.AttemptLimits.ReviewRounds < 1) {
+		return errors.New("automatic external pull requests require one explicitly selected source and finite review limits")
 	}
 	return nil
 }

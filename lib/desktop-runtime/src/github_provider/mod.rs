@@ -12,6 +12,7 @@ mod diff;
 mod edits;
 mod dependencies;
 mod evidence;
+mod external_pulls;
 mod git_fetch;
 mod git_publish;
 mod inline_create;

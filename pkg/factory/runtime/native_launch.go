@@ -14,6 +14,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/factory/mcpserver"
 	"github.com/levitateos/factory/pkg/project"
+	"github.com/levitateos/factory/pkg/store"
 	"github.com/levitateos/factory/pkg/strictjson"
 )
 
@@ -56,6 +57,33 @@ func (p NativeExecution) authorizeLaunch(ctx context.Context, request execution.
 	tools, err := mcpserver.BoundToolNames(ctx, p.workerDependencies(ctx), cap)
 	if err != nil {
 		return empty, nil, err
+	}
+	var automatic *factory.ExternalPullAdoption
+	if assignment.ExternalPlanning != nil && assignment.ExternalPlanning.Request.Automatic {
+		automatic = &assignment.ExternalPlanning.Request
+	} else if assignment.PublicationAssignment != "" {
+		publication, readErr := p.Store.PublicationByAssignment(ctx, assignment.PublicationAssignment)
+		if readErr == nil {
+			policy, policyErr := p.Store.RepositoryPolicy(ctx, assignment.Repository)
+			if policyErr != nil {
+				return empty, nil, policyErr
+			}
+			if captured, ok := publication.AutomaticExternalAdoption(policy); ok {
+				automatic = &captured
+			}
+		} else if !errors.Is(readErr, store.ErrNotFound) {
+			return empty, nil, readErr
+		}
+	}
+	if automatic != nil {
+		if err = (NativeReviews{NativeInputSource{p}}).CheckAutomaticExternalPull(ctx, *automatic); err != nil {
+			return empty, nil, err
+		}
+		// Provider I/O cannot retain a policy or source that was withdrawn.
+		current, currentErr := p.Store.AuthorizeFactoryLaunch(ctx, request)
+		if currentErr != nil || current.ScopeDigest() != cap.ScopeDigest() {
+			return empty, nil, errors.Join(execution.ErrLaunch, currentErr)
+		}
 	}
 	return cap, tools, nil
 }

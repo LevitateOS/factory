@@ -28,6 +28,15 @@ func (c *Coordinator) captureExternalOriginObserved(ctx context.Context, command
 	if policy.Revision != request.Policy || policy.TargetBranch != request.Target.BaseRef {
 		return empty, store.ErrAdmissionChanged
 	}
+	if request.Automatic {
+		reader, ok := c.Reviews.(automaticExternalPullSource)
+		if !ok || !policy.Enabled || policy.Paused || !policy.AutomaticExternalPulls {
+			return empty, store.ErrAdmissionChanged
+		}
+		if err := reader.CheckAutomaticExternalPull(ctx, request); err != nil {
+			return empty, err
+		}
+	}
 	_, environment, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(request.Repository))
 	if err != nil || environment == nil || environment.Profile != policy.Review.NativeProfile {
 		return empty, errors.Join(store.ErrAdmissionChanged, err)
@@ -67,7 +76,7 @@ func (c *Coordinator) captureExternalOriginObserved(ctx context.Context, command
 		return empty, err
 	}
 	sum := sha256.Sum256(raw)
-	origin := factory.ExternalPublicationOrigin{Target: t, CommandID: command, Host: repository.Host, Profile: connection.Profile, Connection: connection.ID, ActorID: policy.Review.ActorID, Policy: policy.Revision, ObservationDigest: hex.EncodeToString(sum[:]), ObservationRevision: observed.NativeRev, ObservedUnix: observed.ObservedUnix}
+	origin := factory.ExternalPublicationOrigin{Automatic: request.Automatic, Target: t, CommandID: command, Host: repository.Host, Profile: connection.Profile, Connection: connection.ID, ActorID: policy.Review.ActorID, Policy: policy.Revision, ObservationDigest: hex.EncodeToString(sum[:]), ObservationRevision: observed.NativeRev, ObservedUnix: observed.ObservedUnix}
 	if request.ForkConsent {
 		origin.ForkConsent = command
 	}

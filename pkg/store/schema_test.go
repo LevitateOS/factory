@@ -1078,6 +1078,11 @@ func TestOpenCreatesOnlyTheCurrentSchema(t *testing.T) {
 	}
 	// Both shapes carry the current version marker. Open must inspect the
 	// retained constraint, not assume this initializer ran from version alone.
+	// The automatic-PR format upgrade changes only the marker. This disposable
+	// retained copy keeps its commands, receipts and every product row exact.
+	if _, err := s.db.ExecContext(ctx, `UPDATE schema_version SET version=105`); err != nil {
+		t.Fatal(err)
+	}
 	for _, shape := range []string{"known-prior", "current"} {
 		if err := s.Close(); err != nil {
 			t.Fatal(err)

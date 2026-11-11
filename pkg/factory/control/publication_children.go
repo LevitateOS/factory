@@ -707,6 +707,15 @@ func (c *Coordinator) recheckPublicationChild(ctx context.Context, p factory.Pub
 		if c.Reviews == nil || plan.policy.Revision != p.External.Policy {
 			return waitFor("child_dispatch_inputs_changed", "external adoption policy changed before launch"), nil
 		}
+		if request, automatic := p.AutomaticExternalAdoption(plan.policy); automatic {
+			reader, ok := c.Reviews.(automaticExternalPullSource)
+			if !ok {
+				return waitFor("child_dispatch_inputs_changed", "automatic PR eligibility is unavailable"), nil
+			}
+			if err := reader.CheckAutomaticExternalPull(ctx, request); err != nil {
+				return waitFor("child_dispatch_inputs_changed", "automatic PR author, accepted issue association or policy changed"), nil
+			}
+		}
 		t := p.PullTarget()
 		if _, err := c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, HeadRepository: t.HeadRepository, ActorID: plan.policy.Review.ActorID, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: p.Candidate, BaseOID: t.BaseOID}); err != nil {
 			return waitFor("child_dispatch_inputs_changed", "external PR identity, head, base or permission changed before launch"), nil

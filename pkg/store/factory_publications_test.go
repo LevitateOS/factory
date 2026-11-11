@@ -97,6 +97,27 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err = db.RecordPublication(ctx, p); err != nil {
 				t.Fatal(err)
 			}
+			request := factory.ExternalPullAdoption{Automatic: true, Policy: 1, Repository: 7, Issue: 3, Acceptance: p.Acceptance, PRNumber: 999, PRID: 9999, Connection: "conn", Limits: factory.DefaultAttemptLimits(),
+				Target: factory.PublicationPullTarget{AuthorID: 42, IssueID: 9999, HeadRepository: 7, HeadRef: "refs/heads/human", BaseRef: p.TargetBranch, HeadOID: p.Candidate, BaseOID: p.BaseSHA}}
+			if err = db.ExternalPullOriginAvailable(ctx, request); err != nil {
+				t.Fatal("human PR sharing the Factory account was excluded", err)
+			}
+			unknownID := factory.NewID()
+			if _, err = db.db.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,7,99,'','fenced',0,'{"pr_create":{"attempts":1,"effect":"unknown"}}')`, unknownID); err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ExternalPullOriginAvailable(ctx, request); !errors.Is(err, ErrAttemptRunsPending) {
+				t.Fatal("unknown Factory PR creation was not held", err)
+			}
+			if _, err = db.db.ExecContext(ctx, `UPDATE factory_publications SET data=jsonb_build_object('external',jsonb_build_object('target',jsonb_build_object('head_oid',$2::text)),'pr_number',998) WHERE assignment=$1`, unknownID, request.Target.HeadOID); err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ExternalPullOriginAvailable(ctx, request); !errors.Is(err, ErrAttemptRunsPending) {
+				t.Fatal("the same external head was admitted twice", err)
+			}
+			if _, err = db.db.ExecContext(ctx, `DELETE FROM factory_publications WHERE assignment=$1`, unknownID); err != nil {
+				t.Fatal(err)
+			}
 			p.Comparison, p.NativeRev, p.ObservedUnix = p.BaseSHA, 9, now.Unix()
 			p.Publish = publishedStoreOperation(p, factory.OpRefPublish, 1, "ordinary-branch-receipt")
 			p.PRCreate = publishedStoreOperation(p, factory.OpPRCreate, 1, "ordinary-pr-receipt")
@@ -111,6 +132,10 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			}
 			if err = db.UpdatePublication(ctx, p); err != nil {
 				t.Fatal(err)
+			}
+			request.PRNumber = p.PRNumber
+			if err = db.ExternalPullOriginAvailable(ctx, request); !errors.Is(err, ErrAttemptRunsPending) {
+				t.Fatal("causal Factory publication reentered external intake", err)
 			}
 			canonical, err := db.Assignment(ctx, origin.ID)
 			if err != nil {

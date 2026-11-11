@@ -114,6 +114,7 @@ type Coordinator struct {
 	// The progress gate protects the bounded recovery and verification cursors below.
 	creationRepositoryCursor int64
 	creationIdlePolls        map[int64]creationIdlePoll
+	externalPullPolls        map[int64]externalPullPoll
 	intentGenerationCursor   string
 	deliveryIntentCursor     string
 	deliveryRepairCursor     string

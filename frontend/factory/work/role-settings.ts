@@ -207,6 +207,7 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
     ...policySelections(roles),
     enabled: policy.enabled,
     paused: policy.paused,
+    automatic_external_pulls: policy.automatic_external_pulls === true,
     target_branch: policy.target_branch,
     merge_method: policy.merge_method,
     required_checks: policy.required_checks,
@@ -236,6 +237,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     setup: {state: true},
     limits: {state: true},
     automationReviewer: {state: true},
+    automaticExternalPulls: {state: true},
     fundingSource: {state: true},
     busy: {state: true},
     message: {state: true},
@@ -247,6 +249,7 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private setup: SetupDraft;
   declare private limits: LimitDraft;
   declare private automationReviewer: boolean;
+  declare private automaticExternalPulls: boolean;
   declare private fundingSource: string;
   private current: RoleContext | undefined;
   private generation = '';
@@ -257,6 +260,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.limits = {active_minutes: '', review_rounds: '', correction_cycles: ''};
     this.busy = false;
     this.automationReviewer = false;
+    this.automaticExternalPulls = false;
     this.fundingSource = '';
     this.message = '';
   }
@@ -278,6 +282,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.current = context;
     this.generation = context?.transport.generation ?? '';
     this.view = this.roles = undefined;
+    this.automaticExternalPulls = false;
     this.fundingSource = '';
     this.busy = false;
     this.message = '';
@@ -316,6 +321,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       if (this.live(context, signal)) {
         this.view = view;
         this.automationReviewer = !!view.policy && samePolicyActor(view.policy.automation_reviewer, view.policy.review_actor);
+        this.automaticExternalPulls = view.policy?.automatic_external_pulls === true;
         this.roles = view.roles ?? {
           'soda-coder': {account: '', harness: 'muse', model: ''},
           'soda-reviewer': {account: '', harness: 'muse', model: ''},
@@ -454,6 +460,15 @@ export class SodaFactoryRoleSettings extends LitElement {
       max_children: this.view?.policy ? object(this.view.policy.attempt_limits).max_children : 0,
     };
   }
+  private automaticPullsReady() {
+    const roles = this.roles;
+    if (!roles || this.view?.options?.controllerGrantRequired === true) return false;
+    const account = roles['soda-coder'].account;
+    return !!account && roles['soda-reviewer'].account === account &&
+      (!roles[judgmentRole].account || roles[judgmentRole].account === account) &&
+      (Object.keys(roleNames) as Role[]).every(role => this.validSelection(role, false)) &&
+      !!this.selectedLimits();
+  }
   private async save(event: SubmitEvent) {
     event.preventDefault();
     const context = this.current,
@@ -464,6 +479,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       roles = disabling ? view?.roles : this.roles;
     const limits = this.selectedLimits();
     if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal) || (!disabling && !limits)) return;
+    if (!disabling && this.automaticExternalPulls && !this.automaticPullsReady()) return;
     const initial = view.policy === null,
       actors = initial ? this.initialActors() : undefined;
     if (initial && (disabling || enrolling)) return;
@@ -482,6 +498,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           ...policySelections(roles),
           enabled: false,
           paused: false,
+          automatic_external_pulls: false,
           target_branch: this.setup.targetBranch,
           merge_method: this.setup.method,
           required_checks: this.checks(),
@@ -495,6 +512,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       if ('resolve_actor' in payload && payload.resolve_actor) payload.resolve_actor = {...object(payload.resolve_actor), controller_grant_id: this.setup.controllerGrant};
     }
     if (!disabling) Object.assign(payload, {attempt_limits: limits});
+    if (!disabling) payload.automatic_external_pulls = this.automaticExternalPulls;
     const reviewIdentity = object(payload).review_actor;
     const automationReviewer = disabling ? !!view.policy?.automation_reviewer : this.automationReviewer;
     Object.assign(payload, {automation_reviewer: disabling
@@ -537,6 +555,7 @@ export class SodaFactoryRoleSettings extends LitElement {
         )
       );
       check(confirmed.policy.enabled === payload.enabled);
+      check(confirmed.policy.automatic_external_pulls === payload.automatic_external_pulls);
       if (!disabling) {
         const savedLimits = object(confirmed.policy.attempt_limits);
         check(['active_minutes', 'review_rounds', 'correction_cycles'].every(key => savedLimits[key] === object(limits)[key]));
@@ -551,6 +570,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       if (this.live(context, signal)) {
         this.view = confirmed;
         this.roles = confirmed.roles;
+        this.automaticExternalPulls = confirmed.policy.automatic_external_pulls === true;
         this.message = initial ? 'Repository policy saved with automation disabled.'
           : enrolling ? 'Automation policy enrolled. Existing pauses and execution prerequisites still apply.'
             : disabling ? 'Automation policy disabled. Existing work may still need retirement.' : 'Role selections saved.';
@@ -576,6 +596,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       view?.editable &&
       roles &&
       this.selectedLimits() &&
+      (!this.automaticExternalPulls || this.automaticPullsReady()) &&
       (Object.keys(roleNames) as Role[]).every(
         (role) => this.validSelection(role, initial)
       ) &&
@@ -791,6 +812,20 @@ export class SodaFactoryRoleSettings extends LitElement {
                   ${accounts.length === 0 ? html`<p>No active saved spending source is available for this role.</p>` : ''}
                 </fieldset>`;
               })}
+              <fieldset ?disabled=${this.busy || !view.editable}>
+                <legend>Automatic external pull requests</legend>
+                <label><input
+                  type="checkbox"
+                  aria-label="Automatically adopt eligible same-repository pull requests"
+                  .checked=${this.automaticExternalPulls}
+                  ?disabled=${view.options?.controllerGrantRequired === true || (!this.automaticExternalPulls && !this.automaticPullsReady())}
+                  @change=${(event: Event) => {this.automaticExternalPulls = (event.target as HTMLInputElement).checked;}}
+                />Automatically adopt eligible same-repository pull requests.</label>
+                <p>Adoption requires the PR author to be a current repository writer and exactly one explicitly accepted issue linked through the provider's structured closing links. Factory verifies the current head, base and policy target and keeps the existing finite attempt limits. Fork pull requests require an explicit command.</p>
+                <p>Select one saved paying source shared by Coding and Review. Optional Judgments must use that same source. Populate the finite execution limits before enabling this choice.</p>
+                <p>This choice is separate from policy enrollment and automatic issue polling.</p>
+                ${view.options?.controllerGrantRequired ? html`<p>Automatic external pull request adoption is unavailable in Fountain.</p>` : ''}
+              </fieldset>
               <p>
                 Only Muse is currently supported.
                 ${initial ? 'Automation stays disabled until execution setup and funding are ready.' : 'Saving retains the other automation policy settings and existing attempt captures.'}
