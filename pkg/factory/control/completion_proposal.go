@@ -216,7 +216,7 @@ func (c *Coordinator) releaseReassessment(ctx context.Context, record store.Reas
 		c.holdCompletion(ctx, record, "reassessment_release_refused", report, false)
 		return
 	}
-	if err := c.Store.DeletePriorityScan(ctx); err != nil {
+	if err := c.Store.DeletePriorityScan(ctx, record.Cycle.Repository); err != nil {
 		c.holdCompletion(ctx, record, "reassessment_release_deferred", report, false)
 		return
 	}

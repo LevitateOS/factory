@@ -62,6 +62,11 @@ func selectPriority(ctx context.Context, deps *PriorityJudgments, candidates []f
 	if len(candidates) == 1 {
 		return candidates[0].ID, nil
 	}
+	for _, candidate := range candidates[1:] {
+		if candidate.Control.Repository != candidates[0].Control.Repository {
+			return "", ErrPriorityUnavailable
+		}
+	}
 	if deps == nil || deps.Journal == nil {
 		return "", ErrPriorityUnavailable
 	}

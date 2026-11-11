@@ -61,7 +61,7 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 		return
 	}
 	if progress.Journal.Releasable() == nil {
-		if c.Store.DeletePriorityScan(ctx) != nil {
+		if c.Store.DeletePriorityScan(ctx, cause.repository()) != nil {
 			return
 		}
 		cycle.State, cycle.Reason = factory.RepairAdopted, "repair_graph_adopted_awaiting_fresh_readiness"

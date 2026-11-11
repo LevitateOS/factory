@@ -23,7 +23,35 @@ func dispatchPriorityPass(ctx context.Context, deps DispatchDeps, report Dispatc
 	if deps.Priority == nil {
 		return report
 	}
-	return dispatchPriorityInventoryPass(ctx, deps, report)
+	firstSeen, repository, _, after := deps.Queue.start()
+	next, err := deps.Store.PriorityRepositoryAfter(ctx, firstSeen, repository, after)
+	if errors.Is(err, store.ErrNotFound) && after {
+		deps.Queue.reset()
+		next, err = deps.Store.PriorityRepositoryAfter(ctx, 0, 0, false)
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		return report
+	}
+	if err != nil {
+		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "queued listing unavailable"})
+		return report
+	}
+	// Rotate before any native read. Each repository retains its own complete
+	// scan, so an unavailable member pauses only its repository's tournament.
+	deps.Queue.advance(factory.IssueControl{Repository: next.Repository, FirstSeenUnix: next.FirstSeenUnix}, false)
+	errorsBefore, waitsBefore := len(report.Errors), len(report.Waits)
+	report = dispatchPriorityInventoryPass(ctx, deps, next.Repository, report)
+	for i := errorsBefore; i < len(report.Errors); i++ {
+		if report.Errors[i].Repository == 0 {
+			report.Errors[i].Repository = next.Repository
+		}
+	}
+	for i := waitsBefore; i < len(report.Waits); i++ {
+		if report.Waits[i].Repository == 0 {
+			report.Waits[i].Repository = next.Repository
+		}
+	}
+	return report
 }
 
 func priorityObserveRevision(ctx context.Context, deps DispatchDeps) (int64, bool, error) {
@@ -58,13 +86,13 @@ func priorityMemberEligible(control factory.IssueControl) bool {
 // cursor within the pass bounds, and runs the existing tournament once
 // the set is complete. Observed candidates persist, so later passes and
 // restarts never repeat a full native scan and never truncate the set.
-func dispatchPriorityInventoryPass(ctx context.Context, deps DispatchDeps, report DispatchReport) DispatchReport {
+func dispatchPriorityInventoryPass(ctx context.Context, deps DispatchDeps, repository int64, report DispatchReport) DispatchReport {
 	nativeRev, idle, err := priorityObserveRevision(ctx, deps)
 	if err != nil || !idle {
 		report.Errors = append(report.Errors, DispatchError{Reason: "priority_incomplete", Detail: "native revision unavailable"})
 		return report
 	}
-	inventory, err := deps.Store.CapturePriorityInventory(ctx)
+	inventory, err := deps.Store.CapturePriorityInventory(ctx, repository)
 	if err != nil {
 		if errors.Is(err, store.ErrPriorityInventoryTooLarge) {
 			report.Errors = append(report.Errors, DispatchError{Reason: "priority_incomplete", Detail: "complete candidate inventory unavailable"})
@@ -84,12 +112,12 @@ func dispatchPriorityInventoryPass(ctx context.Context, deps DispatchDeps, repor
 		report.Errors = append(report.Errors, DispatchError{Reason: PrioritySnapshotChanging, Detail: "native revision advanced during inventory capture"})
 		return report
 	}
-	_, haveSaved, err := priorityScanState(ctx, deps)
+	_, haveSaved, err := priorityScanState(ctx, deps, repository)
 	if err != nil {
 		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority scan unreadable"})
 		return report
 	}
-	resumed, err := deps.Store.SavePriorityScan(ctx, nativeRev, inventory)
+	resumed, err := deps.Store.SavePriorityScan(ctx, repository, nativeRev, inventory)
 	if err != nil {
 		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority scan unrecorded"})
 		return report
@@ -97,7 +125,7 @@ func dispatchPriorityInventoryPass(ctx context.Context, deps DispatchDeps, repor
 	if haveSaved && !resumed {
 		report.Errors = append(report.Errors, DispatchError{Reason: PrioritySnapshotChanging, Detail: "priority inventory changed; restarting durable scan"})
 	}
-	scan, err := deps.Store.LoadPriorityScan(ctx)
+	scan, err := deps.Store.LoadPriorityScan(ctx, repository)
 	if err != nil {
 		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority scan unreadable"})
 		return report
@@ -110,8 +138,8 @@ func dispatchPriorityInventoryPass(ctx context.Context, deps DispatchDeps, repor
 
 // priorityScanState loads the saved scan, reporting whether one exists.
 // A missing scan is a fresh start, not a failure.
-func priorityScanState(ctx context.Context, deps DispatchDeps) (store.PriorityScanState, bool, error) {
-	saved, err := deps.Store.LoadPriorityScan(ctx)
+func priorityScanState(ctx context.Context, deps DispatchDeps, repository int64) (store.PriorityScanState, bool, error) {
+	saved, err := deps.Store.LoadPriorityScan(ctx, repository)
 	if errors.Is(err, store.ErrNotFound) {
 		return store.PriorityScanState{}, false, nil
 	}
@@ -158,7 +186,7 @@ func observePriorityInventory(ctx context.Context, deps DispatchDeps, nativeRev 
 		observation, advance, err := observePrioritySubject(ctx, collect, &occupancy, subject, nativeRev, &report)
 		if err != nil {
 			if len(observations) > 0 {
-				if recordErr := deps.Store.RecordPriorityProgress(ctx, nativeRev, scan.LocalDigest, observations, cursor); recordErr != nil {
+				if recordErr := deps.Store.RecordPriorityProgress(ctx, scan.Repository, nativeRev, scan.LocalDigest, observations, cursor); recordErr != nil {
 					report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority progress unrecorded"})
 					return report
 				}
@@ -181,7 +209,7 @@ func observePriorityInventory(ctx context.Context, deps DispatchDeps, nativeRev 
 		cursor = i + 1
 	}
 	if len(observations) > 0 {
-		if err := deps.Store.RecordPriorityProgress(ctx, nativeRev, scan.LocalDigest, observations, cursor); err != nil {
+		if err := deps.Store.RecordPriorityProgress(ctx, scan.Repository, nativeRev, scan.LocalDigest, observations, cursor); err != nil {
 			if errors.Is(err, store.ErrStaleRevision) {
 				report.Errors = append(report.Errors, DispatchError{Reason: PrioritySnapshotChanging, Detail: "priority inventory changed during observation"})
 				return report
@@ -191,7 +219,7 @@ func observePriorityInventory(ctx context.Context, deps DispatchDeps, nativeRev 
 		}
 	}
 	if cursor >= len(scan.Subjects) {
-		updated, err := deps.Store.LoadPriorityScan(ctx)
+		updated, err := deps.Store.LoadPriorityScan(ctx, scan.Repository)
 		if err != nil {
 			report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority scan unreadable"})
 			return report
@@ -275,7 +303,8 @@ func collectPriorityCandidates(scan store.PriorityScanState, report DispatchRepo
 			continue
 		}
 		var candidate factory.PriorityCandidate
-		if err := json.Unmarshal(observation.Candidate, &candidate); err != nil {
+		if err := json.Unmarshal(observation.Candidate, &candidate); err != nil ||
+			candidate.Control.Repository != scan.Repository || candidate.Control.Issue != subject.Issue {
 			report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority candidate unreadable"})
 			return selection, report, false
 		}
@@ -295,11 +324,11 @@ func confirmPrioritySnapshot(ctx context.Context, deps DispatchDeps, nativeRev i
 		return 0, report, false
 	}
 	if confirmed != nativeRev {
-		_ = deps.Store.DeletePriorityScan(ctx)
+		_ = deps.Store.DeletePriorityScan(ctx, scan.Repository)
 		report.Errors = append(report.Errors, DispatchError{Reason: PrioritySnapshotChanging, Detail: "native revision advanced after judgment"})
 		return 0, report, false
 	}
-	fresh, err := deps.Store.CapturePriorityInventory(ctx)
+	fresh, err := deps.Store.CapturePriorityInventory(ctx, scan.Repository)
 	if err != nil {
 		if errors.Is(err, store.ErrPriorityInventoryTooLarge) {
 			report.Errors = append(report.Errors, DispatchError{Reason: "priority_incomplete", Detail: "complete candidate inventory unavailable"})
@@ -309,7 +338,7 @@ func confirmPrioritySnapshot(ctx context.Context, deps DispatchDeps, nativeRev i
 		return 0, report, false
 	}
 	if fresh.LocalDigest != scan.LocalDigest || len(fresh.Subjects) != len(scan.Subjects) {
-		_ = deps.Store.DeletePriorityScan(ctx)
+		_ = deps.Store.DeletePriorityScan(ctx, scan.Repository)
 		report.Errors = append(report.Errors, DispatchError{Reason: PrioritySnapshotChanging, Detail: "priority inputs changed after judgment"})
 		return 0, report, false
 	}
@@ -349,7 +378,7 @@ func launchSelectedCandidate(ctx context.Context, deps DispatchDeps, selection p
 	launched := len(report.Launched)
 	dispatchOne(ctx, final, &freshOccupancy, current, &report)
 	if len(report.Launched) > launched {
-		if err := deps.Store.DeletePriorityScan(ctx); err != nil {
+		if err := deps.Store.DeletePriorityScan(ctx, subject.Repository); err != nil {
 			report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "priority scan unretired"})
 		}
 	}
@@ -373,7 +402,7 @@ func completePrioritySelection(ctx context.Context, deps DispatchDeps, nativeRev
 		for _, observation := range scan.Observations {
 			switch observation.Exclusion {
 			case WaitSource, WaitHarness, WaitPreparation, WaitInputsUnavailable, WaitInputsBusy, WaitInputsStale, WaitInputsIncomplete, WaitCapacity, WaitRepository:
-				if err := deps.Store.DeletePriorityScan(ctx); err != nil {
+				if err := deps.Store.DeletePriorityScan(ctx, scan.Repository); err != nil {
 					report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "transient priority scan unretired"})
 				}
 				return report
@@ -381,11 +410,7 @@ func completePrioritySelection(ctx context.Context, deps DispatchDeps, nativeRev
 		}
 		return report
 	}
-	// D13 completion fence (FW31): a pending event excludes its
-	// repository from selection with reassessment_pending waits. The
-	// rest still elect, so one fenced repository never stalls the
-	// global tournament. Observation above already happened and
-	// continues; this split only governs selection.
+	// D13 completion fences still apply to this complete repository group.
 	candidates, report = excludeFencedCandidates(ctx, deps, candidates, report)
 	if len(candidates) == 0 {
 		return report

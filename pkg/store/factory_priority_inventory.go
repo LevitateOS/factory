@@ -17,18 +17,23 @@ import (
 )
 
 // This file owns the durable priority-inventory cursor for the D02
-// decomposition-and-priority contract: one current scan record plus
+// decomposition-and-priority contract: one current scan per repository plus
 // candidate rows keyed by (scan_id, subject_key). The scan captures the
 // complete ordered membership and the normalized local inputs in one
 // repeatable-read transaction, so passes resume from the saved cursor
 // instead of repeating a full native scan. Control compares the native
 // revision and the local digest; any change invalidates the scan.
 
-// PriorityInventoryScanID is the single current scan. Replacement, not
-// versioning: a changed revision or digest replaces this row and drops
-// its candidate rows. Spent judgment receipts stay in the existing
-// judgment ledger.
+// PriorityInventoryScanID retains the historical global scan. Serving passes
+// use repository keys; they never consume or replace this retained journal.
 const PriorityInventoryScanID = "current"
+
+func priorityScanID(repository int64) string {
+	if repository == 0 {
+		return PriorityInventoryScanID
+	}
+	return fmt.Sprintf("repository:%d", repository)
+}
 
 // MaxPriorityInventorySubjects keeps the D02 4,096-item ceiling. A larger
 // membership refuses capture instead of truncating the set.
@@ -68,6 +73,7 @@ type PriorityCandidateObservation struct {
 
 // PriorityScanState is the loaded current scan with its observations.
 type PriorityScanState struct {
+	Repository     int64
 	ScanID         string
 	NativeRevision int64
 	LocalDigest    string
@@ -82,6 +88,19 @@ func PrioritySubjectKey(repository, issue int64) string {
 	return fmt.Sprintf("%d/%d", repository, issue)
 }
 
+// PriorityRepositoryAfter rotates complete repository groups using the serving
+// dispatch cursor. Membership is read locally; one unavailable native account
+// cannot prevent the next repository from receiving its own observation pass.
+func (s *Store) PriorityRepositoryAfter(ctx context.Context, firstSeen, repository int64, after bool) (PriorityInventorySubject, error) {
+	var next PriorityInventorySubject
+	err := s.db.QueryRowContext(ctx, `SELECT repository, min((data->>'first_seen_unix')::bigint) AS first_seen
+		FROM issue_controls WHERE data->>'readiness'='queued' OR (data->>'readiness'='not_authorized'
+			AND data->>'reason'='authority_missing' AND data->>'acceptance'<>'')
+		GROUP BY repository HAVING NOT $1 OR (min((data->>'first_seen_unix')::bigint),repository)>($2,$3)
+		ORDER BY first_seen,repository LIMIT 1`, after, firstSeen, repository).Scan(&next.Repository, &next.FirstSeenUnix)
+	return next, err
+}
+
 // CapturePriorityInventory captures the complete ordered membership and
 // the normalized local-input digest in one repeatable-read transaction.
 // Assessment timestamps, observation counters, exact balances, remaining
@@ -89,13 +108,16 @@ func PrioritySubjectKey(repository, issue int64) string {
 // a clock cannot invalidate its own scan. Time-dependent budget
 // eligibility enters as booleans evaluated now; exact balances are
 // rechecked in the final packet admission.
-func (s *Store) CapturePriorityInventory(ctx context.Context) (PriorityInventory, error) {
+func (s *Store) CapturePriorityInventory(ctx context.Context, repository int64) (PriorityInventory, error) {
+	if repository < 0 {
+		return PriorityInventory{}, errors.New("invalid priority repository")
+	}
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 	if err != nil {
 		return PriorityInventory{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	controls, err := priorityInventoryMembership(ctx, tx)
+	controls, err := priorityInventoryMembership(ctx, tx, repository)
 	if err != nil {
 		return PriorityInventory{}, err
 	}
@@ -119,12 +141,12 @@ func (s *Store) CapturePriorityInventory(ctx context.Context) (PriorityInventory
 // membership: queued controls plus accepted authority-blocked controls
 // that may have become ready. The predicate matches
 // DispatchControlsAfter; the ceiling refuses instead of truncating.
-func priorityInventoryMembership(ctx context.Context, tx *sql.Tx) ([]factory.IssueControl, error) {
+func priorityInventoryMembership(ctx context.Context, tx *sql.Tx, repository int64) ([]factory.IssueControl, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT data FROM issue_controls
-		WHERE (data->>'readiness'='queued' OR (data->>'readiness'='not_authorized'
+		WHERE ($2=0 OR repository=$2) AND (data->>'readiness'='queued' OR (data->>'readiness'='not_authorized'
 			AND data->>'reason'='authority_missing' AND data->>'acceptance'<>''))
 		ORDER BY (data->>'first_seen_unix')::bigint ASC, repository ASC, issue ASC LIMIT $1`,
-		MaxPriorityInventorySubjects+1)
+		MaxPriorityInventorySubjects+1, repository)
 	if err != nil {
 		return nil, err
 	}
@@ -604,11 +626,14 @@ func prioritySponsorshipAllowance(ctx context.Context, tx *sql.Tx, repository in
 
 // LoadPriorityScan returns the current scan with its observations, or
 // ErrNotFound when no scan is retained.
-func (s *Store) LoadPriorityScan(ctx context.Context) (PriorityScanState, error) {
-	var state PriorityScanState
+func (s *Store) LoadPriorityScan(ctx context.Context, repository int64) (PriorityScanState, error) {
+	if repository < 0 {
+		return PriorityScanState{}, errors.New("invalid priority repository")
+	}
+	state := PriorityScanState{Repository: repository}
 	var subjectsData []byte
 	err := s.db.QueryRowContext(ctx, `SELECT scan, native_revision, local_digest, subjects, cursor
-		FROM factory_priority_scans WHERE scan=$1`, PriorityInventoryScanID).
+		FROM factory_priority_scans WHERE scan=$1`, priorityScanID(repository)).
 		Scan(&state.ScanID, &state.NativeRevision, &state.LocalDigest, &subjectsData, &state.Cursor)
 	if err != nil {
 		return PriorityScanState{}, err
@@ -617,7 +642,7 @@ func (s *Store) LoadPriorityScan(ctx context.Context) (PriorityScanState, error)
 		return PriorityScanState{}, err
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT subject, repository, issue, candidate, exclusion, fingerprint
-		FROM factory_priority_candidates WHERE scan=$1`, PriorityInventoryScanID)
+		FROM factory_priority_candidates WHERE scan=$1`, state.ScanID)
 	if err != nil {
 		return PriorityScanState{}, err
 	}
@@ -644,7 +669,16 @@ func (s *Store) LoadPriorityScan(ctx context.Context) (PriorityScanState, error)
 // SavePriorityScan stores a captured scan as current. An identical saved
 // scan resumes with its cursor and observations; any change replaces the
 // row and drops invalid observations.
-func (s *Store) SavePriorityScan(ctx context.Context, nativeRevision int64, inventory PriorityInventory) (bool, error) {
+func (s *Store) SavePriorityScan(ctx context.Context, repository, nativeRevision int64, inventory PriorityInventory) (bool, error) {
+	if repository < 0 {
+		return false, errors.New("invalid priority repository")
+	}
+	for _, subject := range inventory.Subjects {
+		if repository != 0 && subject.Repository != repository {
+			return false, errors.New("priority inventory crosses repositories")
+		}
+	}
+	scanID := priorityScanID(repository)
 	subjectsData, err := json.Marshal(inventory.Subjects)
 	if err != nil {
 		return false, err
@@ -658,7 +692,7 @@ func (s *Store) SavePriorityScan(ctx context.Context, nativeRevision int64, inve
 	var currentDigest string
 	var currentSubjects []byte
 	err = tx.QueryRowContext(ctx, `SELECT native_revision, local_digest, subjects FROM factory_priority_scans WHERE scan=$1 FOR UPDATE`,
-		PriorityInventoryScanID).Scan(&currentRev, &currentDigest, &currentSubjects)
+		scanID).Scan(&currentRev, &currentDigest, &currentSubjects)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, err
 	}
@@ -669,10 +703,10 @@ func (s *Store) SavePriorityScan(ctx context.Context, nativeRevision int64, inve
 	if _, err = tx.ExecContext(ctx, `INSERT INTO factory_priority_scans(scan, native_revision, local_digest, subjects, cursor)
 		VALUES($1,$2,$3,$4,0)
 		ON CONFLICT(scan) DO UPDATE SET native_revision=$2, local_digest=$3, subjects=$4, cursor=0`,
-		PriorityInventoryScanID, nativeRevision, inventory.LocalDigest, string(subjectsData)); err != nil {
+		scanID, nativeRevision, inventory.LocalDigest, string(subjectsData)); err != nil {
 		return false, err
 	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM factory_priority_candidates WHERE scan=$1`, PriorityInventoryScanID); err != nil {
+	if _, err = tx.ExecContext(ctx, `DELETE FROM factory_priority_candidates WHERE scan=$1`, scanID); err != nil {
 		return false, err
 	}
 	return false, tx.Commit()
@@ -704,7 +738,16 @@ func prioritySubjectsEqual(stored, captured []byte) bool {
 
 // RecordPriorityProgress persists observations and advances the cursor.
 // A changed scan digest refuses: the pass must revalidate before writing.
-func (s *Store) RecordPriorityProgress(ctx context.Context, nativeRevision int64, localDigest string, observations []PriorityCandidateObservation, cursor int) error {
+func (s *Store) RecordPriorityProgress(ctx context.Context, repository, nativeRevision int64, localDigest string, observations []PriorityCandidateObservation, cursor int) error {
+	if repository < 0 {
+		return errors.New("invalid priority repository")
+	}
+	for _, observation := range observations {
+		if repository != 0 && observation.Repository != repository {
+			return errors.New("priority observation crosses repositories")
+		}
+	}
+	scanID := priorityScanID(repository)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -713,7 +756,7 @@ func (s *Store) RecordPriorityProgress(ctx context.Context, nativeRevision int64
 	var currentRev int64
 	var currentDigest string
 	if err = tx.QueryRowContext(ctx, `SELECT native_revision, local_digest FROM factory_priority_scans WHERE scan=$1 FOR UPDATE`,
-		PriorityInventoryScanID).Scan(&currentRev, &currentDigest); err != nil {
+		scanID).Scan(&currentRev, &currentDigest); err != nil {
 		return err
 	}
 	if currentRev != nativeRevision || currentDigest != localDigest {
@@ -731,11 +774,11 @@ func (s *Store) RecordPriorityProgress(ctx context.Context, nativeRevision int64
 		if _, err = tx.ExecContext(ctx, `INSERT INTO factory_priority_candidates(scan, subject, repository, issue, candidate, exclusion, fingerprint)
 			VALUES($1,$2,$3,$4,$5,$6,$7)
 			ON CONFLICT(scan, subject) DO UPDATE SET candidate=excluded.candidate, exclusion=excluded.exclusion, fingerprint=excluded.fingerprint`,
-			PriorityInventoryScanID, obs.Subject, obs.Repository, obs.Issue, candidate, exclusion, obs.Fingerprint); err != nil {
+			scanID, obs.Subject, obs.Repository, obs.Issue, candidate, exclusion, obs.Fingerprint); err != nil {
 			return err
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE factory_priority_scans SET cursor=$2 WHERE scan=$1`, PriorityInventoryScanID, cursor); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE factory_priority_scans SET cursor=$2 WHERE scan=$1`, scanID, cursor); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -743,7 +786,10 @@ func (s *Store) RecordPriorityProgress(ctx context.Context, nativeRevision int64
 
 // DeletePriorityScan drops the current scan and its observations after
 // completion or proven invalidation.
-func (s *Store) DeletePriorityScan(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM factory_priority_scans WHERE scan=$1`, PriorityInventoryScanID)
+func (s *Store) DeletePriorityScan(ctx context.Context, repository int64) error {
+	if repository < 0 {
+		return errors.New("invalid priority repository")
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM factory_priority_scans WHERE scan=$1`, priorityScanID(repository))
 	return err
 }

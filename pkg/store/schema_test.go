@@ -304,7 +304,7 @@ func TestCollaborationRegistryIdentityAndConnections(t *testing.T) {
 	// Native startup captures an empty priority inventory before sign-in.
 	// Both encodings of no members must retain their bytes through binding.
 	for _, subjects := range [][]PriorityInventorySubject{nil, {}} {
-		if _, err := s.SavePriorityScan(ctx, 1, PriorityInventory{LocalDigest: "empty-startup", Subjects: subjects}); err != nil {
+		if _, err := s.SavePriorityScan(ctx, 0, 1, PriorityInventory{LocalDigest: "empty-startup", Subjects: subjects}); err != nil {
 			t.Fatal(err)
 		}
 		before := retainedLedgerFingerprint(t, s)
@@ -557,7 +557,7 @@ func TestCollaborationRegistryConstraintsAndConcurrentObservation(t *testing.T) 
 func TestCollaborationRegistryRetainedDataWaitsForAdoption(t *testing.T) {
 	s, dsn := postgresFixture(t)
 	ctx := t.Context()
-	if _, err := s.SavePriorityScan(ctx, 1, PriorityInventory{LocalDigest: "retained", Subjects: []PriorityInventorySubject{{Repository: 7, Issue: 1}}}); err != nil {
+	if _, err := s.SavePriorityScan(ctx, 0, 1, PriorityInventory{LocalDigest: "retained", Subjects: []PriorityInventorySubject{{Repository: 7, Issue: 1}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.InitializeEmptyCollaborationLedger(ctx); !errors.Is(err, collaboration.ErrUnboundLedger) {

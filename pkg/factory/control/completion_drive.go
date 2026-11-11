@@ -509,7 +509,7 @@ func (d *decidingDrive) releaseFreshInventory() {
 		d.attend(err.Error())
 		return
 	}
-	if err := d.c.Store.DeletePriorityScan(d.ctx); err != nil {
+	if err := d.c.Store.DeletePriorityScan(d.ctx, d.record.Cycle.Repository); err != nil {
 		d.report.Held = append(d.report.Held, d.cycleID+":release_deferred")
 		return
 	}

@@ -1268,6 +1268,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "check-repository-priority" {
+		if err := repositoryPriorityFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, "repository priority:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "offline-role-handoffs" {
 		if err := offlineRoleHandoffs(); err != nil {
 			fmt.Fprintln(os.Stderr, "offline role handoffs:", err)
@@ -4819,6 +4826,250 @@ func (s *initialIntakeSource) ReadAcceptanceEvidence(context.Context, string, st
 	return control.AcceptanceEvidence{Revision: 1, Issue: s.view}, nil
 }
 
+type repositoryPriorityChooser struct {
+	repository int64
+	payer      string
+	calls      []factory.PriorityRequest
+	admissions int
+}
+
+func (c *repositoryPriorityChooser) CheckPriority(_ context.Context, request factory.PriorityRequest) error {
+	c.admissions++
+	if request.Repository != c.repository || len(request.Candidates) != 2 {
+		return errors.New("priority request did not retain its complete repository scope")
+	}
+	for _, candidate := range request.Candidates {
+		if candidate.Control.Repository != c.repository || candidate.Authority.SponsorshipConnection != c.payer {
+			return errors.New("priority request crossed the declared repository/paying source")
+		}
+	}
+	return nil
+}
+
+func (c *repositoryPriorityChooser) Choose(ctx context.Context, request factory.PriorityRequest) (factory.PriorityAnswer, error) {
+	if err := c.CheckPriority(ctx, request); err != nil {
+		return factory.PriorityAnswer{}, err
+	}
+	c.calls = append(c.calls, request)
+	selected := request.Candidates[1].ID
+	return factory.PriorityAnswer{Selected: selected, Confidence: 1, Model: c.payer,
+		Probabilities: map[string]float64{request.Candidates[0].ID: 0, selected: 1}}, nil
+}
+
+type repositoryPriorityNoEffects struct{ calls int }
+
+func (p *repositoryPriorityNoEffects) unexpected() error {
+	p.calls++
+	return errors.New("repository priority fixture reached an execution boundary")
+}
+
+func (p *repositoryPriorityNoEffects) LaunchRun(context.Context, execution.LaunchRequest) (execution.RunObservation, error) {
+	return execution.RunObservation{}, p.unexpected()
+}
+func (p *repositoryPriorityNoEffects) InspectRun(context.Context, execution.RunAddress) (execution.RunObservation, error) {
+	return execution.RunObservation{}, p.unexpected()
+}
+func (p *repositoryPriorityNoEffects) RetireRun(context.Context, execution.RunAddress) (execution.RunObservation, error) {
+	return execution.RunObservation{}, p.unexpected()
+}
+func (p *repositoryPriorityNoEffects) InspectTool(context.Context, string) (execution.ToolObservation, error) {
+	return execution.ToolObservation{}, p.unexpected()
+}
+func (p *repositoryPriorityNoEffects) ReadWorkspaceContext(context.Context, execution.PreparationContextRequest) (execution.PreparationContext, error) {
+	return execution.PreparationContext{}, p.unexpected()
+}
+func (p *repositoryPriorityNoEffects) ReadCustody(context.Context, execution.RunAddress) (execution.CustodyObservation, error) {
+	return execution.CustodyObservation{}, p.unexpected()
+}
+func (p *repositoryPriorityNoEffects) SealCustody(context.Context, execution.RunAddress) error {
+	return p.unexpected()
+}
+
+// Declared provider availability, candidate evidence and payer choices exercise
+// the actual dispatch rotation, durable scans and tournament on disposable PG.
+// The selected issue stops at authority admission; execution ports reject calls.
+func repositoryPriorityFixture() error {
+	dsn, ok := store.TestFixtureDSN()
+	if !ok {
+		return errors.New("private PostgreSQL fixture required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, retainedDSN, cleanup, err := store.OpenEphemeral(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	raw, err := sql.Open("pgx", retainedDSN)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	const unavailable, ready, nativeRevision = int64(41), int64(42), int64(7)
+	const payer = "declared-github-paying-source"
+	now := time.Now()
+	var candidates []factory.PriorityCandidate
+	for _, subject := range [][2]int64{{unavailable, 1}, {ready, 1}, {ready, 2}} {
+		repository, issue := subject[0], subject[1]
+		acceptance := factory.Acceptance{ID: factory.InitialAcceptanceID(repository, strconv.FormatInt(issue, 10)),
+			Repository: repository, IssueIndex: strconv.FormatInt(issue, 10), Approver: 7, NativeRev: nativeRevision,
+			TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
+		if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
+			return err
+		}
+		seen := now
+		if repository == unavailable {
+			seen = now.Add(-time.Minute)
+		}
+		observed, _, e := db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: repository, Issue: issue,
+			Acceptance: acceptance.ID, NativeRev: nativeRevision, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible,
+			Fingerprint: factory.MCPInputDigest([]byte(fmt.Sprintf("declared-priority:%d/%d", repository, issue))), Authority: strings.Repeat("c", 64)}, seen)
+		if e != nil {
+			return e
+		}
+		if repository == ready {
+			candidates = append(candidates, factory.PriorityCandidate{ID: store.PrioritySubjectKey(repository, issue), Control: observed,
+				Acceptance: acceptance, Objective: fmt.Sprintf("Declared GitHub objective %d", issue),
+				Authority: factory.AuthorityRef{SponsorshipConnection: payer}, Preparation: strings.Repeat("d", 32),
+				PreparationRevision: 1, Source: strings.Repeat("e", 40), PlannedMinutes: 1, PromptDigest: strings.Repeat("f", 64)})
+		}
+	}
+	reservation := factory.Reservation{AssignmentID: strings.Repeat("1", 32), Repository: unavailable,
+		Connection: "declared-fountain-paying-source", State: factory.ReservationHeld, PlannedMinutes: 1, Revision: 3}
+	if err = reservation.Validate(); err != nil {
+		return err
+	}
+	reservationData, err := json.Marshal(reservation)
+	if err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `INSERT INTO factory_reservations(assignment,repository,connection,state,data) VALUES($1,$2,$3,$4,$5)`,
+		reservation.AssignmentID, reservation.Repository, reservation.Connection, reservation.State, string(reservationData)); err != nil {
+		return err
+	}
+	legacy, err := db.CapturePriorityInventory(ctx, 0)
+	if err != nil {
+		return err
+	}
+	if _, err = db.SavePriorityScan(ctx, 0, nativeRevision-1, legacy); err != nil {
+		return err
+	}
+	if err = db.RecordPriorityProgress(ctx, 0, nativeRevision-1, legacy.LocalDigest,
+		[]store.PriorityCandidateObservation{{Subject: store.PrioritySubjectKey(unavailable, 1), Repository: unavailable, Issue: 1, Exclusion: "declared_legacy_observation"}}, 1); err != nil {
+		return err
+	}
+	retainedRows := func() (string, error) {
+		var saved string
+		e := raw.QueryRowContext(ctx, `SELECT jsonb_build_object(
+			'control',(SELECT to_jsonb(c) FROM issue_controls c WHERE repository=$1 AND issue=1),
+			'reservation',(SELECT to_jsonb(r) FROM factory_reservations r WHERE assignment=$2),
+			'global_scan',(SELECT to_jsonb(s) FROM factory_priority_scans s WHERE scan='current'),
+			'global_candidates',(SELECT jsonb_agg(to_jsonb(o) ORDER BY subject) FROM factory_priority_candidates o WHERE scan='current'))::text`,
+			unavailable, reservation.AssignmentID).Scan(&saved)
+		return saved, e
+	}
+	before, err := retainedRows()
+	if err != nil {
+		return err
+	}
+	inventory, err := db.CapturePriorityInventory(ctx, ready)
+	if err != nil || len(inventory.Subjects) != 2 {
+		return fmt.Errorf("ready repository inventory: subjects=%d: %w", len(inventory.Subjects), err)
+	}
+	if _, err = db.SavePriorityScan(ctx, ready, nativeRevision, inventory); err != nil {
+		return err
+	}
+	var observations []store.PriorityCandidateObservation
+	for _, candidate := range candidates {
+		encoded, e := json.Marshal(candidate)
+		if e != nil {
+			return e
+		}
+		observations = append(observations, store.PriorityCandidateObservation{Subject: candidate.ID, Repository: ready,
+			Issue: candidate.Control.Issue, Candidate: encoded, Fingerprint: candidate.Control.Fingerprint})
+	}
+	if err = db.RecordPriorityProgress(ctx, ready, nativeRevision, inventory.LocalDigest, observations, len(observations)); err != nil {
+		return err
+	}
+	chooser := &repositoryPriorityChooser{repository: ready, payer: payer}
+	ports := &repositoryPriorityNoEffects{}
+	refreshes, authorities := 0, 0
+	deps := control.DispatchDeps{Store: db, Host: ports, Broker: ports, Queue: control.NewDispatchQueueCursor(),
+		Priority:        &control.PriorityJudgments{Journal: db, Chooser: chooser},
+		ObserveRevision: func(context.Context) (int64, bool, error) { return nativeRevision, true, nil },
+		RefreshCandidate: func(_ context.Context, observed factory.IssueControl, revision int64) (factory.IssueControl, bool, error) {
+			refreshes++
+			if observed.Repository != unavailable || revision != nativeRevision {
+				return observed, false, errors.New("completed scoped observations were repeated")
+			}
+			return observed, false, nil
+		},
+		Authority: func(_ context.Context, repository int64, role string) (factory.EffectiveAuthority, error) {
+			authorities++
+			if repository != ready || role != project.RoleCoder {
+				return factory.EffectiveAuthority{}, errors.New("foreign dispatch reached authority admission")
+			}
+			return factory.EffectiveAuthority{}, nil
+		}}
+	checkPasses := func() error {
+		blocked := control.DispatchPass(ctx, deps)
+		if len(blocked.Launched) != 0 || !slices.ContainsFunc(blocked.Errors, func(e control.DispatchError) bool {
+			return e.Repository == unavailable && e.Reason == "priority_incomplete"
+		}) {
+			return fmt.Errorf("older unavailable repository did not pause its own scan: %+v", blocked)
+		}
+		paused, e := db.LoadPriorityScan(ctx, unavailable)
+		if e != nil || paused.Cursor != 0 || len(paused.Subjects) != 1 || len(paused.Observations) != 0 {
+			return fmt.Errorf("unavailable repository scan advanced: %+v: %v", paused, e)
+		}
+		selected := control.DispatchPass(ctx, deps)
+		if len(selected.Launched) != 0 || len(selected.Errors) != 0 || len(selected.Waits) != 1 ||
+			selected.Waits[0].Repository != ready || selected.Waits[0].Issue != 2 || selected.Waits[0].Reason != control.WaitAuthority {
+			return fmt.Errorf("independent scoped selection did not reach the authority stop: %+v", selected)
+		}
+		return nil
+	}
+	if err = checkPasses(); err != nil {
+		return err
+	}
+	if len(chooser.calls) != 1 || refreshes != 1 || authorities != 1 || ports.calls != 0 {
+		return fmt.Errorf("first rotation calls: choices=%d refreshes=%d authorities=%d execution=%d", len(chooser.calls), refreshes, authorities, ports.calls)
+	}
+	snapshot, err := factory.PrioritySnapshot(candidates)
+	if err != nil {
+		return err
+	}
+	receipt, err := db.PriorityJudgment(ctx, snapshot)
+	if err != nil || receipt.Outcome != "selected" || receipt.Selected != candidates[1].ID || len(receipt.Candidates) != 2 ||
+		len(receipt.Calls) != 1 || receipt.Calls[0].Request.Repository != ready || receipt.Calls[0].Answer.Model != payer {
+		return fmt.Errorf("scoped tournament receipt missing: %+v: %v", receipt, err)
+	}
+	if err = db.Close(); err != nil {
+		return err
+	}
+	db, err = store.Open(retainedDSN)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	deps.Store, deps.Priority.Journal, deps.Queue = db, db, control.NewDispatchQueueCursor()
+	admissions := chooser.admissions
+	if err = checkPasses(); err != nil {
+		return err
+	}
+	replayed, err := db.PriorityJudgment(ctx, snapshot)
+	if err != nil || !reflect.DeepEqual(receipt, replayed) || len(chooser.calls) != 1 || chooser.admissions <= admissions ||
+		refreshes != 2 || authorities != 2 || ports.calls != 0 {
+		return fmt.Errorf("reopened receipt did not replay without another choice: choices=%d refreshes=%d authorities=%d execution=%d: %v", len(chooser.calls), refreshes, authorities, ports.calls, err)
+	}
+	after, err := retainedRows()
+	if err != nil || before != after {
+		return fmt.Errorf("foreign control, reservation or historical global scan changed: %v", err)
+	}
+	fmt.Println("PASS: unavailable older repository pauses alone; next repository completes its same-repository two-candidate tournament with declared payer; reopen replays the receipt without another choice; foreign control/reservation and legacy global scan stay exact; no execution/provider/model calls")
+	return nil
+}
+
 // Provider creation/permission facts are declared; coordinator admission,
 // causal journals, edit retention and acceptance persistence use real PostgreSQL.
 func initialIntakeFixture() error {
@@ -8307,7 +8558,7 @@ func admittedPriorityFixture(ctx context.Context, db *store.Store, port factoryr
 			return e
 		}
 	}
-	if err = db.DeletePriorityScan(ctx); err != nil {
+	if err = db.DeletePriorityScan(ctx, repository); err != nil {
 		return err
 	}
 	deps.ObserveRevision = func(context.Context) (int64, bool, error) { return 1, true, nil }
@@ -8986,7 +9237,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return errors.New("retained Builder did not advance; preserve original plan and receipts")
 	}
 	if phase == "capacity-recovery" {
-		scan, e := db.LoadPriorityScan(ctx)
+		scan, e := db.LoadPriorityScan(ctx, repository)
 		if e != nil || scan.Cursor < len(scan.Subjects) || len(scan.Observations) == 0 {
 			return errors.New("complete retained empty scan required")
 		}
@@ -9011,7 +9262,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		if len(report.Launched) != 0 || authorityCalled {
 			return errors.New("empty scan recovery attempted fresh work")
 		}
-		if _, e = db.LoadPriorityScan(ctx); !errors.Is(e, store.ErrNotFound) {
+		if _, e = db.LoadPriorityScan(ctx, repository); !errors.Is(e, store.ErrNotFound) {
 			return fmt.Errorf("current dispatch retained transient capacity wait: %+v %v", report, e)
 		}
 		fmt.Println("PASS: current production dispatch retired original completed empty capacity scan without judgment, launch or authority mutation")
