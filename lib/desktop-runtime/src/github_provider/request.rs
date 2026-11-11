@@ -21,6 +21,8 @@ pub enum Read {
     SourceBundle {
         repository: String,
         base: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        expected_base: String,
         commit: String,
         target_ref: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -353,6 +355,7 @@ impl Read {
         }
         if let Self::SourceBundle {
             base,
+            expected_base,
             commit: oid,
             target_ref,
             number,
@@ -361,10 +364,12 @@ impl Read {
         } = self
         {
             if !base.is_empty() && !commit(base)
+                || !expected_base.is_empty() && (!commit(expected_base) || number.is_none())
                 || !commit(oid)
                 || number.is_some() != !head_repository.is_empty()
                 || number.is_some_and(|number| number == 0)
-                || !head_repository.is_empty() && (!remote_id(head_repository) || base.is_empty())
+                || !head_repository.is_empty()
+                    && (!remote_id(head_repository) || base.is_empty() && expected_base.is_empty())
                 || !target_ref
                     .strip_prefix("refs/heads/")
                     .is_some_and(branch_name)

@@ -44,6 +44,7 @@ type nativeRead struct {
 	Limit                uint32                      `json:"limit,omitempty"`
 	State                *string                     `json:"state,omitempty"`
 	Base                 *string                     `json:"base,omitempty"`
+	ExpectedBase         string                      `json:"expected_base,omitempty"`
 	Head                 *string                     `json:"head,omitempty"`
 	Before               string                      `json:"before,omitempty"`
 	ReviewID             string                      `json:"review_id,omitempty"`

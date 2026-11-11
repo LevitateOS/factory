@@ -252,7 +252,7 @@ impl Client {
                 if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
                 json!({"kind":"setup_source","account":account,"publication":{"repository":repository,"commit":commit,"target_ref":target_ref,"files":files,"source_files":source_files}})
             }
-            Read::SourceBundle { repository: selected, base, commit, target_ref, number, head_repository } if selected == repository && number.is_none() && head_repository.is_empty() => {
+            Read::SourceBundle { repository: selected, base, expected_base, commit, target_ref, number, head_repository } if selected == repository && expected_base.is_empty() && number.is_none() && head_repository.is_empty() => {
                 if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
                 // The host source owner validates objects and reachability. A
                 // complete bundle is also valid when the importer knows a base.

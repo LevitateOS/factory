@@ -138,10 +138,12 @@ impl Reader<'_> {
         let commit = r::text(q, "commit")?;
         let target = r::text(q, "target_ref")?;
         let head_repository = q["head_repository"].as_str().unwrap_or("");
+        let expected_base = q["expected_base"].as_str().unwrap_or("");
+        let pull_base = if expected_base.is_empty() { base } else { expected_base };
         let number = q["number"].as_u64();
         let before = if let Some(number) = number {
             Some(
-                self.source_pull(number, head_repository, target, base, commit)
+                self.source_pull(number, head_repository, target, pull_base, commit)
                     .await?,
             )
         } else {
@@ -197,7 +199,7 @@ impl Reader<'_> {
         source.source_tip(target, commit).await?;
         if let (Some(number), Some(before)) = (number, before) {
             if self
-                .source_pull(number, head_repository, target, base, commit)
+                .source_pull(number, head_repository, target, pull_base, commit)
                 .await?
                 != before
             {
@@ -213,6 +215,9 @@ impl Reader<'_> {
         if let Some(number) = number {
             result["number"] = json!(number);
             result["head_repository"] = json!(head_repository);
+            if !expected_base.is_empty() {
+                result["expected_base"] = json!(expected_base);
+            }
         }
         Ok(result)
     }

@@ -15,6 +15,11 @@ use std::time::Duration;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() == 2 && args[0] == "login" && args[1] == "--help" { return Ok(()); }
+    if args.len() == 1 && args[0] == "source-bundle-contract" {
+        source_bundle_contract()?;
+        println!("PASS: source-bundle request schema separates full fork PR base from pack prerequisites; legacy delta and missing/malformed/unbound base refusal; no provider or native effects");
+        return Ok(());
+    }
     if args.first().is_some_and(|arg| arg == "exec") {
         let fixture = fs::read("/proc/self/exe")?;
         if fixture.ends_with(b"\0factory-tool-pause-probe") {
@@ -888,6 +893,35 @@ fn connector_service_retired(unit: &str) -> Result<(), Box<dyn std::error::Error
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+fn source_bundle_contract() -> Result<(), Box<dyn std::error::Error>> {
+    use soda_desktop_runtime::github_provider::Read;
+    let full = serde_json::json!({"kind":"source_bundle","repository":"123","base":"",
+        "expected_base":"1".repeat(40),"commit":"2".repeat(40),"target_ref":"refs/heads/topic",
+        "number":7,"head_repository":"456"});
+    let valid = |query: serde_json::Value| -> bool {
+        serde_json::from_value::<Read>(query).is_ok_and(|query| query.validate().is_ok())
+    };
+    if !valid(full.clone()) { return Err("full fork source lost its expected PR base".into()); }
+    let mut legacy = full.clone();
+    legacy["base"] = legacy["expected_base"].clone();
+    legacy.as_object_mut().ok_or("source query missing")?.remove("expected_base");
+    let legacy: Read = serde_json::from_value(legacy)?;
+    if legacy.validate().is_err() || serde_json::to_value(legacy)?.get("expected_base").is_some() {
+        return Err("legacy fork delta source changed its request contract".into());
+    }
+    let mut missing = full.clone();
+    missing.as_object_mut().ok_or("source query missing")?.remove("expected_base");
+    let mut malformed = full.clone();
+    malformed["expected_base"] = serde_json::json!("invalid");
+    let mut unbound = full;
+    unbound["head_repository"] = serde_json::json!("");
+    unbound.as_object_mut().ok_or("source query missing")?.remove("number");
+    if [missing, malformed, unbound].into_iter().any(valid) {
+        return Err("full fork source admitted a missing, malformed or unbound PR base".into());
+    }
+    Ok(())
 }
 
 fn managed_preparations(
