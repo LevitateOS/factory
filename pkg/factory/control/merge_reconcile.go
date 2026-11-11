@@ -124,6 +124,13 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		return
 	}
 	op := &m.Operation
+	// A proved unallocated generation cannot send after its deadline. Hold
+	// before provider I/O; a fresh explicit preparation owns any later send.
+	// Recorded effects above still reconcile under their original identity.
+	if m.Authorization.Bound() && op.Attempts == 0 && op.Work == nil && time.Now().Unix() >= m.Authorization.Generation.NotAfter {
+		mergeWait(report, m.ID, "merge_authorization_expired")
+		return
+	}
 	policy, revision, ok := c.admitMergeAuthority(ctx, &m, &p, op, report)
 	if !ok {
 		return
