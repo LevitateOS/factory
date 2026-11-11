@@ -119,10 +119,14 @@ export class SodaFactoryIssues extends LitElement {
     } catch (error) {
       if (!this.live(context, serial)) return;
       const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
-      this.view = {
-        ...empty(),
-        message: hidden ? 'Issues are not available to this account.' : 'Issues could not be loaded. Try again.',
-      };
+      let message = hidden ? 'Issues are not available to this account.' : 'Issues could not be loaded. Try again.';
+      if (error instanceof FactoryReadError && error.status === 429 && error.detail.code === 'provider_rate_limited') {
+        const detail = error.detail.message;
+        message = detail && detail.length <= 256 && !/[\u0000-\u001f\u007f-\u009f]/.test(detail)
+          ? detail
+          : 'The provider is rate limited. Wait before refreshing issues.';
+      }
+      this.view = {...empty(), message};
     }
   }
   private changeFilter(event: Event) {
