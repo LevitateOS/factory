@@ -54,6 +54,7 @@ func (s Runs) Handler() http.Handler {
 	register(http.MethodGet, "/api/factory/runs/{runID}", s.status)
 	register(http.MethodPost, "/api/repositories/{repositoryID}/factory/actions", s.repositoryAction)
 	register(http.MethodPost, "/api/factory/runs/{runID}/actions", s.runAction)
+	register(http.MethodPost, "/api/factory/publications/{publicationID}/actions", s.publicationAction)
 	return mux
 }
 
@@ -113,6 +114,21 @@ func (s Runs) runAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := s.Commands.Run(r.Context(), s.Actor, s.Principal, r.PathValue("runID"), in)
+	if err != nil {
+		s.interventionError(w, err)
+		return
+	}
+	if s.current(w, r) {
+		writeJSON(w, 200, result)
+	}
+}
+
+func (s Runs) publicationAction(w http.ResponseWriter, r *http.Request) {
+	var in factoryservice.RunCommand
+	if !decodeObject(w, r, &in) || !s.current(w, r) {
+		return
+	}
+	result, err := s.Commands.Publication(r.Context(), s.Actor, s.Principal, r.PathValue("publicationID"), in)
 	if err != nil {
 		s.interventionError(w, err)
 		return

@@ -191,6 +191,7 @@ func NewProductRoutes() *ProductRoutes {
 	mux.Handle("/api/factory/intents/", productRequests)
 	mux.Handle("/api/factory/capacity", productRepositories)
 	mux.Handle("/api/factory/runs/", productRuns)
+	mux.Handle("/api/factory/publications/", productRuns)
 	mux.Handle("/api/factory/library", productRecords)
 	mux.Handle("/api/factory/library/", productRecords)
 	mux.Handle("/api/factory/artifacts/", productRecords)

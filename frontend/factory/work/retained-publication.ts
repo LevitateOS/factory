@@ -82,7 +82,9 @@ function valid(value: unknown): value is Capture {
       (retainedCandidateFunding(r.funding) !== undefined &&
         r.publication === (r.funding as RetainedCandidateFunding).publication &&
         r.candidate === (r.funding as RetainedCandidateFunding).candidate)) &&
-    ['command', 'publication', 'run'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) &&
+    ['command', 'publication'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) &&
+    typeof r.run === 'string' &&
+    (/^[a-f0-9]{32}$/.test(r.run) || (r.run === '' && (r.funding !== undefined || r.preparation !== undefined))) &&
     typeof r.candidate === 'string' &&
     /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(r.candidate)
   );
@@ -231,7 +233,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
         live: () => this.live(serial),
         classifyRefusal,
         send: () =>
-          context.transport.request(`factory/runs/${pending.run}/actions`, {
+          context.transport.request(pending.run === '' ? `factory/publications/${pending.publication}/actions` : `factory/runs/${pending.run}/actions`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

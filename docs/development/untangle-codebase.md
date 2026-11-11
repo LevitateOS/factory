@@ -2,6 +2,43 @@
 
 ## Retained review recovery fix (2026-11-11)
 
+**Active goal: finish ordinary GitHub/Muse assembly-line qualification.** Fountain
+and user-started Daybreak work are excluded. INCOMPLETE: first finish retained
+PR56 re-inspection/allowed merge, then close paid delivery acceptance/resulting-
+commit preparation, connected intake/adoption races and required installed
+withdrawal/wake/upgrade cases. Reuse earlier successful scoped evidence.
+
+Current continuation: stage13 is installed through exact prior stage11 inventory,
+with clean Go source `3002e01`, inventory
+`e65b29aa152787aec53fae1bd0ef629b3841017ea3f723aeb7be06891c1675e7`.
+Normal Quit lost its reply; original app/session PIDs and developer endpoint
+retired, so no Quit was repeated. Reopen instance
+`f1885180a44eb7942585f626c97dc839`, session
+`9ac0b290800502d3c0ed078d808cf106`, private guest child14.sh. Unchanged setup
+approval `d344790e5ed8b25957718bddc`/requirements `d07d8d16bce32db3911a93b25`
+prepared coder `f3b1e0067b701466909c3073c` and reviewer
+`f3f4fe0a2658f7d89b136816f` ready. Existing funding3bc remains open with its
+single reserved identity and no child/preparation/model. GitHub source usage
+remains177/200; the same source's separate eight Fountain minutes are untouched.
+
+The fresh UI click refused locally before saving/sending: retained root3bc has
+no execution run, while its UI/action route required one. Current owned fix
+adds publication-scoped funding/merge actions with original-execution runtime
+scope plus current repository admission; canonical run stays empty, and saved
+run-scoped requests keep their original route. Production shared DOM proves
+empty-run funding/merge and identical lost-reply recovery; typecheck/build pass
+in publication-actions-{ui,typecheck,ui-build}.log in the private directory
+below. The existing real PostgreSQL/native HTTP admission harness also passes
+with clean restart/WAL recovery: original-run runtime scope, current repository/
+account/access and malformed-payload refusals, controlled final writer receipts
+and unchanged canonical empty run (publication-http-pg1.log). No paid inference
+or new provider write ran. In parallel, explicit
+fork support is being implemented with exact command consent, authenticated
+head-repository identity and independently permitted conditional fork updates.
+Next: finish those coupled checks/commits, install one matching app/backend/UI
+bundle, prepare unchanged scripts after that restart, then submit the fresh
+bounded review through the normal UI. Preserve all original3bc/b191 receipts.
+
 Implementation verified; installed continuation qualification pending. The explicit
 finite funding command now supports a settled external candidate with real review
 and correction history, including a cancelled reviewer without a verdict. It

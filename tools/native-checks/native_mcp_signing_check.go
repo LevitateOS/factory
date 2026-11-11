@@ -2192,7 +2192,131 @@ func offlineRoleHandoffs() error {
 	if err = f.remainingProfiles(ctx); err != nil {
 		return fmt.Errorf("remaining controlled profiles: %w", err)
 	}
+	if err = offlineRetainedPublicationActions(ctx, db, rawDB, architect); err != nil {
+		return fmt.Errorf("retained publication HTTP scope: %w", err)
+	}
 	fmt.Println("PASS: real typed Architect→Builder→Inspector findings→Fixer→Inspector proposals; bound plan/root/source, exact candidates/base, finding dispositions/coverage, invalid→corrected results and controlled final-checkpoint gates; final Inspector proposal retained for PostgreSQL crash recovery")
+	return nil
+}
+
+// Only the final writer is controlled: actual HTTP decoding, stored owner/run
+// resolution and current account/runtime/repository admission remain production.
+type offlinePublicationActions struct {
+	*control.Coordinator
+	calls int
+}
+
+func (w *offlinePublicationActions) FundRetainedCandidate(_ context.Context, command, _ string, funding factory.RetainedCandidateFunding) (factory.RetainedCandidateFundingReceipt, error) {
+	w.calls++
+	return factory.RetainedCandidateFundingReceipt{CommandID: command, Funding: funding}, nil
+}
+func (w *offlinePublicationActions) PrepareUnsentMerge(_ context.Context, command, _ string, request factory.MergePreparation) (factory.MergePreparationReceipt, error) {
+	w.calls++
+	return factory.MergePreparationReceipt{CommandID: command, Request: request, MergeID: request.MergeID}, nil
+}
+
+func offlineRetainedPublicationActions(ctx context.Context, db *store.Store, raw *sql.DB, origin factory.Assignment) error {
+	now, id := time.Now().Unix(), factory.NewID()
+	head, prior := strings.Repeat("2", 40), factory.NewID()
+	owner := factory.Assignment{ID: id, AttemptRoot: id, PublicationAssignment: id, ProjectID: origin.ProjectID, Role: project.RoleCoder, Authority: origin.Authority, ActorID: origin.ActorID, Acceptance: origin.Acceptance, Preparation: origin.Preparation, SourceCommit: origin.SourceCommit, Stage: factory.AssignmentRetained, Repository: origin.Repository, Issue: origin.Issue, NativeRev: 1, CreatedUnix: now, Subject: origin.Subject,
+		RetainedPublication: &factory.RetainedPublication{AdoptedFrom: prior, Publication: prior, Assignment: origin.ID, Run: origin.Run, Candidate: head, Connection: origin.Connection}}
+	p := factory.Publication{ID: id, AssignmentID: id, ProjectID: origin.ProjectID, Role: origin.Role, Authority: origin.Authority, Acceptance: origin.Acceptance, Preparation: origin.Preparation, Repository: origin.Repository, Issue: origin.Issue, Candidate: head, BaseSHA: origin.SourceCommit, TargetBranch: "refs/heads/main", PRNumber: 9, PRID: 19, Stage: factory.PublicationPublished, Outcome: factory.Succeeded, Reason: factory.PublishReasonLinked, CreatedUnix: now, FinishedUnix: now, Publish: factory.PublicationOperation{Kind: factory.OpRefPublish}, PRCreate: factory.PublicationOperation{Kind: factory.OpPRCreate},
+		External: &factory.ExternalPublicationOrigin{CommandID: id, Host: collaboration.HostID(strings.Repeat("a", 32)), Profile: collaboration.ProfileID(strings.Repeat("b", 32)), Connection: collaboration.ConnectionID(origin.Connection), ActorID: origin.ActorID, Policy: 1, ObservationDigest: strings.Repeat("e", 64), ObservationRevision: 1, ObservedUnix: now, Target: factory.PublicationPullTarget{AuthorID: 8, IssueID: 29, HeadRepository: origin.Repository, HeadRef: "refs/heads/external-fixture", BaseRef: "refs/heads/main", HeadOID: head, BaseOID: origin.SourceCommit}}}
+	if owner.Validate() != nil || p.Validate() != nil {
+		return fmt.Errorf("invalid declared retained history: owner=%v publication=%v", owner.Validate(), p.Validate())
+	}
+	ownerJSON, _ := json.Marshal(owner)
+	publicationJSON, _ := json.Marshal(p)
+	if _, err := raw.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'',$4,0,$5)`, id, owner.Repository, owner.Issue, owner.Stage, string(ownerJSON)); err != nil {
+		return err
+	}
+	if _, err := raw.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'',$4,0,$5)`, id, p.Repository, p.Issue, p.Stage, string(publicationJSON)); err != nil {
+		return err
+	}
+	c := control.NewCoordinator(db, nil, nil)
+	defer c.Close()
+	writer := &offlinePublicationActions{Coordinator: c}
+	account, access, runtime := true, true, true
+	selectedRepository := collaboration.RepositoryID(p.Repository)
+	commands := factoryservice.Interventions{Store: db, Writer: writer,
+		RunRepository: func(_ context.Context, actor collaboration.ActorID, run factory.Run) (collaboration.RepositoryID, error) {
+			if !runtime || actor != collaboration.ActorID(origin.ActorID) || run.ID != origin.Run || run.ProjectID != origin.ProjectID {
+				return 0, factoryservice.ErrInterventionUnavailable
+			}
+			return selectedRepository, nil
+		},
+		WriteAccess: func(_ context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+			if !access || actor != collaboration.ActorID(origin.ActorID) || int64(repository) != p.Repository {
+				return factoryservice.ErrInterventionAccess
+			}
+			return nil
+		}}
+	handler := (factoryhttpapi.Runs{Store: db, Commands: commands, Host: p.External.Host, Actor: collaboration.ActorID(origin.ActorID), Principal: "controlled-publication-actions", Current: func(w http.ResponseWriter, _ *http.Request) bool {
+		if !account {
+			http.Error(w, "fixture account retired", http.StatusForbidden)
+		}
+		return account
+	}}).Handler()
+	funding := factory.RetainedCandidateFunding{Publication: id, Candidate: head, Base: origin.SourceCommit, Acceptance: origin.Acceptance, Connection: origin.Connection, Policy: 1, Limits: factory.DefaultAttemptLimits(), Native: &factory.NativeSponsorship{Profile: p.External.Profile, Authentication: factory.NativeMuseLogin}}
+	in := factoryservice.RunCommand{Action: factory.CommandFundRetained, CommandID: factory.NewID(), Publication: id, Funding: &funding}
+	post := func(body any, success bool) error {
+		encoded, _ := json.Marshal(body)
+		before := writer.calls
+		request := httptest.NewRequest(http.MethodPost, "/api/factory/publications/"+id+"/actions", bytes.NewReader(encoded)).WithContext(ctx)
+		reply := httptest.NewRecorder()
+		handler.ServeHTTP(reply, request)
+		expectedCalls := before
+		if success {
+			expectedCalls++
+		}
+		if success != (reply.Code == http.StatusOK) || writer.calls != expectedCalls {
+			return fmt.Errorf("publication HTTP admission: status=%d writer_calls=%d success=%v body=%s", reply.Code, writer.calls-before, success, reply.Body.String())
+		}
+		return nil
+	}
+	if err := post(in, true); err != nil {
+		return err
+	}
+	selectedRepository++
+	if err := post(in, false); err != nil {
+		return err
+	}
+	selectedRepository--
+	runtime = false
+	if err := post(in, false); err != nil {
+		return err
+	}
+	runtime, access = true, false
+	if err := post(in, false); err != nil {
+		return err
+	}
+	access, account = true, false
+	if err := post(in, false); err != nil {
+		return err
+	}
+	account = true
+	malformed := in
+	malformed.Publication = factory.NewID()
+	if err := post(malformed, false); err != nil {
+		return err
+	}
+	if err := post(map[string]any{"action": in.Action, "command_id": in.CommandID, "publication": id, "funding": funding, "unknown": true}, false); err != nil {
+		return err
+	}
+	malformed = in
+	malformed.Action, malformed.Funding = factory.ActionStop, nil
+	if err := post(malformed, false); err != nil {
+		return err
+	}
+	merge := factory.MergePreparation{Publication: id, MergeID: factory.NewID(), Policy: 1, Head: head, Base: origin.SourceCommit}
+	if err := post(factoryservice.RunCommand{Action: factory.CommandPrepareMerge, CommandID: factory.NewID(), Publication: id, MergePreparation: &merge}, true); err != nil {
+		return err
+	}
+	got, err := db.PublicationByID(ctx, id)
+	if err != nil || got.Run != "" || !reflect.DeepEqual(got, p) {
+		return errors.New("publication HTTP actions rewrote the nonexecuting owner or canonical run")
+	}
+	fmt.Println("PASS: actual publication HTTP/service admission resolves empty-run retained owner through original PostgreSQL run; funding/merge preparation writer handoffs succeed; wrong repository/runtime/account/access/payload refuse before writer; canonical empty run preserved; writer receipt controlled, no funding/model/provider effect")
 	return nil
 }
 

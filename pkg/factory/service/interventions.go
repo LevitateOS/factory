@@ -12,15 +12,15 @@ import (
 )
 
 type RepositoryCommand struct {
-	ExternalPull *factory.ExternalPullAdoption `json:"external_pull,omitempty"`
-	ExternalSelection *factory.ExternalPullSelection `json:"external_selection,omitempty"`
-	CommandID  string                          `json:"command_id"`
-	Action     string                          `json:"action"`
-	Completion *factory.CompletionRetryRequest `json:"completion,omitempty"`
+	ExternalPull      *factory.ExternalPullAdoption   `json:"external_pull,omitempty"`
+	ExternalSelection *factory.ExternalPullSelection  `json:"external_selection,omitempty"`
+	CommandID         string                          `json:"command_id"`
+	Action            string                          `json:"action"`
+	Completion        *factory.CompletionRetryRequest `json:"completion,omitempty"`
 }
 
 type RunCommand struct {
-	ReviewRetry *factory.ReviewRetry `json:"review_retry,omitempty"`
+	ReviewRetry      *factory.ReviewRetry              `json:"review_retry,omitempty"`
 	MergePreparation *factory.MergePreparation         `json:"merge_preparation,omitempty"`
 	Funding          *factory.RetainedCandidateFunding `json:"funding,omitempty"`
 	CommandID        string                            `json:"command_id,omitempty"`
@@ -89,8 +89,10 @@ func (s Interventions) Repository(ctx context.Context, actor collaboration.Actor
 	if (in.Action == factory.ActionCompletionRetry) != (in.Completion != nil) || (in.Completion != nil && in.Completion.Validate() != nil) {
 		return nil, ErrInterventionPayload
 	}
-	if (in.Action==factory.CommandAdoptExternalPull)!=(in.ExternalPull!=nil) || (in.Action==factory.ActionInspectExternalPull)!=(in.ExternalSelection!=nil) ||
-		in.ExternalPull!=nil && (in.ExternalPull.Validate()!=nil || in.ExternalPull.Repository!=int64(repository)) || in.ExternalSelection!=nil && (in.ExternalSelection.Issue<1 || in.ExternalSelection.Number<1) { return nil,ErrInterventionPayload }
+	if (in.Action == factory.CommandAdoptExternalPull) != (in.ExternalPull != nil) || (in.Action == factory.ActionInspectExternalPull) != (in.ExternalSelection != nil) ||
+		in.ExternalPull != nil && (in.ExternalPull.Validate() != nil || in.ExternalPull.Repository != int64(repository)) || in.ExternalSelection != nil && (in.ExternalSelection.Issue < 1 || in.ExternalSelection.Number < 1) {
+		return nil, ErrInterventionPayload
+	}
 	if s.Writer == nil || s.WriteAccess == nil {
 		return nil, ErrInterventionUnavailable
 	}
@@ -98,20 +100,93 @@ func (s Interventions) Repository(ctx context.Context, actor collaboration.Actor
 		return nil, err
 	}
 	switch in.Action {
-	case factory.ActionInspectExternalPull,factory.CommandAdoptExternalPull:
-		writer,ok:=s.Writer.(interface {
-			ExternalPullOffer(context.Context,int64,factory.ExternalPullSelection) (factory.ExternalPullAdoption,error)
-			AdoptExternalPull(context.Context,string,string,factory.ExternalPullAdoption) (factory.ExternalPullAdmission,error)
+	case factory.ActionInspectExternalPull, factory.CommandAdoptExternalPull:
+		writer, ok := s.Writer.(interface {
+			ExternalPullOffer(context.Context, int64, factory.ExternalPullSelection) (factory.ExternalPullAdoption, error)
+			AdoptExternalPull(context.Context, string, string, factory.ExternalPullAdoption) (factory.ExternalPullAdmission, error)
 		})
-		if !ok { return nil,ErrInterventionUnavailable }
-		if in.Action==factory.ActionInspectExternalPull { return writer.ExternalPullOffer(ctx,int64(repository),*in.ExternalSelection) }
-		return writer.AdoptExternalPull(ctx,in.CommandID,principal,*in.ExternalPull)
+		if !ok {
+			return nil, ErrInterventionUnavailable
+		}
+		if in.Action == factory.ActionInspectExternalPull {
+			return writer.ExternalPullOffer(ctx, int64(repository), *in.ExternalSelection)
+		}
+		return writer.AdoptExternalPull(ctx, in.CommandID, principal, *in.ExternalPull)
 	case factory.ActionPause:
 		return s.Writer.PauseRepository(ctx, principal, int64(repository))
 	case factory.ActionResume:
 		return s.Writer.ResumeRepository(ctx, int64(repository))
 	default:
 		return s.Writer.RetryCompletion(ctx, in.CommandID, principal, int64(repository), *in.Completion)
+	}
+}
+
+// Publication admits funding/merge preparation by their actual owner. A retained
+// publication has no new run: its original execution proves runtime scope, while
+// the coordinator still captures and checks current authority for the new command.
+func (s Interventions) Publication(ctx context.Context, actor collaboration.ActorID, principal, publicationID string, in RunCommand) (any, error) {
+	if actor < 1 || principal == "" || len(principal) > 128 || !factory.ValidID(publicationID) {
+		return nil, ErrInterventionInvalid
+	}
+	if in.Action != factory.CommandFundRetained && in.Action != factory.CommandPrepareMerge {
+		return nil, ErrInterventionAction
+	}
+	if !factory.ValidID(in.CommandID) {
+		return nil, ErrInterventionCommand
+	}
+	if in.Publication != publicationID || in.Context != nil || in.ReviewRetry != nil ||
+		(in.Action == factory.CommandFundRetained) != (in.Funding != nil) ||
+		(in.Action == factory.CommandPrepareMerge) != (in.MergePreparation != nil) ||
+		in.Funding != nil && (in.Funding.Validate() != nil || in.Funding.Publication != publicationID) ||
+		in.MergePreparation != nil && (in.MergePreparation.Validate() != nil || in.MergePreparation.Publication != publicationID) {
+		return nil, ErrInterventionPayload
+	}
+	if s.Store == nil || s.Writer == nil || s.WriteAccess == nil || s.RunRepository == nil {
+		return nil, ErrInterventionUnavailable
+	}
+	p, err := s.Store.PublicationByID(ctx, publicationID)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := s.Store.Assignment(ctx, p.AssignmentID)
+	if err != nil {
+		return nil, err
+	}
+	origin, err := s.Store.PublicationExecutionOwner(ctx, p, owner)
+	if err != nil {
+		return nil, err
+	}
+	run, err := s.Store.FactoryRun(ctx, origin.Run)
+	if err != nil {
+		return nil, err
+	}
+	repository, err := s.RunRepository(ctx, actor, run)
+	if err != nil {
+		return nil, err
+	}
+	if repository < 1 || int64(repository) != p.Repository {
+		return nil, ErrWorkJourneyScope
+	}
+	if err = s.admit(ctx, actor, repository); err != nil {
+		return nil, err
+	}
+	switch in.Action {
+	case factory.CommandFundRetained:
+		writer, ok := s.Writer.(interface {
+			FundRetainedCandidate(context.Context, string, string, factory.RetainedCandidateFunding) (factory.RetainedCandidateFundingReceipt, error)
+		})
+		if !ok {
+			return nil, ErrInterventionUnavailable
+		}
+		return writer.FundRetainedCandidate(ctx, in.CommandID, principal, *in.Funding)
+	default:
+		writer, ok := s.Writer.(interface {
+			PrepareUnsentMerge(context.Context, string, string, factory.MergePreparation) (factory.MergePreparationReceipt, error)
+		})
+		if !ok {
+			return nil, ErrInterventionUnavailable
+		}
+		return writer.PrepareUnsentMerge(ctx, in.CommandID, principal, *in.MergePreparation)
 	}
 }
 
@@ -198,9 +273,13 @@ func (s Interventions) Run(ctx context.Context, actor collaboration.ActorID, pri
 		writer, ok := s.Writer.(interface {
 			RetryUnsentReview(context.Context, string, string, factory.ReviewRetry) (any, error)
 		})
-		if !ok { return nil, ErrInterventionUnavailable }
+		if !ok {
+			return nil, ErrInterventionUnavailable
+		}
 		publication, err := s.Store.PublicationByID(ctx, in.Publication)
-		if err != nil || publication.Repository != int64(repository) { return nil, ErrWorkJourneyScope }
+		if err != nil || publication.Repository != int64(repository) {
+			return nil, ErrWorkJourneyScope
+		}
 		return writer.RetryUnsentReview(ctx, in.CommandID, principal, *in.ReviewRetry)
 	case factory.CommandPrepareMerge:
 		writer, ok := s.Writer.(interface {
