@@ -272,6 +272,13 @@ func settleReviewFinish(assigned factory.Assignment, submission factory.MCPSubmi
 	if err := decodeRequired(fields, "tuple", "the review cycle tuple", &tuple); err != nil {
 		return factory.Assignment{}, "", fmt.Errorf("the review cycle is unavailable (%v); finish with factory.finish_incomplete", err)
 	}
+	context := assigned.ReviewContext
+	if context == nil || context.ValidateFor(assigned) != nil {
+		return factory.Assignment{}, "", errors.New("this review has no granted context; inspect factory.context or finish with factory.finish_incomplete")
+	}
+	if tuple.CycleID != context.Cycle.ID || tuple.Head != context.Cycle.Head || tuple.BaseOID != context.Cycle.BaseOID {
+		return factory.Assignment{}, "", errors.New("review tuple differs from the assigned cycle")
+	}
 	var assessments []factory.FindingAssessment
 	if err := decodeOptional(fields, "carried_assessments", "an array of finding assessment objects", &assessments); err != nil {
 		return factory.Assignment{}, "", err
@@ -286,6 +293,17 @@ func settleReviewFinish(assigned factory.Assignment, submission factory.MCPSubmi
 			Head: tuple.Head, BaseOID: tuple.BaseOID, CoverageDigest: coverage,
 			Assessments: assessments,
 		}
+		content, err := factory.FindingContentDigest(context.CarriedFindings)
+		if err != nil {
+			return factory.Assignment{}, "", err
+		}
+		expected, err := factory.ClearCoverageDigest(tuple.Head, tuple.BaseOID, content)
+		if err != nil || coverage != expected {
+			return factory.Assignment{}, "", errors.New("clear coverage differs from the assigned finding set")
+		}
+		if err := report.Validate(context.CarriedFindings); err != nil {
+			return factory.Assignment{}, "", fmt.Errorf("clear review must verify each carried actionable finding in carried_assessments: %w", err)
+		}
 		parsed := phaseResultFor(submission, project.ExecutionReview, "worker reports clear review",
 			&factory.PhaseOutput{Clear: &report})
 		finished, err := finishFromMCPPhaseResult(assigned, parsed, now)
@@ -299,6 +317,9 @@ func settleReviewFinish(assigned factory.Assignment, submission factory.MCPSubmi
 		return factory.Assignment{}, "", errors.New("conclusion findings needs structured findings or carried_assessments")
 	}
 	report := factory.ReviewCycleReport{CycleID: tuple.CycleID, NewFindings: findings, Assessments: assessments}
+	if err := report.Validate(context.CarriedFindings); err != nil {
+		return factory.Assignment{}, "", err
+	}
 	parsed := phaseResultFor(submission, project.ExecutionReview, "worker reports review findings",
 		&factory.PhaseOutput{Review: &report})
 	finished, err := finishFromMCPPhaseResult(assigned, parsed, now)

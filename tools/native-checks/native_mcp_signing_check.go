@@ -2186,7 +2186,7 @@ func offlineRoleHandoffs() error {
 	if err = control.CheckMCPTerminalFinish(clear, factory.MCPSubmission{AssignmentID: clear.ID, CapabilityID: cap.ID, SubmissionID: factory.NewID(), Tool: factory.MCPToolFinishReview, Payload: staleHeadPayload}, time.Now()); err == nil {
 		return errors.New("typed clear finish accepted another candidate")
 	}
-	if err = f.post(ctx, clear, cap, factory.MCPToolFinishReview, map[string]any{"conclusion": "clear", "carried_assessments": "bad", "evidence_refs": []string{"controlled"}}, map[string]any{"conclusion": "clear", "carried_assessments": []factory.FindingAssessment{assessment}, "evidence_refs": []string{"controlled:corrected-output"}}, ""); err != nil {
+	if err = f.post(ctx, clear, cap, factory.MCPToolFinishReview, map[string]any{"conclusion": "clear", "evidence_refs": []string{"controlled"}}, map[string]any{"conclusion": "clear", "carried_assessments": []factory.FindingAssessment{assessment}, "evidence_refs": []string{"controlled:corrected-output"}}, ""); err != nil {
 		return err
 	}
 	if err = f.remainingProfiles(ctx); err != nil {
