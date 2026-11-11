@@ -8,7 +8,7 @@ use soda_desktop_runtime::{
     credentials::{Credentials, Provider},
     fountain_oauth::{Client, Error},
 };
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::Arc;
 use tauri::{Manager, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
 fn update(
@@ -58,7 +58,7 @@ pub(super) async fn fountain_sign_in(
     let desktop = app.state::<Desktop>();
     let store: Arc<Credentials> = desktop.credentials()?;
     let _saving = desktop.fountain_signin.saving.lock().await;
-    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let epoch = desktop.generation();
     let worker = app.clone();
     desktop
         .fountain_signin
@@ -149,7 +149,7 @@ pub(super) async fn fountain_refresh(
     if cap.account().provider != Provider::Fountain {
         return Err("Choose a Fountain account.".into());
     }
-    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let epoch = desktop.generation();
     let worker = app.clone();
     let _saving = desktop.fountain_signin.saving.lock().await;
     desktop
@@ -204,15 +204,14 @@ pub(super) async fn fountain_enrollment(
         return Err("Choose an enrollment action.".into());
     }
     let desktop = app.state::<Desktop>();
-    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let epoch = desktop.generation();
     let client = repository_client(&app, &connection, &repository).await?;
     let result = match action.as_str() {
         "enroll" => client.enroll().await,
         "status" => client.status().await,
         _ => client.withdraw().await,
     };
-    if epoch != desktop.generation.load(Ordering::SeqCst) || desktop.quitting.load(Ordering::SeqCst)
-    {
+    if !desktop.live(epoch) {
         return Err("Fountain account changed; the original enrollment command is kept.".into());
     }
     result.map_err(|_| {
@@ -229,11 +228,8 @@ async fn repository_client(
     let desktop = app.state::<Desktop>();
     let store = desktop.credentials()?;
     let profile = desktop
-        .status
-        .lock()
-        .unwrap()
+        .status()
         .profile
-        .clone()
         .ok_or("Factory is unavailable.")?;
     let cap = store
         .capability(&connection)
@@ -271,7 +267,7 @@ pub(super) async fn fountain_controller(
         return Err("Choose one controller command.".into());
     }
     let desktop = app.state::<Desktop>();
-    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let epoch = desktop.generation();
     let client = repository_client(&app, &connection, &repository).await?;
     let client = Arc::new(client);
     let value = if let Some(request) = selection {
@@ -299,12 +295,11 @@ pub(super) async fn fountain_controller(
         )
     }
     .map_err(|_| "Controller response could not be verified.")?;
-    if epoch != desktop.generation.load(Ordering::SeqCst) || desktop.quitting.load(Ordering::SeqCst)
-    {
+    if !desktop.live(epoch) {
         return Err("Factory changed; the original controller command is kept.".into());
     }
     let observed = desktop.runtime.lock().unwrap().as_ref().ok_or("Factory is unavailable.")?.observe_fountain_controller(client);
     observed.await.map_err(|_| "Central placement could not be recorded. The original controller command is kept.")?;
-    if epoch != desktop.generation.load(Ordering::SeqCst) || desktop.quitting.load(Ordering::SeqCst) { return Err("Factory changed; the original controller command is kept.".into()); }
+    if !desktop.live(epoch) { return Err("Factory changed; the original controller command is kept.".into()); }
     Ok(value)
 }

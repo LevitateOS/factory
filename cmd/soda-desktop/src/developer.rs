@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::PathBuf;
-use std::sync::{atomic::Ordering, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, WebviewWindow};
 use tokio::sync::{oneshot, watch, Semaphore};
@@ -158,7 +158,7 @@ impl Developer {
         }
     }
     fn available(&self, desktop: &Desktop) -> bool {
-        self.mode != Mode::Disabled && !desktop.quitting.load(Ordering::SeqCst)
+        self.mode != Mode::Disabled && !desktop.stopping()
     }
 }
 struct OwnedSocket {
@@ -185,7 +185,7 @@ pub fn developer_context(window: WebviewWindow, app: tauri::AppHandle) -> Result
         return Ok(json!({"mode":"disabled"}));
     }
     Ok(
-        json!({"session":dev.session,"mode":dev.mode.name(),"window":window.label(),"generation":desktop.generation.load(Ordering::SeqCst),"binding":desktop.product.developer_binding(window.label())}),
+        json!({"session":dev.session,"mode":dev.mode.name(),"window":window.label(),"generation":desktop.generation(),"binding":desktop.product.developer_binding(window.label())}),
     )
 }
 
@@ -213,7 +213,7 @@ pub fn developer_reply(
         .get(&nonce)
         .filter(|p| p.window == window.label())
         .ok_or("developer request retired")?;
-    let current = row.generation == desktop.generation.load(Ordering::SeqCst);
+    let current = row.generation == desktop.generation();
     let action = row.action;
     let row = pending.remove(&nonce).unwrap();
     let _ = row.reply.send(if current {
@@ -275,7 +275,7 @@ async fn dispatch(app: tauri::AppHandle, request: wire::Request) -> Value {
         return wire::error("retired");
     }
     if matches!(request.operation, wire::Operation::Status) {
-        let status = desktop.status.lock().unwrap().clone();
+        let status = desktop.status();
         let windows: Vec<_> = app.webview_windows().values().map(|w| json!({"label":w.label(),"visible":w.is_visible().unwrap_or(false),"minimized":w.is_minimized().unwrap_or(false)})).collect();
         return json!({"ok":true,"version":1,"provenance":"native_status","session":dev.session,"mode":dev.mode.name(),"release":dev.release,"runtime":status,"windows":windows,"capabilities":["tree","click","fill","select","check","wait"],"action_capacity":ACTION_LIMIT});
     }
@@ -351,7 +351,7 @@ async fn dispatch_window(
         Ok(n) => n,
         Err(e) => return wire::error(e),
     };
-    let generation = desktop.generation.load(Ordering::SeqCst);
+    let generation = desktop.generation();
     let (tx, rx) = oneshot::channel();
     {
         let mut pending = dev.pending.lock().unwrap();

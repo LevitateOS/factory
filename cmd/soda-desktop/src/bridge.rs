@@ -191,17 +191,14 @@ pub(super) fn factory_stream(
     }
     let id = state.windows.fetch_add(1, Ordering::SeqCst).to_string();
     let active = Arc::new(AtomicBool::new(true));
-    let epoch = state.generation.load(Ordering::SeqCst);
+    let epoch = state.generation();
     let observed = id.clone();
     let stream_app = app.clone();
     let stream_active = active.clone();
     let task = tauri::async_runtime::spawn(async move {
         loop {
             let state = stream_app.state::<Desktop>();
-            if !stream_active.load(Ordering::SeqCst)
-                || epoch != state.generation.load(Ordering::SeqCst)
-                || state.quitting.load(Ordering::SeqCst)
-            {
+            if !stream_active.load(Ordering::SeqCst) || !state.live(epoch) {
                 break;
             }
             match state
@@ -211,7 +208,7 @@ pub(super) fn factory_stream(
                 Ok(reply) => {
                     let stop = reply.status >= 400;
                     if !stream_active.load(Ordering::SeqCst)
-                        || epoch != state.generation.load(Ordering::SeqCst)
+                        || !state.live(epoch)
                         || channel.send(reply).is_err()
                         || stop
                     {

@@ -700,7 +700,7 @@ pub fn report(
     if stage != "mounted" || state.check.stage.swap(1, Ordering::SeqCst) != 0 {
         return Err("unexpected native acceptance stage".into());
     }
-    let status = state.status.lock().unwrap().clone();
+    let status = state.status();
     *state.check.instance.lock().unwrap() = status.instance;
     if app.webview_windows().len() < 2 {
         app.exit(1);
@@ -821,7 +821,7 @@ fn observe_resume(app: tauri::AppHandle) -> Result<(), String> {
         .as_ref()
         .ok_or("runtime missing before suspend")?
         .health()?;
-    let status = serde_json::to_string(&*state.status.lock().unwrap())
+    let status = serde_json::to_string(&state.status())
         .map_err(|_| "pre-suspend status unavailable")?;
     let marker = state.paths.profile.join("wake-complete");
     std::fs::OpenOptions::new()

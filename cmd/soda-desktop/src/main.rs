@@ -32,7 +32,7 @@ use soda_desktop_runtime::supervisor::{prepare_profile, NativeSupervisor};
 #[cfg(feature = "native-check")]
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
@@ -44,7 +44,7 @@ struct Paths {
 }
 #[derive(Clone, Serialize)]
 struct Status {
-    phase: String,
+    phase: &'static str,
     profile: Option<String>,
     instance: Option<String>,
     generation: u64,
@@ -55,15 +55,80 @@ struct Reply {
     status: u16,
     body: Value,
 }
+/// What the UI shows besides the phase and generation.
+#[derive(Clone, Default)]
+struct Shown {
+    profile: Option<String>,
+    instance: Option<String>,
+    execution_error: Option<String>,
+}
+/// The one runtime lifecycle. `generation` names a runtime binding: every
+/// start and every account withdrawal moves it, so work begun under an older
+/// generation is never live again. Only `Ready` accepts work.
+enum Lifecycle {
+    /// Before the first start; shown as "starting", never live.
+    Idle,
+    Starting {
+        generation: u64,
+        shown: Shown,
+    },
+    Ready {
+        generation: u64,
+        shown: Shown,
+    },
+    Failed {
+        generation: u64,
+        shown: Shown,
+    },
+    /// `generation` has moved past the one the UI last saw (`shown_generation`).
+    Stopping {
+        generation: u64,
+        shown_generation: u64,
+        shown: Shown,
+    },
+}
+impl Lifecycle {
+    fn generation(&self) -> u64 {
+        match self {
+            Self::Idle => 0,
+            Self::Starting { generation, .. }
+            | Self::Ready { generation, .. }
+            | Self::Failed { generation, .. }
+            | Self::Stopping { generation, .. } => *generation,
+        }
+    }
+    fn status(&self) -> Status {
+        let (phase, generation, shown) = match self {
+            Self::Idle => ("starting", 0, Shown::default()),
+            Self::Starting { generation, shown } => ("starting", *generation, shown.clone()),
+            Self::Ready { generation, shown } => ("ready", *generation, shown.clone()),
+            Self::Failed { generation, shown } => ("failed", *generation, shown.clone()),
+            Self::Stopping {
+                shown_generation,
+                shown,
+                ..
+            } => ("stopping", *shown_generation, shown.clone()),
+        };
+        Status {
+            phase,
+            profile: shown.profile,
+            instance: shown.instance,
+            generation,
+            execution_error: shown.execution_error,
+        }
+    }
+}
+// Lock order: `Desktop::lifecycle` is a leaf. Its guard is only ever held
+// inside the Desktop methods below, which take no other lock, await nothing
+// and call into no webview, runtime or provider. Every other lock (runtime,
+// credentials, signin/muse state, product selections, streams) may be held
+// while taking it; it is never held while taking them.
 struct Desktop {
     developer: developer::Developer,
     paths: Paths,
     runtime: Mutex<Option<NativeSupervisor>>,
     credentials: Mutex<Option<Arc<Credentials>>>,
-    status: Mutex<Status>,
-    starting: AtomicBool,
-    quitting: AtomicBool,
-    generation: AtomicU64,
+    lifecycle: Mutex<Lifecycle>,
     windows: AtomicU64,
     #[cfg(feature = "native-check")]
     streams: Mutex<HashMap<String, bridge::Observation>>,
@@ -75,22 +140,131 @@ struct Desktop {
     check: check::Check,
 }
 impl Desktop {
+    fn status(&self) -> Status {
+        self.lifecycle.lock().unwrap().status()
+    }
+    /// The current binding generation, in any state. Used to stamp work that is
+    /// later re-checked with `live`.
+    fn generation(&self) -> u64 {
+        self.lifecycle.lock().unwrap().generation()
+    }
+    /// The one liveness test: this runtime binding is ready and still the
+    /// binding `epoch` was taken from.
+    fn live(&self, epoch: u64) -> bool {
+        matches!(&*self.lifecycle.lock().unwrap(), Lifecycle::Ready { generation, .. } if *generation == epoch)
+    }
+    /// The generation of the ready runtime, or None while it is not ready.
+    fn ready_epoch(&self) -> Option<u64> {
+        match &*self.lifecycle.lock().unwrap() {
+            Lifecycle::Ready { generation, .. } => Some(*generation),
+            _ => None,
+        }
+    }
+    /// Failed, or ready with native execution unavailable.
+    fn awaiting_restart(&self) -> bool {
+        match &*self.lifecycle.lock().unwrap() {
+            Lifecycle::Failed { .. } => true,
+            Lifecycle::Ready { shown, .. } => shown.execution_error.is_some(),
+            _ => false,
+        }
+    }
+    fn stopping(&self) -> bool {
+        matches!(&*self.lifecycle.lock().unwrap(), Lifecycle::Stopping { .. })
+    }
+    /// Idle/Ready/Failed -> Starting(generation + 1); refused while starting or stopping.
+    fn begin_start(&self) -> Option<u64> {
+        let mut lifecycle = self.lifecycle.lock().unwrap();
+        let (generation, shown) = match &*lifecycle {
+            Lifecycle::Starting { .. } | Lifecycle::Stopping { .. } => return None,
+            Lifecycle::Idle => (1, Shown::default()),
+            Lifecycle::Ready { generation, shown } | Lifecycle::Failed { generation, shown } => (
+                generation + 1,
+                Shown {
+                    profile: shown.profile.clone(),
+                    instance: None,
+                    execution_error: None,
+                },
+            ),
+        };
+        *lifecycle = Lifecycle::Starting { generation, shown };
+        Some(generation)
+    }
+    /// Starting(generation) -> Ready or Failed. A concurrent stop or restart
+    /// wins: the transition is dropped and the lifecycle left as it is.
+    fn finish_start(&self, generation: u64, ready: Option<Shown>) {
+        let mut lifecycle = self.lifecycle.lock().unwrap();
+        if let Lifecycle::Starting {
+            generation: current,
+            shown,
+        } = &*lifecycle
+        {
+            if *current == generation {
+                *lifecycle = match ready {
+                    Some(shown) => Lifecycle::Ready { generation, shown },
+                    None => Lifecycle::Failed {
+                        generation,
+                        shown: shown.clone(),
+                    },
+                };
+            }
+        }
+    }
+    /// Ready(generation) -> Failed(generation + 1); false if no longer that binding.
+    fn fail_ready(&self, generation: u64) -> bool {
+        let mut lifecycle = self.lifecycle.lock().unwrap();
+        if let Lifecycle::Ready {
+            generation: current,
+            shown,
+        } = &*lifecycle
+        {
+            if *current == generation {
+                *lifecycle = Lifecycle::Failed {
+                    generation: generation + 1,
+                    shown: Shown {
+                        instance: None,
+                        ..shown.clone()
+                    },
+                };
+                return true;
+            }
+        }
+        false
+    }
+    /// Moves a ready runtime to a new binding generation (no-op in any other
+    /// state) and returns the current generation.
+    fn rebind(&self) -> u64 {
+        let mut lifecycle = self.lifecycle.lock().unwrap();
+        if let Lifecycle::Ready { generation, .. } = &mut *lifecycle {
+            *generation += 1;
+        }
+        lifecycle.generation()
+    }
+    /// Any -> Stopping; false if already stopping.
+    fn begin_stop(&self) -> bool {
+        let mut lifecycle = self.lifecycle.lock().unwrap();
+        if matches!(&*lifecycle, Lifecycle::Stopping { .. }) {
+            return false;
+        }
+        let status = lifecycle.status();
+        *lifecycle = Lifecycle::Stopping {
+            generation: lifecycle.generation() + 1,
+            shown_generation: status.generation,
+            shown: Shown {
+                profile: status.profile,
+                instance: status.instance,
+                execution_error: status.execution_error,
+            },
+        };
+        true
+    }
     fn start(app: tauri::AppHandle) {
         let state = app.state::<Desktop>();
-        if state.quitting.load(Ordering::SeqCst) || state.starting.swap(true, Ordering::SeqCst) {
+        let Some(generation) = state.begin_start() else {
             return;
-        }
-        let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        };
         let product_tasks = state.retire_credentials();
         #[cfg(feature = "native-check")]
         state.cancel_streams();
-        {
-            let mut status = state.status.lock().unwrap();
-            status.phase = "starting".into();
-            status.execution_error = None;
-            status.instance = None;
-            status.generation = generation;
-        }
         std::thread::spawn(move || {
             tauri::async_runtime::block_on(async move {
                 for task in product_tasks {
@@ -125,26 +299,24 @@ impl Desktop {
                             }
                             Err(error) => eprintln!("native credentials: {error}"),
                         }
-                        *state.status.lock().unwrap() = Status {
-                            phase: "ready".into(),
+                        let shown = Shown {
                             profile: Some(ready.profile),
                             instance: Some(ready.instance),
-                            generation: state.generation.load(Ordering::SeqCst),
                             execution_error: owner.execution_error(),
                         };
                         *runtime = Some(owner);
+                        state.finish_start(generation, Some(shown));
                     }
                     Err(error) => {
                         eprintln!("native startup: {error}");
-                        state.status.lock().unwrap().phase = "failed".into();
+                        state.finish_start(generation, None);
                     }
                 },
                 Err(error) => {
                     eprintln!("native startup: {error}");
-                    state.status.lock().unwrap().phase = "failed".into();
+                    state.finish_start(generation, None);
                 }
             }
-            state.starting.store(false, Ordering::SeqCst);
         });
     }
     fn retire_credentials(&self) -> Vec<tauri::async_runtime::JoinHandle<()>> {
@@ -164,10 +336,7 @@ impl Desktop {
         tasks
     }
     fn credentials(&self) -> Result<Arc<Credentials>, String> {
-        if self.starting.load(Ordering::SeqCst)
-            || self.quitting.load(Ordering::SeqCst)
-            || self.status.lock().unwrap().phase != "ready"
-        {
+        if self.ready_epoch().is_none() {
             return Err("native account connection is unavailable".into());
         }
         self.credentials
@@ -178,9 +347,7 @@ impl Desktop {
     }
     #[cfg(feature = "native-check")]
     async fn call(&self, method: &str, path: &str, body: Value) -> Result<Reply, String> {
-        if self.quitting.load(Ordering::SeqCst) || self.starting.load(Ordering::SeqCst) {
-            return Err("Factory is unavailable".into());
-        }
+        let epoch = self.ready_epoch().ok_or("Factory is unavailable")?;
         let bytes = if method == "GET" {
             vec![]
         } else {
@@ -189,13 +356,9 @@ impl Desktop {
         if bytes.len() > 65536 {
             return Err("request body exceeds the native limit".into());
         }
-        let epoch = self.generation.load(Ordering::SeqCst);
         let request = {
             let runtime = self.runtime.lock().unwrap();
-            if epoch != self.generation.load(Ordering::SeqCst)
-                || self.starting.load(Ordering::SeqCst)
-                || self.quitting.load(Ordering::SeqCst)
-            {
+            if !self.live(epoch) {
                 return Err("Factory binding retired".into());
             }
             runtime
@@ -204,7 +367,7 @@ impl Desktop {
                 .product_request(method, path, &bytes)
         };
         let response = request.await?;
-        if epoch != self.generation.load(Ordering::SeqCst) || self.quitting.load(Ordering::SeqCst) {
+        if !self.live(epoch) {
             return Err("Factory binding retired".into());
         }
         let body = if response.body.is_empty() {
@@ -242,18 +405,14 @@ async fn runtime_status(window: WebviewWindow, app: tauri::AppHandle) -> Result<
     caller(&window)?;
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<Desktop>();
-        if !state.starting.load(Ordering::SeqCst)
-            && !state.quitting.load(Ordering::SeqCst)
-            && state.status.lock().unwrap().phase == "ready"
-        {
+        if let Some(epoch) = state.ready_epoch() {
             let failed = {
                 let runtime = state.runtime.lock().unwrap();
                 runtime
                     .as_ref()
                     .is_some_and(|owner| owner.health().is_err())
             };
-            if failed {
-                state.generation.fetch_add(1, Ordering::SeqCst);
+            if failed && state.fail_ready(epoch) {
                 #[cfg(feature = "native-check")]
                 state.cancel_streams();
                 let tasks = state.retire_credentials();
@@ -262,14 +421,9 @@ async fn runtime_status(window: WebviewWindow, app: tauri::AppHandle) -> Result<
                         let _ = task.await;
                     }
                 });
-                let mut status = state.status.lock().unwrap();
-                status.phase = "failed".into();
-                status.instance = None;
-                status.generation = state.generation.load(Ordering::SeqCst);
             }
         }
-        let status = state.status.lock().unwrap().clone();
-        Ok(status)
+        Ok(state.status())
     })
     .await
     .map_err(|_| "native status unavailable")?
@@ -281,13 +435,8 @@ fn runtime_retry(
     state: tauri::State<'_, Desktop>,
 ) -> Result<(), String> {
     caller(&window)?;
-    {
-        let status = state.status.lock().unwrap();
-        if status.phase != "failed"
-            && !(status.phase == "ready" && status.execution_error.is_some())
-        {
-            return Err("Factory is not awaiting restart".into());
-        }
+    if !state.awaiting_restart() {
+        return Err("Factory is not awaiting restart".into());
     }
     Desktop::start(app);
     Ok(())
@@ -317,7 +466,7 @@ async fn credential_withdraw(
     state.fountain_signin.cancel(None, None).await;
     let signin_task = state.signin.retire();
     let fountain_task = state.fountain_signin.retire();
-    let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    state.rebind();
     #[cfg(feature = "native-check")]
     state.cancel_streams();
     let mut tasks = state.product.retire(None);
@@ -326,7 +475,6 @@ async fn credential_withdraw(
     if let Some(task) = state.muse_signin.retire() {
         tasks.push(task);
     }
-    state.status.lock().unwrap().generation = generation;
     for task in tasks {
         let _ = task.await;
     }
@@ -383,16 +531,12 @@ fn close_window(window: WebviewWindow) -> Result<(), String> {
     window.close().map_err(|_| "window could not close".into())
 }
 fn quit(app: tauri::AppHandle) {
-    if app.state::<Desktop>().quitting.swap(true, Ordering::SeqCst) {
+    if !app.state::<Desktop>().begin_stop() {
         return;
     }
-    app.state::<Desktop>()
-        .generation
-        .fetch_add(1, Ordering::SeqCst);
     #[cfg(feature = "native-check")]
     let streams = app.state::<Desktop>().take_streams(None);
     let product_tasks = app.state::<Desktop>().retire_credentials();
-    app.state::<Desktop>().status.lock().unwrap().phase = "stopping".into();
     tauri::async_runtime::spawn(async move {
         app.state::<Desktop>().developer.stop(&app).await;
         #[cfg(feature = "native-check")]
@@ -493,16 +637,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         paths,
         runtime: Mutex::new(None),
         credentials: Mutex::new(None),
-        status: Mutex::new(Status {
-            phase: "starting".into(),
-            profile: None,
-            instance: None,
-            generation: 0,
-            execution_error: None,
-        }),
-        starting: AtomicBool::new(false),
-        quitting: AtomicBool::new(false),
-        generation: AtomicU64::new(0),
+        lifecycle: Mutex::new(Lifecycle::Idle),
         windows: AtomicU64::new(1),
         #[cfg(feature = "native-check")]
         streams: Mutex::new(HashMap::new()),

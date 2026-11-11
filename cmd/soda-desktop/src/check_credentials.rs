@@ -504,11 +504,8 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
     ensure(accounts.len() == 1, "canonical check account missing")?;
     let connection = &accounts[0].connection;
     let profile = state
-        .status
-        .lock()
-        .unwrap()
+        .status()
         .profile
-        .clone()
         .ok_or("profile missing")?;
     let binding = consent_read(app, connection, GitHubRead::Binding).await?["binding"].clone();
     ensure(
@@ -1135,11 +1132,8 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
         .as_ref()
         .ok_or("complete OAuth grant not stored")?;
     let namespace = state
-        .status
-        .lock()
-        .unwrap()
+        .status()
         .profile
-        .clone()
         .ok_or("profile missing")?;
     let reopened =
         Credentials::open(&state.paths.profile, &namespace).map_err(|e| e.to_string())?;
@@ -1909,7 +1903,7 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
                         }
                     }
                     tokio::time::sleep(Duration::from_millis(500)).await;
-                    if !app.state::<Desktop>().quitting.load(Ordering::SeqCst) {
+                    if !app.state::<Desktop>().stopping() {
                         if open(&app, "main").is_err() {
                             app.exit(1);
                             return;
@@ -2254,11 +2248,8 @@ async fn run(app: &tauri::AppHandle) -> Result<(), String> {
     let store = state.credentials()?;
     let profile = state.paths.profile.clone();
     let namespace = state
-        .status
-        .lock()
-        .unwrap()
+        .status()
         .profile
-        .clone()
         .ok_or("profile missing")?;
     let account = || {
         Account::new(

@@ -3,7 +3,6 @@ use super::{caller, Desktop};
 use serde::Serialize;
 use soda_desktop_runtime::credentials::{Credentials, Error as CredentialError};
 use soda_desktop_runtime::github::Error;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
@@ -149,7 +148,7 @@ impl SignIn {
         Ok(state.view())
     }
     /// Worker-side transition: refused when the runtime changed (epoch,
-    /// quitting, starting) or the attempt is no longer the active one.
+    /// not ready) or the attempt is no longer the active one.
     pub(super) fn update(
         &self,
         app: &tauri::AppHandle,
@@ -158,10 +157,7 @@ impl SignIn {
         next: Phase,
     ) -> bool {
         let desktop = app.state::<Desktop>();
-        if epoch != desktop.generation.load(Ordering::SeqCst)
-            || desktop.quitting.load(Ordering::SeqCst)
-            || desktop.starting.load(Ordering::SeqCst)
-        {
+        if !desktop.live(epoch) {
             return false;
         }
         self.state
@@ -247,7 +243,7 @@ pub(super) async fn github_refresh(
     if cap.account().provider!=soda_desktop_runtime::credentials::Provider::Github {
         return Err("Choose a GitHub account.".into());
     }
-    let epoch=desktop.generation.load(Ordering::SeqCst);
+    let epoch=desktop.generation();
     let worker=app.clone();
     let _saving=desktop.signin.saving.lock().await;
     desktop.signin.start(window.label(),move |attempt|tauri::async_runtime::spawn(async move {
@@ -273,7 +269,7 @@ pub(super) async fn github_sign_in(
     let desktop = app.state::<Desktop>();
     let store: Arc<Credentials> = desktop.credentials()?;
     let _saving = desktop.signin.saving.lock().await;
-    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let epoch = desktop.generation();
     let start = desktop
         .runtime
         .lock()

@@ -2,7 +2,7 @@
 use super::{caller, Desktop};
 use serde::Serialize;
 use soda_desktop_runtime::factory_provider::{MuseLogin, MuseLoginView, ToolStatus, Tools};
-use std::sync::{Arc, Mutex, atomic::Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{Manager, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
 
@@ -31,9 +31,7 @@ pub(super) struct View {
 fn active(view: &MuseLoginView) -> bool { matches!(view.phase, "requesting" | "waiting") }
 fn tools(app: &tauri::AppHandle) -> Result<Arc<Tools>, String> {
     let state = app.state::<Desktop>();
-    if state.starting.load(Ordering::SeqCst) || state.quitting.load(Ordering::SeqCst)
-        || state.status.lock().unwrap().phase != "ready"
-    { return Err("Muse sign-in is unavailable until Factory is ready".into()); }
+    if state.ready_epoch().is_none() { return Err("Muse sign-in is unavailable until Factory is ready".into()); }
     let tools = state.runtime.lock().unwrap().as_ref().ok_or("native runtime unavailable")?.execution_tools();
     tools
 }
@@ -79,17 +77,17 @@ pub(super) fn status(app: &tauri::AppHandle, label: &str) -> View {
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).is_ok_and(|now| now.as_secs().saturating_sub(checked) < Tools::REFRESH.as_secs())
         })
     });
-    app.state::<Desktop>().muse_signin.view(label, app.state::<Desktop>().generation.load(Ordering::SeqCst), available, tool_status)
+    app.state::<Desktop>().muse_signin.view(label, app.state::<Desktop>().generation(), available, tool_status)
 }
 #[tauri::command]
 pub(super) async fn muse_tools_refresh(window: WebviewWindow, app: tauri::AppHandle) -> Result<View, String> {
     caller(&window)?;
-    let epoch = app.state::<Desktop>().generation.load(Ordering::SeqCst);
+    let epoch = app.state::<Desktop>().generation();
     let native_tools = tools(&app)?;
     let state = app.state::<Desktop>();
     let _transition = state.muse_signin.transition.lock().await;
     let mut auth = state.muse_signin.state.lock().unwrap();
-    if state.generation.load(Ordering::SeqCst) != epoch || state.starting.load(Ordering::SeqCst) || state.quitting.load(Ordering::SeqCst) {
+    if !state.live(epoch) {
         return Err("Muse update owner is no longer current".into());
     }
     let view = auth.login.as_ref().map(MuseLogin::view).unwrap_or_else(|| auth.view.clone());
@@ -121,14 +119,14 @@ pub(super) async fn muse_sign_in_status(window: WebviewWindow, app: tauri::AppHa
 #[tauri::command]
 pub(super) async fn muse_sign_in(window: WebviewWindow, app: tauri::AppHandle) -> Result<View, String> {
     caller(&window)?;
-    let epoch = app.state::<Desktop>().generation.load(Ordering::SeqCst);
+    let epoch = app.state::<Desktop>().generation();
     let native_tools = tools(&app)?;
     if !status(&app, window.label()).available { return Err("Muse sign-in is unavailable until its current release is verified".into()); }
     let state = app.state::<Desktop>();
     let _transition = state.muse_signin.transition.lock().await;
     let label = window.label().to_owned();
     let mut auth = state.muse_signin.state.lock().unwrap();
-    if state.generation.load(Ordering::SeqCst) != epoch || state.starting.load(Ordering::SeqCst) || state.quitting.load(Ordering::SeqCst) {
+    if !state.live(epoch) {
         return Err("Muse sign-in owner is no longer current".into());
     }
     let view = auth.login.as_ref().map(MuseLogin::view).unwrap_or_else(|| auth.view.clone());
@@ -146,7 +144,7 @@ pub(super) async fn muse_sign_in(window: WebviewWindow, app: tauri::AppHandle) -
         let state = worker.state::<Desktop>();
         let mut auth = state.muse_signin.state.lock().unwrap();
         if auth.attempt != attempt || auth.epoch != epoch || auth.owner != label
-            || state.generation.load(Ordering::SeqCst) != epoch || state.quitting.load(Ordering::SeqCst)
+            || !state.live(epoch)
         { return; }
         let result = selection.and_then(|selection| MuseLogin::start(&profile, selection));
         match result {

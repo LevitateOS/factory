@@ -102,9 +102,7 @@ impl Connections {
 }
 fn current(desktop: &Desktop, selection: &Selection) -> Result<(), String> {
     if *selection.cancelled.borrow()
-        || selection.generation != desktop.generation.load(Ordering::SeqCst)
-        || desktop.starting.load(Ordering::SeqCst)
-        || desktop.quitting.load(Ordering::SeqCst)
+        || !desktop.live(selection.generation)
     {
         return Err("Factory connection retired".into());
     }
@@ -127,7 +125,7 @@ async fn call(
     let fountain = if capability.account().provider == soda_desktop_runtime::credentials::Provider::Fountain {
         let name = selection.fountain_repository.as_deref().ok_or("Choose an enrolled Fountain repository")?;
         let (owner, repository) = name.split_once('/').ok_or("Use owner/repository")?;
-        let profile = desktop.status.lock().unwrap().profile.clone().ok_or("Factory is unavailable")?;
+        let profile = desktop.status().profile.ok_or("Factory is unavailable")?;
         let client = soda_desktop_runtime::fountain_provider::retained_client(
             credentials.clone(), credentials.renew_capability(&capability).await.map_err(|_|"Factory account changed")?, &desktop.paths.profile, &profile, owner, repository,
         ).await.map_err(|_| "Current Fountain enrollment is unavailable")?;
@@ -219,7 +217,7 @@ pub(super) async fn factory_prepare_connection(
             connection,
             repository,
             fountain_repository,
-            generation: desktop.generation.load(Ordering::SeqCst),
+            generation: desktop.generation(),
             cancelled: watch::channel(false).0,
             binding: Mutex::new(None),
             connecting: AtomicBool::new(false),
