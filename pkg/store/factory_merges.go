@@ -646,9 +646,13 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 
 func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment, g admissionGrants, m factory.Merge) error {
 	retry := mergeNoSendRecovery(m)
+	withdrawnOriginal := pristineWithdrawnMerge(m)
 	expiredUnallocated := retry && m.Stage == factory.MergeWithdrawn && pristineMergeOperation(m.Operation) && m.RetryCommand != "" && time.Now().Unix() >= m.RetryNotAfter
-	if m.Validate() != nil || m.WithdrawRequested && !expiredUnallocated ||
+	if m.Validate() != nil || m.WithdrawRequested && !expiredUnallocated && !withdrawnOriginal ||
 		m.AssignmentID != a.ID || m.PublicationID != p.ID || m.Repository != p.Repository || m.Issue != p.Issue || m.PRID != p.PRID || m.PRNumber != p.PRNumber || m.HeadOID != p.Candidate || m.BaseOID != p.PullTarget().BaseOID || m.BaseRef != g.policy.TargetBranch || m.ReviewerID != g.policy.Review.ActorID {
+		return ErrMergeConflict
+	}
+	if withdrawnOriginal && (factory.MergeTargetChanged(m, p) || m.ProjectID != p.ProjectID || m.Acceptance != p.Acceptance || m.IssueID != p.PullTarget().IssueID || m.PRAuthorID != p.PullTarget().AuthorID) {
 		return ErrMergeConflict
 	}
 	if !retry && ((m.Stage != factory.MergeOpen && m.Stage != factory.MergeFenced) || m.Authorization.Bound() || len(m.History) != 0 || !pristineMergeOperation(m.Operation)) {
@@ -789,7 +793,7 @@ func retainedMergeAuthority(a factory.Assignment, g admissionGrants) factory.Aut
 }
 
 func mergeNoSendRecovery(m factory.Merge) bool {
-	if expiredUnallocatedMerge(m) {
+	if pristineWithdrawnMerge(m) || expiredUnallocatedMerge(m) {
 		return true
 	}
 	if m.Stage == factory.MergeFailed && m.Reason == factory.MergeReasonRefused && m.Authorization.Bound() && m.Operation.Work != nil && m.Operation.Attempts == 1 && m.Operation.Completion == factory.OpCompletionComplete && len(m.History)+1 < factory.MaxMergeGenerations {
@@ -800,6 +804,14 @@ func mergeNoSendRecovery(m factory.Merge) bool {
 	// expiry or policy withdrawal; it never extends the earlier command.
 	unallocated := m.RetryCommand != "" && len(m.History) > 0 && pristineMergeOperation(m.Operation)
 	return unallocated && (m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced || m.Stage == factory.MergeWithdrawn && time.Now().Unix() >= m.RetryNotAfter)
+}
+
+// The original withdrawal is definitive only before any authorization or
+// operation existed. Its terminal row is retained in the explicit command,
+// never represented as a native no-send receipt or a fabricated generation.
+func pristineWithdrawnMerge(m factory.Merge) bool {
+	return m.Validate() == nil && m.Stage == factory.MergeWithdrawn && m.WithdrawRequested && m.Reason == factory.MergeReasonWithdrawn &&
+		reflect.DeepEqual(m.Authorization, factory.MergeAuthorization{}) && len(m.History) == 0 && m.RetryCommand == "" && pristineMergeOperation(m.Operation)
 }
 
 // Only the durable pre-send state proves that no operation was allocated.
@@ -838,6 +850,15 @@ func checkMergeRetryGrant(ctx context.Context, q grantCommandSQL, m factory.Merg
 	}
 	if kind != factory.CommandPrepareMerge || target != "publication/"+m.PublicationID || finished == "" || json.Unmarshal([]byte(payload), &request) != nil || !request.RetryNoSend || request.Validate() != nil || json.Unmarshal([]byte(outcome), &capture) != nil || capture.Prior == "" || capture.Receipt.CommandID != m.RetryCommand || capture.Receipt.MergeID != m.ID || capture.Receipt.NotAfter != m.RetryNotAfter || capture.Receipt.Request != request || request.Publication != m.PublicationID || request.Head != m.HeadOID || request.Base != m.BaseOID || request.Policy != m.Authority.Policy {
 		return ErrMergeConflict
+	}
+	if len(m.History) == 0 {
+		var prior factory.Merge
+		if json.Unmarshal([]byte(capture.Prior), &prior) != nil || !pristineWithdrawnMerge(prior) || prior.ID != request.MergeID || prior.Revision != request.Revision ||
+			prior.PublicationID != m.PublicationID || prior.AssignmentID != m.AssignmentID || prior.ProjectID != m.ProjectID || prior.Role != m.Role || prior.Acceptance != m.Acceptance ||
+			prior.Repository != m.Repository || prior.Issue != m.Issue || prior.PRNumber != m.PRNumber || prior.PRID != m.PRID || prior.IssueID != m.IssueID || prior.PRAuthorID != m.PRAuthorID || prior.ReviewerID != m.ReviewerID ||
+			prior.HeadRef != m.HeadRef || prior.BaseRef != m.BaseRef || prior.HeadOID != m.HeadOID || prior.BaseOID != m.BaseOID {
+			return ErrMergeConflict
+		}
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -582,6 +583,102 @@ func TestReviewChildAdmitsThroughReviewGuard(t *testing.T) {
 	allowanceAfter, err := db.AttemptAllowance(ctx, owner.Repository, owner.Issue)
 	if err != nil || !reflect.DeepEqual(allowanceBefore, allowanceAfter) {
 		t.Fatal("merge preparation changed inference accounting", err)
+	}
+	// Quit can withdraw an original merge before it acquires authorization or
+	// a native operation. The explicit merge-only command retains that terminal
+	// row and the completed reviewer, without funding another execution.
+	withdrawn := prepared
+	withdrawn.WithdrawRequested = true
+	withdrawn.Settle(factory.MergeWithdrawn, factory.MergeReasonWithdrawn, time.Now().Unix())
+	withdrawn.Revision++
+	if err := db.UpdateMerge(ctx, withdrawn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UnsentMergePreparation(ctx, after.ID); !errors.Is(err, ErrMergeConflict) {
+		t.Fatal("open original allowance admitted merge-only recovery", err)
+	}
+	if _, err := db.CloseAttempt(ctx, owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, a, g, err := mergePreparationScopeTx(ctx, tx, after.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*factory.Merge){
+		"foreign acceptance": func(m *factory.Merge) { m.Acceptance = "d" + strings.Repeat("7", 24) },
+		"foreign project":    func(m *factory.Merge) { m.ProjectID = "p" + strings.Repeat("7", 24) },
+		"foreign head ref":   func(m *factory.Merge) { m.HeadRef = "refs/heads/foreign" },
+		"foreign PR author":  func(m *factory.Merge) { m.PRAuthorID++ },
+		"foreign PR issue":   func(m *factory.Merge) { m.IssueID++ },
+		"allocated operation": func(m *factory.Merge) {
+			m.Operation.OperationID = factory.MergeOperationIDForGeneration(m.PublicationID, 1)
+		},
+	} {
+		changed := withdrawn
+		mutate(&changed)
+		if err := admitUnsentMergePreparationTx(ctx, tx, p, a, g, changed); !errors.Is(err, ErrMergeConflict) {
+			t.Fatalf("%s admitted withdrawn recovery: %v", name, err)
+		}
+	}
+	_ = tx.Rollback()
+	if _, err := db.db.ExecContext(ctx, `UPDATE factory_runs SET settled=false,active=true WHERE id=$1`, child.Run); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UnsentMergePreparation(ctx, after.ID); !errors.Is(err, ErrAttemptRunsPending) {
+		t.Fatal("unsettled reviewer admitted merge recovery", err)
+	}
+	if _, err := db.db.ExecContext(ctx, `UPDATE factory_runs SET settled=true,active=false WHERE id=$1`, child.Run); err != nil {
+		t.Fatal(err)
+	}
+	var prior, inferenceBefore, inferenceAfter string
+	if err := db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_merges WHERE publication=$1`, after.ID).Scan(&prior); err != nil {
+		t.Fatal(err)
+	}
+	inference := func(out *string) error {
+		return db.db.QueryRowContext(ctx, `SELECT jsonb_build_object('allowance',(SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1),'assignments',(SELECT jsonb_agg(to_jsonb(a) ORDER BY seq) FROM factory_assignments a),'runs',(SELECT jsonb_agg(to_jsonb(r) ORDER BY seq) FROM factory_runs r),'publication',(SELECT data FROM factory_publications WHERE assignment=$1))::text`, owner.ID).Scan(out)
+	}
+	if err := inference(&inferenceBefore); err != nil {
+		t.Fatal(err)
+	}
+	offer, err = db.UnsentMergePreparation(ctx, after.ID)
+	if err != nil || !offer.RetryNoSend {
+		t.Fatal("closed original withdrawal did not offer merge-only recovery", err)
+	}
+	mergeOnlyCommand := factory.NewID()
+	mergeOnly, err := db.PrepareUnsentMerge(ctx, mergeOnlyCommand, "owner", offer, time.Now())
+	if err != nil || mergeOnly.NotAfter <= time.Now().Unix() || mergeOnly.NotAfter > time.Now().Unix()+300 {
+		t.Fatalf("withdrawn merge-only command: %+v %v", mergeOnly, err)
+	}
+	replayed, err := db.PrepareUnsentMerge(ctx, mergeOnlyCommand, "owner", offer, time.Now().Add(time.Hour))
+	if err != nil || replayed != mergeOnly {
+		t.Fatal("withdrawn merge replay renewed its finite grant", err)
+	}
+	archive, err := db.FactoryCommand(ctx, mergeOnlyCommand)
+	var capture struct {
+		Prior string `json:"prior"`
+	}
+	if err != nil || json.Unmarshal([]byte(archive.Outcome), &capture) != nil || capture.Prior != prior {
+		t.Fatal("withdrawn original was not archived exactly", err)
+	}
+	fresh, err := db.MergeByPublication(ctx, after.ID)
+	if err != nil || fresh.ID != mergeOnlyCommand || fresh.RetryCommand != mergeOnlyCommand || fresh.Authorization.Bound() || !pristineMergeOperation(fresh.Operation) || len(fresh.History) != 0 || fresh.WithdrawRequested {
+		t.Fatalf("withdrawn recovery fabricated authority or a native generation: %+v %v", fresh, err)
+	}
+	if deadline, err := db.MergeSendDeadline(ctx, fresh, time.Now().Add(time.Hour).Unix()); err != nil || deadline != mergeOnly.NotAfter {
+		t.Fatal("withdrawn command did not bound the merge-only deadline", deadline, err)
+	}
+	if _, err := db.CapAttemptDeadline(ctx, owner.ID, time.Now().Add(time.Minute).Unix()); !errors.Is(err, factory.ErrAttemptClosed) {
+		t.Fatal("merge-only recovery reopened model admission", err)
+	}
+	if _, err := db.UnsentMergePreparation(ctx, after.ID); !errors.Is(err, ErrMergeConflict) {
+		t.Fatal("fresh finite command offered automatic replacement", err)
+	}
+	if err := inference(&inferenceAfter); err != nil || inferenceBefore != inferenceAfter {
+		t.Fatal("merge-only recovery changed retained inference or publication", err)
 	}
 }
 

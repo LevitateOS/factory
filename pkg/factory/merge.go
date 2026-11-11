@@ -219,7 +219,10 @@ func (m Merge) Validate() error {
 // validateMergeIdentity refuses merges outside the admitted identity,
 // address and scope.
 func (m Merge) validateMergeIdentity() error {
-	if (m.RetryCommand == "") != (m.RetryNotAfter == 0) || m.RetryCommand != "" && (!ValidID(m.RetryCommand) || m.RetryCommand != m.ID || m.RetryNotAfter <= m.CreatedUnix || m.RetryNotAfter > m.CreatedUnix+300 || len(m.History) == 0) {
+	// An original withdrawn before authorization has no generation to archive.
+	// Its finite first-generation grant instead retains the exact original in
+	// the preparation command; the store checks that capture before binding.
+	if (m.RetryCommand == "") != (m.RetryNotAfter == 0) || m.RetryCommand != "" && (!ValidID(m.RetryCommand) || m.RetryCommand != m.ID || m.RetryNotAfter <= m.CreatedUnix || m.RetryNotAfter > m.CreatedUnix+300) {
 		return errors.New("invalid merge-only retry capture")
 	}
 	if !ValidID(m.ID) || !ValidID(m.PublicationID) || !ValidID(m.AssignmentID) {
