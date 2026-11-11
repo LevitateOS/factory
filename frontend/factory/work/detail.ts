@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import {getJSON, failureInput, readFailureText} from '../api/read.js';
 import {readRunRetry, retainRunRetry, sameRunRetry, settleRunRetry} from './retry-record.js';
 import type {PendingRunRetry, RunRetryAddress} from './retry-record.js';
@@ -168,11 +169,13 @@ export class SodaFactoryWorkDetail extends LitElement {
   declare private observation: WorkObservation | undefined;
   private readSerial = 0;
   private readRequest: AbortController | undefined;
-  private current: WorkDetailContext | undefined;
+  private bound = new ScopedBinding<WorkDetailContext>(
+    sameDetail,
+    () => {
+      this.context = undefined;
+    }
+  );
   private armedStop = false;
-  private serial = 0;
-  private generation = '';
-  private lifetime = new AbortController();
   private cmd = new PendingCommandController<PendingRunRetry, RunRetryAddress>(
     {read: readRunRetry, retain: retainRunRetry, settle: settleRunRetry, same: sameRunRetry},
     () => this.requestUpdate()
@@ -200,20 +203,15 @@ export class SodaFactoryWorkDetail extends LitElement {
           (context.projectID === undefined || projectId(context.projectID)) &&
           (context.environmentID === undefined || projectId(context.environmentID))
       );
-    if (sameDetail(context, this.current) && context?.transport.generation === this.generation) {
-      this.current = context && {...context, runIDs: [...context.runIDs], capabilities: {...context.capabilities}};
+    const keep = context && {...context, runIDs: [...context.runIDs], capabilities: {...context.capabilities}};
+    if (this.bound.bind(context, keep) === 'same') {
       this.requestUpdate();
       return;
     }
     this.readRequest?.abort();
     this.readSerial++;
     this.observation = undefined;
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.generation = context?.transport.generation ?? '';
     this.cmd.reset();
-    this.current = context && {...context, runIDs: [...context.runIDs], capabilities: {...context.capabilities}};
-    this.serial++;
     this.detail = undefined;
     this.runs = [];
     this.marks = idleMarks();
@@ -227,14 +225,6 @@ export class SodaFactoryWorkDetail extends LitElement {
     this.context = undefined;
     super.disconnectedCallback();
   }
-  private live(serial: number, context: WorkDetailContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   refresh() {
     return this.load();
   }
@@ -242,18 +232,18 @@ export class SodaFactoryWorkDetail extends LitElement {
     this.marks = {...this.marks, [kind]: {result, text}};
   }
   private async load() {
-    const context = this.current;
-    if (!context || !this.live(this.serial, context)) return;
-    const serial = this.serial,
+    const context = this.bound.current;
+    if (!context || !this.bound.live(this.bound.serial, context)) return;
+    const serial = this.bound.serial,
       refresh = ++this.readSerial;
     this.readRequest?.abort();
     const request = new AbortController();
     this.readRequest = request;
-    const signal = AbortSignal.any([request.signal, this.lifetime.signal]);
-    const current = () => this.live(serial, context) && refresh === this.readSerial;
+    const signal = AbortSignal.any([request.signal, this.bound.signal]);
+    const current = () => this.bound.live(serial, context) && refresh === this.readSerial;
     const observation = {
       transport: context.transport,
-      generation: this.generation,
+      generation: context.transport.generation,
       repository: context.repository,
       issue: context.issue,
       refresh,
@@ -365,23 +355,23 @@ export class SodaFactoryWorkDetail extends LitElement {
     return capabilityGate(this.detail.capabilities, kind);
   }
   private async runIntervention(kind: InterventionKind) {
-    const context = this.current;
-    if (!context || !this.live(this.serial, context) || this.acting) return;
+    const context = this.bound.current;
+    if (!context || !this.bound.live(this.bound.serial, context) || this.acting) return;
     if (!context.capabilities[kind] || this.armStop(kind)) return;
     const gate = this.backendGate(kind);
     if (!gate.available) {
       this.setMark(kind, 'failed', `Unavailable: ${gate.reasonText}`);
       return;
     }
-    const serial = this.serial;
+    const serial = this.bound.serial;
     this.acting = kind;
     try {
       if (
         kind === 'retry' &&
-        !(await this.resolveRetryIdentity(context, () => this.live(serial, context), this.lifetime.signal))
+        !(await this.resolveRetryIdentity(context, () => this.bound.live(serial, context), this.bound.signal))
       )
         return;
-      if (!this.live(serial, context) || !this.backendGate(kind).available) return;
+      if (!this.bound.live(serial, context) || !this.backendGate(kind).available) return;
       const runID = kind === 'retry' ? this.retryRunID() : this.selectedRunID();
       if ((kind === 'stop' || kind === 'retry' || kind === 'takeover') && !runID) {
         this.setMark(kind, 'failed', 'No recorded run is available for this action on this work.');
@@ -394,7 +384,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       this.setMark(kind, 'pending', 'Requested; awaiting confirmation.');
       await this.executeIntervention(context, kind, serial, runID);
     } finally {
-      if (this.live(serial, context)) this.acting = undefined;
+      if (this.bound.live(serial, context)) this.acting = undefined;
     }
   }
   private async submitRetry(context: WorkDetailContext, serial: number, runID: string) {
@@ -404,14 +394,14 @@ export class SodaFactoryWorkDetail extends LitElement {
     this.setMark('retry', 'pending', 'Requested; awaiting confirmation.');
     const outcome = await this.cmd.submit({
       command: pending,
-      live: () => this.live(serial, context),
+      live: () => this.bound.live(serial, context),
       classifyRefusal: classifyRetryRefusal,
       send: () =>
         context.transport.request(`factory/runs/${runID}/actions`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({command_id: pending.command, action: 'retry'}),
-          signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+          signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(90000)]),
         }),
       receipt: (body) => {
         try {
@@ -463,12 +453,12 @@ export class SodaFactoryWorkDetail extends LitElement {
     runID: string | undefined
   ) {
     try {
-      const posted = await postIntervention(context, kind, '', runID, this.lifetime.signal);
-      if (!this.live(serial, context)) return;
+      const posted = await postIntervention(context, kind, '', runID, this.bound.signal);
+      if (!this.bound.live(serial, context)) return;
       this.applyPosted(kind, context, posted, runID);
       void this.load();
     } catch {
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       this.setMark(kind, 'uncertain', 'No reply was confirmed. Refresh before acting again.');
     }
   }
@@ -482,11 +472,11 @@ export class SodaFactoryWorkDetail extends LitElement {
     }
   }
   private requestWatch(runID: string) {
-    const context = this.current;
+    const context = this.bound.current;
     if (
       !context ||
       context.watchAvailable === false ||
-      !this.live(this.serial, context) ||
+      !this.bound.live(this.bound.serial, context) ||
       this.observation?.state !== 'ready' ||
       !this.detail?.capabilities.watch.available ||
       !this.runs.some((entry) => entry.id === runID)
@@ -496,7 +486,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       new CustomEvent('soda-factory-watch-request', {
         bubbles: true,
         composed: true,
-        detail: {run: runID, repository: this.current?.repository, environment: this.current?.environmentID},
+        detail: {run: runID, repository: this.bound.current?.repository, environment: this.bound.current?.environmentID},
       })
     );
   }
@@ -504,18 +494,18 @@ export class SodaFactoryWorkDetail extends LitElement {
    * run for this work: the exact retry target, never a guess. Live work
    * keeps the live selection; stop and takeover never fall back. */
   private retryRunID(): string | undefined {
-    const context = this.current;
+    const context = this.bound.current;
     if (this.cmd.pending) return this.cmd.pending.run;
     if (context?.runID) return context.runID;
     return this.runs.find((entry) => entry.detail?.reconciled)?.id;
   }
   private selectedRunID(): string | undefined {
-    if (this.current?.runID) return this.current.runID;
+    if (this.bound.current?.runID) return this.bound.current.runID;
     const observed = this.detail?.attempt?.run;
     return this.observation?.state === 'ready' && factoryRunID(observed) ? observed : undefined;
   }
   private interventionMarks(kind: InterventionKind) {
-    const context = this.current;
+    const context = this.bound.current;
     const gate = this.backendGate(kind);
     const mark = this.marks[kind] ?? {result: 'idle' as InterventionResult, text: 'Not requested.'};
     const runID = kind === 'retry' ? this.retryRunID() : this.selectedRunID();
@@ -533,13 +523,13 @@ export class SodaFactoryWorkDetail extends LitElement {
     });
   }
   private watchNote(): string {
-    if (this.current?.watchAvailable === false) return 'Live output is unavailable in this app.';
+    if (this.bound.current?.watchAvailable === false) return 'Live output is unavailable in this app.';
     const watch = this.detail?.capabilities.watch;
     if (!watch || watch.available) return '';
     return `Watch unavailable: ${capabilityReasonText(watch.reason)}`;
   }
   protected render() {
-    const context = this.current;
+    const context = this.bound.current;
     if (!context) return html``;
     const watchable = context.watchAvailable !== false && this.observation?.state === 'ready' && (this.detail?.capabilities.watch.available ?? false);
     return html`<section aria-label="Factory work detail" @soda-factory-work-refresh=${() => this.load()}>
