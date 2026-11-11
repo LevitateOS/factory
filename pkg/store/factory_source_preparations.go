@@ -205,8 +205,14 @@ func checkCoderPreparationCustodyTx(ctx context.Context, tx *sql.Tx, a factory.A
 	if meta != nil && meta.NotAfter <= time.Now().Unix() {
 		return factory.ErrAttemptTimeExhausted
 	}
-	if meta == nil || !p.State.Ready || meta.Stopped || meta.Retirement == "confirmed" ||
-		meta.Repository != a.Repository || meta.Issue != a.Issue || meta.OwnerAssignment != a.ID ||
+	if !p.State.Ready || p.State.Stopped || meta != nil && (meta.Stopped || meta.Retirement == "confirmed") {
+		return ErrAdmissionChanged
+	}
+	return checkCoderPreparationBinding(p, meta, a)
+}
+
+func checkCoderPreparationBinding(p execution.PreparationRecord, meta *candidatePreparationRegistration, a factory.Assignment) error {
+	if meta == nil || meta.Repository != a.Repository || meta.Issue != a.Issue || meta.OwnerAssignment != a.ID ||
 		meta.ChildAssignment != a.ID || meta.AttemptRoot != a.AttemptRoot || meta.PublicationID != "" ||
 		p.Preparation.SourceCommit != a.SourceCommit || meta.Authority != a.Authority {
 		return ErrAdmissionChanged

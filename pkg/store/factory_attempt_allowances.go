@@ -243,12 +243,21 @@ func lockAttemptAllowanceRootTx(ctx context.Context, tx *sql.Tx, repository, iss
 // every admitted native candidate preparation is quiescent. Retained history
 // remains in scope.
 func attemptRootRunsSettledTx(ctx context.Context, tx *sql.Tx, repository, issue int64, root string) (bool, error) {
+	return attemptRootCustodySettledTx(ctx, tx, repository, issue, root, "")
+}
+
+// A promotion may transfer one independently verified source preparation to
+// its publication. Ordinary retirement/closure never exempts a preparation.
+func attemptRootCustodySettledTx(ctx context.Context, tx *sql.Tx, repository, issue int64, root, retainedPreparation string) (bool, error) {
 	var settled bool
 	err := tx.QueryRowContext(ctx, `SELECT NOT EXISTS (
 		SELECT 1 FROM factory_runs r
 		JOIN factory_run_views v ON v.run=r.id
 		JOIN factory_assignments a ON a.id=v.attempt
-		WHERE (r.active OR NOT r.settled OR COALESCE(r.data->>'reconciled','false') <> 'true')
+		WHERE (r.active OR NOT r.settled OR COALESCE(r.data->>'reconciled','false') <> 'true'
+		  OR ($4<>'' AND (NULLIF(r.data->'native','null'::jsonb) IS NULL OR
+		    r.data#>>'{native,sealed}' IS DISTINCT FROM 'true' OR r.data#>>'{native,retirement}' IS DISTINCT FROM 'retired'
+		    OR COALESCE(r.data#>>'{native,provenance,custody,state}','') NOT IN ('released','not_acquired'))))
 		  AND a.repository=$1 AND a.issue=$2 AND a.data->>'attempt_root'=$3
 		LIMIT 1
 	) AND NOT EXISTS (
@@ -258,9 +267,10 @@ func attemptRootRunsSettledTx(ctx context.Context, tx *sql.Tx, repository, issue
 		  AND (p.data->'factory_admission'->>'repository')::bigint=$1
 		  AND (p.data->'factory_admission'->>'issue')::bigint=$2
 		  AND p.data->'factory_admission'->>'attempt_root'=$3
+		  AND p.id<>$4
 		  AND NOT soda_preparation_quiescent(p.data,p.id,p.project_id,p.role)
 		LIMIT 1
-	)`, repository, issue, root).Scan(&settled)
+	)`, repository, issue, root, retainedPreparation).Scan(&settled)
 	return settled, err
 }
 

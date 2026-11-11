@@ -14246,6 +14246,96 @@ func externalPreparationFixture() error {
 	if cmd, err := db.FactoryCommand(ctx, command); err != nil || cmd.Finished == "" || cmd.Principal != planning.Principal {
 		return errors.New("external packet lost original command receipt")
 	}
+	// Complete only this declared Architect. Its source checkout remains ready
+	// while the process/custody receipt is sealed, retired and reconciled.
+	plan := nativeWorkspacePlan(base)
+	plan.AttemptRoot, plan.Preparation = command, preparation.Preparation.ID
+	plan.Digest, err = factory.PlanDigest(plan)
+	if err != nil {
+		return err
+	}
+	if err = db.SaveInvestigationPlan(ctx, plan); err != nil {
+		return err
+	}
+	if err = db.AdvancePlanHead(ctx, command, "", plan.ID); err != nil {
+		return err
+	}
+	stored.Stage, stored.Outcome, stored.Reason, stored.FinishedUnix = factory.AssignmentFinished, factory.Succeeded, factory.AssignReasonReported, time.Now().Unix()
+	stored.Result = &factory.AssignmentResult{AssignmentID: command, RunID: stored.Run, Status: "completed", Summary: "Declared completed external Architect", Reported: true, RecordedUnix: stored.FinishedUnix, Phase: project.ExecutionInvestigate, PhaseResult: &factory.PhaseResult{Version: factory.PhaseResultVersion, Phase: project.ExecutionInvestigate, Status: "completed", Summary: "Declared completed external Architect", Output: &factory.PhaseOutput{Plan: &plan, PlanReview: strings.Repeat("d", 64)}}}
+	if err = db.FinishAssignment(ctx, stored); err != nil {
+		return err
+	}
+	finishedRun, err := db.FactoryRun(ctx, stored.Run)
+	if err != nil {
+		return err
+	}
+	finishedRun.Outcome, finishedRun.Reconciled, finishedRun.Summary = factory.Succeeded, true, "Declared settled external Architect"
+	finishedRun.Native.Retirement, finishedRun.Native.Sealed = execution.Retired, true
+	if err = db.SaveFactoryRun(ctx, finishedRun); err != nil {
+		return err
+	}
+	if err = db.ReleaseReservation(ctx, command); err != nil {
+		return err
+	}
+	now := time.Now()
+	promoted := factory.Publication{ID: command, AssignmentID: command, ProjectID: stored.ProjectID, Role: project.RoleCoder, Authority: stored.Authority, Acceptance: stored.Acceptance, Preparation: stored.Preparation, External: &stored.ExternalPlanning.Origin, Candidate: request.Target.HeadOID, BaseSHA: base, TargetBranch: request.Target.BaseRef, PRNumber: request.PRNumber, PRID: request.PRID, Stage: factory.PublicationPublished, Repository: stored.Repository, Issue: stored.Issue, Publish: factory.PublicationOperation{Kind: factory.OpRefPublish}, PRCreate: factory.PublicationOperation{Kind: factory.OpPRCreate}, CreatedUnix: now.Unix(), FinishedUnix: now.Unix(), Outcome: factory.Succeeded, Reason: factory.PublishReasonLinked}
+	// An additional same-root preparation may never disappear into promotion.
+	extra := preparation
+	extra.Preparation.ID = "f" + factory.NewID()[:24]
+	extraNative := *preparation.Native
+	extraNative.WorktreeID = extra.Preparation.ID
+	extra.Native, extra.State.Native, extra.State.ID = &extraNative, &extraNative, extra.Preparation.ID
+	if _, _, err = db.AdmitPreparation(ctx, extra); err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission}',(SELECT data->'factory_admission' FROM project_preparations WHERE id=$2)) WHERE id=$1`, extra.Preparation.ID, preparation.Preparation.ID); err != nil {
+		return err
+	}
+	if _, err = db.RecordExternalPlanningPublication(ctx, stored, promoted, now); !errors.Is(err, store.ErrAttemptRunsPending) {
+		return fmt.Errorf("unsettled additional root preparation admitted promotion: %v", err)
+	}
+	if _, err = raw.ExecContext(ctx, `DELETE FROM project_preparations WHERE id=$1`, extra.Preparation.ID); err != nil {
+		return err
+	}
+	// Normal restart may retain the successful source receipt while observing
+	// confirmed retirement. Neither that nor setup expiry renews authority.
+	stop := execution.PreparationState{ID: preparation.Preparation.ID, Project: grant.Project, Native: preparation.Native, Stopped: true, Retirement: "uncertain"}
+	if err = db.RecordCandidatePreparationStop(ctx, preparation.Preparation.ID, stop); err != nil {
+		return err
+	}
+	if _, err = db.RecordExternalPlanningPublication(ctx, stored, promoted, now); !errors.Is(err, store.ErrAttemptRunsPending) {
+		return fmt.Errorf("uncertain source retirement admitted promotion: %v", err)
+	}
+	stop.Retirement = "confirmed"
+	if err = db.RecordCandidatePreparationStop(ctx, preparation.Preparation.ID, stop); err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission,not_after_unix}',to_jsonb($2::bigint)) WHERE id=$1`, preparation.Preparation.ID, time.Now().Add(-time.Second).Unix()); err != nil {
+		return err
+	}
+	beforePromotion, err := db.CandidatePreparation(ctx, preparation.Preparation.ID)
+	if err != nil {
+		return err
+	}
+	allowanceBefore, err := db.AttemptAllowance(ctx, stored.Repository, stored.Issue)
+	if err != nil {
+		return err
+	}
+	if _, err = db.RecordExternalPlanningPublication(ctx, stored, promoted, now); err != nil {
+		return fmt.Errorf("completed Architect with retained source did not promote: %w", err)
+	}
+	afterPromotion, err := db.CandidatePreparation(ctx, preparation.Preparation.ID)
+	if err != nil || !reflect.DeepEqual(beforePromotion, afterPromotion) {
+		return errors.New("promotion renewed original preparation authority or custody")
+	}
+	allowanceAfter, err := db.AttemptAllowance(ctx, stored.Repository, stored.Issue)
+	if err != nil || !reflect.DeepEqual(allowanceBefore, allowanceAfter) {
+		return errors.New("promotion replaced or renewed the original allowance")
+	}
+	if replay, err := db.RecordExternalPlanningPublication(ctx, stored, promoted, now); err != nil || !reflect.DeepEqual(replay, promoted) {
+		return fmt.Errorf("original promotion receipt did not replay: %v", err)
+	}
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
+	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
 	return nil
 }
