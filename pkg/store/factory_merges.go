@@ -382,13 +382,7 @@ func mergeOperationUpdateAllowed(old, next factory.MergeOperation) bool {
 	if old.Work != nil && (next.Work == nil || *old.Work != *next.Work || old.OperationID != next.OperationID || old.Attempts != next.Attempts) {
 		return false
 	}
-	if old.Receipt != "" && old.Receipt != next.Receipt {
-		return false
-	}
-	if (old.Effect == factory.OpEffectCommitted || old.Effect == factory.OpEffectNotCommitted) && old.Effect != next.Effect {
-		return false
-	}
-	return true
+	return followsProvider(old.State(), next.State(), old.Receipt, next.Receipt)
 }
 
 // OutstandingMerges lists every open or fenced merge for one

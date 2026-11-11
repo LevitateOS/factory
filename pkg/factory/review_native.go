@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/levitateos/factory/pkg/collaboration"
 )
 
 // ReviewWork is one immutable review authorization: the summary body plus
@@ -48,11 +50,11 @@ type ReviewWork struct {
 // The work itself is the native tuple; this wrapper owns only its run binding
 // and reconciliation state.
 type ReviewOperation struct {
-	RetryCommand string      `json:"retry_command,omitempty"`
-	RetryOf string           `json:"retry_of,omitempty"`
-	RunID   string           `json:"run_id"`
-	Work    ReviewWork       `json:"work"`
-	Outcome OperationOutcome `json:"outcome"`
+	RetryCommand string           `json:"retry_command,omitempty"`
+	RetryOf      string           `json:"retry_of,omitempty"`
+	RunID        string           `json:"run_id"`
+	Work         ReviewWork       `json:"work"`
+	Outcome      OperationOutcome `json:"outcome"`
 }
 
 // ValidateForPublication checks the durable operation against the exact PR
@@ -163,14 +165,15 @@ func (op ReviewOperation) WithOutcome(outcome OperationOutcome) (ReviewOperation
 		return ReviewOperation{}, errors.New("review outcome scope differs")
 	}
 	prior := op.Outcome
-	if (prior.Effect == OpEffectCommitted || prior.Effect == OpEffectNotCommitted) && prior.Effect != outcome.Effect {
-		return ReviewOperation{}, errors.New("review terminal effect changed")
-	}
 	if prior.InstallationID != "" && prior.InstallationID != outcome.InstallationID {
 		return ReviewOperation{}, errors.New("review installation identity changed")
 	}
-	if len(prior.Receipt) > 0 && string(prior.Receipt) != string(outcome.Receipt) {
-		return ReviewOperation{}, errors.New("review receipt changed")
+	step := collaboration.OperationStep{
+		Old: prior.State(), Next: outcome.State(),
+		ReceiptChanged: len(prior.Receipt) > 0 && string(prior.Receipt) != string(outcome.Receipt),
+	}
+	if collaboration.FollowProvider.Advance(step) != collaboration.AdvanceAdopt {
+		return ReviewOperation{}, errors.New("review terminal effect or receipt changed")
 	}
 	op.Outcome = outcome
 	return op, nil

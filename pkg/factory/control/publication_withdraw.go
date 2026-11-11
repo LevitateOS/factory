@@ -39,9 +39,12 @@ func (c *Coordinator) withdrawOnePublication(ctx context.Context, p *factory.Pub
 		return
 	}
 	var run factory.Run
-	if p.External==nil {
-		run,err=c.Store.FactoryRun(ctx,p.Run)
-		if err!=nil { result.Pending=true; return } 
+	if p.External == nil {
+		run, err = c.Store.FactoryRun(ctx, p.Run)
+		if err != nil {
+			result.Pending = true
+			return
+		}
 	}
 	report := PublishReport{Published: []PublishLink{}}
 	if c.Publication == nil {
@@ -142,7 +145,7 @@ func (c *Coordinator) cancelPrimaryWithdrawOps(ctx context.Context, p *factory.P
 			confirmed = false
 			continue
 		}
-		if !c.adoptObserved(op, outcome, time.Now()) {
+		if !op.Adopt(outcome, time.Now().Unix()) {
 			confirmed = false
 			continue
 		}
@@ -165,7 +168,7 @@ func (c *Coordinator) cancelCorrectionWithdrawOps(ctx context.Context, p *factor
 			confirmed = false
 			continue
 		}
-		if !c.adoptObserved(op, outcome, time.Now()) {
+		if !op.Adopt(outcome, time.Now().Unix()) {
 			confirmed = false
 			continue
 		}
@@ -178,9 +181,9 @@ func (c *Coordinator) cancelCorrectionWithdrawOps(ctx context.Context, p *factor
 				continue
 			}
 			p.Candidate = op.Work.Candidate
-			p.Run=op.RunID
+			p.Run = op.RunID
 			work := op.Work.Apply(factory.PublicationWork{AssignmentID: p.AssignmentID, Publication: p.ID})
-			if _, err := c.Publication.AdoptBranch(ctx, work, operationOutcomeOf(*op)); err != nil {
+			if _, err := c.Publication.AdoptBranch(ctx, work, op.Outcome()); err != nil {
 				confirmed = false
 			}
 		}
@@ -273,10 +276,10 @@ func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignm
 		publicationWait(report, p.ID, "cancellation_pending")
 		return
 	}
-	if p.External!=nil {
+	if p.External != nil {
 		// These operations own only Factory's continuation. The external PR
 		// and its human text are retained; no creation receipt/run is needed.
-		c.finishPublication(ctx,*p,factory.PublicationWithdrawn,factory.Cancelled,factory.PublishReasonWithdrawn,report)
+		c.finishPublication(ctx, *p, factory.PublicationWithdrawn, factory.Cancelled, factory.PublishReasonWithdrawn, report)
 		return
 	}
 	if p.PRCreate.Effect == factory.OpEffectCommitted {
@@ -288,40 +291,6 @@ func (c *Coordinator) withdrawPublication(ctx context.Context, a factory.Assignm
 		return
 	}
 	c.finishPublication(ctx, *p, factory.PublicationWithdrawn, factory.Cancelled, factory.PublishReasonWithdrawn, report)
-}
-
-func (c *Coordinator) adoptObserved(op *factory.PublicationOperation, outcome factory.OperationOutcome, now time.Time) bool {
-	if outcome.NotObserved || outcome.OperationID != op.OperationID || op.Work == nil {
-		return false
-	}
-	if op.InstallationID != "" && op.InstallationID != outcome.InstallationID {
-		return false
-	}
-	tombstone := outcome.Kind == "" && outcome.Effect == factory.OpEffectNotCommitted && outcome.Cancellation == factory.OpCancelCancelled
-	if !tombstone && (outcome.Kind != op.Kind || outcome.ActorID != op.Work.ActorID || outcome.RepositoryID != op.Work.Repository || outcome.InstallationID == "") {
-		return false
-	}
-	if (op.Effect == factory.OpEffectCommitted || op.Effect == factory.OpEffectNotCommitted) && op.Effect != outcome.Effect {
-		return false
-	}
-	if op.Receipt != "" && op.Receipt != string(outcome.Receipt) {
-		return false
-	}
-	prior := operationOutcomeOf(*op)
-	op.Effect, op.Cancellation, op.Completion, op.Reason = outcome.Effect, outcome.Cancellation, outcome.Completion, outcome.Reason
-	op.Receipt = string(outcome.Receipt)
-	op.InstallationID, op.ActorID, op.RepositoryID = outcome.InstallationID, outcome.ActorID, outcome.RepositoryID
-	if !sameOperationOutcome(prior, operationOutcomeOf(*op)) {
-		op.UpdatedUnix = now.Unix()
-	}
-	return true
-}
-
-func operationOutcomeOf(op factory.PublicationOperation) factory.OperationOutcome {
-	return factory.OperationOutcome{
-		Receipt: []byte(op.Receipt), Effect: op.Effect, Cancellation: op.Cancellation, Completion: op.Completion, Reason: op.Reason,
-		OperationID: op.OperationID, InstallationID: op.InstallationID, Kind: op.Kind, ActorID: op.ActorID, RepositoryID: op.RepositoryID,
-	}
 }
 
 func (c *Coordinator) storePublication(ctx context.Context, p *factory.Publication, report *PublishReport) bool {

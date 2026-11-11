@@ -63,7 +63,7 @@ func (c *Coordinator) withdrawMerge(ctx context.Context, m *factory.Merge, repor
 		if err != nil || outcome.NotObserved {
 			confirmed = false
 		} else {
-			if !c.adoptMergeObserved(op, outcome, time.Now()) {
+			if !op.Adopt(outcome, time.Now().Unix()) {
 				confirmed = false
 			}
 			if outcome.Effect != factory.OpEffectCommitted && outcome.Effect != factory.OpEffectNotCommitted {

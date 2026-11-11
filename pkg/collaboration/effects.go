@@ -110,6 +110,119 @@ const (
 	CompletionNeedsIntervention CompletionState   = "needs_intervention"
 )
 
+// OperationState is the native outcome triple of one conditional operation.
+// An empty effect is a real value: the submit is still in flight.
+type OperationState struct {
+	Effect       EffectState
+	Cancellation CancellationState
+	Completion   CompletionState
+}
+
+// TerminalEffect reports whether e is a native verdict that never moves.
+func TerminalEffect(e EffectState) bool { return e == EffectCommitted || e == EffectNotCommitted }
+
+// OperationStep is one newer provider observation of a recorded operation.
+// Identity and attribution checks belong to the owning record; the step
+// carries only what the advance policies compare.
+type OperationStep struct {
+	Old, Next OperationState
+	// ReceiptChanged: a receipt was recorded and Next does not carry it unchanged.
+	ReceiptChanged bool
+	// BindingDropped: Old carried its operation binding and Next does not.
+	// Only KeepUncertainty reads it.
+	BindingDropped bool
+}
+
+// OperationAdvance is the verdict of one advance step.
+type OperationAdvance uint8
+
+const (
+	// AdvanceConflict: the observation contradicts recorded native evidence.
+	AdvanceConflict OperationAdvance = iota
+	// AdvanceKeep: retain the recorded observation unchanged.
+	AdvanceKeep
+	// AdvanceAdopt: the newer observation replaces the recorded one.
+	AdvanceAdopt
+)
+
+// OperationAdvancePolicy names how a recorded native operation outcome
+// advances on a newer provider observation. The two policies deliberately
+// differ and must not be unified:
+//
+//   - FollowProvider (publication, merge, correction and review operations):
+//     the provider's latest observation replaces the triple, even when
+//     cancellation or completion move backwards. Only a recorded terminal
+//     effect (committed / not_committed) and a recorded receipt are sticky;
+//     an observation changing either conflicts. It never keeps an older
+//     observation.
+//   - KeepUncertainty (human commands): a monotone merge that never
+//     regresses. A terminal effect only conflicts against another terminal
+//     verdict and otherwise stays; a recorded receipt must be repeated
+//     exactly; a finished (terminal and complete) record, a recorded binding,
+//     indeterminate effect, needs_intervention completion and settled or
+//     uncertain cancellation are all kept rather than replaced by a weaker
+//     observation. RetainCancellationUncertainty is its companion pre-step.
+type OperationAdvancePolicy uint8
+
+const (
+	FollowProvider OperationAdvancePolicy = iota + 1
+	KeepUncertainty
+)
+
+// Advance decides one step under the policy.
+func (p OperationAdvancePolicy) Advance(s OperationStep) OperationAdvance {
+	a, b := s.Old, s.Next
+	effectMoved := TerminalEffect(a.Effect) && a.Effect != b.Effect
+	if p == FollowProvider {
+		if effectMoved || s.ReceiptChanged {
+			return AdvanceConflict
+		}
+		return AdvanceAdopt
+	}
+	if effectMoved {
+		if TerminalEffect(b.Effect) {
+			return AdvanceConflict
+		}
+		return AdvanceKeep
+	}
+	if s.ReceiptChanged {
+		return AdvanceConflict
+	}
+	switch {
+	case TerminalEffect(a.Effect) && a.Completion == CompletionComplete,
+		s.BindingDropped,
+		a.Effect == EffectIndeterminate && b.Effect == EffectPending,
+		a.Completion == CompletionNeedsIntervention && b.Completion == CompletionPending:
+		return AdvanceKeep
+	}
+	if a.Cancellation != b.Cancellation {
+		switch a.Cancellation {
+		case CancellationCancelled, CancellationTooLate:
+			return AdvanceKeep
+		case CancellationPending:
+			if b.Cancellation == CancellationNone {
+				return AdvanceKeep
+			}
+		case CancellationIndeterminate:
+			if b.Cancellation == CancellationNone || b.Cancellation == CancellationPending {
+				return AdvanceKeep
+			}
+		}
+	}
+	return AdvanceAdopt
+}
+
+// RetainCancellationUncertainty is the KeepUncertainty pre-step for a local
+// cancellation that raced the causal provider reply: it keeps an
+// indeterminate cancellation on a next observation that proves a terminal
+// effect but reports no cancellation, without discarding that effect.
+func RetainCancellationUncertainty(old, next OperationState) CancellationState {
+	if old.Cancellation == CancellationIndeterminate && TerminalEffect(next.Effect) && next.Cancellation == CancellationNone {
+		return old.Cancellation
+	}
+	return next.Cancellation
+}
+
 // ProviderReceipt retains original provider evidence, not a synthesized success.
 // Authority binds the provider installation/receipt namespace; Reference is its
 // operation or request identity. Raw receipt bytes stay server-side and must be

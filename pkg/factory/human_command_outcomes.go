@@ -57,6 +57,8 @@ func humanCommandFinished(o collaboration.OperationLookup) bool {
 		(o.Record.Effect == collaboration.EffectCommitted || o.Record.Effect == collaboration.EffectNotCommitted) && o.Record.Completion == collaboration.CompletionComplete
 }
 
+// advanceHumanCommandObservation applies the KeepUncertainty policy to two
+// validated observations of the same captured command.
 func advanceHumanCommandObservation(old, next collaboration.OperationLookup) (collaboration.OperationLookup, error) {
 	if old.Record == nil {
 		return next, nil
@@ -65,45 +67,24 @@ func advanceHumanCommandObservation(old, next collaboration.OperationLookup) (co
 		return old, nil
 	}
 	a, b := old.Record, next.Record
-	terminalEffect := a.Effect == collaboration.EffectCommitted || a.Effect == collaboration.EffectNotCommitted
-	if terminalEffect && a.Effect != b.Effect {
-		if b.Effect == collaboration.EffectCommitted || b.Effect == collaboration.EffectNotCommitted {
-			return collaboration.OperationLookup{}, errHumanCommandObservation
-		}
+	step := collaboration.OperationStep{
+		Old:            humanCommandState(a),
+		Next:           humanCommandState(b),
+		ReceiptChanged: a.Receipt != nil && (b.Receipt == nil || a.Receipt.Authority != b.Receipt.Authority || a.Receipt.Reference != b.Receipt.Reference || a.Receipt.IntentDigest != b.Receipt.IntentDigest || !bytes.Equal(a.Receipt.Payload, b.Receipt.Payload)),
+		BindingDropped: a.Binding != nil && b.Binding == nil,
+	}
+	switch collaboration.KeepUncertainty.Advance(step) {
+	case collaboration.AdvanceConflict:
+		return collaboration.OperationLookup{}, errHumanCommandObservation
+	case collaboration.AdvanceKeep:
 		return old, nil
+	default:
+		return next, nil
 	}
-	if a.Receipt != nil {
-		if b.Receipt == nil || a.Receipt.Authority != b.Receipt.Authority || a.Receipt.Reference != b.Receipt.Reference || a.Receipt.IntentDigest != b.Receipt.IntentDigest || !bytes.Equal(a.Receipt.Payload, b.Receipt.Payload) {
-			return collaboration.OperationLookup{}, errHumanCommandObservation
-		}
-	}
-	if humanCommandFinished(old) {
-		return old, nil
-	}
-	if a.Binding != nil && b.Binding == nil {
-		return old, nil
-	}
-	if a.Effect == collaboration.EffectIndeterminate && b.Effect == collaboration.EffectPending {
-		return old, nil
-	}
-	if a.Completion == collaboration.CompletionNeedsIntervention && b.Completion == collaboration.CompletionPending {
-		return old, nil
-	}
-	if a.Cancellation != b.Cancellation {
-		switch a.Cancellation {
-		case collaboration.CancellationCancelled, collaboration.CancellationTooLate:
-			return old, nil
-		case collaboration.CancellationPending:
-			if b.Cancellation == collaboration.CancellationNone {
-				return old, nil
-			}
-		case collaboration.CancellationIndeterminate:
-			if b.Cancellation == collaboration.CancellationNone || b.Cancellation == collaboration.CancellationPending {
-				return old, nil
-			}
-		}
-	}
-	return next, nil
+}
+
+func humanCommandState(r *collaboration.OperationRecord) collaboration.OperationState {
+	return collaboration.OperationState{Effect: r.Effect, Cancellation: r.Cancellation, Completion: r.Completion}
 }
 
 func retainHumanCancellationUncertainty(old, next collaboration.OperationLookup) collaboration.OperationLookup {
@@ -111,13 +92,12 @@ func retainHumanCancellationUncertainty(old, next collaboration.OperationLookup)
 	// cancellation uncertainty without discarding a proved terminal primary
 	// effect, including one whose separate completion is unfinished. A later
 	// completion reply must retain that uncertainty too.
-	if old.Record != nil && next.Record != nil &&
-		old.Record.Cancellation == collaboration.CancellationIndeterminate &&
-		(next.Record.Effect == collaboration.EffectCommitted || next.Record.Effect == collaboration.EffectNotCommitted) &&
-		next.Record.Cancellation == collaboration.CancellationNone {
-		record := *next.Record
-		record.Cancellation = old.Record.Cancellation
-		next.Record = &record
+	if old.Record != nil && next.Record != nil {
+		if kept := collaboration.RetainCancellationUncertainty(humanCommandState(old.Record), humanCommandState(next.Record)); kept != next.Record.Cancellation {
+			record := *next.Record
+			record.Cancellation = kept
+			next.Record = &record
+		}
 	}
 	return next
 }

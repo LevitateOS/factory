@@ -1,7 +1,6 @@
 package control
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -12,8 +11,10 @@ import (
 // Reconciliation never depends on an export, current actor credential, or open
 // dispatch. Those are prerequisites for new writes, not for learning old effects.
 func (c *Coordinator) reconcilePublication(ctx context.Context, p factory.Publication, report *PublishReport) {
-	if p.External!=nil {
-		if p.Stage==factory.PublicationPublished || p.Stage==factory.PublicationFenced { c.reconcilePublishedPublication(ctx,p,report) }
+	if p.External != nil {
+		if p.Stage == factory.PublicationPublished || p.Stage == factory.PublicationFenced {
+			c.reconcilePublishedPublication(ctx, p, report)
+		}
 		return
 	}
 	if p.Stage == factory.PublicationPublished {
@@ -52,9 +53,12 @@ func (c *Coordinator) loadPublicationRunState(ctx context.Context, p factory.Pub
 		return factory.Assignment{}, factory.Run{}, false, false
 	}
 	var run factory.Run
-	if p.External==nil {
-		run,err=c.Store.FactoryRun(ctx,p.Run)
-		if err!=nil { publicationError(report,p.ID,"store_unavailable"); return factory.Assignment{},factory.Run{},false,false }
+	if p.External == nil {
+		run, err = c.Store.FactoryRun(ctx, p.Run)
+		if err != nil {
+			publicationError(report, p.ID, "store_unavailable")
+			return factory.Assignment{}, factory.Run{}, false, false
+		}
 	}
 	open, _, _, err := c.Store.DispatchState(ctx, p.Repository)
 	if err != nil {
@@ -120,10 +124,10 @@ func (c *Coordinator) adoptObservedOperations(ctx context.Context, p *factory.Pu
 			return false
 		}
 		if !outcome.NotObserved {
-			if samePublicationOutcome(*op, outcome) {
+			if op.SameOutcome(outcome) {
 				continue
 			}
-			if !c.adoptObserved(op, outcome, time.Now()) {
+			if !op.Adopt(outcome, time.Now().Unix()) {
 				c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
 				return false
 			}
@@ -214,14 +218,6 @@ func (c *Coordinator) routePublicationEffect(ctx context.Context, p *factory.Pub
 		}
 	}
 	return false
-}
-
-func samePublicationOutcome(op factory.PublicationOperation, outcome factory.OperationOutcome) bool {
-	return op.Work != nil && outcome.InstallationID != "" && op.Work.ActorID == outcome.ActorID && op.Work.Repository == outcome.RepositoryID &&
-		!outcome.NotObserved && op.OperationID == outcome.OperationID && op.InstallationID == outcome.InstallationID &&
-		op.Kind == outcome.Kind && op.ActorID == outcome.ActorID && op.RepositoryID == outcome.RepositoryID &&
-		op.Effect == outcome.Effect && op.Cancellation == outcome.Cancellation && op.Completion == outcome.Completion &&
-		op.Reason == outcome.Reason && bytes.Equal([]byte(op.Receipt), outcome.Receipt)
 }
 
 // selectPublicationOp resolves the authority bracket and selects the
@@ -371,7 +367,7 @@ func (c *Coordinator) submitPublicationOp(ctx context.Context, p *factory.Public
 		publicationWait(report, p.ID, "submit_unconfirmed")
 		return false
 	}
-	if !c.adoptObserved(op, outcome, time.Now()) {
+	if !op.Adopt(outcome, time.Now().Unix()) {
 		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
 		return false
 	}
@@ -393,7 +389,7 @@ func (c *Coordinator) pushPublicationBranch(ctx context.Context, p *factory.Publ
 		publicationWait(report, p.ID, "push_unconfirmed")
 		return false
 	}
-	if !c.adoptObserved(op, outcome, time.Now()) {
+	if !op.Adopt(outcome, time.Now().Unix()) {
 		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
 		return false
 	}
@@ -439,10 +435,10 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 		work := op.Work.Apply(c.publicationWork(a, *p, run, nil, factory.RepositoryPolicy{}, op.Kind))
 		var err error
 		if op.Kind == factory.OpRefPublish {
-			_, err = c.Publication.AdoptBranch(ctx, work, operationOutcomeOf(*op))
+			_, err = c.Publication.AdoptBranch(ctx, work, op.Outcome())
 		} else {
 			var result factory.PRCreationOutcome
-			result, err = c.Publication.AdoptPRCreation(ctx, work, operationOutcomeOf(*op))
+			result, err = c.Publication.AdoptPRCreation(ctx, work, op.Outcome())
 			if err == nil {
 				changed = changed || op.PRNumber != result.PRNumber || op.PRID != result.PRID || op.IssueID != result.IssueID ||
 					op.HeadRef != result.HeadRef || op.BaseRef != result.BaseRef || op.HeadOID != result.HeadOID || op.BaseOID != result.BaseOID ||

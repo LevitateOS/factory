@@ -150,7 +150,7 @@ func (c *Coordinator) admitCorrectionRequest(ctx context.Context, runID string, 
 // corrector's reported candidate behind one correction.
 func checkCorrectionPublished(admission *correctionAdmission, report *CorrectionReport) bool {
 	p, assignment := admission.p, admission.assignment
-	if p.Stage != factory.PublicationPublished || !p.HasPullTarget() || p.InitialCandidate()=="" {
+	if p.Stage != factory.PublicationPublished || !p.HasPullTarget() || p.InitialCandidate() == "" {
 		correctionWait(report, p.ID, "publication_unpublished")
 		return false
 	}
@@ -678,7 +678,7 @@ func (c *Coordinator) reconcileRecordedCorrection(ctx context.Context, p *factor
 // unattributed outcome fences the publication instead.
 func (c *Coordinator) adoptCorrectionOutcome(ctx context.Context, p *factory.Publication, outcome factory.OperationOutcome, report *CorrectionReport) bool {
 	op := &p.Corrections[len(p.Corrections)-1]
-	if !c.adoptObserved(op, outcome, time.Now()) {
+	if !op.Adopt(outcome, time.Now().Unix()) {
 		c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
 		return false
 	}
@@ -707,7 +707,7 @@ func (c *Coordinator) adoptCorrectionHead(ctx context.Context, p *factory.Public
 		return false
 	}
 	work := op.Work.Apply(factory.PublicationWork{AssignmentID: p.AssignmentID, Publication: p.ID, RunID: op.RunID, Run: run})
-	if _, err := c.Publication.AdoptBranch(ctx, work, operationOutcomeOf(*op)); err != nil {
+	if _, err := c.Publication.AdoptBranch(ctx, work, op.Outcome()); err != nil {
 		c.correctionCallError(report, p.ID, err)
 		return false
 	}
@@ -753,7 +753,7 @@ func (c *Coordinator) cancelRecordedCorrection(ctx context.Context, p *factory.P
 		c.correctionCallError(report, p.ID, err)
 		return
 	}
-	if !outcome.NotObserved && !c.adoptObserved(op, outcome, time.Now()) {
+	if !outcome.NotObserved && !op.Adopt(outcome, time.Now().Unix()) {
 		c.fenceCorrection(ctx, report, p, factory.PublishReasonUnattributed)
 		return
 	}

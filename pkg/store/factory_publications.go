@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/project"
 )
@@ -28,7 +29,9 @@ var ErrPublicationConflict = errors.New("publication immutable input changed")
 func (s *Store) RecordPublication(ctx context.Context, p factory.Publication) error {
 	// External origin requires its separate explicit command admission. This
 	// ordinary Builder-completion entrypoint can never manufacture it.
-	if p.External!=nil { return ErrPublicationConflict }
+	if p.External != nil {
+		return ErrPublicationConflict
+	}
 	if err := p.Validate(); err != nil {
 		return err
 	}
@@ -537,7 +540,7 @@ func publicationStageAllowed(old, next factory.Publication) bool {
 	case old.Stage == factory.PublicationOpen || old.Stage == factory.PublicationFenced:
 		return true
 	case old.Stage == factory.PublicationPublished &&
-		(next.Stage == factory.PublicationPublished || next.Stage == factory.PublicationFenced || old.External!=nil && next.Stage==factory.PublicationWithdrawn):
+		(next.Stage == factory.PublicationPublished || next.Stage == factory.PublicationFenced || old.External != nil && next.Stage == factory.PublicationWithdrawn):
 		return true
 	default:
 		return false
@@ -545,7 +548,9 @@ func publicationStageAllowed(old, next factory.Publication) bool {
 }
 
 func publicationUpdateAllowed(old, next factory.Publication) error {
-	if !reflect.DeepEqual(old.External,next.External) { return ErrPublicationConflict }
+	if !reflect.DeepEqual(old.External, next.External) {
+		return ErrPublicationConflict
+	}
 	if !publicationIdentityStable(old, next) || !publicationRunAdvanced(old, next) {
 		return ErrPublicationConflict
 	}
@@ -570,13 +575,7 @@ func publicationOperationUpdateAllowed(old, next factory.PublicationOperation) b
 	if old.Work != nil && (next.Work == nil || *old.Work != *next.Work || old.OperationID != next.OperationID || old.Attempts != next.Attempts) {
 		return false
 	}
-	if old.Receipt != "" && old.Receipt != next.Receipt {
-		return false
-	}
-	if (old.Effect == factory.OpEffectCommitted || old.Effect == factory.OpEffectNotCommitted) && old.Effect != next.Effect {
-		return false
-	}
-	return true
+	return followsProvider(old.State(), next.State(), old.Receipt, next.Receipt)
 }
 
 // correctionJournalUpdateAllowed reports whether one recorded correction
@@ -997,4 +996,12 @@ func (s *Store) PendingPublicationChildren(ctx context.Context, afterAssignment 
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// followsProvider re-checks a persisted operation write under
+// collaboration.FollowProvider: a recorded terminal effect and a recorded
+// receipt never change.
+func followsProvider(old, next collaboration.OperationState, oldReceipt, nextReceipt string) bool {
+	step := collaboration.OperationStep{Old: old, Next: next, ReceiptChanged: oldReceipt != "" && oldReceipt != nextReceipt}
+	return collaboration.FollowProvider.Advance(step) == collaboration.AdvanceAdopt
 }
