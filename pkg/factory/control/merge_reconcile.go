@@ -236,6 +236,12 @@ func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge,
 		c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
 		return none, 0, false
 	}
+	// A superseded or closed attempt cannot acquire its first merge operation.
+	// Check the local owner before accepted-input reads; recorded operations
+	// still reconcile above under their original identity and receipts.
+	if op.Attempts == 0 && op.Work == nil && op.Effect == "" && !c.currentMergeAttempt(ctx, *m, report) {
+		return none, 0, false
+	}
 	policy, revision, allowed := c.mergeAuthority(ctx, *m, report)
 	if !allowed {
 		return none, 0, false
@@ -261,6 +267,34 @@ func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge,
 		return none, 0, false
 	}
 	return policy, revision, true
+}
+
+func (c *Coordinator) currentMergeAttempt(ctx context.Context, m factory.Merge, report *MergeReport) bool {
+	latest, err := c.Store.LatestIssueAssignment(ctx, m.Repository, m.Issue)
+	if err != nil {
+		mergeError(report, m.ID, "issue_assignment_unavailable")
+		return false
+	}
+	if latest.PublicationAssignment != m.AssignmentID || latest.Acceptance != m.Acceptance {
+		mergeWait(report, m.ID, "authority_changed")
+		return false
+	}
+	allowance, err := c.Store.AttemptAllowance(ctx, m.Repository, m.Issue)
+	if err != nil {
+		mergeError(report, m.ID, "attempt_allowance_unavailable")
+		return false
+	}
+	if allowance.RootAssignment != latest.AttemptRoot {
+		mergeWait(report, m.ID, "authority_changed")
+		return false
+	}
+	// A fresh, finite merge-only command may use a closed inference allowance;
+	// admitMergeRow already checks its separate send deadline and authority.
+	if allowance.Closed && m.RetryCommand == "" {
+		mergeWait(report, m.ID, factory.ErrAttemptClosed.Error())
+		return false
+	}
+	return true
 }
 
 // recheckSubmitMergeGate rechecks the local gate after recording the

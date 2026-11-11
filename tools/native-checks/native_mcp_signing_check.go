@@ -13317,6 +13317,15 @@ type progressGraphObserver struct {
 	observe func(context.Context) (int64, error)
 }
 
+type progressMergeObserver struct {
+	factoryruntime.NativeMerges
+	lookup func(string) (factory.OperationOutcome, error)
+}
+
+func (m progressMergeObserver) LookupOp(_ context.Context, id string) (factory.OperationOutcome, error) {
+	return m.lookup(id)
+}
+
 func (g progressGraphObserver) GraphActor(context.Context, int64, int64) (int64, error) {
 	return 1, nil
 }
@@ -13508,6 +13517,9 @@ func progressGateFixture() error {
 			return fmt.Errorf("unchanged %s was polled before due: %+v, observations=%d", change, passive, observations)
 		}
 	}
+	if err := progressMergeAttemptFixture(ctx, db, raw, p, owner, allowance); err != nil {
+		return err
+	}
 	// A slow authority read runs outside admission; a changed accepted head
 	// invalidates it before any generation journal or native effect is created.
 	idea := factory.ProductIdea{ID: "d" + strings.Repeat("1", 24), Description: "Declared gate check", Consequence: "Check revision admission", Decision: "accept", Source: "requested", Provenance: "human", Actor: 1}
@@ -13554,6 +13566,129 @@ func progressGateFixture() error {
 		return errors.New("stale observation created a generation")
 	}
 	fmt.Println("PASS: real PG coordinator holds a slow check observation; expired waiter exits without commands/assessments, live nested passes reuse admission, retired contexts cannot bypass it; passive checks wait one minute on the exact recorded tuple, elapsed/policy/head/base changes refresh immediately and explicit assessment bypasses the wait; graph observation permits independent admission and changed accepted revision refuses before journal/effects. Native observations declared.")
+	return nil
+}
+
+func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.DB, p factory.Publication, owner factory.Assignment, allowance factory.AttemptAllowance) error {
+	m := factory.Merge{ID: factory.NewID(), PublicationID: p.ID, AssignmentID: p.AssignmentID, ProjectID: p.ProjectID, Role: p.Role, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue,
+		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: 7, ReviewerID: 7, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID,
+		Authority: factory.AuthorityRef{Policy: 1}, Operation: factory.MergeOperation{Kind: factory.OpMerge}, Stage: factory.MergeOpen, CreatedUnix: time.Now().Unix()}
+	if err := db.RecordMerge(ctx, m); err != nil {
+		return err
+	}
+	write := func(query string, value any, key string) error {
+		encoded, err := json.Marshal(value)
+		if err == nil {
+			_, err = raw.ExecContext(ctx, query, string(encoded), key)
+		}
+		return err
+	}
+	writeMerge := func(row factory.Merge) error {
+		if err := row.Validate(); err != nil {
+			return err
+		}
+		return write(`UPDATE factory_merges SET stage='open',revision=0,data=$1 WHERE publication=$2`, row, p.ID)
+	}
+	writeAssignment := func(a factory.Assignment) error {
+		a.Stage, a.Outcome, a.Reason, a.FinishedUnix = factory.AssignmentFinished, factory.Cancelled, factory.AssignReasonCancelled, time.Now().Unix()
+		a.Result = &factory.AssignmentResult{AssignmentID: a.ID, RunID: a.Run, Status: "cancelled", Summary: "Declared settled merge-gate history", RecordedUnix: a.FinishedUnix}
+		if err := a.Validate(); err != nil {
+			return err
+		}
+		return write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($2,7,12,'declared-merge-run','finished',0,$1)`, a, a.ID)
+	}
+	lookups := 0
+	c := control.NewCoordinator(db, nil, nil)
+	c.Merges = progressMergeObserver{lookup: func(id string) (factory.OperationOutcome, error) {
+		lookups++
+		if id != m.Operation.OperationID {
+			return factory.OperationOutcome{}, errors.New("lookup changed the original merge identity")
+		}
+		return factory.OperationOutcome{}, errors.New("declared original lookup unavailable")
+	}}
+	assertWait := func(reason string) error {
+		report := c.MergePass(ctx)
+		if len(report.Errors) != 0 || len(report.Waits) != 1 || report.Waits[0].Reason != reason || lookups != 0 {
+			return fmt.Errorf("local merge gate want %q: %+v lookups=%d", reason, report, lookups)
+		}
+		return nil
+	}
+	// The newest ordinary root supersedes an old pristine row without reading
+	// accepted inputs. The original merge journal remains byte-for-byte intact.
+	newer := owner
+	newer.ID, newer.AttemptRoot, newer.PublicationAssignment = factory.NewID(), "", ""
+	newer.AttemptRoot, newer.PublicationAssignment = newer.ID, newer.ID
+	newer.Run = factory.NewID()
+	newer.RunHistory = []string{newer.Run}
+	if err := writeAssignment(newer); err != nil {
+		return err
+	}
+	if err := assertWait("authority_changed"); err != nil {
+		return err
+	}
+	if stored, err := db.MergeByPublication(ctx, p.ID); err != nil || !reflect.DeepEqual(stored, m) {
+		return errors.New("passive superseded merge changed its original journal")
+	}
+	if _, err := raw.ExecContext(ctx, `DELETE FROM factory_assignments WHERE id=$1`, newer.ID); err != nil {
+		return err
+	}
+	// A more recent child of the same root must not conceal its publication
+	// owner. It passes this gate and reaches the separate standing-authority hold.
+	child := owner
+	child.ID, child.Run, child.ParentAssignment = factory.NewID(), factory.NewID(), owner.ID
+	child.RunHistory = []string{child.Run}
+	if err := writeAssignment(child); err != nil {
+		return err
+	}
+	if err := assertWait("authority_ineffective"); err != nil {
+		return err
+	}
+	allowance.Closed = true
+	if err := write(`UPDATE factory_attempt_allowances SET data=$1 WHERE root_assignment=$2`, allowance, allowance.RootAssignment); err != nil {
+		return err
+	}
+	if report := c.MergePass(ctx); len(report.Errors) != 0 || len(report.Withdrawn) != 1 || lookups != 0 {
+		return fmt.Errorf("closed ordinary merge did not withdraw locally: %+v", report)
+	}
+	// Declare the existing finite merge-only recovery capture on that closed
+	// inference root; it reaches standing authority, never renews the allowance.
+	prior := m
+	prior.Settle(factory.MergeWithdrawn, factory.MergeReasonWithdrawn, time.Now().Unix())
+	prior.WithdrawRequested = true
+	request := factory.MergePreparation{RetryNoSend: true, Publication: p.ID, MergeID: prior.ID, Policy: m.Authority.Policy, Head: m.HeadOID, Base: m.BaseOID}
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	m.ID = factory.NewID()
+	m.RetryCommand, m.RetryNotAfter = m.ID, m.CreatedUnix+300
+	priorJSON, _ := json.Marshal(prior)
+	outcome, _ := json.Marshal(struct {
+		Receipt factory.MergePreparationReceipt `json:"receipt"`
+		Prior   string                          `json:"prior"`
+	}{factory.MergePreparationReceipt{CommandID: m.ID, MergeID: m.ID, NotAfter: m.RetryNotAfter, Request: request}, string(priorJSON)})
+	payload, _ := json.Marshal(request)
+	if _, err := raw.ExecContext(ctx, `INSERT INTO factory_commands(id,type,target,principal,digest,payload,outcome,created,finished) VALUES($1,$2,$3,'declared', $4,$5,$6,'declared','declared')`, m.ID, factory.CommandPrepareMerge, "publication/"+p.ID, factory.SettingsDigest(factory.CommandPrepareMerge, "publication/"+p.ID, string(payload)), string(payload), string(outcome)); err != nil {
+		return err
+	}
+	if err := writeMerge(m); err != nil {
+		return err
+	}
+	if err := assertWait("authority_ineffective"); err != nil {
+		return fmt.Errorf("finite closed-root merge continuation: %w", err)
+	}
+	// A recorded send still looks up its original operation after supersession.
+	intent := factory.MergeIntent{OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared merge gate", HeadRef: m.HeadRef, BaseRef: m.BaseRef, HeadOID: m.HeadOID, BaseOID: m.BaseOID, Repository: m.Repository, ActorID: 7, PRNumber: m.PRNumber, PRID: m.PRID, IssueID: m.IssueID, PRAuthorID: 7, ReviewerID: 7, ReviewEvent: "COMMENT", NativeRev: 1, NotAfter: m.RetryNotAfter, AssessmentRevision: 1, ReviewID: 1}
+	m.Operation.OperationID, m.Operation.Work, m.Operation.Attempts, m.Operation.UpdatedUnix = intent.OperationID, &intent, 1, time.Now().Unix()
+	if err := writeMerge(m); err != nil {
+		return err
+	}
+	if err := writeAssignment(newer); err != nil {
+		return err
+	}
+	if report := c.MergePass(ctx); len(report.Errors) != 1 || lookups != 1 {
+		return fmt.Errorf("recorded merge lookup was suppressed: %+v lookups=%d", report, lookups)
+	}
+	fmt.Println("PASS: real PG holds a pristine superseded merge before provider inputs without changing its journal; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
 	return nil
 }
 
