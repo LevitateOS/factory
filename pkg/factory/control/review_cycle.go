@@ -22,6 +22,13 @@ const reviewCyclePassLimit = 256
 
 const passiveCheckInterval = time.Minute
 
+type passiveCheckFailure struct {
+	target    factory.CheckTarget
+	policy    int64
+	checks    string
+	notBefore int64
+}
+
 // CheckPass assesses native checks for every published publication that
 // lacks a passing assessment on its current head: missing verdicts,
 // verdicts on a superseded head, and due non-passing verdicts that later CI
@@ -53,6 +60,17 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 		checkError(&report, "", "store_unavailable")
 		return report
 	}
+	// Retry metadata belongs only to this bounded active page. It records no
+	// native verdict and cannot keep settled or superseded candidates alive.
+	active := make(map[string]bool, len(pubs))
+	for _, p := range pubs {
+		active[p.ID] = true
+	}
+	for id, failed := range c.checkFailures {
+		if !active[id] || failed.notBefore <= time.Now().Unix() {
+			delete(c.checkFailures, id)
+		}
+	}
 	for _, p := range pubs {
 		if c.checkCurrent(ctx, p) {
 			continue
@@ -65,7 +83,7 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 		if c.passiveChecksRecent(ctx, p, policy, time.Now().Unix()) {
 			continue
 		}
-		one := c.AssessPublicationChecks(ctx, c.Checks, policy.Merge.ActorID, p.AssignmentID)
+		one := c.assessPassiveChecks(ctx, p, policy)
 		report.Assessed = append(report.Assessed, one.Assessed...)
 		report.Waits = append(report.Waits, one.Waits...)
 		report.Errors = append(report.Errors, one.Errors...)
@@ -92,6 +110,13 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 // captured target and policy. Explicit assessment and send-time verification
 // always observe current native evidence independently of this cadence.
 func (c *Coordinator) passiveChecksRecent(ctx context.Context, p factory.Publication, policy factory.RepositoryPolicy, now int64) bool {
+	if failed, found := c.checkFailures[p.ID]; found {
+		if failed.target == publicationCheckTarget(p) && failed.policy == policy.Revision && failed.checks == factory.ChecksDigest(policy.Checks) &&
+			failed.notBefore > now && failed.notBefore <= now+int64(passiveCheckInterval/time.Second) {
+			return true
+		}
+		delete(c.checkFailures, p.ID)
+	}
 	a, err := c.Store.CheckAssessment(ctx, p.Repository, p.PRNumber)
 	if err != nil || a.Validate() != nil || a.Verdict == factory.CheckPass || a.AssessedUnix > now || now-a.AssessedUnix >= int64(passiveCheckInterval/time.Second) {
 		return false
@@ -100,6 +125,20 @@ func (c *Coordinator) passiveChecksRecent(ctx context.Context, p factory.Publica
 	return a.Repository == p.Repository && a.PRNumber == p.PRNumber && a.PRID == p.PRID && a.IssueID == target.IssueID &&
 		a.HeadRef == target.HeadRef && a.BaseRef == target.BaseRef && a.HeadOID == p.Candidate && a.BaseOID == target.BaseOID &&
 		a.PolicyRevision == policy.Revision && a.ChecksDigest == factory.ChecksDigest(policy.Checks) && slices.Equal(a.Checks, policy.Checks)
+}
+
+func (c *Coordinator) assessPassiveChecks(ctx context.Context, p factory.Publication, policy factory.RepositoryPolicy) CheckReport {
+	report := c.AssessPublicationChecks(ctx, c.Checks, policy.Merge.ActorID, p.AssignmentID)
+	if len(report.Assessed) == 0 && (len(report.Waits) != 0 || len(report.Errors) != 0) {
+		if c.checkFailures == nil {
+			c.checkFailures = make(map[string]passiveCheckFailure)
+		}
+		c.checkFailures[p.ID] = passiveCheckFailure{target: publicationCheckTarget(p), policy: policy.Revision,
+			checks: factory.ChecksDigest(policy.Checks), notBefore: time.Now().Add(passiveCheckInterval).Unix()}
+	} else {
+		delete(c.checkFailures, p.ID)
+	}
+	return report
 }
 
 // checkCurrent reports whether the latest stored assessment already passes
@@ -125,7 +164,7 @@ func (c *Coordinator) progressAfterPublish(ctx context.Context, assignmentID str
 	}
 	if c.Checks != nil {
 		if policy, err := c.Store.RepositoryPolicy(ctx, p.Repository); err == nil && !c.checkCurrent(ctx, p) && !c.passiveChecksRecent(ctx, p, policy, time.Now().Unix()) {
-			c.AssessPublicationChecks(ctx, c.Checks, policy.Merge.ActorID, p.AssignmentID)
+			c.assessPassiveChecks(ctx, p, policy)
 			if fresh, err := c.Store.PublicationByAssignment(ctx, assignmentID); err == nil {
 				p = fresh
 			}

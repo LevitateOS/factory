@@ -13517,6 +13517,47 @@ func progressGateFixture() error {
 			return fmt.Errorf("unchanged %s was polled before due: %+v, observations=%d", change, passive, observations)
 		}
 	}
+	beforeFailure, err := db.CheckAssessment(ctx, p.Repository, p.PRNumber)
+	if err != nil {
+		return err
+	}
+	failures := 0
+	c.Checks = progressCheckObserver(func(context.Context, factory.CheckTarget, int64) (factory.ObservedChecks, error) {
+		failures++
+		return factory.ObservedChecks{}, errors.New("declared unreadable native checks")
+	})
+	for _, change := range []string{"policy", "head", "base"} {
+		if change == "policy" {
+			policy.Revision++
+			encoded, _ := json.Marshal(policy)
+			_, err = raw.ExecContext(ctx, `UPDATE factory_policies SET revision=$1,data=$2 WHERE repository=7`, policy.Revision, string(encoded))
+		} else {
+			if change == "head" {
+				p.Candidate = strings.Repeat("e", 40)
+			} else {
+				p.PRCreate.BaseOID = strings.Repeat("f", 40)
+			}
+			encoded, _ := json.Marshal(p)
+			_, err = raw.ExecContext(ctx, `UPDATE factory_publications SET data=$1 WHERE assignment=$2`, string(encoded), p.AssignmentID)
+		}
+		if err != nil {
+			return err
+		}
+		before := failures
+		if failed := c.CheckPass(ctx); len(failed.Errors) != 1 || len(failed.Assessed) != 0 || failures != before+1 {
+			return fmt.Errorf("unreadable changed %s did not observe immediately: %+v failures=%d", change, failed, failures)
+		}
+		if held := c.CheckPass(ctx); len(held.Errors) != 0 || len(held.Assessed) != 0 || failures != before+1 {
+			return fmt.Errorf("unreadable %s repeated passive I/O before due: %+v failures=%d", change, held, failures)
+		}
+	}
+	before := failures
+	if explicit := c.AssessPublicationChecks(ctx, c.Checks, 7, p.AssignmentID); len(explicit.Errors) != 1 || failures != before+1 {
+		return fmt.Errorf("explicit check did not bypass unreadable passive wait: %+v failures=%d", explicit, failures)
+	}
+	if stored, err := db.CheckAssessment(ctx, p.Repository, p.PRNumber); err != nil || !reflect.DeepEqual(stored, beforeFailure) {
+		return errors.New("unreadable check retry manufactured or renewed stored evidence")
+	}
 	if err := progressMergeAttemptFixture(ctx, db, raw, p, owner, allowance); err != nil {
 		return err
 	}
@@ -13626,6 +13667,9 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	if err := assertWait("authority_changed"); err != nil {
 		return err
 	}
+	if checkable, err := db.CheckablePublications(ctx, 256); err != nil || len(checkable) != 0 {
+		return errors.New("superseded publication root remained in passive check inventory")
+	}
 	if stored, err := db.MergeByPublication(ctx, p.ID); err != nil || !reflect.DeepEqual(stored, m) {
 		return errors.New("passive superseded merge changed its original journal")
 	}
@@ -13642,6 +13686,9 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	}
 	if err := assertWait("authority_ineffective"); err != nil {
 		return err
+	}
+	if checkable, err := db.CheckablePublications(ctx, 256); err != nil || len(checkable) != 1 || checkable[0].ID != p.ID {
+		return errors.New("same-root child concealed the current publication from checks")
 	}
 	allowance.Closed = true
 	if err := write(`UPDATE factory_attempt_allowances SET data=$1 WHERE root_assignment=$2`, allowance, allowance.RootAssignment); err != nil {
@@ -13675,6 +13722,9 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	}
 	if err := assertWait("authority_ineffective"); err != nil {
 		return fmt.Errorf("finite closed-root merge continuation: %w", err)
+	}
+	if checkable, err := db.CheckablePublications(ctx, 256); err != nil || len(checkable) != 1 || checkable[0].ID != p.ID {
+		return errors.New("current finite merge-only continuation lost passive checks")
 	}
 	// A recorded send still looks up its original operation after supersession.
 	intent := factory.MergeIntent{OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared merge gate", HeadRef: m.HeadRef, BaseRef: m.BaseRef, HeadOID: m.HeadOID, BaseOID: m.BaseOID, Repository: m.Repository, ActorID: 7, PRNumber: m.PRNumber, PRID: m.PRID, IssueID: m.IssueID, PRAuthorID: 7, ReviewerID: 7, ReviewEvent: "COMMENT", NativeRev: 1, NotAfter: m.RetryNotAfter, AssessmentRevision: 1, ReviewID: 1}

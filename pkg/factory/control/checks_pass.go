@@ -105,11 +105,7 @@ func (c *Coordinator) assessPublicationChecksOne(ctx context.Context, assessor C
 		checkError(report, p.ID, "store_unavailable")
 		return
 	}
-	target := factory.CheckTarget{
-		Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID,
-		HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef,
-		HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID,
-	}
+	target := publicationCheckTarget(p)
 	adopted := factory.AdoptedChecks{
 		Checks:         append([]string(nil), policy.Checks...),
 		PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks),
@@ -143,4 +139,10 @@ func (c *Coordinator) assessPublicationChecksOne(ctx context.Context, assessor C
 		HeadOID: stored.HeadOID, BaseOID: stored.BaseOID,
 		Verdict: stored.Verdict, Revision: stored.Revision,
 	})
+}
+
+func publicationCheckTarget(p factory.Publication) factory.CheckTarget {
+	t := p.PullTarget()
+	return factory.CheckTarget{Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: t.IssueID,
+		HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: p.Candidate, BaseOID: t.BaseOID}
 }

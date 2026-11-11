@@ -876,6 +876,10 @@ func (s *Store) activePublishedPublications(ctx context.Context, limit int, merg
 		JOIN factory_attempt_allowances l ON l.repository=p.repository AND l.issue=p.issue
 			AND l.root_assignment=a.data->>'attempt_root'
 		WHERE p.stage='published'
+		  AND NOT EXISTS (SELECT 1 FROM factory_assignments newer
+		    WHERE newer.repository=a.repository AND newer.issue=a.issue AND newer.seq>a.seq
+		    AND (newer.data->>'publication_assignment'=newer.id OR
+		      (newer.data->>'attempt_root'=newer.id AND COALESCE(newer.data->>'publication_assignment','')='')))
 		  AND ((l.issue>0 AND COALESCE(l.data->>'closed','false') <> 'true')
 		    OR ($2 AND EXISTS(SELECT 1 FROM factory_merges retry JOIN factory_commands c ON c.id=retry.data->>'retry_command'
 		      WHERE retry.publication=p.data->>'id' AND retry.stage='open' AND c.type='prepare-unsent-merge' AND c.finished<>''
