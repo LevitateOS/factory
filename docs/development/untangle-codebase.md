@@ -8,7 +8,70 @@ PR56 re-inspection/allowed merge, then close paid delivery acceptance/resulting-
 commit preparation, connected intake/adoption races and required installed
 withdrawal/wake/upgrade cases. Reuse earlier successful scoped evidence.
 
-Current continuation: stage13 is installed through exact prior stage11 inventory,
+Current continuation: source fixes `922aa7c` (publication-scoped action) and
+`211393f` (explicit fork consent/source/correction) are committed/pushed on main.
+Stage15 now runs matching app/backend/UI/broker from211393f. Inventory
+`4c80af2c2d93cd7400dbd1c6b16a578429655d4307ab403f5524a8555bf7d40b`;
+privileged manifest `d7311d181f610a0d84ea77ecb2e50369e10f429540a2499739f0cb0a2cc1ea59`.
+Instance `d37f9db766562b0a78011448401e5cfd`, developer session
+`6c11e3493f4601a1f7898c94e2507fa5`, private guest child16.sh.
+Ready with no execution error. Original saved setup approval recovered unchanged
+through normal UI after its first reply was unconfirmed; requirement
+`dc0b98ed923a124b80d0f51bc`, approval `dba3113cb8750faf7cd6b2df6`, both native
+preparations `f14a35d830c7d99f51392cf43`/`fef1be9acec114539bf771f4b` ready with
+setup/check exit0. No replacement setup command. Fresh normal-UI funding
+`94a265713f5c4cdb89df93d01e952393` committed2026-11-11T13:46:40.115940624Z;
+old unlaunched3bc closed/inactive with its spent marker preserved. New allowance
+is15minutes/run, one review, zero corrections. Real Inspector assignment
+`0c80dbaf0ff546ece26bb2606ba35975`, run `547262891d2be239519418a1c8837c0b`
+launched at13:47:22Z on e91506e9 and settled/sealed/retired at13:48:17Z. It
+claimed clear but omitted the required assessment of carried actionable finding
+ad34025fdf74289c3d5ffc5cd863e5f8; no review operation or send was registered.
+The downstream gate correctly held. Original source/model, prompt/bundle and
+process/result stay captured; no plan/Builder/Fixer replay. GitHub usage179/200.
+Fix3976965 now validates tuple, coverage and every carried assessment at the
+finish tool, while the worker can correct it. Existing real PostgreSQL role
+handoff/restart/WAL check passes (terminal-review-pg1.log). Fix6422971 retires
+only the exact proved unsent incomplete-clear custody and closes its spent
+allowance. Fix1ed786d carries its findings unverified through a later explicit
+funding command; actual Store history/settlement joins pass, including current,
+attributed, altered and unbound-result refusal (history-review-pg4.log). Stage16
+is preparing matching native/UI3d663cf and Go1ed786d; not installed yet. Next:
+normal Quit/exact-prior upgrade, reopen and observe original94 custody retirement,
+prepare unchanged scripts, then a fresh one-review continuation under standing
+funding permission. Preserve its failed finish and charge.
+Automatic PR discovery is committed `da8c41a`, default off, not installed;
+connected qualification is pending. `3d663cf` prevents fenced/withdrawn external
+work re-entering through current or earlier committed correction heads. Existing
+real PostgreSQL duplicate-head case passes in automatic-pr-corrected-head.log.
+Installed stage15 actual systemd/kernel s2idle sleep14:06:31–14:08:21Z and a
+virtual keyboard Shift wake pass. The programmed RTC did not wake this guest;
+QMP query remained running during s2idle, and no reboot/poweroff was sent.
+Original boot, app instance, developer session, selected repository and Ready
+binding survived; authenticated Work refresh works. Counts remain31 settled,
+zero active/unsettled; GitHub usage stays179. Evidence: goal-sleep-wake15-*
+in the private directory below. This qualifies the current installed wake
+boundary, not an active-worker update or provider-withdrawal race.
+
+Historical Stage14 rebuilt the matching app/backend/UI from211393f, but inherited an old
+broker. Live startup refused before execution: the app's version3 profile-run
+inspection met the installed version2 broker; its original system journal says
+`broker profile inspection declaration invalid`. No recovery request was
+replayed, fence cleared, worker launched or source minute charged. Matching
+broker-only stage15 is being packaged from immutable committed211393f source,
+outside the unverified automatic-intake edits now on main. Root manifest before
+upgrade is `1bc07999b7451132af30bdb9839f8432458d3c4170629f67da2cfb7081788c4c`.
+Stage14 instance `7b2ea9e8cb6592996bb2399749f7c0a0`, session
+`3a6652cafe3a1069a91a2ccef6c92f48`, guest child15.sh. Its original normal Quit
+lost its reply; inspect app.pid/session.pid and endpoint retirement before any
+installer. Last SQL: zero active/unsettled runs, zero3bc candidate preparations,
+GitHub source177/200. Next: verify that Quit, install the matching privileged
+execution payload with exact prior root manifest and app bundle with exact prior
+stage14 inventory, reopen, verify execution readiness, then prepare unchanged
+scripts and fund the fresh bounded review. Automatic PR intake remains source
+implementation in progress; no new provider/model effects or policy activation.
+
+Historical stage13 continuation: installed through exact prior stage11 inventory,
 with clean Go source `3002e01`, inventory
 `e65b29aa152787aec53fae1bd0ef629b3841017ea3f723aeb7be06891c1675e7`.
 Normal Quit lost its reply; original app/session PIDs and developer endpoint
