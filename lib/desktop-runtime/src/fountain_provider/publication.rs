@@ -1,6 +1,9 @@
 //! A retained candidate has one registration and one conditional Git send.
 //! Recovery reads the original host journal; it never repeats either send.
-use super::{hex, invalid, unavailable, Client, OperationGrant, OperationRecord, Result};
+use super::{
+    hex, invalid, unavailable, Client, EffectState, OperationGrant, OperationRecord,
+    PublicationClass, Result,
+};
 use crate::github_provider::{BranchPublish, Failure as NativeFailure, PullCreate, ReviewCreate, PullMerge, WriteOutcome};
 use crate::private_fs::{private_dir, publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
@@ -77,6 +80,15 @@ fn sha(bytes: &[u8]) -> String {
 }
 fn failure(error: super::Failure) -> NativeFailure {
     NativeFailure::new(error.status, error.code)
+}
+/// After a failed attempt: once the registration was sent the effect is unknown,
+/// before that nothing was dispatched.
+fn settle(result: Result<WriteOutcome>, sent: bool) -> WriteOutcome {
+    match result {
+        Ok(outcome) => outcome,
+        Err(error) if sent => WriteOutcome::Indeterminate(failure(error)),
+        Err(error) => WriteOutcome::NotSent(failure(error)),
+    }
 }
 fn unknown() -> NativeFailure {
     NativeFailure::new(503, "fountain_publication_unresolved")
@@ -268,14 +280,11 @@ impl Client {
             || r.kind != kind
             || r.intent_digest != c.intent_digest
             || r.outcome != r.effect_state
-            || !matches!(
-                r.effect_state.as_str(),
-                "pending" | "committed" | "not_committed" | "indeterminate"
-            )
+            || r.host_state().is_none()
         {
             return Err(invalid());
         }
-        if r.effect_state == "committed" {
+        if r.host_state().map(|s| s.effect) == Some(EffectState::Committed) {
             let p = r.receipt.as_ref().ok_or_else(invalid)?;
             if let Some(q)=&c.merge {
                 if p["actor_id"].as_i64().map(|n|n.to_string()).as_deref()!=Some(c.account.as_str())
@@ -356,19 +365,16 @@ impl Client {
         if self.check_publication_record(c, g, r).is_err() {
             return WriteOutcome::Indeterminate(unknown());
         }
-        // A known effect does not prove that the host released its execution
-        // owner. Preserve the hold until both effect and cleanup are terminal.
-        if r.completion_state != "complete" {
-            return WriteOutcome::Indeterminate(unknown());
-        }
-        if r.effect_state == "not_committed" {
-            return WriteOutcome::NotSent(NativeFailure::new(
-                409,
-                "fountain_publication_not_committed",
-            ));
-        }
-        if r.effect_state != "committed" {
-            return WriteOutcome::Indeterminate(unknown());
+        // Cleanup is checked before effect; see `HostState::publication_outcome`.
+        match r.host_state().map(|s| s.publication_outcome()) {
+            Some(PublicationClass::Committed) => (),
+            Some(PublicationClass::NotCommitted) => {
+                return WriteOutcome::NotSent(NativeFailure::new(
+                    409,
+                    "fountain_publication_not_committed",
+                ));
+            }
+            _ => return WriteOutcome::Indeterminate(unknown()),
         }
         let response = match serde_json::to_vec(r) {
             Ok(bytes) => sha(&bytes),
@@ -639,7 +645,7 @@ impl Client {
             let (capture,grant,record)=self.register_publication(profile,command,digest,not_after,Request::Merge(q.clone()),&mut sent).await?;
             Ok(self.publication_outcome(&capture,&grant,&record))
         }.await;
-        match result {Ok(outcome)=>outcome,Err(error) if sent=>WriteOutcome::Indeterminate(failure(error)),Err(error)=>WriteOutcome::NotSent(failure(error))}
+        settle(result, sent)
     }
 
     pub(crate) async fn create_review(
@@ -660,7 +666,7 @@ impl Client {
             let (capture,grant,record)=self.register_publication(profile,command,digest,not_after,Request::Review(q.clone()),&mut sent).await?;
             Ok(self.publication_outcome(&capture,&grant,&record))
         }.await;
-        match result {Ok(outcome)=>outcome,Err(error) if sent=>WriteOutcome::Indeterminate(failure(error)),Err(error)=>WriteOutcome::NotSent(failure(error))}
+        settle(result, sent)
     }
 
     pub(crate) async fn create_pull(
@@ -710,11 +716,7 @@ impl Client {
             Ok(self.publication_outcome(&capture, &grant, &record))
         }
         .await;
-        match result {
-            Ok(outcome) => outcome,
-            Err(error) if sent => WriteOutcome::Indeterminate(failure(error)),
-            Err(error) => WriteOutcome::NotSent(failure(error)),
-        }
+        settle(result, sent)
     }
     pub(crate) async fn publish_candidate(
         &self,
@@ -740,7 +742,7 @@ impl Client {
                 .await?;
             let dir = profile.join("fountain-operations");
             let capture = serde_json::to_vec(&c).map_err(|_| invalid())?;
-            if registered.effect_state != "pending" {
+            if registered.host_state().map(|s| s.effect) != Some(EffectState::Pending) {
                 return Ok(self.publication_outcome(&c, &grant, &registered));
             }
             // The registration is known; transfer is its only remaining phase.
@@ -789,10 +791,6 @@ impl Client {
             Ok(self.publication_outcome(&c, &grant, &record))
         }
         .await;
-        match result {
-            Ok(outcome) => outcome,
-            Err(error) if sent => WriteOutcome::Indeterminate(failure(error)),
-            Err(error) => WriteOutcome::NotSent(failure(error)),
-        }
+        settle(result, sent)
     }
 }

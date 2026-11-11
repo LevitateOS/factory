@@ -18,6 +18,69 @@ pub struct Note {
     pub content: String,
     pub merge_ref: String,
 }
+/// Effect vocabulary a Fountain host record can carry. Go owns the full set
+/// (`pkg/collaboration/effects.go`); `partial` is not a host value here and is
+/// rejected like any other unknown string.
+#[derive(Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EffectState {
+    Pending,
+    Committed,
+    NotCommitted,
+    Indeterminate,
+}
+/// Cleanup state of the host record. Any string outside the Go vocabulary
+/// (including an absent field) is `Other` and counts as not complete.
+#[derive(Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CompletionState {
+    Pending,
+    Complete,
+    NeedsIntervention,
+    #[serde(other)]
+    Other,
+}
+/// Typed view of a record's two state strings. The record keeps the original
+/// strings so its serialized bytes (the retained receipt) never change.
+#[derive(Clone, Copy)]
+pub struct HostState {
+    pub effect: EffectState,
+    pub completion: CompletionState,
+}
+/// What a publication caller does with a host record.
+pub enum PublicationClass {
+    Committed,
+    NotCommitted,
+    Indeterminate,
+}
+impl HostState {
+    /// Notes and operations: may the record be retained as the final receipt?
+    ///
+    /// Differs from [`HostState::publication_outcome`] in exactly one cell:
+    /// (not_committed, completion not complete) is terminal here, because a
+    /// note that never committed has no further effect to wait for, but it is
+    /// indeterminate for publications. Callers rely on this to retain the
+    /// receipt as soon as the effect is known not to have happened.
+    pub fn operation_terminal(self) -> bool {
+        self.effect == EffectState::NotCommitted
+            || self.effect == EffectState::Committed && self.completion == CompletionState::Complete
+    }
+    /// Publications: "A known effect does not prove that the host released its
+    /// execution owner. Preserve the hold until both effect and cleanup are
+    /// terminal." So completion is checked first and (not_committed, not
+    /// complete) is indeterminate here, unlike [`HostState::operation_terminal`].
+    /// Callers rely on `NotCommitted` meaning the hold is released.
+    pub fn publication_outcome(self) -> PublicationClass {
+        if self.completion != CompletionState::Complete {
+            return PublicationClass::Indeterminate;
+        }
+        match self.effect {
+            EffectState::NotCommitted => PublicationClass::NotCommitted,
+            EffectState::Committed => PublicationClass::Committed,
+            _ => PublicationClass::Indeterminate,
+        }
+    }
+}
 #[derive(Clone, Deserialize, Serialize)]
 pub struct OperationRecord {
     pub controller_grant_id: String,
@@ -36,6 +99,17 @@ pub struct OperationRecord {
     pub intent_digest: String,
     #[serde(default)]
     pub receipt: Option<serde_json::Value>,
+}
+impl OperationRecord {
+    /// `None` when the effect string is outside the host vocabulary; callers
+    /// map that to the same `invalid` failure as before.
+    pub fn host_state(&self) -> Option<HostState> {
+        let parse = |s: &str| serde_json::Value::String(s.to_owned());
+        Some(HostState {
+            effect: serde_json::from_value(parse(&self.effect_state)).ok()?,
+            completion: serde_json::from_value(parse(&self.completion_state)).ok()?,
+        })
+    }
 }
 #[derive(Deserialize)]
 struct Lookup {
@@ -115,14 +189,11 @@ impl Client {
             || record.kind != "issue.comment.publish"
             || !hex(&record.intent_digest, 64)
             || record.outcome != record.effect_state
-            || !matches!(
-                record.effect_state.as_str(),
-                "pending" | "committed" | "not_committed" | "indeterminate"
-            )
+            || record.host_state().is_none()
         {
             return Err(invalid());
         }
-        if record.effect_state == "committed" {
+        if record.host_state().map(|s| s.effect) == Some(EffectState::Committed) {
             let receipt = record
                 .receipt
                 .as_ref()
@@ -234,8 +305,9 @@ impl Client {
             Err(_) => return Err(unavailable()),
         };
         self.check_note_record(grant, operation, &note, &record)?;
-        if record.effect_state == "not_committed"
-            || record.effect_state == "committed" && record.completion_state == "complete"
+        if record
+            .host_state()
+            .is_some_and(HostState::operation_terminal)
         {
             let bytes = serde_json::to_vec(&record).map_err(|_| invalid())?;
             if publish_bytes(&receipt_path, &bytes).is_err()
@@ -339,8 +411,9 @@ impl Client {
             self.lookup_note(grant, operation, note).await?
         };
         self.check_note_record(grant, operation, note, &record)?;
-        if record.effect_state == "not_committed"
-            || record.effect_state == "committed" && record.completion_state == "complete"
+        if record
+            .host_state()
+            .is_some_and(HostState::operation_terminal)
         {
             let bytes = serde_json::to_vec(&record).map_err(|_| invalid())?;
             if publish_bytes(&receipt_path, &bytes).is_err()

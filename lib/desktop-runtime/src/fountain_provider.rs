@@ -19,7 +19,9 @@ mod product;
 mod discussion;
 mod issues;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
-pub use operation::{NativeRevision, Note, OperationRecord};
+pub use operation::{
+    CompletionState, EffectState, HostState, NativeRevision, Note, OperationRecord, PublicationClass,
+};
 pub use publication::PublicationOutcome;
 pub use controller::{
     captured_operation_grant, OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
