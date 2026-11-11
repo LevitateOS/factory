@@ -1,7 +1,7 @@
 import {SodaFactoryRuntimeController} from "../factory/app/browser.js";
 import type {Core} from './transport.js';
 import type {Account} from './accounts.js';
-interface View {attempt:number;phase:string;prompt:{verification_uri:string;expires_at:number}|null;error:string|null}
+interface View {attempt:number;phase:'idle'|'requesting'|'waiting'|'verifying'|'saving'|'complete'|'failed'|'cancelled';prompt:{verification_uri:string;expires_at:number}|null;error:string|null}
 interface FountainAccount extends Account {grant?:{client_id?:string;scope:string;refresh_available:boolean}}
 const purpose=(account:FountainAccount)=>account.grant?.scope==='write:issue'?'issues only':['write:repository','write:repository write:issue'].includes(account.grant?.scope??'')?'control':['read:repository','read:repository read:issue'].includes(account.grant?.scope??'')?'read':'access unknown';
 interface Enrollment {active:boolean;runtime_bound:boolean;repository:{owner:string;name:string;permission:string}}
@@ -33,7 +33,7 @@ export function mountFountainLogin(core:Core){
     issues.disabled=origin.disabled;
     open.hidden=!ready||view.phase!=='waiting'||!view.prompt;open.disabled=busy;
     cancel.hidden=!active();cancel.disabled=!ready||busy||view.phase==='saving';
-    status.textContent=!ready?'Fountain accounts are unavailable until Factory is ready.':readError??error??view.error??({requesting:'Connecting to Fountain…',waiting:'Approve sign-in in your browser, then return here.',verifying:'Verifying your Fountain account…',saving:'Saving your Fountain account…',complete:'Fountain account saved. Enroll a repository to use its granted access.',cancelled:'Sign-in cancelled.'}[view.phase]??'Sign in to a Fountain host configured for desktop access.');
+    status.textContent=!ready?'Fountain accounts are unavailable until Factory is ready.':readError??error??view.error??({requesting:'Connecting to Fountain…',waiting:'Approve sign-in in your browser, then return here.',verifying:'Verifying your Fountain account…',saving:'Saving your Fountain account…',complete:'Fountain account saved. Enroll a repository to use its granted access.',cancelled:'Sign-in cancelled.',idle:'Sign in to a Fountain host configured for desktop access.',failed:'Fountain sign-in could not finish. Try again.'}[view.phase]??'Sign in to a Fountain host configured for desktop access.');
     const connection=accountSelect.value,repo=repository.value.trim();
     const selected=accountsCurrent?accounts.find(account=>account.connection===connection):undefined;
     const usable=selected?.state==='stored';
