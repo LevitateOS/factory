@@ -112,10 +112,10 @@ func mergeViewDTO(m factory.Merge) *mergeView {
 	}
 }
 
-// workAttemptView is the latest publication-line dispatch attempt for one
-// native issue: its role, stage and run binding. Prompt bytes and held
-// capacity stay on the assignment route; this view carries identity and
-// stage only. Absence of a record means no attempt was dispatched yet.
+// workAttemptView is the latest execution in the current publication owner's
+// lineage for one native issue: its role, stage and run binding. Prompt bytes
+// and held capacity stay on the assignment route; this view carries identity
+// and stage only. Absence of a record means no attempt was dispatched yet.
 type workAttemptView struct {
 	Outcome      factory.Outcome `json:"outcome,omitempty"`
 	ID           string          `json:"id"`

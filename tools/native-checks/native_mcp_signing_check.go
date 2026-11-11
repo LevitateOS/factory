@@ -1268,6 +1268,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "check-work-readback" {
+		if err := workReadbackFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, "work readback:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "check-repository-priority" {
 		if err := repositoryPriorityFixture(); err != nil {
 			fmt.Fprintln(os.Stderr, "repository priority:", err)
@@ -5067,6 +5074,207 @@ func repositoryPriorityFixture() error {
 		return fmt.Errorf("foreign control, reservation or historical global scan changed: %v", err)
 	}
 	fmt.Println("PASS: unavailable older repository pauses alone; next repository completes its same-repository two-candidate tournament with declared payer; reopen replays the receipt without another choice; foreign control/reservation and legacy global scan stay exact; no execution/provider/model calls")
+	return nil
+}
+
+// Declared assignments and provider acceptance exercise the real issue/control
+// read services and PostgreSQL joins. No execution or provider port is available.
+func workReadbackFixture() error {
+	dsn, ok := store.TestFixtureDSN()
+	if !ok {
+		return errors.New("private PostgreSQL fixture required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, privateDSN, cleanup, err := store.OpenEphemeral(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	raw, err := sql.Open("pgx", privateDSN)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	now := time.Now().UTC()
+	root := offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, strings.Repeat("1", 40))
+	acceptance := factory.Acceptance{ID: root.Acceptance, Repository: root.Repository, IssueIndex: "1", Approver: 7, NativeRev: 1, TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
+	if err := db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
+		return err
+	}
+	if _, _, err := db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: root.Repository, Issue: root.Issue, Acceptance: root.Acceptance, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("c", 64), Authority: strings.Repeat("d", 64)}, now); err != nil {
+		return err
+	}
+	finish := func(assignment factory.Assignment) factory.Assignment {
+		assignment.Stage, assignment.Outcome, assignment.Reason, assignment.FinishedUnix = factory.AssignmentFinished, factory.Succeeded, factory.AssignReasonReported, now.Unix()
+		assignment.Result = &factory.AssignmentResult{AssignmentID: assignment.ID, RunID: assignment.Run, Status: "completed", Summary: "Declared completed work", Candidate: strings.Repeat("2", 40), Reported: true, RecordedUnix: now.Unix()}
+		return assignment
+	}
+	root = finish(root)
+	writeAssignment := func(assignment factory.Assignment, insert bool) error {
+		if err := assignment.Validate(); err != nil {
+			return err
+		}
+		data, err := json.Marshal(assignment)
+		if err != nil {
+			return err
+		}
+		if insert {
+			_, err = raw.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, assignment.ID, assignment.Repository, assignment.Issue, assignment.Run, assignment.Stage, assignment.Revision, string(data))
+		} else {
+			_, err = raw.ExecContext(ctx, `UPDATE factory_assignments SET stage=$2,data=$3 WHERE id=$1`, assignment.ID, assignment.Stage, string(data))
+		}
+		return err
+	}
+	writeRun := func(assignment factory.Assignment, settled bool) error {
+		run := factory.Run{ID: assignment.Run, ProjectID: assignment.ProjectID, Role: assignment.Role, InputSHA: assignment.SourceCommit, Started: now, Deadline: now.Add(15 * time.Minute), Image: "sha256:" + strings.Repeat("b", 64), Harness: assignment.Harness, Model: assignment.Model, Reconciled: settled}
+		if settled {
+			run.Outcome = factory.Succeeded
+		}
+		if err := run.Validate(); err != nil {
+			return err
+		}
+		data, err := json.Marshal(run)
+		if err != nil {
+			return err
+		}
+		if _, err = raw.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET active=excluded.active,settled=excluded.settled,data=excluded.data`, run.ID, !settled, settled, string(data)); err != nil {
+			return err
+		}
+		_, err = raw.ExecContext(ctx, `INSERT INTO factory_run_views(run,repository,issue,attempt) VALUES($1,$2,$3,$4) ON CONFLICT(run) DO NOTHING`, run.ID, assignment.Repository, assignment.Issue, assignment.ID)
+		return err
+	}
+	if err = writeAssignment(root, true); err != nil {
+		return err
+	}
+	if err = writeRun(root, true); err != nil {
+		return err
+	}
+	child := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, root.SourceCommit)
+	child.ParentAssignment, child.AttemptRoot, child.PublicationAssignment = root.ID, root.ID, root.ID
+	if err = writeAssignment(child, true); err != nil {
+		return err
+	}
+	if err = writeRun(child, false); err != nil {
+		return err
+	}
+	publication := factory.Publication{ID: factory.NewID(), AssignmentID: root.ID, ProjectID: root.ProjectID, Role: root.Role, Acceptance: root.Acceptance, Preparation: root.Preparation, Run: root.Run, Repository: root.Repository, Issue: root.Issue, Candidate: strings.Repeat("2", 40), BaseSHA: root.SourceCommit, TargetBranch: "refs/heads/main", Stage: factory.PublicationOpen, CreatedUnix: now.Unix(), Publish: factory.PublicationOperation{Kind: factory.OpRefPublish}, PRCreate: factory.PublicationOperation{Kind: factory.OpPRCreate}}
+	if err = db.RecordPublication(ctx, publication); err != nil {
+		return err
+	}
+	visible := func(_ context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+		if actor != 7 || int64(repository) != root.Repository {
+			return factoryservice.ErrWorkJourneyScope
+		}
+		return nil
+	}
+	membership := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, workspace string) (bool, error) {
+		if err := visible(ctx, actor, repository); err != nil || workspace != root.ProjectID {
+			return false, factoryservice.ErrWorkJourneyScope
+		}
+		return false, nil
+	}
+	authority := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factoryservice.WorkAuthority, error) {
+		return factoryservice.WorkAuthority{SessionCurrent: true}, visible(ctx, actor, repository)
+	}
+	issues := factoryservice.Issues{Store: db, Visibility: visible, Authority: authority, Membership: membership,
+		Status: func(context.Context, collaboration.ActorID, collaboration.RepositoryID, int64) (control.AcceptanceValidity, error) {
+			return control.AcceptanceValidity{Acceptance: &acceptance, Revision: acceptance.NativeRev, Valid: true}, nil
+		}}
+	controls := factoryservice.WorkControls{Store: db, Visibility: visible, Authority: authority, Membership: membership}
+	read := func(owner, current factory.Assignment, wantStop bool, publicationID string) error {
+		view, err := issues.Read(ctx, 7, collaboration.RepositoryID(root.Repository), root.Issue)
+		if err != nil {
+			return err
+		}
+		if view.Attempt == nil || view.Attempt.ID != current.ID || view.Attempt.Run != current.Run || view.Attempt.Stage != current.Stage || view.Attempt.Outcome != current.Outcome || view.Capabilities.Stop.Available != wantStop || view.Journey == nil || view.Journey.Lineage.RootAssignment != owner.ID || view.Journey.Lineage.AttemptRoot != owner.AttemptRoot || view.Journey.Lineage.LatestAssignment != current.ID || view.Journey.Lineage.LatestRun != current.Run {
+			return errors.New("current work execution and publication-owner lineage diverged")
+		}
+		if publicationID == "" && view.Publication != nil || publicationID != "" && (view.Publication == nil || view.Publication.ID != publicationID || view.Publication.Run != owner.Run) {
+			return errors.New("current execution replaced its publication owner")
+		}
+		found := false
+		for _, phase := range view.Journey.Phases {
+			if phase.Phase == current.Phase && phase.Assignment == current.ID && phase.Run == current.Run && phase.AttemptRoot == owner.ID && phase.State == map[bool]string{false: "complete", true: "active"}[wantStop] {
+				found = true
+			}
+		}
+		if !found {
+			return errors.New("current work phase lost its exact child/run binding")
+		}
+		projected, err := controls.Read(ctx, 7, collaboration.RepositoryID(root.Repository), root.Issue)
+		if err != nil || projected.Capabilities.Stop.Available != wantStop {
+			return fmt.Errorf("independent work controls missed the current execution: %w", err)
+		}
+		return nil
+	}
+	if err = read(root, child, true, publication.ID); err != nil {
+		return fmt.Errorf("active Builder: %w", err)
+	}
+	child = finish(child)
+	if err = writeAssignment(child, false); err != nil {
+		return err
+	}
+	if err = writeRun(child, true); err != nil {
+		return err
+	}
+	if err = read(root, child, false, publication.ID); err != nil {
+		return fmt.Errorf("settled Builder: %w", err)
+	}
+	for _, mutate := range []func(*factory.Assignment){
+		func(a *factory.Assignment) { a.Repository++ },
+		func(a *factory.Assignment) { a.ProjectID = "p" + strings.Repeat("9", 24) },
+		func(a *factory.Assignment) {
+			a.Acceptance = "d" + strings.Repeat("f", 24)
+			a.Subject.Issue.Acceptance = a.Acceptance
+		},
+		func(a *factory.Assignment) { a.AttemptRoot = factory.NewID() },
+		func(a *factory.Assignment) { a.PublicationAssignment = factory.NewID() },
+	} {
+		altered := child
+		subject := *child.Subject.Issue
+		altered.Subject.Issue = &subject
+		mutate(&altered)
+		if err = writeAssignment(altered, false); err != nil {
+			return err
+		}
+		if _, err = issues.Read(ctx, 7, collaboration.RepositoryID(root.Repository), root.Issue); !errors.Is(err, factoryservice.ErrWorkJourneyScope) {
+			return fmt.Errorf("foreign current execution did not refuse issue read: %v", err)
+		}
+		if _, err = controls.Read(ctx, 7, collaboration.RepositoryID(root.Repository), root.Issue); !errors.Is(err, factoryservice.ErrWorkJourneyScope) {
+			return fmt.Errorf("foreign current execution did not refuse controls: %v", err)
+		}
+		if err = writeAssignment(child, false); err != nil {
+			return err
+		}
+	}
+	newRoot := finish(offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, root.SourceCommit))
+	if err = writeAssignment(newRoot, true); err != nil {
+		return err
+	}
+	if err = writeRun(newRoot, true); err != nil {
+		return err
+	}
+	newChild := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, root.SourceCommit)
+	newChild.ParentAssignment, newChild.AttemptRoot, newChild.PublicationAssignment = newRoot.ID, newRoot.ID, newRoot.ID
+	if err = writeAssignment(newChild, true); err != nil {
+		return err
+	}
+	if err = writeRun(newChild, false); err != nil {
+		return err
+	}
+	if err = read(newRoot, newChild, true, ""); err != nil {
+		return fmt.Errorf("new independently selected root: %w", err)
+	}
+	lateOldChild := finish(offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, root.SourceCommit))
+	lateOldChild.ParentAssignment, lateOldChild.AttemptRoot, lateOldChild.PublicationAssignment = root.ID, root.ID, root.ID
+	if err = writeAssignment(lateOldChild, true); err != nil {
+		return err
+	}
+	if _, err = issues.Read(ctx, 7, collaboration.RepositoryID(root.Repository), root.Issue); !errors.Is(err, factoryservice.ErrWorkJourneyScope) {
+		return fmt.Errorf("late old-root child redirected current work: %v", err)
+	}
+	fmt.Println("PASS: current Builder and Stop capability follow the active child, then its actual settlement; publication/journey ownership stays exact; newer root selects its own child; foreign bindings and late old-root children refuse; declared source facts, real PostgreSQL/service reads, no execution/provider/model calls")
 	return nil
 }
 

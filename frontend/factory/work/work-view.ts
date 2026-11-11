@@ -133,7 +133,7 @@ function readinessDelivery(detail: FactoryIssueDetail): DeliveryState {
     case 'active':
       return 'working';
     case 'queued':
-      return 'queued';
+      return detail.attempt?.stage === 'assigned' ? 'working' : 'queued';
     case 'not_authorized':
       return 'not_authorized';
     case 'completed':

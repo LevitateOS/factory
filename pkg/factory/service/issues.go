@@ -94,9 +94,15 @@ func (s Issues) Read(ctx context.Context, actor collaboration.ActorID, repositor
 			return nil, ErrWorkJourneyScope
 		}
 		owner = &recorded
-		view.Attempt = workAttemptDTO(recorded)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return nil, err
+	}
+	current, err := currentWorkAttempt(ctx, s.Store, owner)
+	if err != nil {
+		return nil, err
+	}
+	if current != nil {
+		view.Attempt = workAttemptDTO(*current)
 	}
 	var publication *factory.Publication
 	if owner != nil {
@@ -133,7 +139,7 @@ func (s Issues) Read(ctx context.Context, actor collaboration.ActorID, repositor
 		return nil, err
 	}
 	view.Closure = workClosureDTO(publication, merged)
-	controls, err := (WorkControls{ExecutionUnavailable: s.ExecutionUnavailable, Store: s.Store, Authority: s.Authority, Membership: s.Membership, Recovery: s.Recovery}).project(ctx, actor, repository, issue, owner, acceptance)
+	controls, err := (WorkControls{ExecutionUnavailable: s.ExecutionUnavailable, Store: s.Store, Authority: s.Authority, Membership: s.Membership, Recovery: s.Recovery}).project(ctx, actor, repository, issue, owner, current, acceptance)
 	if err != nil {
 		return nil, err
 	}

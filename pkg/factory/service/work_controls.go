@@ -79,7 +79,11 @@ func (s WorkControls) Read(ctx context.Context, actor collaboration.ActorID, rep
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, err
 	}
-	view, err := s.project(ctx, actor, repository, issue, owner, acceptance)
+	current, err := currentWorkAttempt(ctx, s.Store, owner)
+	if err != nil {
+		return empty, err
+	}
+	view, err := s.project(ctx, actor, repository, issue, owner, current, acceptance)
 	if err != nil {
 		return empty, err
 	}
@@ -89,8 +93,27 @@ func (s WorkControls) Read(ctx context.Context, actor collaboration.ActorID, rep
 	return view, nil
 }
 
-// project uses the composite issue read's already scoped recorded owner.
-func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, issue int64, attempt *factory.Assignment, acceptance string) (WorkControlView, error) {
+// currentWorkAttempt keeps publication ownership separate from the run a person
+// can inspect or stop. A typed implementation/review/correction child retains
+// its original owner; a newer row cannot redirect controls across that lineage.
+func currentWorkAttempt(ctx context.Context, db *store.Store, owner *factory.Assignment) (*factory.Assignment, error) {
+	if owner == nil {
+		return nil, nil
+	}
+	current, err := db.LatestIssueAttempt(ctx, owner.Repository, owner.Issue)
+	if err != nil {
+		return nil, err
+	}
+	if current.Repository != owner.Repository || current.Issue != owner.Issue || current.ProjectID != owner.ProjectID ||
+		current.Acceptance != owner.Acceptance || current.AttemptRoot != owner.AttemptRoot || current.PublicationAssignment != owner.ID {
+		return nil, ErrWorkJourneyScope
+	}
+	return &current, nil
+}
+
+// project uses the composite issue read's already scoped owner and current run.
+// Retained publication/funding checks stay bound to the publication owner.
+func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, issue int64, attempt, current *factory.Assignment, acceptance string) (WorkControlView, error) {
 	var empty WorkControlView
 	in := workCapabilityInput{}
 	var requested *WorkRequested
@@ -103,7 +126,7 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 				return empty, readErr
 			}
 		}
-		if run, err := s.Store.FactoryRun(ctx, attempt.Run); err == nil {
+		if run, err := s.Store.FactoryRun(ctx, current.Run); err == nil {
 			in.HasRun, in.RunSettled = true, run.Reconciled
 		} else if !errors.Is(err, store.ErrNotFound) {
 			return empty, err
@@ -147,7 +170,9 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 		return empty, err
 	}
 	capabilities := workCapabilitiesDTO(in)
-	if attempt!=nil && attempt.ExternalPlanning!=nil { capabilities.Retry=WorkCapability{Reason:"external_planning_requires_new_adoption"} }
+	if current != nil && current.ExternalPlanning != nil {
+		capabilities.Retry = WorkCapability{Reason: "external_planning_requires_new_adoption"}
+	}
 	mutating, _ := workCapabilityGates(in)
 	if !s.ExecutionUnavailable && mutating=="" && in.DispatchOpen && in.Member {
 		policy,err:=s.Store.RepositoryPolicy(ctx,int64(repository))
