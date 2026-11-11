@@ -150,10 +150,12 @@ export function renderWorkOverview(model: WorkOverviewModel): TemplateResult {
       <p>${model.setupText}</p>
       ${model.dispatch ? html`<details>
         <summary>Dispatch status</summary>
-        <p>Latest observed stage: ${model.dispatch.stage.replaceAll('_', ' ')}.</p>
-        ${model.dispatch.observedAt ? html`<p>Last dispatch pass: <time datetime=${model.dispatch.observedAt}>${model.dispatch.observedAt}</time>.</p>` : ''}
-        <ul>${model.dispatch.reasons.map(reason => html`<li>${reason}</li>`)}</ul>
-        <p>This is the last recorded observation. Refresh overview to check again.</p>
+        <div role="status">
+          <p>Latest observed stage: ${model.dispatch.stage.replaceAll('_', ' ')}.</p>
+          ${model.dispatch.observedAt ? html`<p>Last dispatch pass: <time datetime=${model.dispatch.observedAt}>${model.dispatch.observedAt}</time>.</p>` : ''}
+          <ul>${model.dispatch.reasons.map(reason => html`<li>${reason}</li>`)}</ul>
+          <p>This is the last recorded observation. Refresh overview to check again.</p>
+        </div>
       </details>` : ''}
       <p>${model.outcomeNote}</p>
       <ul>
