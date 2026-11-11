@@ -140,3 +140,30 @@ func factoryRunFeedScopeTx(ctx context.Context, tx *sql.Tx, run, project string)
 	}
 	return repository, issue, assignment, err
 }
+
+// EventState classifies one stored Factory event by its exact recorded
+// status. The statuses are the closed set the canonical writers emit;
+// anything else (human post pipeline statuses included) is information.
+func EventState(status string) factory.FeedState {
+	switch status {
+	case "run:failed", "run:cancelled",
+		"preparation:failed", "preparation:stopped", "preparation:interrupted",
+		"intent:rejected", "allowance:exhausted",
+		"publication:failed", "publication:fenced", "publication:withdrawn":
+		return factory.FeedStateProblem
+	case "run:needs-human":
+		return factory.FeedStateNeedsYou
+	case "preparation:waiting", "verification:waiting", "dispatch:paused":
+		return factory.FeedStateWaiting
+	case "preparation:approved", "preparation:running", "intent:draft", "dispatch:assigned":
+		return factory.FeedStateInProgress
+	case "preparation:ready", "application:verified", "intent:accepted",
+		"plan:recorded", "takeover:copied", "dependency:released",
+		"native_issue:created", "native_pr:created":
+		return factory.FeedStateDone
+	case "intent:declined":
+		return factory.FeedStateDecided
+	default:
+		return factory.FeedStateInfo
+	}
+}

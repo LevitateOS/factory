@@ -37,6 +37,13 @@ func TestRecordAuthorAndStatusPure(t *testing.T) {
 	if long != "investigate:finished:needs-human:request-changes" {
 		t.Fatalf("shed status = %q", long)
 	}
+	// The state comes from the separate facts, so the shed status text
+	// does not change it, and a failures count is not a failure.
+	if RecordState("finished", "needs-human", "request-changes", "", "", false) != factory.FeedStateNeedsYou ||
+		RecordState("finished", "succeeded", "", "pending", "open", false) != factory.FeedStateDone ||
+		RecordState("finished", "succeeded", "failed", "", "", false) != factory.FeedStateProblem {
+		t.Fatal("record state")
+	}
 	summary := TruncateFeedSummary(strings.Repeat("é", FeedSummaryLimit+10))
 	if len([]rune(summary)) != FeedSummaryLimit {
 		t.Fatalf("summary runes = %d", len([]rune(summary)))
@@ -128,18 +135,18 @@ func TestFeedRecordDetailsEnrichesPhasesAndIntegration(t *testing.T) {
 	got := details[impl.ID]
 	if got.Actor != "builder" || got.Author != "Builder" || got.At != 1700000600 ||
 		got.Status != "implement:finished:succeeded>published>merged>completed" ||
-		got.Issue != 3 || got.PR != 42 || got.Ref != candidate || got.Summary != "built the candidate" {
+		got.State != factory.FeedStateDone || got.Issue != 3 || got.PR != 42 || got.Ref != candidate || got.Summary != "built the candidate" {
 		t.Fatalf("implement detail: %+v", got)
 	}
 	got = details[review.ID]
 	if got.Actor != "inspector" || got.Author != "Inspector" || got.At != 1700001200 ||
 		got.Status != "review:finished:succeeded:request-changes>findings:2" ||
-		got.Summary != "two defects" || got.PR != 0 || got.Ref != "" {
+		got.State != factory.FeedStateProblem || got.Summary != "two defects" || got.PR != 0 || got.Ref != "" {
 		t.Fatalf("review detail: %+v", got)
 	}
 	got = details[plan.ID]
 	if got.Actor != "architect" || got.Author != "Architect" || got.At != 1700000000 ||
-		got.Status != "investigate:assigned" || got.Summary != "" || got.Issue != 4 {
+		got.Status != "investigate:assigned" || got.State != factory.FeedStateInProgress || got.Summary != "" || got.Issue != 4 {
 		t.Fatalf("plan detail: %+v", got)
 	}
 	got = details[legacy.ID]
@@ -148,7 +155,7 @@ func TestFeedRecordDetailsEnrichesPhasesAndIntegration(t *testing.T) {
 	}
 	got = details[verify.ID]
 	if got.Actor != "test_pilot" || got.Author != "Test Pilot" ||
-		got.Status != "verify:finished:failed:failed>checks:3>failures:1" ||
+		got.Status != "verify:finished:failed:failed>checks:3>failures:1" || got.State != factory.FeedStateProblem ||
 		got.Summary != "one outcome failed" {
 		t.Fatalf("verify detail: %+v", got)
 	}

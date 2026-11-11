@@ -55,6 +55,21 @@ const (
 	FeedActivityJudgment = "judgment"
 )
 
+// FeedState is the closed classification of one feed entry, computed by
+// the server from separately recorded facts. Status stays display text;
+// clients render State and never parse Status.
+type FeedState string
+
+const (
+	FeedStateNeedsYou   FeedState = "needs_you"
+	FeedStateProblem    FeedState = "problem"
+	FeedStateWaiting    FeedState = "waiting"
+	FeedStateInProgress FeedState = "in_progress"
+	FeedStateDone       FeedState = "done"
+	FeedStateDecided    FeedState = "decided"
+	FeedStateInfo       FeedState = "info"
+)
+
 // FeedEntry is one combined feed member: a stable unique identity
 // with its global order key and scope. Seq is the table-global
 // sequence behind the owning record (as factory_assignments.seq;
@@ -88,6 +103,7 @@ type FeedEntry struct {
 	Project       string       `json:"project,omitempty"`
 	At            int64        `json:"at,omitempty"`
 	Status        string       `json:"status,omitempty"`
+	State         FeedState    `json:"state,omitempty"`
 	Issue         int64        `json:"issue,omitempty"`
 	PR            int64        `json:"pr,omitempty"`
 	Ref           string       `json:"ref,omitempty"`

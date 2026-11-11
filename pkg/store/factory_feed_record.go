@@ -31,6 +31,7 @@ type FeedRecordDetail struct {
 	Author  string
 	At      int64
 	Status  string
+	State   factory.FeedState
 	Issue   int64
 	PR      int64
 	Ref     string
@@ -135,6 +136,7 @@ func (s *Store) FeedRecordDetails(ctx context.Context, ids []string) (map[string
 			extra = append(extra, "completed")
 		}
 		detail.Status = RecordStatus(phase, stage, outcome, verdict, extra)
+		detail.State = RecordState(stage, outcome, verdict, pubStage, mergeStage, completed)
 		out[detail.ID] = detail
 	}
 	if err := rows.Err(); err != nil {
@@ -294,6 +296,51 @@ func RecordStatus(phase, stage, outcome, verdict string, extra []string) string 
 		}
 	}
 	return stage
+}
+
+// RecordState classifies one assignment record from the separate facts
+// RecordStatus displays, so truncating the display text never changes it.
+// A needs-human outcome asks for the founder; a failed or cancelled run,
+// a request-changes or failed verdict, or a failed publication or merge is
+// a problem; a succeeded finish, a merge or a completion is done; held
+// work is in progress. Anything else is information.
+func RecordState(stage, outcome, verdict, pubStage, mergeStage string, completed bool) factory.FeedState {
+	switch {
+	case outcome == string(factory.NeedsHuman):
+		return factory.FeedStateNeedsYou
+	case outcome == string(factory.Failed), outcome == string(factory.Cancelled),
+		verdict == "request-changes", verdict == factory.AppVerificationFailed,
+		pubStage == factory.PublicationFailed, mergeStage == factory.MergeFailed:
+		return factory.FeedStateProblem
+	case mergeStage == factory.MergeMerged, completed,
+		stage == factory.AssignmentFinished && outcome == string(factory.Succeeded):
+		return factory.FeedStateDone
+	case stage == factory.AssignmentAssigned, stage == factory.AssignmentRetained:
+		return factory.FeedStateInProgress
+	default:
+		return factory.FeedStateInfo
+	}
+}
+
+// judgmentState classifies one judgment milestone: a delivery receipt by
+// its effective decision, a priority receipt as decided.
+func judgmentState(judgment *factory.FeedJudgment) factory.FeedState {
+	if judgment.Kind != "delivery" {
+		return factory.FeedStateDecided
+	}
+	switch judgment.Effective {
+	case "ready_to_merge":
+		return factory.FeedStateDone
+	case "review_again":
+		return factory.FeedStateInProgress
+	case "":
+		if judgment.Outcome != "" {
+			return factory.FeedStateDecided
+		}
+		return factory.FeedStateInfo
+	default:
+		return factory.FeedStateNeedsYou
+	}
 }
 
 // feedPayloadCap bounds one previewed list inside a typed payload;
@@ -712,6 +759,7 @@ func (s *Store) feedMergeDetails(ctx context.Context, ids []string, out map[stri
 		}
 		detail.Actor, detail.Author = "factory", "Factory"
 		detail.Status = "merged"
+		detail.State = factory.FeedStateDone
 		merge := &factory.FeedMerge{Stage: stage, Publication: detail.ID}
 		var record factory.Merge
 		if json.Unmarshal(raw, &record) == nil {
@@ -753,6 +801,7 @@ func (s *Store) feedCompletionDetails(ctx context.Context, ids []string, out map
 		completion.Event = detail.ID
 		detail.Actor, detail.Author = "factory", "Factory"
 		detail.Status = "issue:completed"
+		detail.State = factory.FeedStateDone
 		var event factory.CompletionEvent
 		if json.Unmarshal(raw, &event) == nil {
 			detail.Issue = event.Issue
@@ -790,6 +839,7 @@ func (s *Store) feedJudgmentDetails(ctx context.Context, ids []string, out map[s
 		detail.Actor, detail.Author = "jev", "JEV"
 		detail.At = at
 		detail.Status = status
+		detail.State = judgmentState(judgment)
 		if detail.Issue == 0 {
 			detail.Issue = issue
 		}
