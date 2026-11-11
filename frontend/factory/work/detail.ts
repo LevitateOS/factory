@@ -43,7 +43,6 @@ import {
   renderWorkDetail,
 } from './work-view.js';
 import type {InterventionKind, InterventionResult} from './work-view.js';
-import type {SourceState} from './progress-view.js';
 // Refusals returned before the retry command is recorded: pkg/factory/control/lifecycle_retry.go
 // (RetryRun admission; command_conflict means a record exists) and the rolled-back transactions in
 // pkg/store/factory_explicit_retry.go and factory_delivery_retry.go. A replay never discards:
@@ -100,7 +99,6 @@ export interface WorkDetailContext {
 interface RunEntry {
   readonly id: string;
   readonly detail: FactoryRunDetail | undefined;
-  readonly state: SourceState;
 }
 
 type InterventionMarks = Record<InterventionKind, {result: InterventionResult; text: string}>;
@@ -625,15 +623,14 @@ async function readDetailRuns(context: WorkDetailContext, signal: AbortSignal, s
   return settled.map((result, index) => {
     const runID = runIDs[index] ?? '';
     if (result.status !== 'fulfilled' || runID === '')
-      return {id: runID, detail: undefined, state: 'unavailable' as SourceState};
+      return {id: runID, detail: undefined};
     try {
       return {
         id: runID,
         detail: factoryRunStatusResponse(result.value, runID, context.repository),
-        state: 'ready' as SourceState,
       };
     } catch {
-      return {id: runID, detail: undefined, state: 'unavailable' as SourceState};
+      return {id: runID, detail: undefined};
     }
   });
 }
