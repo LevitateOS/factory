@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 	"time"
@@ -129,12 +130,31 @@ func (p NativeMerges) LookupOp(ctx context.Context, id string) (factory.Operatio
 
 func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
+	fail := func(stage string, cause error) (factory.MergeObservation, error) {
+		class, status := "owner", 0
+		var native *NativePortError
+		var waiting *factory.PublicationWait
+		switch {
+		case errors.As(cause, &native):
+			class, status = "native", native.Status
+		case errors.Is(cause, context.DeadlineExceeded):
+			class = "deadline"
+		case errors.Is(cause, errNativeRead), errors.Is(cause, errNativeReadScope):
+			class = "projection"
+		case errors.As(cause, &waiting):
+			class = "wait"
+		}
+		// Stage and class are bounded owner labels, never provider error text,
+		// credentials, review bodies or returned material.
+		log.Printf("native merge observation held stage=%q class=%q native_status=%d", stage, class, status)
+		return empty, cause
+	}
 	if w.ValidateTarget() != nil || !nativeIndex(w.PRNumber) {
 		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
 	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
 	if err != nil {
-		return empty, err
+		return fail("account", err)
 	}
 	if (account.binding.Host.Provider == collaboration.Fountain) != (w.Method == factory.MergeFastForward) {
 		return empty, &factory.PublicationWait{Reason: "native_merge_method_unavailable"}
@@ -144,22 +164,22 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	}
 	before, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
-		return empty, err
+		return fail("accepted_inputs_before", err)
 	}
 	publication, err := p.Store.PublicationByID(ctx, w.PublicationID)
 	if err != nil {
-		return empty, err
+		return fail("publication", err)
 	}
 	var review factory.ReviewOutcome
 	for i := len(publication.ReviewOperations) - 1; i >= 0; i-- {
 		op := publication.ReviewOperations[i]
 		if op.Work.ActorID == w.ReviewerID && op.Work.PRID == w.PRID && op.Work.HeadOID == w.HeadOID && op.Work.BaseOID == w.BaseOID && op.Work.Disposition() == "APPROVED" {
 			if _, err = (NativeReviews{p.NativeInputSource}).ObserveReview(ctx, op.Work); err != nil {
-				return empty, err
+				return fail("review_target", err)
 			}
 			review, err = (NativeReviews{p.NativeInputSource}).AdoptReview(ctx, op.Work, op.Outcome)
 			if err != nil {
-				return empty, err
+				return fail("review_receipt", err)
 			}
 			break
 		}
@@ -169,7 +189,7 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	}
 	reviews, err := (nativeCollaborationReads{account}).ReadReviews(ctx, account.binding.Actor.ID, account.repository.ID, w.PRNumber, factoryservice.ReviewQuery{ReviewID: strconv.FormatInt(review.ReviewID, 10), Limit: 1})
 	if err != nil {
-		return empty, err
+		return fail("review_read", err)
 	}
 	expectedState := "approved"
 	if w.ReviewEvent == "COMMENT" {
@@ -180,11 +200,11 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	}
 	observed, err := p.observeProviderMerge(ctx, w, account)
 	if err != nil {
-		return empty, err
+		return fail("provider_merge", err)
 	}
 	after, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
-		return empty, err
+		return fail("accepted_inputs_after", err)
 	}
 	if before.Revision != after.Revision {
 		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
