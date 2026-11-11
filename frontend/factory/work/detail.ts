@@ -13,13 +13,19 @@ import './journey.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks, FactoryAcceptanceLinks} from '../app/navigation.js';
 import {check, id, projectId, readSodaJSON} from '../api/models.js';
-import {factoryCommandId, factoryRunID, factoryRunStatusResponse, factoryRunText} from '../api/run-response.js';
+import {
+  factoryCommandId,
+  factoryRunID,
+  factoryRunStatusResponse,
+  factoryRunText,
+  runDisplay,
+  runDisplayText,
+} from '../api/run-response.js';
 import type {FactoryRunDetail} from '../api/run-response.js';
 import {workJourney} from '../api/journey-response.js';
 import {object} from '../api/models.js';
 import {factoryAccess} from '../api/progress-response.js';
 import type {WorkObservation} from './observation.js';
-import {statusText} from '../shared/format.js';
 
 import {
   factoryIssueDetail,
@@ -128,23 +134,19 @@ function sameDetail(a: WorkDetailContext | undefined, b: WorkDetailContext | und
 
 function runRowText(entry: RunEntry): string {
   if (!entry.detail) return `run ${entry.id.slice(0, 8)}: unavailable.`;
-  const row = factoryRunText({
-    id: entry.detail.id,
-    role: entry.detail.role,
-    reconciled: entry.detail.reconciled,
-    ...(entry.detail.outcome === undefined ? {} : {outcome: entry.detail.outcome}),
-    ...(entry.detail.view?.issue === undefined ? {} : {issue: entry.detail.view.issue}),
-    ...(entry.detail.view?.attempt === undefined ? {} : {attempt: entry.detail.view.attempt}),
-  });
-  const state = entry.detail.state
-    ? statusText(
-        entry.detail.state.phase,
-        entry.detail.state.live,
-        entry.detail.state.terminal,
-        entry.detail.state.exit_code ?? null
-      )
-    : 'recorded';
-  return `${row} · ${state}`;
+  const display = runDisplay(entry.detail);
+  const row = factoryRunText(
+    {
+      id: entry.detail.id,
+      role: entry.detail.role,
+      reconciled: entry.detail.reconciled,
+      ...(entry.detail.outcome === undefined ? {} : {outcome: entry.detail.outcome}),
+      ...(entry.detail.view?.issue === undefined ? {} : {issue: entry.detail.view.issue}),
+      ...(entry.detail.view?.attempt === undefined ? {} : {attempt: entry.detail.view.attempt}),
+    },
+    display.kind === 'ended'
+  );
+  return `${row} · ${runDisplayText(display)}`;
 }
 
 export class SodaFactoryWorkDetail extends LitElement {

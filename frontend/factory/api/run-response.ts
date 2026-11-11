@@ -299,6 +299,35 @@ export function factoryRunStatusResponse(value: unknown, runId: string, reposito
       : {}),
   };
 }
+// RunDisplay is what the status routes say about one run's process: nothing
+// beyond the record, a live-or-idle phase, or an ended process.
+export type RunDisplay =
+  | {kind: 'recorded'; outcome?: FactoryRunOutcome}
+  | {kind: 'live'; phase: string; live: boolean}
+  | {kind: 'ended'; phase: string; exit: number | null};
+export function processDisplay(state: {
+  phase: string;
+  live: boolean;
+  terminal: boolean;
+  exit_code?: number | null | undefined;
+}): RunDisplay {
+  if (state.terminal) return {kind: 'ended', phase: state.phase, exit: state.exit_code ?? null};
+  return {kind: 'live', phase: state.phase, live: state.live};
+}
+export function runDisplay(detail: Pick<FactoryRunDetail, 'state' | 'outcome'>): RunDisplay {
+  if (detail.state) return processDisplay(detail.state);
+  return {kind: 'recorded', ...(detail.outcome === undefined ? {} : {outcome: detail.outcome})};
+}
+export function runDisplayText(display: RunDisplay): string {
+  switch (display.kind) {
+    case 'recorded':
+      return 'recorded';
+    case 'live':
+      return display.live ? `${display.phase} · live` : display.phase;
+    case 'ended':
+      return display.exit === null ? display.phase : `ended: ${display.phase} (exit ${display.exit})`;
+  }
+}
 export interface FactoryStatus {
   run_id: string;
   phase: string;

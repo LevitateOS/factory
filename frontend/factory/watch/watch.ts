@@ -2,8 +2,13 @@ import {LitElement} from 'lit';
 import {renderFactoryWatch} from './watch-view.js';
 import {WatchScreen} from './watch-screen.js';
 import {factoryOutputCursor, factoryOutputFrame, factoryClosedReason} from '../api/output-response.js';
-import {factoryRunStatusResponse, factoryStatusFrame} from '../api/run-response.js';
-import {statusText} from '../shared/format.js';
+import {
+  factoryRunStatusResponse,
+  factoryStatusFrame,
+  processDisplay,
+  runDisplay,
+  runDisplayText,
+} from '../api/run-response.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {factoryRunID} from '../api/run-response.js';
 import type {
@@ -239,7 +244,7 @@ export class SodaFactoryWatch extends LitElement {
     if (!this.live(n)) return true;
     if (detail.state?.terminal) {
       const state = detail.state,
-        statusLine = statusText(state.phase, false, true, state.exit_code ?? null),
+        statusLine = runDisplayText(processDisplay({...state, live: false})),
         exit = state.exit_code !== undefined ? ` (exit ${state.exit_code})` : '';
       this.statusLine = statusLine;
       this.detach(`This run has finished${exit}. Live view is not available for finished runs.`);
@@ -248,11 +253,12 @@ export class SodaFactoryWatch extends LitElement {
       this.technical = `Status: ${statusLine}${output ? `\nLast output:\n${output}` : ''}${cut}`;
       return true;
     }
-    this.statusLine = detail.state
-      ? statusText(detail.state.phase, detail.state.live, false, null)
-      : detail.outcome
-        ? `recorded · ${detail.outcome}`
-        : 'recorded';
+    // Without a process state the run page's only fact is the recorded outcome.
+    const display = runDisplay(detail);
+    this.statusLine =
+      display.kind === 'recorded' && display.outcome && display.outcome !== 'unknown'
+        ? `recorded · ${display.outcome}`
+        : runDisplayText(display);
     return false;
   }
   private bindPeer(n: number, terminal: TerminalView, cursor: number) {
@@ -298,7 +304,7 @@ export class SodaFactoryWatch extends LitElement {
     };
   }
   private acceptStatus(frame: ReturnType<typeof factoryStatusFrame>) {
-    this.statusLine = statusText(frame.phase, frame.live, frame.terminal, frame.exit_code);
+    this.statusLine = runDisplayText(processDisplay(frame));
     if (this.state !== 'opening') return;
     window.clearTimeout(this.timer);
     this.state = 'ready';

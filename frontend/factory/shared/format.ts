@@ -14,11 +14,3 @@ export function activityTimestamp(createdUnix: number): {iso: string; text: stri
   if (!Number.isFinite(date.getTime())) return undefined;
   return {iso: date.toISOString(), text: date.toLocaleString()};
 }
-
-
-
-export function statusText(phase: string, live: boolean, terminal: boolean, exit: number | null | undefined) {
-  const ended = terminal && exit !== undefined && exit !== null ? `ended: ${phase} (exit ${exit})` : phase;
-  const running = live ? `${phase} · live` : phase;
-  return terminal ? ended : running;
-}
