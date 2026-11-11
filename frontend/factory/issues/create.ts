@@ -1,10 +1,11 @@
 import {LitElement, html} from 'lit';
-import {check, readSodaJSON} from '../api/models.js';
+import {check} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef} from '../api/collaboration.js';
 import {issueCreateAllowed, issueCreateOutcome} from '../api/issue-create-response.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {getJSON} from '../api/read.js';
+import {JournalCommand} from '../shared/journal-command.js';
 import {
   issueCreateRecordKey,
   emptyIssueCreation,
@@ -14,7 +15,7 @@ import {
   samePendingIssue,
   validIssueWriting,
 } from './create-record.js';
-import type {IssueCreateAddress, IssueCreation, IssueCreationSaved} from './create-record.js';
+import type {IssueCreateAddress, IssueCreation, IssueCreationSaved, PendingIssue} from './create-record.js';
 
 export interface IssueCreateContext extends IssueCreateAddress {
   readonly transport: FactoryTransport;
@@ -28,9 +29,23 @@ export type IssueCreatePorts = Omit<IssueCreateContext, 'openIssue'>;
 export class SodaFactoryIssueCreate extends LitElement {
   static properties = {version: {state: true}};
   declare private version: number;
-  private current: IssueCreateContext | undefined;
-  private binding = '';
-  private lifetime = new AbortController();
+  private journal = new JournalCommand<PendingIssue, IssueCreateContext>({
+    key: (context) =>
+      JSON.stringify([context.scope, context.host, context.actor, context.repository, context.transport.generation]),
+    words: {
+      attention: 'The saved submission needs attention. Check status before taking another action.',
+      attentionCommitted: 'The issue was created; provider completion needs attention. Check status.',
+      completing: 'The issue was created; provider completion is still pending. Check status.',
+      unconfirmed: 'The submission is not confirmed. Its original title and Markdown remain saved.',
+    },
+    say: (message) => {
+      this.message = message;
+    },
+    retire: () => {
+      this.context = undefined;
+    },
+    byObject: true,
+  });
   private saved: IssueCreationSaved = {raw: '', writing: undefined, blocked: false, durable: true};
   private writing = emptyIssueCreation();
   private allowed = false;
@@ -45,24 +60,10 @@ export class SodaFactoryIssueCreate extends LitElement {
     return this;
   }
   get context() {
-    return this.current;
-  }
-  private key(context: IssueCreateContext) {
-    return JSON.stringify([
-      context.scope,
-      context.host,
-      context.actor,
-      context.repository,
-      context.transport.generation,
-    ]);
+    return this.journal.context;
   }
   set context(context: IssueCreateContext | undefined) {
-    const key = context && this.key(context);
-    if (this.current === context && key === this.binding) return;
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.current = undefined;
-    this.binding = '';
+    if (!this.journal.rebind(context)) return;
     this.allowed = false;
     this.busy = false;
     this.message = '';
@@ -70,13 +71,8 @@ export class SodaFactoryIssueCreate extends LitElement {
     this.writing = emptyIssueCreation();
     if (context) {
       issueCreateRecordKey(context);
-      check(
-        !!context.transport.generation &&
-          typeof context.commandScope === 'function' &&
-          typeof context.openIssue === 'function'
-      );
-      this.current = context;
-      this.binding = key!;
+      check(typeof context.openIssue === 'function');
+      this.journal.attach(context);
       this.restore(context);
       void this.refresh();
     }
@@ -88,14 +84,6 @@ export class SodaFactoryIssueCreate extends LitElement {
   }
   private touch() {
     this.version++;
-  }
-  private live(context: IssueCreateContext, signal: AbortSignal): boolean {
-    if (this.current !== context || this.lifetime.signal !== signal || signal.aborted) return false;
-    if (this.key(context) !== this.binding) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
   }
   private restore(context: IssueCreateContext, reload = false) {
     this.saved = reload ? reloadIssueCreation(context) : readIssueCreation(context);
@@ -109,26 +97,21 @@ export class SodaFactoryIssueCreate extends LitElement {
   private path(context: IssueCreateContext) {
     return `factory/collaboration/repositories/${context.repository}`;
   }
-  private async identity(context: IssueCreateContext, signal: AbortSignal) {
-    signal.throwIfAborted();
-    const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
-    check(this.live(context, signal) && scope === context.scope);
-  }
   private async admit(context: IssueCreateContext, signal: AbortSignal) {
     this.allowed = false;
-    await this.identity(context, signal);
+    await this.journal.identity(context, signal);
     const value = await getJSON(context.transport, this.path(context) + '/capabilities', signal);
-    check(this.live(context, signal));
+    check(this.journal.live(context, signal));
     this.allowed = issueCreateAllowed(value, context.repository, context.actor);
   }
   private async refresh() {
-    const context = this.current,
-      signal = this.lifetime.signal;
-    if (!context || this.busy || !this.live(context, signal)) return;
+    const context = this.journal.context,
+      signal = this.journal.signal;
+    if (!context || this.busy || !this.journal.live(context, signal)) return;
     this.busy = true;
     this.touch();
     try {
-      await this.identity(context, signal);
+      await this.journal.identity(context, signal);
       if (this.writing.pending && !this.saved.blocked) {
         // Capability failure may disable retry, but does not prevent scoped
         // receipt recovery or cancellation after repository access changes.
@@ -137,7 +120,7 @@ export class SodaFactoryIssueCreate extends LitElement {
         } catch {
           this.allowed = false;
         }
-        check(this.live(context, signal));
+        check(this.journal.live(context, signal));
         await this.deliver(context, signal, 'lookup');
       } else if (!this.saved.blocked) {
         await this.admit(context, signal);
@@ -150,12 +133,12 @@ export class SodaFactoryIssueCreate extends LitElement {
               : 'Issue creation is not available for this account.';
       }
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original submission remains saved. Check status before retrying.'
           : 'Issue access could not be checked. Your writing was preserved.';
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
@@ -174,8 +157,8 @@ export class SodaFactoryIssueCreate extends LitElement {
     return result;
   }
   private input(event: Event, field: 'title' | 'body') {
-    const context = this.current;
-    if (!context || !this.live(context, this.lifetime.signal) || this.writing.pending || this.saved.blocked) return;
+    const context = this.journal.context;
+    if (!context || !this.journal.live(context, this.journal.signal) || this.writing.pending || this.saved.blocked) return;
     const next: IssueCreation = {
       ...this.writing,
       draft: {...this.writing.draft, revision: factoryCommandId(), [field]: (event.target as HTMLInputElement).value},
@@ -186,11 +169,11 @@ export class SodaFactoryIssueCreate extends LitElement {
     this.touch();
   }
   private async act(action: 'submit' | 'lookup' | 'cancel') {
-    const context = this.current,
-      signal = this.lifetime.signal;
+    const context = this.journal.context,
+      signal = this.journal.signal;
     if (
       !context ||
-      !this.live(context, signal) ||
+      !this.journal.live(context, signal) ||
       this.busy ||
       this.saved.blocked ||
       this.writing.created ||
@@ -206,8 +189,8 @@ export class SodaFactoryIssueCreate extends LitElement {
         await this.admit(context, signal);
         check(this.allowed && (!shown || !shown.cancel));
         check(validIssueWriting(shown?.title ?? this.writing.draft.title, shown?.body ?? this.writing.draft.body));
-      } else await this.identity(context, signal);
-      check(this.live(context, signal));
+      } else await this.journal.identity(context, signal);
+      check(this.journal.live(context, signal));
       const current = readIssueCreation(context);
       const same = shown
         ? !!current.writing?.pending && samePendingIssue(shown, current.writing.pending)
@@ -239,12 +222,12 @@ export class SodaFactoryIssueCreate extends LitElement {
       if (this.write(context, {...this.writing, pending}) !== 'saved') return;
       await this.deliver(context, signal, action);
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original submission remains saved. Check status before retrying.'
           : 'Issue access or saved writing changed. Nothing was submitted; reload saved writing and check access.';
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
@@ -252,36 +235,17 @@ export class SodaFactoryIssueCreate extends LitElement {
   }
   private async deliver(context: IssueCreateContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
     const pending = this.writing.pending;
-    check(pending && this.live(context, signal));
-    const base = this.path(context),
-      command = base + '/issue-creation/commands/' + pending.command;
-    const response = await context.transport.request(
-      action === 'submit' ? base + '/issues' : command + (action === 'cancel' ? '/cancel' : ''),
-      {
-        method: action === 'lookup' ? 'GET' : 'POST',
-        headers: {'Content-Type': 'application/json'},
-        signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
-        ...(action === 'lookup'
-          ? {}
-          : {
-              body: JSON.stringify(
-                action === 'submit' ? {command_id: pending.command, title: pending.title, body: pending.body} : {}
-              ),
-            }),
-      }
-    );
-    check(this.live(context, signal) && response.ok);
-    const outcome = issueCreateOutcome(await readSodaJSON(response), pending.command, context.repository);
-    check(this.live(context, signal));
-    if (!outcome.finished || (outcome.effect === 'committed' && !outcome.issue)) {
+    check(pending);
+    const base = this.path(context);
+    const outcome = await this.journal.deliver(context, signal, action, pending, {
+      endpoints: {submit: base + '/issues', commands: base + '/issue-creation/commands'},
+      body: {command_id: pending.command, title: pending.title, body: pending.body},
+      parse: (body, command) => issueCreateOutcome(body, command, context.repository),
+    });
+    if (outcome.kind !== 'finished') return;
+    if (outcome.effect === 'committed' && !outcome.issue) {
       this.message =
-        outcome.effect === 'committed'
-          ? outcome.completion === 'needs_intervention'
-            ? 'The issue was created; provider completion needs attention. Check status.'
-            : outcome.finished
-              ? 'The issue was created, but its destination is not currently readable. Check status; do not create a replacement.'
-              : 'The issue was created; provider completion is still pending. Check status.'
-          : 'The submission is not confirmed. Its original title and Markdown remain saved.';
+        'The issue was created, but its destination is not currently readable. Check status; do not create a replacement.';
       return;
     }
     const latest = readIssueCreation(context);
@@ -311,36 +275,35 @@ export class SodaFactoryIssueCreate extends LitElement {
     check(stored !== 'conflict');
     this.saved = readIssueCreation(context);
     this.writing = next;
-    this.message =
-      outcome.effect === 'committed'
-        ? 'Issue created.'
-        : pending.cancel
-          ? 'Submission cancelled. Your writing was preserved.'
-          : 'No issue was created. Your writing was preserved.';
+    this.message = this.journal.finished(pending, outcome, {
+      committed: 'Issue created.',
+      cancelled: 'Submission cancelled. Your writing was preserved.',
+      none: 'No issue was created. Your writing was preserved.',
+    });
     if (stored !== 'saved') this.message += ' The local saved state still needs storage.';
     if (next.created && stored === 'saved') await this.openCreated(context, signal);
   }
-  private async openCreated(context = this.current, signal = this.lifetime.signal) {
+  private async openCreated(context = this.journal.context, signal = this.journal.signal) {
     const created = this.writing.created;
-    if (!context || !created || this.saved.blocked || !this.live(context, signal)) return;
+    if (!context || !created || this.saved.blocked || !this.journal.live(context, signal)) return;
     try {
-      await this.identity(context, signal);
-      check(this.live(context, signal));
+      await this.journal.identity(context, signal);
+      check(this.journal.live(context, signal));
       await context.openIssue({...created.issue}, signal);
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = 'Issue created. Its destination is saved; open it when navigation is available.';
     }
-    if (this.live(context, signal)) this.touch();
+    if (this.journal.live(context, signal)) this.touch();
   }
   private continueWriting() {
-    const context = this.current,
+    const context = this.journal.context,
       pending = this.writing.pending,
       created = this.writing.created;
     if (
       !context ||
       this.busy ||
-      !this.live(context, this.lifetime.signal) ||
+      !this.journal.live(context, this.journal.signal) ||
       (!created && this.noEffect !== pending?.command)
     )
       return;
@@ -364,7 +327,7 @@ export class SodaFactoryIssueCreate extends LitElement {
     this.touch();
   }
   render() {
-    if (!this.current) return html``;
+    if (!this.journal.context) return html``;
     const pending = this.writing.pending,
       created = this.writing.created,
       blocked = this.saved.blocked;
@@ -446,7 +409,7 @@ export class SodaFactoryIssueCreate extends LitElement {
               type="button"
               ?disabled=${this.busy}
               @click=${() => {
-                this.restore(this.current!, true);
+                this.restore(this.journal.context!, true);
                 this.touch();
                 void this.refresh();
               }}

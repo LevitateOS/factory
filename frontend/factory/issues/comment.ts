@@ -1,14 +1,14 @@
 import {LitElement, html} from 'lit';
-import {check, id, readSodaJSON} from '../api/models.js';
+import {check, id} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef, PullRef} from '../api/collaboration.js';
 import {issueDetail} from '../api/issue-response.js';
 import {issueCommentAllowed} from '../api/comment-response.js';
 import {pullActionAllowed} from '../api/capability-response.js';
 import {pullItem} from '../pulls/response.js';
-import {commandOutcome} from '../api/command-response.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {getJSON} from '../api/read.js';
+import {JournalCommand} from '../shared/journal-command.js';
 import {
   commentRecordKey,
   emptyCommentWriting,
@@ -18,7 +18,7 @@ import {
   samePendingComment,
   validCommentBody,
 } from './comment-record.js';
-import type {CommentAddress, CommentSaved, CommentWriting} from './comment-record.js';
+import type {CommentAddress, CommentSaved, CommentWriting, PendingComment} from './comment-record.js';
 
 export interface IssueCommentContext extends CommentAddress {
   readonly transport: FactoryTransport;
@@ -33,10 +33,33 @@ export type IssueCommentPorts = Omit<IssueCommentContext, 'parent'>;
 export class SodaFactoryIssueComment extends LitElement {
   static properties = {version: {state: true}};
   declare private version: number;
-  private current: IssueCommentContext | undefined;
-  private binding = '';
-  private generation = '';
-  private lifetime = new AbortController();
+  private journal = new JournalCommand<PendingComment, IssueCommentContext>({
+    key: (context) =>
+      JSON.stringify([
+        context.scope,
+        context.host,
+        context.actor,
+        context.repository,
+        context.issue,
+        context.parent.kind,
+        context.parent.repository,
+        context.parent.number,
+        context.parent.external_id,
+        context.transport.generation,
+      ]),
+    words: {
+      attention: 'The saved submission needs attention. Check status before taking another action.',
+      completing: 'The comment was recorded; provider completion is still pending. Check status.',
+      unconfirmed: 'The submission is not confirmed. Its original writing remains saved.',
+    },
+    say: (message) => {
+      this.message = message;
+    },
+    retire: () => {
+      this.context = undefined;
+    },
+    byObject: true,
+  });
   private saved: CommentSaved = {raw: '', writing: undefined, durable: true, blocked: false};
   private writing = emptyCommentWriting();
   private allowed = false;
@@ -51,29 +74,10 @@ export class SodaFactoryIssueComment extends LitElement {
     return this;
   }
   get context() {
-    return this.current;
-  }
-  private key(context: IssueCommentContext) {
-    return JSON.stringify([
-      context.scope,
-      context.host,
-      context.actor,
-      context.repository,
-      context.issue,
-      context.parent.kind,
-      context.parent.repository,
-      context.parent.number,
-      context.parent.external_id,
-      context.transport.generation,
-    ]);
+    return this.journal.context;
   }
   set context(context: IssueCommentContext | undefined) {
-    const key = context && this.key(context);
-    if (this.current === context && key === this.binding) return;
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.current = undefined;
-    this.binding = '';
+    if (!this.journal.rebind(context)) return;
     this.allowed = false;
     this.busy = false;
     this.message = '';
@@ -90,13 +94,9 @@ export class SodaFactoryIssueComment extends LitElement {
       );
       check(
         typeof context.parent.external_id === 'string' &&
-          !!context.parent.external_id.trim() &&
-          typeof context.commandScope === 'function'
+          !!context.parent.external_id.trim()
       );
-      check(!!context.transport.generation);
-      this.current = context;
-      this.binding = key!;
-      this.generation = context.transport.generation;
+      this.journal.attach(context);
       this.restore(context);
       void this.refresh();
     }
@@ -108,22 +108,6 @@ export class SodaFactoryIssueComment extends LitElement {
   }
   private touch() {
     this.version++;
-  }
-  private live(context: IssueCommentContext, signal: AbortSignal) {
-    if (
-      !(
-        this.current === context &&
-        this.lifetime.signal === signal &&
-        !signal.aborted &&
-        context.transport.generation === this.generation
-      )
-    )
-      return false;
-    if (this.key(context) !== this.binding) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
   }
   private restore(context: IssueCommentContext, reload = false) {
     this.saved = reload ? reloadCommentWriting(context) : readCommentWriting(context);
@@ -137,19 +121,14 @@ export class SodaFactoryIssueComment extends LitElement {
   private path(context: IssueCommentContext) {
     return `factory/collaboration/repositories/${context.repository}/${context.parent.kind === 'pull' ? 'pulls' : 'issues'}/${context.issue}`;
   }
-  private async identity(context: IssueCommentContext, signal: AbortSignal) {
-    signal.throwIfAborted();
-    const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
-    check(this.live(context, signal) && scope === context.scope);
-  }
   private async admit(context: IssueCommentContext, signal: AbortSignal) {
     this.allowed = false;
-    await this.identity(context, signal);
+    await this.journal.identity(context, signal);
     const [value, capabilities] = await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
-    check(this.live(context, signal));
+    check(this.journal.live(context, signal));
     if (context.parent.kind === 'pull') {
       const pull = pullItem(value, context.host, context.repository, context.issue);
       check(pull.ref.external_id === context.parent.external_id);
@@ -161,9 +140,9 @@ export class SodaFactoryIssueComment extends LitElement {
     }
   }
   private async refresh() {
-    const context = this.current,
-      signal = this.lifetime.signal;
-    if (!context || this.busy || !this.live(context, signal)) return;
+    const context = this.journal.context,
+      signal = this.journal.signal;
+    if (!context || this.busy || !this.journal.live(context, signal)) return;
     this.busy = true;
     this.touch();
     try {
@@ -176,14 +155,14 @@ export class SodaFactoryIssueComment extends LitElement {
             : 'Comment writing is only saved in this window.'
           : 'Commenting is not available for this account.';
     } catch {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.message =
           this.allowed && this.writing.pending
             ? 'No final outcome was confirmed. The original submission remains saved. Check status before retrying.'
             : 'Comment access could not be checked. Your writing was preserved.';
       }
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
@@ -203,8 +182,8 @@ export class SodaFactoryIssueComment extends LitElement {
     return result;
   }
   private input(event: Event) {
-    const context = this.current;
-    if (!context || !this.live(context, this.lifetime.signal) || this.writing.pending || this.saved.blocked) return;
+    const context = this.journal.context;
+    if (!context || !this.journal.live(context, this.journal.signal) || this.writing.pending || this.saved.blocked) return;
     const body = (event.target as HTMLTextAreaElement).value;
     const next: CommentWriting = {draft: {revision: factoryCommandId(), body}};
     const result = this.write(context, next);
@@ -215,11 +194,11 @@ export class SodaFactoryIssueComment extends LitElement {
     this.touch();
   }
   private async act(action: 'submit' | 'lookup' | 'cancel') {
-    const context = this.current,
-      signal = this.lifetime.signal;
+    const context = this.journal.context,
+      signal = this.journal.signal;
     if (
       !context ||
-      !this.live(context, signal) ||
+      !this.journal.live(context, signal) ||
       this.busy ||
       this.saved.blocked ||
       this.noEffect === this.writing.pending?.command
@@ -234,8 +213,8 @@ export class SodaFactoryIssueComment extends LitElement {
         await this.admit(context, signal);
         check(this.allowed && (!shown || !shown.cancel));
         check(validCommentBody(shown?.body ?? this.writing.draft.body));
-      } else await this.identity(context, signal);
-      check(this.live(context, signal));
+      } else await this.journal.identity(context, signal);
+      check(this.journal.live(context, signal));
       const current = readCommentWriting(context);
       const same = shown
         ? !!current.writing?.pending && samePendingComment(shown, current.writing.pending)
@@ -268,12 +247,12 @@ export class SodaFactoryIssueComment extends LitElement {
       if (this.write(context, {...this.writing, pending}) !== 'saved') return;
       await this.deliver(context, signal, action);
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original submission remains saved. Check status before retrying.'
           : 'Comment access or saved writing changed. Nothing was submitted; reload saved writing and check access.';
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
@@ -281,32 +260,13 @@ export class SodaFactoryIssueComment extends LitElement {
   }
   private async deliver(context: IssueCommentContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
     const pending = this.writing.pending;
-    check(pending && pending.external === context.parent.external_id && this.live(context, signal));
-    const base = this.path(context) + '/comments',
-      command = base + '/commands/' + pending.command;
-    const response = await context.transport.request(
-      action === 'submit' ? base : command + (action === 'cancel' ? '/cancel' : ''),
-      {
-        method: action === 'lookup' ? 'GET' : 'POST',
-        headers: {'Content-Type': 'application/json'},
-        signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
-        ...(action === 'lookup'
-          ? {}
-          : {body: JSON.stringify(action === 'submit' ? {command_id: pending.command, body: pending.body} : {})}),
-      }
-    );
-    check(this.live(context, signal) && response.ok);
-    const outcome = commandOutcome(await readSodaJSON(response), pending.command);
-    check(this.live(context, signal));
-    if (!outcome.finished) {
-      this.message =
-        outcome.completion === 'needs_intervention'
-          ? 'The saved submission needs attention. Check status before taking another action.'
-          : outcome.effect === 'committed'
-            ? 'The comment was recorded; provider completion is still pending. Check status.'
-            : 'The submission is not confirmed. Its original writing remains saved.';
-      return;
-    }
+    check(pending && pending.external === context.parent.external_id);
+    const base = this.path(context) + '/comments';
+    const outcome = await this.journal.deliver(context, signal, action, pending, {
+      endpoints: {submit: base, commands: base + '/commands'},
+      body: {command_id: pending.command, body: pending.body},
+    });
+    if (outcome.kind !== 'finished') return;
     const latest = readCommentWriting(context);
     check(!latest.blocked && latest.writing?.pending && samePendingComment(latest.writing.pending, pending));
     if (outcome.effect === 'not_committed' && latest.writing.draft.body !== pending.body) {
@@ -325,14 +285,12 @@ export class SodaFactoryIssueComment extends LitElement {
     check(stored !== 'conflict');
     this.saved = readCommentWriting(context);
     this.writing = next;
-    this.message =
-      outcome.effect === 'committed'
-        ? pending.cancel
-          ? 'The comment was already posted; cancellation was too late.'
-          : 'Comment posted.'
-        : pending.cancel
-          ? 'Submission cancelled. Your writing was preserved.'
-          : 'No comment was posted. Your writing was preserved.';
+    this.message = this.journal.finished(pending, outcome, {
+      committed: 'Comment posted.',
+      tooLate: 'The comment was already posted; cancellation was too late.',
+      cancelled: 'Submission cancelled. Your writing was preserved.',
+      none: 'No comment was posted. Your writing was preserved.',
+    });
     if (stored !== 'saved') this.message += ' The local saved state still needs storage.';
     if (outcome.effect === 'committed') {
       const detail = {host: context.host, actor: context.actor, scope: context.scope,
@@ -343,14 +301,14 @@ export class SodaFactoryIssueComment extends LitElement {
     }
   }
   private continueWriting() {
-    const context = this.current,
+    const context = this.journal.context,
       pending = this.writing.pending;
     if (
       !context ||
       !pending ||
       this.noEffect !== pending.command ||
       this.busy ||
-      !this.live(context, this.lifetime.signal)
+      !this.journal.live(context, this.journal.signal)
     )
       return;
     const latest = readCommentWriting(context);
@@ -368,11 +326,11 @@ export class SodaFactoryIssueComment extends LitElement {
     this.touch();
   }
   render() {
-    if (!this.current) return html``;
+    if (!this.journal.context) return html``;
     const pending = this.writing.pending,
       blocked = this.saved.blocked;
     const body = pending?.body ?? this.writing.draft.body;
-    return html`<section class="soda-issue-comment" aria-label=${this.current.parent.kind === 'pull' ? 'Write pull request comment' : 'Write issue comment'} aria-busy=${this.busy}>
+    return html`<section class="soda-issue-comment" aria-label=${this.journal.context.parent.kind === 'pull' ? 'Write pull request comment' : 'Write issue comment'} aria-busy=${this.busy}>
       <h3>Comment</h3>
       <label
         >Comment Markdown<textarea
@@ -426,7 +384,7 @@ export class SodaFactoryIssueComment extends LitElement {
               type="button"
               ?disabled=${this.busy}
               @click=${() => {
-                this.restore(this.current!, true);
+                this.restore(this.journal.context!, true);
                 this.touch();
                 void this.refresh();
               }}

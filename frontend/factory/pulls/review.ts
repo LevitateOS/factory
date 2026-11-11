@@ -1,11 +1,12 @@
 import {LitElement, html} from 'lit';
-import {check, object, readSodaJSON} from '../api/models.js';
+import {check, object} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {PullRef} from '../api/collaboration.js';
 import {pullActionAllowed} from '../api/capability-response.js';
-import {commandOutcome} from '../api/command-response.js';
 import {getJSON} from '../api/read.js';
+import {commandOutcome} from '../api/command-response.js';
 import {factoryCommandId} from '../api/run-response.js';
+import {JournalCommand} from '../shared/journal-command.js';
 import {pullItem, pullRef, pullReview} from './response.js';
 import {
   emptyReviewWriting, readReviewWriting, reloadReviewWriting, reviewRecordKey,
@@ -26,10 +27,17 @@ const allDenied = () => ({draft: false, comment: false, approve: false, request_
 export class SodaFactoryPullReview extends LitElement {
   static properties = {version: {state: true}};
   declare private version: number;
-  private current: PullReviewContext | undefined;
-  private binding = '';
-  private generation = '';
-  private lifetime = new AbortController();
+  private journal = new JournalCommand<ReviewPending, PullReviewContext>({
+    key: context => JSON.stringify([context.scope, context.host, context.actor, context.repository, context.pull,
+      context.parent.external_id, context.head, context.transport.generation]),
+    words: {
+      attention: 'The saved review needs attention. Check status.',
+      completing: 'The review was recorded; provider completion is pending.',
+      unconfirmed: 'The review is not confirmed. Its original command remains saved.',
+    },
+    say: message => { this.message = message; },
+    retire: () => { this.context = undefined; },
+  });
   private saved: ReviewSaved = {raw: '', writing: undefined, durable: true, blocked: false};
   private writing = emptyReviewWriting();
   private allowed = allDenied();
@@ -38,34 +46,22 @@ export class SodaFactoryPullReview extends LitElement {
 
   constructor() { super(); this.version = 0; }
   protected createRenderRoot() { return this; }
-  get context() { return this.current; }
-  private key(context: PullReviewContext) {
-    return JSON.stringify([context.scope, context.host, context.actor, context.repository, context.pull,
-      context.parent.external_id, context.head, context.transport.generation]);
-  }
+  get context() { return this.journal.context; }
   set context(context: PullReviewContext | undefined) {
-    const key = context && this.key(context);
-    if (context && key === this.binding && this.current) return;
-    this.lifetime.abort(); this.lifetime = new AbortController();
-    this.current = undefined; this.binding = ''; this.allowed = allDenied(); this.busy = false; this.message = '';
+    if (!this.journal.rebind(context)) return;
+    this.allowed = allDenied(); this.busy = false; this.message = '';
     this.writing = emptyReviewWriting();
     if (context) {
       reviewRecordKey(context);
       check(context.parent.kind === 'pull' && context.parent.repository === context.repository && context.parent.number === context.pull);
       check(!!context.parent.external_id.trim() && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(context.head));
-      check(typeof context.commandScope === 'function' && !!context.transport.generation);
-      this.current = context; this.binding = key!; this.generation = context.transport.generation;
+      this.journal.attach(context);
       this.restore(context); void this.refresh();
     }
     this.touch();
   }
   disconnectedCallback() { this.context = undefined; super.disconnectedCallback(); }
   private touch() { this.version++; }
-  private live(context: PullReviewContext, signal: AbortSignal) {
-    if (this.current !== context || this.lifetime.signal !== signal || signal.aborted || context.transport.generation !== this.generation) return false;
-    if (this.key(context) !== this.binding) { this.context = undefined; return false; }
-    return true;
-  }
   private restore(context: PullReviewContext, reload = false) {
     this.saved = reload ? reloadReviewWriting(context) : readReviewWriting(context);
     this.writing = this.saved.writing ?? emptyReviewWriting();
@@ -75,18 +71,14 @@ export class SodaFactoryPullReview extends LitElement {
   private path(context: PullReviewContext) {
     return `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
   }
-  private async identity(context: PullReviewContext, signal: AbortSignal) {
-    const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
-    check(this.live(context, signal) && scope === context.scope);
-  }
   private async admit(context: PullReviewContext, signal: AbortSignal) {
     this.allowed = allDenied();
-    await this.identity(context, signal);
+    await this.journal.identity(context, signal);
     const [raw, caps] = await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
-    check(this.live(context, signal));
+    check(this.journal.live(context, signal));
     const pull = pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id &&
       (pull.head.commit === null || pull.head.commit === context.head) && pull.state === 'open');
@@ -104,12 +96,12 @@ export class SodaFactoryPullReview extends LitElement {
     }
   }
   private async refresh() {
-    const context = this.current, signal = this.lifetime.signal;
-    if (!context || this.busy || !this.live(context, signal)) return;
+    const context = this.journal.context, signal = this.journal.signal;
+    if (!context || this.busy || !this.journal.live(context, signal)) return;
     this.busy = true; this.touch();
     try {
       if (this.writing.pending && !this.saved.blocked) {
-        await this.identity(context, signal);
+        await this.journal.identity(context, signal);
         await this.deliver(context, signal, 'lookup');
       }
       await this.admit(context, signal);
@@ -117,10 +109,10 @@ export class SodaFactoryPullReview extends LitElement {
         ? this.saved.durable ? '' : 'Review writing is only saved in this window.'
         : 'Review actions are unavailable for this account.';
     } catch {
-      if (this.live(context, signal)) this.message = this.writing.pending
+      if (this.journal.live(context, signal)) this.message = this.writing.pending
         ? 'The original review is saved. Check status after access is restored.'
         : 'Review access could not be checked. Your writing was preserved.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+    } finally { if (this.journal.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   private write(context: PullReviewContext, next: ReviewWriting) {
     const result = saveReviewWriting(context, this.saved.raw, next);
@@ -134,8 +126,8 @@ export class SodaFactoryPullReview extends LitElement {
     return result;
   }
   private input(event: Event) {
-    const context = this.current;
-    if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.live(context, this.lifetime.signal)) return;
+    const context = this.journal.context;
+    if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.journal.live(context, this.journal.signal)) return;
     const body = (event.target as HTMLTextAreaElement).value;
     const next: ReviewWriting = {draft: {revision: factoryCommandId(), body}};
     const result = this.write(context, next);
@@ -144,15 +136,15 @@ export class SodaFactoryPullReview extends LitElement {
     this.touch();
   }
   private async act(action: 'submit' | 'retry' | 'lookup' | 'cancel', event?: ReviewEvent) {
-    const context = this.current, signal = this.lifetime.signal;
-    if (!context || !this.live(context, signal) || this.busy || this.saved.blocked) return;
+    const context = this.journal.context, signal = this.journal.signal;
+    if (!context || !this.journal.live(context, signal) || this.busy || this.saved.blocked) return;
     this.busy = true; this.message = ''; this.touch();
     try {
       if (action === 'submit' || action === 'retry') {
         await this.admit(context, signal);
         check(event ? this.allowed[event] : this.writing.pending && this.allowed[this.writing.pending.event]);
         check(action !== 'retry' || !this.writing.pending?.cancel);
-      } else await this.identity(context, signal);
+      } else await this.journal.identity(context, signal);
       const current = readReviewWriting(context), shown = this.writing.pending;
       check(!current.blocked && current.raw === this.saved.raw);
       if (shown) check(current.writing?.pending && sameReviewPending(shown, current.writing.pending));
@@ -171,37 +163,29 @@ export class SodaFactoryPullReview extends LitElement {
       }
       await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
-      if (this.live(context, signal)) this.message = this.writing.pending
+      if (this.journal.live(context, signal)) this.message = this.writing.pending
         ? 'No final outcome was confirmed. The original review remains saved; check status before retrying.'
         : 'Review access or saved writing changed. Nothing was submitted.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+    } finally { if (this.journal.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   private async deliver(context: PullReviewContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
     const pending = this.writing.pending;
-    check(pending && this.live(context, signal));
-    const base = this.path(context) + '/reviews', command = base + '/commands/' + pending.command;
-    const response = await context.transport.request(action === 'submit' ? base : command + (action === 'cancel' ? '/cancel' : ''), {
-      method: action === 'lookup' ? 'GET' : 'POST', headers: {'Content-Type': 'application/json'},
-      signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
-      ...(action === 'lookup' ? {} : {body: JSON.stringify(action === 'submit'
-        ? {command_id: pending.command, event: pending.event, body: pending.body, ...(pending.expectedHead ? {expected_head: pending.head} : {})} : {})}),
+    check(pending);
+    const base = this.path(context) + '/reviews';
+    const outcome = await this.journal.deliver(context, signal, action, pending, {
+      endpoints: {submit: base, commands: base + '/commands'},
+      body: {command_id: pending.command, event: pending.event, body: pending.body, ...(pending.expectedHead ? {expected_head: pending.head} : {})},
+      parse: (body, command) => {
+        const {review, ...fields} = object(body);
+        if (review !== undefined && review !== null) {
+          const ref = object(review);
+          check(pullRef(ref.pull, context.repository, context.pull).external_id === context.parent.external_id);
+          check(typeof ref.external_id === 'string' && !!ref.external_id.trim());
+        }
+        return commandOutcome(fields, command);
+      },
     });
-    check(this.live(context, signal) && response.ok);
-    const raw = object(await readSodaJSON(response));
-    const {review, ...fields} = raw;
-    if (review !== undefined && review !== null) {
-      const ref = object(review);
-      check(pullRef(ref.pull, context.repository, context.pull).external_id === context.parent.external_id);
-      check(typeof ref.external_id === 'string' && !!ref.external_id.trim());
-    }
-    const outcome = commandOutcome(fields, pending.command);
-    check(this.live(context, signal));
-    if (!outcome.finished) {
-      this.message = outcome.completion === 'needs_intervention' ? 'The saved review needs attention. Check status.'
-        : outcome.effect === 'committed' ? 'The review was recorded; provider completion is pending.'
-          : 'The review is not confirmed. Its original command remains saved.';
-      return;
-    }
+    if (outcome.kind !== 'finished') return;
     const latest = readReviewWriting(context);
     check(!latest.blocked && latest.writing?.pending && sameReviewPending(latest.writing.pending, pending));
     const next: ReviewWriting = {draft: latest.writing.draft};
@@ -210,25 +194,26 @@ export class SodaFactoryPullReview extends LitElement {
     const stored = saveReviewWriting(context, latest.raw, next);
     check(stored !== 'conflict');
     this.saved = readReviewWriting(context); this.writing = next;
-    this.message = outcome.effect === 'committed'
-      ? pending.event === 'draft' ? 'Draft review saved. Edit it here or choose a submission action.' : 'Review submitted.'
-      : pending.cancel ? 'Review cancelled; writing preserved.' : 'No review was submitted; writing preserved.';
+    this.message = this.journal.finished(pending, outcome, {
+      committed: pending.event === 'draft' ? 'Draft review saved. Edit it here or choose a submission action.' : 'Review submitted.',
+      cancelled: 'Review cancelled; writing preserved.', none: 'No review was submitted; writing preserved.',
+    });
     if (stored !== 'saved') this.message += ' Local saved state still needs storage.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-review-saved', {detail: {repository: context.repository, pull: context.pull, command: pending.command}}));
   }
   private reload() {
-    const context = this.current;
+    const context = this.journal.context;
     if (!context || this.busy) return;
     this.restore(context, true); this.touch(); void this.refresh();
   }
   async loadDraft(externalID: string) {
-    const context = this.current, signal = this.lifetime.signal;
-    if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.live(context, signal)) return;
+    const context = this.journal.context, signal = this.journal.signal;
+    if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.journal.live(context, signal)) return;
     this.busy = true; this.message = ''; this.touch();
     try {
       await this.admit(context, signal);
       const raw = await getJSON(context.transport, this.path(context) + '/reviews/' + encodeURIComponent(externalID), signal);
-      check(this.live(context, signal));
+      check(this.journal.live(context, signal));
       const review = pullReview(raw, context.repository, context.pull);
       check(review.externalID === externalID && review.pull.external_id === context.parent.external_id &&
         review.authorID === context.actor && review.state === 'pending' && validReviewBody(review.body));
@@ -239,11 +224,11 @@ export class SodaFactoryPullReview extends LitElement {
       if (this.write(context, {draft: {revision: factoryCommandId(), body: review.body}}) === 'saved')
         this.message = 'Saved provider draft loaded. Edit it or choose a submission action.';
     } catch {
-      if (this.live(context, signal)) this.message = 'The saved draft could not be loaded. Your local writing was preserved.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+      if (this.journal.live(context, signal)) this.message = 'The saved draft could not be loaded. Your local writing was preserved.';
+    } finally { if (this.journal.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   render() {
-    const context = this.current;
+    const context = this.journal.context;
     if (!context) return html``;
     const pending = this.writing.pending;
     return html`<section class="soda-pull-review" aria-label="Write pull request review" aria-busy=${this.busy}>

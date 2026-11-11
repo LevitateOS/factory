@@ -1,15 +1,15 @@
 import {LitElement, html} from 'lit';
-import {check, id, object, readSodaJSON} from '../api/models.js';
+import {check, id, object} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef, PullRef} from '../api/collaboration.js';
 import {pullActionAllowed} from '../api/capability-response.js';
 import {issueDetail} from '../api/issue-response.js';
 import {pullItem} from '../pulls/response.js';
-import {commandOutcome} from '../api/command-response.js';
 import {issueEditAllowed, editBodyDigest, sameEditOriginal, scalarEditText} from '../api/issue-edit-response.js';
 import type {EditOriginal} from '../api/issue-edit-response.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {getJSON} from '../api/read.js';
+import {JournalCommand} from '../shared/journal-command.js';
 import {
   editorRecordKey,
   readEditorWriting,
@@ -20,7 +20,7 @@ import {
   sameEditorDraft,
   samePendingEdit,
 } from './editor-record.js';
-import type {EditorAddress, EditorSaved, EditorWriting, EditorDraft} from './editor-record.js';
+import type {EditorAddress, EditorSaved, EditorWriting, EditorDraft, PendingEdit} from './editor-record.js';
 
 export interface IssueEditorContext extends EditorAddress {
   readonly transport: FactoryTransport;
@@ -34,9 +34,34 @@ export type IssueEditorPorts = Omit<IssueEditorContext, 'parent'>;
 export class SodaFactoryIssueEditor extends LitElement {
   static properties = {version: {state: true}};
   declare private version: number;
-  private current: IssueEditorContext | undefined;
-  private binding = '';
-  private lifetime = new AbortController();
+  private journal = new JournalCommand<PendingEdit, IssueEditorContext>({
+    key: (context) =>
+      JSON.stringify([
+        context.scope,
+        context.host,
+        context.actor,
+        context.repository,
+        context.issue,
+        context.kind,
+        context.parent.kind,
+        context.parent.repository,
+        context.parent.number,
+        context.parent.external_id,
+        context.transport.generation,
+      ]),
+    words: {
+      attention: 'The saved edit needs provider attention. Check status before taking another action.',
+      completing: 'The edit was recorded; provider completion is still pending. Check status.',
+      unconfirmed: 'The edit is not confirmed. Its original writing remains saved.',
+    },
+    say: (message) => {
+      this.message = message;
+    },
+    retire: () => {
+      this.context = undefined;
+    },
+    byObject: true,
+  });
   private saved: EditorSaved = {raw: '', writing: undefined, blocked: false, durable: true};
   private writing: EditorWriting = {};
   private latest: EditOriginal | undefined;
@@ -53,30 +78,10 @@ export class SodaFactoryIssueEditor extends LitElement {
     return this;
   }
   get context() {
-    return this.current;
-  }
-  private key(context: IssueEditorContext) {
-    return JSON.stringify([
-      context.scope,
-      context.host,
-      context.actor,
-      context.repository,
-      context.issue,
-      context.kind,
-      context.parent.kind,
-      context.parent.repository,
-      context.parent.number,
-      context.parent.external_id,
-      context.transport.generation,
-    ]);
+    return this.journal.context;
   }
   set context(context: IssueEditorContext | undefined) {
-    const key = context && this.key(context);
-    if (this.current === context && key === this.binding) return;
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.current = undefined;
-    this.binding = '';
+    if (!this.journal.rebind(context)) return;
     this.writing = {};
     this.latest = undefined;
     this.allowed = false;
@@ -94,12 +99,9 @@ export class SodaFactoryIssueEditor extends LitElement {
       );
       check(
         typeof context.parent.external_id === 'string' &&
-          !!context.parent.external_id.trim() &&
-          typeof context.commandScope === 'function' &&
-          !!context.transport.generation
+          !!context.parent.external_id.trim()
       );
-      this.current = context;
-      this.binding = key!;
+      this.journal.attach(context);
       this.restore(context);
       void this.refresh();
     }
@@ -112,15 +114,7 @@ export class SodaFactoryIssueEditor extends LitElement {
   private touch() {
     this.version++;
   }
-  private subjectLabel() { return this.current?.kind === 'pull' ? 'pull request' : 'issue'; }
-  private live(context: IssueEditorContext, signal: AbortSignal): boolean {
-    if (this.current !== context || this.lifetime.signal !== signal || signal.aborted) return false;
-    if (this.key(context) !== this.binding) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
+  private subjectLabel() { return this.journal.context?.kind === 'pull' ? 'pull request' : 'issue'; }
   private restore(context: IssueEditorContext, reload = false) {
     this.saved = reload ? reloadEditorWriting(context) : readEditorWriting(context);
     this.writing = this.saved.writing ?? {};
@@ -134,19 +128,14 @@ export class SodaFactoryIssueEditor extends LitElement {
   private path(context: IssueEditorContext) {
     return `factory/collaboration/repositories/${context.repository}/${context.kind === 'pull' ? 'pulls' : 'issues'}/${context.issue}`;
   }
-  private async identity(context: IssueEditorContext, signal: AbortSignal) {
-    signal.throwIfAborted();
-    const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
-    check(this.live(context, signal) && scope === context.scope);
-  }
   private async readCurrent(context: IssueEditorContext, signal: AbortSignal) {
     this.allowed = false;
-    await this.identity(context, signal);
+    await this.journal.identity(context, signal);
     const [value, capabilities] = await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
-    check(this.live(context, signal));
+    check(this.journal.live(context, signal));
     const issue = context.kind === 'pull'
       ? pullItem(value, context.host, context.repository, context.issue)
       : issueDetail(value, context.host, context.repository, context.issue);
@@ -156,7 +145,7 @@ export class SodaFactoryIssueEditor extends LitElement {
         new TextEncoder().encode(issue.title).length <= 65536
     );
     const digest = await editBodyDigest(issue.body);
-    check(this.live(context, signal));
+    check(this.journal.live(context, signal));
     this.latest = {external: issue.ref.external_id, title: issue.title, body: issue.body, digest};
     if (context.kind === 'pull') {
       check(context.parent.kind === 'pull');
@@ -171,20 +160,20 @@ export class SodaFactoryIssueEditor extends LitElement {
     }
   }
   private async refresh() {
-    const context = this.current,
-      signal = this.lifetime.signal;
-    if (!context || this.busy || !this.live(context, signal)) return;
+    const context = this.journal.context,
+      signal = this.journal.signal;
+    if (!context || this.busy || !this.journal.live(context, signal)) return;
     this.busy = true;
     this.touch();
     try {
-      await this.identity(context, signal);
+      await this.journal.identity(context, signal);
       if (this.writing.pending && !this.saved.blocked) {
         try {
           await this.readCurrent(context, signal);
         } catch {
           this.allowed = false;
         }
-        check(this.live(context, signal));
+        check(this.journal.live(context, signal));
         await this.deliver(context, signal, 'lookup');
       } else {
         await this.readCurrent(context, signal);
@@ -198,12 +187,12 @@ export class SodaFactoryIssueEditor extends LitElement {
                 : '';
       }
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original edit remains saved. Check status before retrying.'
           : `${this.subjectLabel()} edit access could not be checked. Your writing was preserved.`;
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
@@ -225,9 +214,9 @@ export class SodaFactoryIssueEditor extends LitElement {
     return result;
   }
   private async begin() {
-    const context = this.current,
-      signal = this.lifetime.signal;
-    if (!context || this.busy || !this.live(context, signal)) return;
+    const context = this.journal.context,
+      signal = this.journal.signal;
+    if (!context || this.busy || !this.journal.live(context, signal)) return;
     this.busy = true;
     this.opened = true;
     this.touch();
@@ -245,19 +234,19 @@ export class SodaFactoryIssueEditor extends LitElement {
         });
       }
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = `The current ${this.subjectLabel()} could not be opened for editing. Saved writing was preserved.`;
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
     }
   }
   private input(event: Event, field: 'title' | 'body') {
-    const context = this.current,
+    const context = this.journal.context,
       draft = this.writing.draft;
-    if (!context || !draft || this.writing.pending || this.saved.blocked || !this.live(context, this.lifetime.signal))
+    if (!context || !draft || this.writing.pending || this.saved.blocked || !this.journal.live(context, this.journal.signal))
       return;
     const next: EditorWriting = {
       draft: {...draft, revision: factoryCommandId(), [field]: (event.target as HTMLInputElement).value},
@@ -268,7 +257,7 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.touch();
   }
   private useCurrent() {
-    const context = this.current,
+    const context = this.journal.context,
       latest = this.latest,
       draft = this.writing.draft;
     if (
@@ -278,7 +267,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       this.busy ||
       this.writing.pending ||
       this.saved.blocked ||
-      !this.live(context, this.lifetime.signal)
+      !this.journal.live(context, this.journal.signal)
     )
       return;
     if (draft.original.external !== context.parent.external_id) return;
@@ -294,11 +283,11 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.touch();
   }
   private async act(action: 'submit' | 'lookup' | 'cancel') {
-    const context = this.current,
-      signal = this.lifetime.signal;
+    const context = this.journal.context,
+      signal = this.journal.signal;
     if (
       !context ||
-      !this.live(context, signal) ||
+      !this.journal.live(context, signal) ||
       this.busy ||
       this.saved.blocked ||
       this.noEffect === this.writing.pending?.command
@@ -318,8 +307,8 @@ export class SodaFactoryIssueEditor extends LitElement {
           return;
         }
         check(shown ? validEditDraft(shown.source) : this.writing.draft && validEditDraft(this.writing.draft));
-      } else await this.identity(context, signal);
-      check(this.live(context, signal));
+      } else await this.journal.identity(context, signal);
+      check(this.journal.live(context, signal));
       const current = readEditorWriting(context),
         same = shown
           ? !!current.writing?.pending && samePendingEdit(shown, current.writing.pending)
@@ -346,12 +335,12 @@ export class SodaFactoryIssueEditor extends LitElement {
       if (this.write(context, {...this.writing, pending}) !== 'saved') return;
       await this.deliver(context, signal, action);
     } catch {
-      if (this.live(context, signal))
+      if (this.journal.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original edit remains saved. Check status before retrying.'
           : `${this.subjectLabel()} access or saved writing changed. Nothing was submitted; check access and reload saved writing.`;
     } finally {
-      if (this.live(context, signal)) {
+      if (this.journal.live(context, signal)) {
         this.busy = false;
         this.touch();
       }
@@ -359,44 +348,19 @@ export class SodaFactoryIssueEditor extends LitElement {
   }
   private async deliver(context: IssueEditorContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
     const pending = this.writing.pending;
-    check(pending && pending.source.original.external === context.parent.external_id && this.live(context, signal));
+    check(pending && pending.source.original.external === context.parent.external_id);
     const original = pending.source.original;
-    check((await editBodyDigest(original.body)) === original.digest && this.live(context, signal));
-    const base = this.path(context) + '/edits',
-      command = base + '/commands/' + pending.command;
-    const response = await context.transport.request(
-      action === 'submit' ? base : command + (action === 'cancel' ? '/cancel' : ''),
-      {
-        method: action === 'lookup' ? 'GET' : 'POST',
-        headers: {'Content-Type': 'application/json'},
-        signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
-        ...(action === 'lookup'
-          ? {}
-          : {
-              body: JSON.stringify(
-                action === 'submit'
-                  ? {
-                      command_id: pending.command,
-                      ...editFields(pending.source),
-                      expected: {external_id: original.external, title: original.title, body_digest: original.digest},
-                    }
-                  : {}
-              ),
-            }),
-      }
-    );
-    check(this.live(context, signal) && response.ok);
-    const outcome = commandOutcome(await readSodaJSON(response), pending.command);
-    check(this.live(context, signal));
-    if (!outcome.finished) {
-      this.message =
-        outcome.completion === 'needs_intervention'
-          ? 'The saved edit needs provider attention. Check status before taking another action.'
-          : outcome.effect === 'committed'
-            ? 'The edit was recorded; provider completion is still pending. Check status.'
-            : 'The edit is not confirmed. Its original writing remains saved.';
-      return;
-    }
+    check((await editBodyDigest(original.body)) === original.digest && this.journal.live(context, signal));
+    const base = this.path(context) + '/edits';
+    const outcome = await this.journal.deliver(context, signal, action, pending, {
+      endpoints: {submit: base, commands: base + '/commands'},
+      body: {
+        command_id: pending.command,
+        ...editFields(pending.source),
+        expected: {external_id: original.external, title: original.title, body_digest: original.digest},
+      },
+    });
+    if (outcome.kind !== 'finished') return;
     const latest = readEditorWriting(context);
     check(!latest.blocked && latest.writing?.pending && samePendingEdit(latest.writing.pending, pending));
     const draft = latest.writing.draft;
@@ -424,12 +388,11 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.saved = readEditorWriting(context);
     this.writing = next;
     this.opened = !!next.draft;
-    this.message =
-      outcome.effect === 'committed'
-        ? `${this.subjectLabel()} changes saved.`
-        : pending.cancel
-          ? 'Edit submission cancelled. Your draft was preserved.'
-          : `No changes were saved. Your draft was preserved. Check the current ${this.subjectLabel()} before retrying.`;
+    this.message = this.journal.finished(pending, outcome, {
+      committed: `${this.subjectLabel()} changes saved.`,
+      cancelled: 'Edit submission cancelled. Your draft was preserved.',
+      none: `No changes were saved. Your draft was preserved. Check the current ${this.subjectLabel()} before retrying.`,
+    });
     if (stored !== 'saved') this.message += ' The local saved state still needs storage.';
     if (outcome.effect === 'committed') {
       const detail = {host: context.host, actor: context.actor, scope: context.scope,
@@ -439,14 +402,14 @@ export class SodaFactoryIssueEditor extends LitElement {
     }
   }
   private continueWriting() {
-    const context = this.current,
+    const context = this.journal.context,
       pending = this.writing.pending;
     if (
       !context ||
       !pending ||
       this.noEffect !== pending.command ||
       this.busy ||
-      !this.live(context, this.lifetime.signal)
+      !this.journal.live(context, this.journal.signal)
     )
       return;
     const latest = readEditorWriting(context);
@@ -463,7 +426,7 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.touch();
   }
   render() {
-    if (!this.current) return html``;
+    if (!this.journal.context) return html``;
     const subject = this.subjectLabel();
     if (!this.opened)
       return html`<section class="soda-issue-editor" aria-label=${`${subject} editor`} aria-busy=${this.busy}>
@@ -553,7 +516,7 @@ export class SodaFactoryIssueEditor extends LitElement {
               ></textarea
               ><button
                 type="button"
-                ?disabled=${this.busy || blocked || !this.allowed || draft.original.external !== this.current.parent.external_id}
+                ?disabled=${this.busy || blocked || !this.allowed || draft.original.external !== this.journal.context.parent.external_id}
                 @click=${this.useCurrent}
               >
                 Use current ${subject} as base
@@ -582,7 +545,7 @@ export class SodaFactoryIssueEditor extends LitElement {
               type="button"
               ?disabled=${this.busy}
               @click=${() => {
-                this.restore(this.current!, true);
+                this.restore(this.journal.context!, true);
                 this.touch();
                 void this.refresh();
               }}

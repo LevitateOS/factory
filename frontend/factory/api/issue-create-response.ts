@@ -1,6 +1,6 @@
 import {check, id, object} from './models.js';
 import {issueActionAllowed} from './capability-response.js';
-import {commandOutcome} from './command-response.js';
+import {commandOutcome, outcomeCommitted} from './command-response.js';
 import type {CommandOutcome} from './command-response.js';
 import type {IssueRef} from './collaboration.js';
 
@@ -29,6 +29,6 @@ export function issueCreateOutcome(
     {issue, ...outcome} = row;
   check(Object.hasOwn(row, 'issue'));
   const result = commandOutcome(outcome, command);
-  check(issue === null || result.effect === 'committed');
+  check(issue === null || outcomeCommitted(result));
   return {...result, issue: issue === null ? null : createdIssueRef(issue, repository)};
 }

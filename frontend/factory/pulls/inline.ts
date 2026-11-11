@@ -1,18 +1,18 @@
 import {LitElement, html} from 'lit';
-import {check, object, readSodaJSON} from '../api/models.js';
+import {check, object} from '../api/models.js';
 import type {ChangedFile, PullRef, ReviewAnchor} from '../api/collaboration.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {pullActionAllowed} from '../api/capability-response.js';
-import {commandOutcome} from '../api/command-response.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
+import {JournalCommand} from '../shared/journal-command.js';
 import type {DiffThread, ReviewDraft} from '../review/diff.js';
 import '../review/diff.js';
 import {humanAnchor} from './anchor.js';
 import {pullItem, type PullThreadView} from './response.js';
 import {
   inlineRecordKey, newInlineDraft, readInlineWriting, reloadInlineWriting, sameInlinePending,
-  saveInlineWriting, validInlineBody, validInlineDraftBody, type InlineAddress, type InlineSaved, type InlineWriting,
+  saveInlineWriting, validInlineBody, validInlineDraftBody, type InlineAddress, type InlinePending, type InlineSaved, type InlineWriting,
 } from './inline-record.js';
 
 export interface PullInlineContext extends InlineAddress {
@@ -33,10 +33,17 @@ export class SodaFactoryPullInline extends LitElement {
   declare private version: number;
   declare files: readonly ChangedFile[];
   declare threads: readonly PullThreadView[];
-  private current: PullInlineContext | undefined;
-  private binding = '';
-  private generation = '';
-  private lifetime = new AbortController();
+  private journal = new JournalCommand<InlinePending, PullInlineContext>({
+    key: context => JSON.stringify([context.scope, context.host, context.actor, context.repository, context.pull,
+      context.parent.external_id, context.head, context.transport.generation]),
+    words: {
+      attention: 'The saved inline comment needs attention. Check status.',
+      completing: 'Inline comment recorded; completion is pending.',
+      unconfirmed: 'The inline comment is not confirmed. Its original command remains saved.',
+    },
+    say: message => { this.message = message; },
+    retire: () => { this.context = undefined; },
+  });
   private saved: InlineSaved = {raw: '', writing: undefined, durable: true, blocked: false};
   private writing: InlineWriting = {};
   private allowed = false;
@@ -46,32 +53,20 @@ export class SodaFactoryPullInline extends LitElement {
 
   constructor() { super(); this.version = 0; this.files = []; this.threads = []; }
   protected createRenderRoot() { return this; }
-  get context() { return this.current; }
-  private key(context: PullInlineContext) {
-    return JSON.stringify([context.scope, context.host, context.actor, context.repository, context.pull,
-      context.parent.external_id, context.head, context.transport.generation]);
-  }
+  get context() { return this.journal.context; }
   set context(context: PullInlineContext | undefined) {
-    const key = context && this.key(context);
-    if (context && key === this.binding && this.current) return;
-    this.lifetime.abort(); this.lifetime = new AbortController();
-    this.current = undefined; this.binding = ''; this.allowed = false; this.publishAllowed = false; this.busy = false; this.message = ''; this.writing = {};
+    if (!this.journal.rebind(context)) return;
+    this.allowed = false; this.publishAllowed = false; this.busy = false; this.message = ''; this.writing = {};
     if (context) {
       inlineRecordKey(context);
       check(!!context.parent.external_id.trim() && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(context.head));
-      check(typeof context.commandScope === 'function' && !!context.transport.generation);
-      this.current = context; this.binding = key!; this.generation = context.transport.generation;
+      this.journal.attach(context);
       this.restore(context); void this.refresh();
     }
     this.touch();
   }
   disconnectedCallback() { this.context = undefined; super.disconnectedCallback(); }
   private touch() { this.version++; }
-  private live(context: PullInlineContext, signal: AbortSignal) {
-    if (this.current !== context || this.lifetime.signal !== signal || signal.aborted || context.transport.generation !== this.generation) return false;
-    if (this.key(context) !== this.binding) { this.context = undefined; return false; }
-    return true;
-  }
   private restore(context: PullInlineContext, reload = false) {
     this.saved = reload ? reloadInlineWriting(context) : readInlineWriting(context);
     this.writing = this.saved.writing ?? {};
@@ -81,18 +76,14 @@ export class SodaFactoryPullInline extends LitElement {
   private path(context: PullInlineContext) {
     return `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
   }
-  private async identity(context: PullInlineContext, signal: AbortSignal) {
-    const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
-    check(this.live(context, signal) && scope === context.scope);
-  }
   private async admit(context: PullInlineContext, signal: AbortSignal) {
     this.allowed = false; this.publishAllowed = false;
-    await this.identity(context, signal);
+    await this.journal.identity(context, signal);
     const [raw, caps] = await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
-    check(this.live(context, signal));
+    check(this.journal.live(context, signal));
     const pull = pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id);
     this.allowed = pull.state === 'open' && (pull.head.commit === null || pull.head.commit === context.head) &&
@@ -106,18 +97,18 @@ export class SodaFactoryPullInline extends LitElement {
     }
   }
   private async refresh() {
-    const context = this.current, signal = this.lifetime.signal;
-    if (!context || this.busy || !this.live(context, signal)) return;
+    const context = this.journal.context, signal = this.journal.signal;
+    if (!context || this.busy || !this.journal.live(context, signal)) return;
     this.busy = true; this.touch();
     try {
-      if (this.writing.pending && !this.saved.blocked) { await this.identity(context, signal); await this.deliver(context, signal, 'lookup'); }
+      if (this.writing.pending && !this.saved.blocked) { await this.journal.identity(context, signal); await this.deliver(context, signal, 'lookup'); }
       await this.admit(context, signal);
       if (!this.writing.pending && !this.saved.blocked && !this.message) this.message = this.allowed ? '' : 'Inline commenting is unavailable for this account.';
     } catch {
-      if (this.live(context, signal)) this.message = this.writing.pending
+      if (this.journal.live(context, signal)) this.message = this.writing.pending
         ? 'The original inline comment is saved. Check status after access is restored.'
         : 'Inline comment access could not be checked. Your writing was preserved.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+    } finally { if (this.journal.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   private write(context: PullInlineContext, next: InlineWriting) {
     const result = saveInlineWriting(context, this.saved.raw, next);
@@ -128,8 +119,8 @@ export class SodaFactoryPullInline extends LitElement {
     return result;
   }
   private changeDraft(event: CustomEvent<ReviewDraft | null>) {
-    const context = this.current;
-    if (!context || !this.live(context, this.lifetime.signal) || this.busy || !this.allowed || this.writing.pending || this.saved.blocked) return;
+    const context = this.journal.context;
+    if (!context || !this.journal.live(context, this.journal.signal) || this.busy || !this.allowed || this.writing.pending || this.saved.blocked) return;
     event.stopPropagation();
     try {
       const selected = event.detail;
@@ -151,15 +142,15 @@ export class SodaFactoryPullInline extends LitElement {
     }
   }
   private async act(action: 'submit' | 'retry' | 'lookup' | 'cancel', draft = false) {
-    const context = this.current, signal = this.lifetime.signal;
-    if (!context || !this.live(context, signal) || this.busy || this.saved.blocked) return;
+    const context = this.journal.context, signal = this.journal.signal;
+    if (!context || !this.journal.live(context, signal) || this.busy || this.saved.blocked) return;
     this.busy = true; this.message = ''; this.touch();
     try {
       if (action === 'submit' || action === 'retry') {
         await this.admit(context, signal);
         check(this.allowed && ((action === 'retry' ? this.writing.pending?.draft : draft) || this.publishAllowed));
       }
-      else await this.identity(context, signal);
+      else await this.journal.identity(context, signal);
       const latest = readInlineWriting(context), shown = this.writing.pending;
       check(!latest.blocked && latest.raw === this.saved.raw);
       if (shown) check(latest.writing?.pending && sameInlinePending(shown, latest.writing.pending));
@@ -177,30 +168,20 @@ export class SodaFactoryPullInline extends LitElement {
       }
       await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
-      if (this.live(context, signal)) this.message = this.writing.pending
+      if (this.journal.live(context, signal)) this.message = this.writing.pending
         ? 'No final inline comment outcome was confirmed. Check the saved command before retrying.'
         : 'Inline comment access or saved writing changed. Nothing was submitted.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+    } finally { if (this.journal.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   private async deliver(context: PullInlineContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
     const pending = this.writing.pending;
-    check(pending && this.live(context, signal));
-    const base = this.path(context) + '/inline-comments', command = base + '/commands/' + pending.command;
-    const response = await context.transport.request(action === 'submit' ? base : command + (action === 'cancel' ? '/cancel' : ''), {
-      method: action === 'lookup' ? 'GET' : 'POST', headers: {'Content-Type': 'application/json'},
-      signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
-      ...(action === 'lookup' ? {} : {body: JSON.stringify(action === 'submit'
-        ? {command_id: pending.command, anchor: humanAnchor(pending.source.anchor, context.parent), draft: pending.draft, body: pending.source.body} : {})}),
+    check(pending);
+    const base = this.path(context) + '/inline-comments';
+    const outcome = await this.journal.deliver(context, signal, action, pending, {
+      endpoints: {submit: base, commands: base + '/commands'},
+      body: {command_id: pending.command, anchor: humanAnchor(pending.source.anchor, context.parent), draft: pending.draft, body: pending.source.body},
     });
-    check(this.live(context, signal) && response.ok);
-    const outcome = commandOutcome(await readSodaJSON(response), pending.command);
-    check(this.live(context, signal));
-    if (!outcome.finished) {
-      this.message = outcome.completion === 'needs_intervention' ? 'The saved inline comment needs attention. Check status.'
-        : outcome.effect === 'committed' ? 'Inline comment recorded; completion is pending.'
-          : 'The inline comment is not confirmed. Its original command remains saved.';
-      return;
-    }
+    if (outcome.kind !== 'finished') return;
     const latest = readInlineWriting(context);
     check(!latest.blocked && latest.writing?.pending && sameInlinePending(latest.writing.pending, pending));
     const next: InlineWriting = {};
@@ -208,23 +189,25 @@ export class SodaFactoryPullInline extends LitElement {
     const stored = saveInlineWriting(context, latest.raw, next);
     check(stored !== 'conflict');
     this.saved = readInlineWriting(context); this.writing = next;
-    this.message = outcome.effect === 'committed' ? pending.draft ? 'Draft inline comment saved.' : 'Inline comment posted.'
-      : pending.cancel ? 'Inline comment cancelled; writing preserved.' : 'No inline comment was posted; writing preserved.';
+    this.message = this.journal.finished(pending, outcome, {
+      committed: pending.draft ? 'Draft inline comment saved.' : 'Inline comment posted.',
+      cancelled: 'Inline comment cancelled; writing preserved.', none: 'No inline comment was posted; writing preserved.',
+    });
     if (stored !== 'saved') this.message += ' Local saved state still needs storage.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-inline-saved', {detail: {repository: context.repository, pull: context.pull, command: pending.command}}));
   }
   private reload() {
-    const context = this.current;
+    const context = this.journal.context;
     if (!context || this.busy) return;
     this.restore(context, true); this.touch(); void this.refresh();
   }
   private discardDraft() {
-    const context = this.current;
-    if (!context || !this.live(context, this.lifetime.signal) || this.busy || this.writing.pending || this.saved.blocked) return;
+    const context = this.journal.context;
+    if (!context || !this.journal.live(context, this.journal.signal) || this.busy || this.writing.pending || this.saved.blocked) return;
     if (this.write(context, {}) === 'saved') this.message = 'Unsent inline draft discarded.';
   }
   render() {
-    const context = this.current;
+    const context = this.journal.context;
     if (!context) return html``;
     const draft = this.writing.draft, pending = this.writing.pending;
     const available = this.allowed && !this.busy && !pending && !this.saved.blocked && this.saved.durable;
