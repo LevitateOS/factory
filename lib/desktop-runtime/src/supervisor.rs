@@ -524,6 +524,10 @@ impl NativeSupervisor {
     pub fn stop(mut self) -> Result<()> {
         self.stop_inner()
     }
+    /// A local snapshot only: no provider request or credential read is made.
+    pub fn github_traffic(&self) -> Option<crate::github_provider::TrafficSnapshot> {
+        self.github.traffic_snapshot()
+    }
     pub(crate) fn github_client(&self) -> Result<crate::github_provider::Client> {
         if !self.alive.load(Ordering::SeqCst) {
             return Err("native runtime is retired".into());

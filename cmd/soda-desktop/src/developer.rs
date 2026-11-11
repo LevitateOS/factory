@@ -276,8 +276,9 @@ async fn dispatch(app: tauri::AppHandle, request: wire::Request) -> Value {
     }
     if matches!(request.operation, wire::Operation::Status) {
         let status = desktop.status();
+        let github_traffic = desktop.runtime.lock().unwrap().as_ref().and_then(|runtime| runtime.github_traffic());
         let windows: Vec<_> = app.webview_windows().values().map(|w| json!({"label":w.label(),"visible":w.is_visible().unwrap_or(false),"minimized":w.is_minimized().unwrap_or(false)})).collect();
-        return json!({"ok":true,"version":1,"provenance":"native_status","session":dev.session,"mode":dev.mode.name(),"release":dev.release,"runtime":status,"windows":windows,"capabilities":["tree","click","fill","select","check","wait"],"action_capacity":ACTION_LIMIT});
+        return json!({"ok":true,"version":1,"provenance":"native_status","session":dev.session,"mode":dev.mode.name(),"release":dev.release,"runtime":status,"github_traffic":github_traffic,"windows":windows,"capabilities":["tree","click","fill","select","check","wait"],"action_capacity":ACTION_LIMIT});
     }
     if request.is_action() && dev.mode != Mode::Control {
         return wire::error("control_mode_required");

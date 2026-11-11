@@ -15,6 +15,104 @@ use zeroize::Zeroizing;
 
 const MAX_REQUESTS: usize = 16;
 const TIMEOUT: Duration = Duration::from_secs(8);
+/// Local counters for this native owner. Buckets contain only fixed labels;
+/// no request URLs, identities, credentials or provider text are retained.
+#[derive(Clone, Default, serde::Serialize)]
+pub struct TrafficSnapshot {
+    attempts: u64,
+    responses: u64,
+    rate_hold_suppressions: u64,
+    requests: BTreeMap<&'static str, BTreeMap<&'static str, TrafficCounts>>,
+    rate_limits: BTreeMap<&'static str, RateLimit>,
+}
+#[derive(Clone, Default, serde::Serialize)]
+struct TrafficCounts {
+    attempts: u64,
+    responses: u64,
+    rate_hold_suppressions: u64,
+}
+#[derive(Clone, serde::Serialize)]
+struct RateLimit {
+    limit: Option<u64>,
+    remaining: Option<u64>,
+    used: Option<u64>,
+    reset: Option<u64>,
+}
+#[derive(Clone, Copy)]
+enum TrafficEvent {
+    Attempt,
+    Response,
+    RateHold,
+}
+type Traffic = Mutex<TrafficSnapshot>;
+fn count_traffic(traffic: &Traffic, category: (&'static str, &'static str), event: TrafficEvent) {
+    let Ok(mut snapshot) = traffic.lock() else { return };
+    let total = match event {
+        TrafficEvent::Attempt => &mut snapshot.attempts,
+        TrafficEvent::Response => &mut snapshot.responses,
+        TrafficEvent::RateHold => &mut snapshot.rate_hold_suppressions,
+    };
+    *total = total.saturating_add(1);
+    let counts = snapshot.requests.entry(category.0).or_default().entry(category.1).or_default();
+    let count = match event {
+        TrafficEvent::Attempt => &mut counts.attempts,
+        TrafficEvent::Response => &mut counts.responses,
+        TrafficEvent::RateHold => &mut counts.rate_hold_suppressions,
+    };
+    *count = count.saturating_add(1);
+}
+fn traffic_category(request: &reqwest::Request) -> (&'static str, &'static str) {
+    let method = match request.method().as_str() {
+        "GET" => "GET", "POST" => "POST", "PUT" => "PUT", "PATCH" => "PATCH", "DELETE" => "DELETE", _ => "other",
+    };
+    let path: Vec<_> = request.url().path().trim_matches('/').split('/').collect();
+    let endpoint = match (request.url().host_str(), path.as_slice()) {
+        (Some("api.github.com"), ["graphql"]) => "graphql",
+        (Some("api.github.com"), ["user"]) => "identity",
+        (Some("api.github.com"), ["user", "repos"]) => "repositories",
+        (Some("api.github.com"), ["users", _] | ["user", _]) => "actor",
+        (Some("api.github.com"), ["repositories", _] | ["repos", _, _]) => "repository",
+        (Some("api.github.com"), ["repos", _, _, "collaborators", _, "permission"]) => "repository_permission",
+        (Some("api.github.com"), ["repos", _, _, "issues"]) => "issues",
+        (Some("api.github.com"), ["repos", _, _, "issues", _]) => "issue",
+        (Some("api.github.com"), ["repos", _, _, "issues", _, "comments"] | ["repos", _, _, "issues", "comments", _]) => "issue_comments",
+        (Some("api.github.com"), ["repos", _, _, "pulls"]) => "pulls",
+        (Some("api.github.com"), ["repos", _, _, "pulls", _]) => "pull",
+        (Some("api.github.com"), ["repos", _, _, "pulls", "comments", _] | ["repos", _, _, "pulls", _, "comments"]) => "pull_comments",
+        (Some("api.github.com"), ["repos", _, _, "pulls", _, "reviews", ..]) => "pull_reviews",
+        (Some("api.github.com"), ["repos", _, _, "pulls", _, "files"]) => "pull_files",
+        (Some("api.github.com"), ["repos", _, _, "pulls", _, "requested_reviewers"]) => "pull_requested_reviewers",
+        (Some("api.github.com"), ["repos", _, _, "commits", _, "check-runs"] | ["repos", _, _, "check-runs", _]) => "check_runs",
+        (Some("api.github.com"), ["repos", _, _, "commits", _, "statuses"] | ["repos", _, _, "statuses", _]) => "statuses",
+        (Some("api.github.com"), ["repos", _, _, "actions", ..]) => "actions",
+        (Some("api.github.com"), ["repos", _, _, "branches", ..]) => "branches",
+        (Some("api.github.com"), ["repos", _, _, "rules", ..]) => "rules",
+        (Some("api.github.com"), ["repos", _, _, "compare", _]) => "compare",
+        (Some("api.github.com"), ["repos", _, _, "git", ..]) => "git_objects",
+        (Some("api.github.com"), ["repos", _, _, "contents", ..]) => "contents",
+        (Some("api.github.com"), ["search", ..]) => "search",
+        (Some("github.com"), ["login", "device", "code"]) => "oauth_device",
+        (Some("github.com"), ["login", "oauth", "access_token"]) => "oauth_token",
+        (Some("github.com"), [_, _, "info", "refs"]) => "git_refs",
+        (Some("github.com"), [_, _, "git-upload-pack"]) => "git_upload_pack",
+        (Some("github.com"), [_, _, "git-receive-pack"]) => "git_receive_pack",
+        _ => "other",
+    };
+    (endpoint, method)
+}
+fn capture_rate_limit(traffic: &Traffic, headers: &header::HeaderMap) {
+    let facts = RateLimit {
+        limit: integer(headers, "x-ratelimit-limit"),
+        remaining: integer(headers, "x-ratelimit-remaining"),
+        used: integer(headers, "x-ratelimit-used"),
+        reset: integer(headers, "x-ratelimit-reset"),
+    };
+    if facts.limit.is_none() && facts.remaining.is_none() && facts.used.is_none() && facts.reset.is_none() { return; }
+    let resource = match headers.get("x-ratelimit-resource").and_then(|v| v.to_str().ok()) {
+        Some("core") => "core", Some("graphql") => "graphql", Some("search") => "search", _ => "other",
+    };
+    if let Ok(mut snapshot) = traffic.lock() { snapshot.rate_limits.insert(resource, facts); }
+}
 pub(crate) struct Response {
     pub value: Value,
     pub next: u32,
@@ -74,6 +172,7 @@ pub struct Client {
     retired: watch::Sender<bool>,
     slots: Arc<Semaphore>,
     alive: Arc<AtomicBool>,
+    traffic: Arc<Traffic>,
     pub(super) mutations: Arc<tokio::sync::Mutex<Instant>>,
 }
 /// Headless owner. Stop/drop cancels and joins outstanding provider requests.
@@ -106,12 +205,14 @@ impl Owner {
         })?;
         let (requests, mut inbox) = mpsc::channel::<Job>(MAX_REQUESTS);
         let rate_holds = Arc::new(RateHolds::new(BTreeMap::new()));
+        let traffic = Arc::new(Traffic::new(TrafficSnapshot::default()));
         let (retired, mut retirement) = watch::channel(false);
         let handle = Client {
             requests,
             retired,
             slots: Arc::new(Semaphore::new(MAX_REQUESTS)),
             alive: alive.clone(),
+            traffic: traffic.clone(),
             mutations: Arc::new(tokio::sync::Mutex::new(Instant::now())),
         };
         let thread = thread::Builder::new().name("factory-github-session".into()).spawn(move || {
@@ -121,7 +222,7 @@ impl Owner {
                     tokio::select! {
                         biased;
                         _ = retirement.changed() => break,
-                        Some(job) = inbox.recv() => { tasks.spawn(run(job, http.clone(), alive.clone(), rate_holds.clone())); }
+                        Some(job) = inbox.recv() => { tasks.spawn(run(job, http.clone(), alive.clone(), rate_holds.clone(), traffic.clone())); }
                         _ = tasks.join_next(), if !tasks.is_empty() => {}
                     }
                 }
@@ -245,6 +346,9 @@ impl GitService {
 }
 
 impl Client {
+    pub fn traffic_snapshot(&self) -> Option<TrafficSnapshot> {
+        self.traffic.lock().ok().map(|snapshot| snapshot.clone())
+    }
     pub(super) async fn git_request(
         &self,
         name: &str,
@@ -494,14 +598,14 @@ impl Client {
         tokio::select! { biased; _ = retirement.changed() => Err(Failure::unavailable()), _ = tokio::time::sleep(duration) => self.current() }
     }
 }
-async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>, rate_holds: Arc<RateHolds>) {
+async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>, rate_holds: Arc<RateHolds>, traffic: Arc<Traffic>) {
     let result = if !alive.load(Ordering::SeqCst) {
         Err(Failure::unavailable())
     } else {
         tokio::select! {
             biased;
             _ = job.cancelled.changed() => Err(Failure::unavailable()),
-            value = wire(&http, job.request, &rate_holds) => value,
+            value = wire(&http, job.request, &rate_holds, &traffic) => value,
         }
     };
     let result = if alive.load(Ordering::SeqCst) {
@@ -514,7 +618,7 @@ async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>, rate_holds: Arc<R
         _permit: job.permit,
     });
 }
-async fn wire(http: &Http, request: Request, rate_holds: &RateHolds) -> Result<Wire> {
+async fn wire(http: &Http, request: Request, rate_holds: &RateHolds, traffic: &Traffic) -> Result<Wire> {
     let (request, limit) = match request {
         Request::Provider(build) => build(http)?,
         Request::Api { path, query, token } => {
@@ -544,6 +648,7 @@ async fn wire(http: &Http, request: Request, rate_holds: &RateHolds) -> Result<W
         ),
     };
     let request = request.build().map_err(network_failure)?;
+    let category = traffic_category(&request);
     // Repeated authenticated GETs honor the provider's read-quota hold. Retain
     // only a credential fingerprint and host; OAuth and mutation transport keep
     // their existing admission and causal-response paths.
@@ -557,10 +662,15 @@ async fn wire(http: &Http, request: Request, rate_holds: &RateHolds) -> Result<W
         if let Some(hold) = holds.get(key) {
             let mut failure = hold.failure.clone();
             failure.retry_after = Some(hold.until.duration_since(now).as_secs().saturating_add(1));
+            count_traffic(traffic, category, TrafficEvent::RateHold);
             return Err(failure);
         }
     }
+    count_traffic(traffic, category, TrafficEvent::Attempt);
     let mut response = http.execute(request).await.map_err(network_failure)?;
+    // A response means HTTP headers arrived, even if a later body read fails.
+    count_traffic(traffic, category, TrafficEvent::Response);
+    capture_rate_limit(traffic, response.headers());
     if response
         .headers()
         .iter()

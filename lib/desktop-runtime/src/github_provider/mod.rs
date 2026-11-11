@@ -67,7 +67,7 @@ pub use review_submit::PendingReviewSubmit;
 pub use review_threads::ThreadRead;
 use serde::Serialize;
 pub use thread_resolution::{OriginalThreadAnchor, ThreadResolution};
-pub use transport::{Client, Owner};
+pub use transport::{Client, Owner, TrafficSnapshot};
 
 pub const API_VERSION: &str = "2026-03-10";
 pub const OAUTH_CLIENT_ID: &str = "Ov23liI9YQMPuYjBL6nn";
