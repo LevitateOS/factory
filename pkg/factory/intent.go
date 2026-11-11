@@ -106,6 +106,35 @@ func (r IntentRevision) Validate() error {
 	return checkIntentTaskGraph(tasks)
 }
 
+// Intent revision states (IntentRevision.State). Rejected and abandoned are
+// terminal private draft states preserving history.
+//
+// The code enforces no predecessor-to-successor state table. Every save goes
+// through the head-serialized CAS in store.saveIntentRevisionTx: the revision's
+// Predecessor must equal the current head (else ErrStaleRevision), and
+// admitIntentPredecessorTx only constrains the repository (an accepted head
+// pins it; the first accepted revision pins it for the whole intent). What a
+// state requires is in checkIntentBounds (accepted needs a repository and
+// work) and in the consumers: ProposeIntent creates drafts, planning and
+// proposal content need a draft, and build/verification/delivery paths need an
+// accepted revision.
+const (
+	IntentDraft     = "draft"
+	IntentAccepted  = "accepted"
+	IntentDeclined  = "declined"
+	IntentRejected  = "rejected"
+	IntentAbandoned = "abandoned"
+)
+
+// ValidIntentState reports whether state is one of the intent revision states.
+func ValidIntentState(state string) bool {
+	switch state {
+	case IntentDraft, IntentAccepted, IntentDeclined, IntentRejected, IntentAbandoned:
+		return true
+	}
+	return false
+}
+
 func checkIntentIdentity(r IntentRevision) error {
 	if !project.ValidDecisionID(r.ID) || !project.ValidDecisionID(r.Intent) || r.Owner <= 0 || r.CreatedUnix <= 0 || !intentText(r.Objective, 16000) {
 		return errors.New("invalid intent identity or objective")
@@ -116,7 +145,7 @@ func checkIntentIdentity(r IntentRevision) error {
 	if r.Approach != "" && r.Approach != "incremental" && r.Approach != "complete_first" {
 		return errors.New("invalid implementation approach")
 	}
-	if r.State != "draft" && r.State != "accepted" && r.State != "declined" && r.State != "rejected" && r.State != "abandoned" {
+	if !ValidIntentState(r.State) {
 		return errors.New("invalid intent state")
 	}
 	return checkIntentBounds(r)
@@ -373,7 +402,7 @@ func (f IntentListFilter) Validate() error {
 	if f.Cursor != "" && !project.ValidDecisionID(f.Cursor) {
 		return errors.New("invalid list cursor")
 	}
-	if f.State != "" && f.State != "draft" && f.State != "accepted" && f.State != "declined" && f.State != "rejected" && f.State != "abandoned" {
+	if f.State != "" && !ValidIntentState(f.State) {
 		return errors.New("invalid list state")
 	}
 	if f.Repository < 0 || f.Department != "" && !project.ValidDecisionID(f.Department) {
