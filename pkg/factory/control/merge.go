@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -138,10 +139,18 @@ func (c *Coordinator) MergePass(ctx context.Context) MergeReport {
 
 func mergeError(report *MergeReport, id, reason string) {
 	report.Errors = append(report.Errors, MergeError{ID: id, Reason: reason})
+	if factory.ValidID(id) {
+		observed := dispatchObservationReason(0, 0, reason, "")
+		log.Printf("merge error id=%q reason=%q", id, observed.Reason)
+	}
 }
 
 func mergeWait(report *MergeReport, id, reason string) {
 	report.Waits = append(report.Waits, MergeWait{ID: id, Reason: reason})
+	if factory.ValidID(id) {
+		observed := dispatchObservationReason(0, 0, reason, "")
+		log.Printf("merge wait id=%q reason=%q", id, observed.Reason)
+	}
 }
 
 func (c *Coordinator) mergeOne(ctx context.Context, p factory.Publication, report *MergeReport) {

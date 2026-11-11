@@ -279,6 +279,13 @@ func dispatchObservationReason(repository, issue int64, reason, detail string) D
 		stage = "host"
 	case "review_preparation_pending", "review_preparation_unavailable", "review_checks_pending", "review_allowance_exhausted", "review_allowance_unavailable", "child_cycle_unrecorded", "child_dispatch_inputs_changed", "child_assignment_unavailable", "child_assignment_unrecorded", "child_producer_cancelled", "issue_readiness_not_current", "candidate_preparation_retirement_pending", "delivery_judgment_required", "delivery_judgment_unavailable":
 		stage = "publication"
+	case "native_inputs_changed", "agent_review_pending", "review_evidence_mismatch", "authority_changed", "authority_lost", "accepted_inputs_unavailable", "accepted_inputs_changed",
+		"merge_authorization_expired", "merge_authorization_stale", "merge_judgment_unavailable", "funded_delivery_changed", "funded_delivery_unavailable", "clear_delivery_unavailable",
+		"provider_merge_requirements_pending", "native_merge_method_unavailable", "merge_not_admitted", "superseded_head", "superseded_base", "observation_invalid", "invalid_work",
+		"check_evidence_missing", "check_evidence_stale", "check_evidence_pending", "check_evidence_hidden", "check_evidence_invalid", "attempt_deadline_unavailable",
+		"attempt_allowance_unavailable", "attempt_expiry_unavailable", "issue_assignment_unavailable", "issue_readiness_unavailable", "native_completion_pending", "original_issue_closure_pending",
+		"cancellation_pending", "merge_pending", "operation_pending", "submit_unconfirmed", "native_unavailable", "store_conflict":
+		stage = "merge"
 	default:
 		reason, stage = "unavailable", "unavailable"
 	}
