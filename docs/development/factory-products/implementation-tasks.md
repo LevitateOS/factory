@@ -1460,6 +1460,26 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q17 — GitHub external PR adoption
 
+**Current installed automatic-intake continuation (2026-11-11): INCOMPLETE.**
+PR61 has real green CI at6165f7c/base609f18f and links only unchanged-text reopened
+issue57. Explicit normal-UI policy10 enables same-repository adoption on the same
+finite Muse source. No new adoption command or role is admitted. The earlier
+429 hold cleared; native discovery and normal Inspect PR61 now pass. Original
+automatic command2e03e7af3f5cb85fa8c62350d268d460 waits at preparation_not_ready:
+the merged source609f18f needs a preparation owned by this new external command,
+without reopening the settled issue57 root or renewing its old authority.
+Recover PR61, not a replacement/manual adoption. The owner's excessive-request
+investigation found excessive idle traffic. Its causal closed-issue correction
+6707791 passes the finite realPG check and actual ordinary installed39 comparison:
+77 requests in60.047s versus155 in60.052s before it (about50% fewer). Residual
+61 REST/16 GraphQL requests per minute remain substantial; request efficiency
+is not declared complete. Original allowance/receipts and211 source minutes are
+preserved; no fresh model command was issued. The app is normally stopped.
+The active decision ledger records the exact snapshots, installed artifact and
+next external-command-owned source-preparation action.
+Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
+substitutes for this automatic/fork requirement.
+
 **Active GitHub-only verification (2026-11-10), INCOMPLETE.** Baseline
 `256ae2ad401d1b2ece9dc472fd2a646f49a9dc23`; evidence is retained outside Git at
 `/home/vince/Projects/github-verification-20261110/`. Go verification found and

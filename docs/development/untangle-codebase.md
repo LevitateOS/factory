@@ -278,11 +278,120 @@ lock after owner/inode/connection-refused proof before reopening. This qualifies
 installed acquisition/selection/status/recovery, not reference-complete removal
 of older bundles. The original provider profile was never transferred or opened.
 
-Next: reuse issue57 after explicit unchanged-text reopen for automatic external
-PR/fork admission; do not create another eligible fixture issue or replay its
-planning/Builder. Preserve closed59/PR60/candidate/charges. Paid premerge advice,
-affected installed withdrawal/I/O and remaining update retirement scope stay open.
-All source changes above are pushed on main; no whole task/security closure.
+**Active recovery (automatic external PR61):** original issue57 was explicitly
+reopened19:48:08Z with title/body unchanged. External writer-authored PR61 is
+head6165f7c76de5609d08342ecb2bd1536254b1258a/base609f18f, same repository, one
+structured closing issue. It strengthens the existing CI's exact-byte version
+assertion; real CI43090799720 passes. Normal installed opt-in saved policy10 with
+the same Muse source/roles/15-minute runs/two reviews/one correction. Policy-off
+capture had no new command or role. Automatic adoption remains unlaunched:
+37 settled roles/zero active or unsettled,211/260minutes (one normal new merged
+completion judgment after the prior210 snapshot), no external adoption command.
+Exact diagnostic is HTTP429/github_rate_limited, retry_after613, provider
+reset20:12:03Z, not an established timeout/schema failure. Original safe read is
+external-candidates-native-read-2.safe.json; the earlier read's jq filter failed
+and its lost read response was not represented as a write/inference outcome.
+The reset passed and one normal installed Refresh issues succeeded; unchanged-text
+open issue57 is visible. One authenticated native candidate read passed2.344554s
+and every discovery predicate; normal installed Inspect PR61 also returned its
+fresh-planning offer. No exact external-pr/734/61 command or new role yet. The small
+list-error correction6b3d3b0 is committed/pushed on main; one typecheck, production
+UI build and immutable native release build pass. Package32 is verified, inventory
+e31326764a3eb8ab1ac562a067739f9232de22caf424c86211fe663f2c646ca8,
+archive7474e7ad6839f8ffc130722e2769fb30298dda7c39fa34ee653b95e6d0a0e23e;
+was superseded without activation by measured33 below. Do not
+click manual Adopt, create another issue, replay initial roles, or replace the
+original uncertain publication. Fixture
+team is verified push. Preserve closed59/PR60/candidate/charges. Paid premerge
+advice, fork progression, affected installed withdrawal/I/O and remaining update
+scope stay open. No whole
+task/security closure.
+
+**Measured excessive idle requests (owner-requested,2026-11-11):** bec5b70 adds
+bounded in-memory counters to existing native developer status, never tokens,
+URLs or bodies; local inspection makes no provider calls. One release build and
+exact-prior installed33 upgrade pass. Inventory
+a2773c179170ca39d4f3808ba60e9e6946774b2d8aa4d2b5bd0130e634c4d8ce keeps
+backend8838 unchanged, nativebec5/UI6b. Same-incarnation idle measurement is
+135 sends/133 response headers/zero quota holds in57.348s;103 REST plus32 GraphQL,
+including53 repository and34 identity GETs. Core quota used rises104. All37 runs
+remain settled, zero active/unsettled; no PR61 adoption and211 charged minutes
+unchanged. Main UI has no selected account/repository, establishing background
+traffic. Exact snapshots/deltas: traffic33-idle-measurement.json in the evidence
+root. The earlier traffic33-start.json is an uncalibrated startup capture, not
+the measurement interval.
+
+Two narrow corrections pass the existing finite realPG progress-gate and one
+backend build each:69100e0 paces persisted nonpassing CI checks at60s; a56bbfc
+holds pristine superseded/closed-owner merges before remote authority reads,
+while preserving current children, finite merge-only retry and original-effect
+lookup. Their installed35 comparison DOES NOT improve the idle rate:
+144 sends/142 headers/zero holds in60.048s, core quota used+109, including55
+repository/37 identity/35 GraphQL requests. Same37 settled runs, zero active or
+unsettled,211/260minutes unchanged. Exact traffic35-idle-measurement.json is
+retained beside the original33 measurement; neither correction alone establishes
+the dominant cause. Historical merge rows6b35944b/b95fe7ee remain preserved.
+
+1edc0dd additionally paces unreadable passive CI attempts and excludes superseded
+publication roots; the existing finite PG check and one backend build pass.
+Installed36 still measured143 additional core uses in75.612s. Native diagnostic
+7c022306 (one pinned release build) adds static semantic-read counters. Installed37
+then measured155 wire requests/core+116 in60.052s:17 automation_inputs plus17
+repository reads dominate; only one passive CI observation occurred. Their exact
+artifacts are traffic{36,37}-idle-measurement.json. A single sampled external-plan
+stack did not establish the traffic share and is not treated as such.
+
+The temporary private caller trace finally attributes all14 captured input reads:
+10 are issue59 child planning from BOTH PublishPass and CheckPass, two are that
+issue's pristine merge, and two are original external PR61 admission. Existing
+issue59 was remotely closed/PR60 abandoned, but its retained control still said
+queued/eligible. Readiness never classified its own issue's closed state, so
+child planning repeatedly re-read acceptance and dispatch inputs before refusing
+the closed issue. input-callers-observed.log and goal38-issue59-state retain the
+actual call chains/control/allowance; preserve its open allowance, spent review,
+partial work and original receipts. Do not treat aggregate active_seconds1541
+as a global time limit: the owner selected per-run limits.
+
+Retained installed38 was DIAGNOSTIC ONLY, inventory
+7b41e496f1079a6b314a1d9a5983c86ad4108bdb53df1d1bbe5244c22ec67058,
+native7c/UI6b plus the uncommitted temporary caller-log patch captured in
+input-callers-diagnostic.patch. Its app/backend were normally Quit and joined.
+The complete retained trace is input-callers-observed-full.log; it confirms only
+issue59 child/merge and issue57 external-planning input consumers in that run.
+
+**Causal repair verified:**6707791d676b6e2594ccf595edf868301c4665a4 classifies
+closure as a blocker for the issue's own new work while preserving accepted
+prerequisite results. Publish/Check/unsent-Merge share the recent closed denial
+for60s; actual unchanged closed observation refreshes only its observation time.
+Explicit intake/reopen bypasses the wait; original allocated sends still look up
+their original receipts. closed-readiness-pg-3.log passes the finite realPG
+configured/fallback revision, expiry, reopen and receipt cases; final ordinary
+backend build passes. Temporary tracing is absent from source/final backend.
+
+Ordinary installed39 inventory
+9287fec454e4bf7b15ecad93d49d6bf9c558d0215b8cf6e35cfa9b6ad11fe1e9
+uses that backend and exact native7c/UI6b/CLI/assets. Its defining comparison is
+**77 wire requests in60.047s (61 REST/16 GraphQL), versus155 in60.052s for37**:
+about50% fewer total requests. Six full input reads remain versus17. This proves
+the closed-work correction, not complete request-efficiency closure: residual
+passive traffic is still substantial and its entire composition is not claimed
+from the earlier diagnostic run. traffic39-idle-measurement.json retains the
+snapshots and actual blocked issue59 control. Its first-seen value and allowance
+are unchanged;37 settled runs/zero active or unsettled,211 source minutes, and
+original PR61 command still unadmitted at the retained capture. No new model
+command was issued for this investigation.
+
+Normal Quit retired39's app/backend and endpoint; no check or inference is
+running. Current GitHub goal remains INCOMPLETE. Next executable product action:
+implement original PR61's external-command-owned preparation for merged source
+609f18f, retaining command2e03e7af3f5cb85fa8c62350d268d460 and its exact source,
+origin and finite authority; recover its journal before any setup/launch. Do not
+replay initial roles or uncertain publications. Residual traffic remains an open
+efficiency finding; do not claim it fixed by the scoped50% reduction. Root owns
+the two task/decision records and developer README; source slices are committed
+on main. No permission question is pending for authorized implementation.
+All original installed payloads/profiles/captures remain; only byte-verified
+duplicate public transfer copies/archives were reclaimed, with host archives kept.
 
 Owned ordinary fork fixture created once for the later explicit-consent journey:
 veighnsche/factory-installed-github-check-20261109 (1454291951), parent

@@ -93,7 +93,9 @@ synthetic DOM input; physical keyboard/window/visual checks remain separate.
 `status.github_traffic` reports actual network attempts, received response
 headers and requests suppressed by an existing rate hold, grouped by fixed
 endpoint/method labels. It includes only the latest numeric quota fields under
-fixed resource labels. Reading it makes no provider calls or credential reads;
+fixed resource labels. `semantic_reads` counts validated connector reads by
+fixed operation name; one such read can make several wire requests. Reading
+these counters makes no provider calls or credential reads;
 compare snapshots within the same native owner incarnation. It is `null` when
 the runtime is absent, and counters reset with a new owner.
 
