@@ -56,6 +56,10 @@ export const optionalNum = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 export const texts = (value: unknown): string[] =>
   list(value).filter((item): item is string => typeof item === 'string');
+/** The vocabulary member `value` names, or 'unknown' for a value a newer backend may emit. */
+export function member<T extends string>(vocabulary: readonly T[], value: unknown): T | 'unknown' {
+  return vocabulary.find((known) => known === value) ?? 'unknown';
+}
 export const id = (value: unknown): value is string =>
   typeof value === 'string' && /^[1-9][0-9]{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
 export const projectId = (value: unknown): value is string =>

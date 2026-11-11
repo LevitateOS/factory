@@ -3,6 +3,7 @@ import {
   flag,
   id,
   list,
+  member,
   num,
   object,
   optionalNum,
@@ -23,12 +24,15 @@ export interface FactoryControl {
   unsettled_runs: number;
   withdrawal_cause?: string;
 }
+const RUN_OUTCOMES = ['succeeded', 'failed', 'cancelled', 'needs-human'] as const;
+// 'unknown' is an outcome this client does not recognize; it is never success.
+export type FactoryRunOutcome = (typeof RUN_OUTCOMES)[number] | 'unknown';
 export interface FactoryRun {
   id: string;
   role: string;
   issue?: string;
   attempt?: string;
-  outcome?: 'succeeded' | 'failed' | 'cancelled' | 'needs-human';
+  outcome?: FactoryRunOutcome;
   reconciled: boolean;
 }
 // factoryAuthorityText renders the admitted authority verdict as a bounded
@@ -75,21 +79,24 @@ export function spaceFactoryControl(row: Record<string, unknown>): FactoryContro
 // factoryOutcomeText words a recorded run outcome for people. A recorded
 // "succeeded" only says the run finished, not that its work landed, so it
 // reads "ended"; the run's own output carries the result.
-const factoryOutcomeWords: Readonly<Record<NonNullable<FactoryRun['outcome']>, string>> = {
+const factoryOutcomeWords: Readonly<Record<FactoryRunOutcome, string>> = {
   succeeded: 'ended',
   failed: 'stopped with an error',
   cancelled: 'cancelled',
   'needs-human': 'needs your decision',
+  unknown: 'outcome not recognized by this view',
 };
-function factoryOutcomeText(run: FactoryRun) {
-  return run.outcome ? (factoryOutcomeWords[run.outcome] ?? run.outcome) : 'active';
+// A run with no recorded outcome reads "active", except when its process has
+// already ended: then the outcome is simply not recorded yet.
+function factoryOutcomeText(run: FactoryRun, ended = false) {
+  return run.outcome ? factoryOutcomeWords[run.outcome] : ended ? 'outcome not recorded yet' : 'active';
 }
 // factoryRunText renders one recorded run as a bounded status line: its role,
 // issue or attempt binding and recorded outcome. Liveness stays on the run
-// status route; this text never claims the process is running.
-export function factoryRunText(run: FactoryRun) {
+// status route; pass `ended` when that route reports the process finished.
+export function factoryRunText(run: FactoryRun, ended = false) {
   const target = run.issue ? `issue #${run.issue}` : run.attempt ? run.attempt : `run ${run.id.slice(0, 8)}`;
-  return `${run.role} · ${target} · ${factoryOutcomeText(run)}`;
+  return `${run.role} · ${target} · ${factoryOutcomeText(run, ended)}`;
 }
 const factoryRoleNames: Readonly<Record<string, string>> = {
   'soda-coder': 'Coding agent',
@@ -111,7 +118,7 @@ function spaceFactoryRun(value: unknown): FactoryRun {
     id: text(run.id),
     role: text(run.role),
     reconciled: flag(run.reconciled),
-    ...(outcome ? {outcome: outcome as NonNullable<FactoryRun['outcome']>} : {}),
+    ...(outcome ? {outcome: member(RUN_OUTCOMES, outcome)} : {}),
     ...(issue ? {issue} : {}),
     ...(attempt ? {attempt} : {}),
   };
@@ -152,17 +159,31 @@ export interface FactoryRunDetail {
   verification_retry?: {available: boolean};
   delivery_repair?: {available: boolean; progress?: DeliveryRepairProgress};
 }
+const REPAIR_STATES = [
+  'collecting',
+  'ready',
+  'investigating',
+  'assessing',
+  'applying',
+  'adopted',
+  'attention',
+  'stale',
+] as const;
+const REPAIR_OPTIONS = ['accept', 'needs_attention'] as const;
+const CONTEXT_ACTIONS = ['hold', 'serve', 'stop'] as const;
+// 'unknown' is a state this client does not recognize; it is never success.
+export type RepairState = (typeof REPAIR_STATES)[number] | 'unknown';
 export interface DeliveryRepairProgress {
   cause_id: string;
   cycle_id: string;
   failed_run: string;
   source_commit: string;
-  state: 'collecting' | 'ready' | 'investigating' | 'assessing' | 'applying' | 'adopted' | 'attention' | 'stale';
+  state: RepairState;
   reason?: string;
   run_id?: string;
   failures: {check_ref: string; detail: string}[];
   failure_count: number;
-  judgment?: {option: 'accept' | 'needs_attention'; accept_probability: number; confidence: number};
+  judgment?: {option: (typeof REPAIR_OPTIONS)[number] | 'unknown'; accept_probability: number; confidence: number};
 }
 function deliveryRepairProgress(value: unknown, run: string): DeliveryRepairProgress {
   const data = record(value);
@@ -176,7 +197,7 @@ function deliveryRepairProgress(value: unknown, run: string): DeliveryRepairProg
   if (data.judgment !== undefined && data.judgment !== null) {
     const row = record(data.judgment);
     judgment = {
-      option: text(row.option) as 'accept' | 'needs_attention',
+      option: member(REPAIR_OPTIONS, row.option),
       accept_probability: num(row.accept_probability),
       confidence: num(row.confidence),
     };
@@ -186,7 +207,7 @@ function deliveryRepairProgress(value: unknown, run: string): DeliveryRepairProg
     cycle_id: text(data.cycle_id),
     failed_run: run,
     source_commit: text(data.source_commit),
-    state: text(data.state) as DeliveryRepairProgress['state'],
+    state: member(REPAIR_STATES, data.state),
     failures,
     failure_count: num(data.failure_count, failures.length),
     ...(reason === undefined ? {} : {reason}),
@@ -200,7 +221,7 @@ export interface FactoryContextSelection {
   required_digest?: string;
   availability: string;
   reason: string;
-  action: 'hold' | 'serve' | 'stop';
+  action: (typeof CONTEXT_ACTIONS)[number] | 'unknown';
   can_use_current: boolean;
 }
 function factoryContextSelection(value: unknown): FactoryContextSelection {
@@ -212,7 +233,7 @@ function factoryContextSelection(value: unknown): FactoryContextSelection {
     ...(required === undefined ? {} : {required_digest: required}),
     availability: text(row.availability),
     reason: text(row.reason),
-    action: text(row.action) as FactoryContextSelection['action'],
+    action: member(CONTEXT_ACTIONS, row.action),
     can_use_current: flag(row.can_use_current),
   };
 }
@@ -258,7 +279,7 @@ export function factoryRunStatusResponse(value: unknown, runId: string, reposito
     reconciled: flag(run.reconciled),
     harness: text(run.harness),
     model: text(run.model),
-    ...(outcome ? {outcome: outcome as NonNullable<FactoryRun['outcome']>} : {}),
+    ...(outcome ? {outcome: member(RUN_OUTCOMES, outcome)} : {}),
     ...(summary === undefined ? {} : {summary}),
     ...(optionalSection(data.view) ? {view: factoryRunDetailView(data.view, repositoryId)} : {}),
     ...(optionalSection(data.state) ? {state: factoryRunDetailState(data.state)} : {}),

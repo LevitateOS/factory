@@ -2,7 +2,7 @@ import {LitElement, html} from 'lit';
 import type {FactoryTransport} from '../api/transport.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {factoryCommandId, factoryRunID, factoryRunStatusResponse} from '../api/run-response.js';
-import type {DeliveryRepairProgress, FactoryRunDetail} from '../api/run-response.js';
+import type {DeliveryRepairProgress, FactoryRunDetail, RepairState} from '../api/run-response.js';
 import {deliveryRepairDecision, retryDecision} from '../api/work-response.js';
 import {PendingCommandController} from '../shared/pending-command.js';
 import type {ClassifyRefusal} from '../shared/pending-command.js';
@@ -370,7 +370,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     if (repair && this.current) void this.load(this.current, this.serial);
   }
   private renderRepair(progress: DeliveryRepairProgress) {
-    const states = {
+    const states: Record<RepairState, string> = {
       collecting: 'Collecting the recorded failure and current work.',
       ready: 'Strategist diagnosis is queued.',
       investigating: 'Strategist diagnosis is in progress.',
@@ -379,6 +379,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
       adopted: 'Repair graph adopted. Fresh readiness and application verification are still required.',
       attention: 'Application repair needs attention.',
       stale: 'Application repair inputs changed; the retained diagnosis is stale.',
+      unknown: 'This repair state is not recognized by this view.',
     };
     return html`<section aria-label="Application repair progress">
       <p role="status">${states[progress.state]}</p>

@@ -1,4 +1,4 @@
-import {check, record, list, text, num, flag, optionalNum, texts, SodaRequestError} from './models.js';
+import {check, record, list, member, text, num, flag, optionalNum, texts, SodaRequestError} from './models.js';
 
 export interface Department {
   id: string;
@@ -64,6 +64,8 @@ export interface ProposalContent {
   exclusions?: Exclusion[];
   unknowns: string[];
 }
+const REVISION_STATES = ['draft', 'accepted', 'declined', 'rejected', 'abandoned'] as const;
+export type IntentRevisionState = (typeof REVISION_STATES)[number] | 'unknown';
 export interface IntentRevision {
   id: string;
   intent: string;
@@ -73,7 +75,7 @@ export interface IntentRevision {
   objective: string;
   ideas: ProductIdea[];
   tasks: IntentTask[];
-  state: 'draft' | 'accepted' | 'declined' | 'rejected' | 'abandoned';
+  state: IntentRevisionState;
   max_issues: number;
   approach?: 'complete_first' | 'incremental';
   effective_outcomes?: string[];
@@ -123,7 +125,7 @@ export interface Exploration {
 export interface SavedRequest {
   intent: string;
   revision: string;
-  state: IntentRevision['state'];
+  state: IntentRevisionState;
   objective: string;
   repository: string;
   department?: string;
@@ -194,7 +196,7 @@ export function intentRevision(value: unknown): IntentRevision {
     intent: text(raw.intent),
     repository: text(raw.repository, '0'),
     objective: text(raw.objective),
-    state: text(raw.state) as IntentRevision['state'],
+    state: member(REVISION_STATES, raw.state),
     max_issues: num(raw.max_issues),
     ...(approach ? {approach: approach as NonNullable<IntentRevision['approach']>} : {}),
     ideas: list(raw.ideas).map(idea),
@@ -209,7 +211,7 @@ function savedRequest(value: unknown): SavedRequest {
   return {
     intent: text(raw.intent),
     revision: text(raw.revision),
-    state: text(raw.state) as SavedRequest['state'],
+    state: member(REVISION_STATES, raw.state),
     objective: text(raw.objective),
     repository: text(raw.repository, '0'),
     ...(department ? {department} : {}),
@@ -522,7 +524,7 @@ export function intentPlanStatus(value: unknown): IntentPlanStatus {
   const raw = record(value);
   const out: IntentPlanStatus = {
     revision: text(raw.revision),
-    state: planStates.find((state) => state === raw.state) ?? 'unknown',
+    state: member(planStates, raw.state),
     candidates: num(raw.candidates),
   };
   const assignment = nonEmpty(raw.assignment_id);

@@ -1,4 +1,4 @@
-import {check, flag, list, num, object, record, text, texts} from './models.js';
+import {check, flag, list, member, num, object, record, text, texts} from './models.js';
 import {nativePath} from '../shared/format.js';
 import {allowanceHolds, type AllowanceHold} from '../feed/allowance.js';
 
@@ -53,9 +53,6 @@ export type PublicationStage = (typeof PUBLICATION_STAGES)[number] | 'unknown';
 export type AttemptStage = (typeof ATTEMPT_STAGES)[number] | 'unknown';
 export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number] | 'unknown';
 export type ClosureState = (typeof CLOSURE_STATES)[number] | 'unknown';
-function member<T extends string>(vocabulary: readonly T[], value: unknown): T | 'unknown' {
-  return vocabulary.find((known) => known === value) ?? 'unknown';
-}
 
 export interface IssueReadiness {
   readiness: ReadinessState;
