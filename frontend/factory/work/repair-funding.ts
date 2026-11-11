@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {factoryCommandId} from '../api/run-response.js';
@@ -53,10 +54,12 @@ export class SodaFactoryRepair extends LitElement {
   private get ready() {
     return this.cmd.ready;
   }
-  private current: RepairContext | undefined;
-  private serial = 0;
-  private generation = '';
-  private lifetime = new AbortController();
+  private bound = new ScopedBinding<RepairContext>(
+    (a, b) => a.transport === b.transport && a.repository === b.repository,
+    () => {
+      this.context = undefined;
+    }
+  );
   constructor() {
     super();
     this.busy = false;
@@ -70,19 +73,7 @@ export class SodaFactoryRepair extends LitElement {
       check(
         id(context.repository) && typeof context.transport.generation === 'string' && !!context.transport.generation
       );
-    if (
-      context?.transport === this.current?.transport &&
-      context?.repository === this.current?.repository &&
-      context?.transport.generation === this.generation
-    ) {
-      this.current = context;
-      return;
-    }
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.current = context;
-    this.generation = context?.transport.generation ?? '';
-    this.serial++;
+    if (this.bound.bind(context) === 'same') return;
     this.view = undefined;
     this.cmd.reset();
     this.message = '';
@@ -93,20 +84,12 @@ export class SodaFactoryRepair extends LitElement {
     this.context = undefined;
     super.disconnectedCallback();
   }
-  private live(serial: number, context: RepairContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   private async identity(context: RepairContext, serial: number): Promise<boolean> {
     this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing repair identity');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]));
+      if (!this.bound.live(serial, context)) return false;
       if (this.cmd.adopt({scope, repository: context.repository}) === 'blocked') {
         this.message =
           'Saved repair change is unreadable or belongs to another scope. It was preserved; no new change was sent.';
@@ -115,7 +98,7 @@ export class SodaFactoryRepair extends LitElement {
       this.message = this.pending ? 'A repair change is unconfirmed. Retry the same change before editing.' : '';
       return true;
     } catch {
-      if (this.live(serial, context)) {
+      if (this.bound.live(serial, context)) {
         this.cmd.unresolve(true);
         this.message = 'Repair account identity could not be read. Refresh before saving.';
       }
@@ -125,42 +108,42 @@ export class SodaFactoryRepair extends LitElement {
   private async request(context: RepairContext, serial: number) {
     const response = await context.transport.request(`repositories/${context.repository}/factory/repair`, {
       method: 'GET',
-      signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+      signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
     });
-    if (!this.live(serial, context)) throw Error('Repair context retired');
+    if (!this.bound.live(serial, context)) throw Error('Repair context retired');
     if (response.status === 401)
       this.dispatchEvent(new CustomEvent('soda-session-invalid', {bubbles: true, composed: true}));
     if (!response.ok) throw new RepairRequestError(response.status);
     return readSodaJSON(response);
   }
   private async load(change?: RepairChange) {
-    const context = this.current,
-      serial = this.serial;
-    if (!context || !this.live(serial, context) || this.busy) return;
+    const context = this.bound.current,
+      serial = this.bound.serial;
+    if (!context || !this.bound.live(serial, context) || this.busy) return;
     this.busy = true;
     let recorded = false;
     try {
       let admitted = true;
       if (change) {
         const readmitted = await this.cmd.readmit(() => this.identity(context, serial));
-        if (!this.live(serial, context) || readmitted === 'unresolved') return;
+        if (!this.bound.live(serial, context) || readmitted === 'unresolved') return;
         if (readmitted === 'changed') {
           this.message = 'The saved repair change or account changed. Refresh before retrying.';
           return;
         }
       } else {
         admitted = await this.identity(context, serial);
-        if (!this.live(serial, context)) return;
+        if (!this.bound.live(serial, context)) return;
       }
       if (change) {
         const outcome = await this.cmd.submit({
           command: change,
-          live: () => this.live(serial, context),
+          live: () => this.bound.live(serial, context),
           classifyRefusal,
           send: () =>
             context.transport.request(`repositories/${context.repository}/factory/repair`, {
               method: 'PUT',
-              signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+              signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify(change),
             }),
@@ -191,7 +174,7 @@ export class SodaFactoryRepair extends LitElement {
         recorded = true;
       }
       const found = repairView(await this.request(context, serial), context.repository);
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       if (this.ready && this.pending && found.grant?.id === this.pending.command_id) {
         const pending = this.pending,
           grant = found.grant;
@@ -213,7 +196,7 @@ export class SodaFactoryRepair extends LitElement {
             ? 'A repair change is unconfirmed. Retry the same change before editing.'
             : '';
     } catch (error) {
-      if (!this.live(serial, context)) return;
+      if (!this.bound.live(serial, context)) return;
       const denied = error instanceof RepairRequestError && [401, 403].includes(error.status);
       // An uncertain write remains replayable; a failed read requires refresh.
       if (recorded || !(change && this.pending && !denied)) this.cmd.unresolve(true);
@@ -229,15 +212,15 @@ export class SodaFactoryRepair extends LitElement {
           ? error.message
           : 'Repair funding could not be confirmed.';
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   private save = (event: SubmitEvent) => {
     event.preventDefault();
     if (
       !(event.currentTarget instanceof HTMLFormElement) ||
-      !this.current ||
-      !this.live(this.serial, this.current) ||
+      !this.bound.current ||
+      !this.bound.live(this.bound.serial, this.bound.current) ||
       !this.ready ||
       !this.view ||
       this.busy ||
@@ -277,7 +260,7 @@ export class SodaFactoryRepair extends LitElement {
     void this.load(change);
   };
   protected render() {
-    if (!this.current) return html``;
+    if (!this.bound.current) return html``;
     return html`<section aria-label="Repository repair funding">
       <h3>Repository repair funding</h3>
       <p>
