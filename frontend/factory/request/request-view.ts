@@ -271,7 +271,6 @@ export function planAcceptBlock(view: IntentView) {
   if (!plan.walkthroughs)
     return 'This saved plan has no request-specific walkthrough. Author one in a new plan before accepting.';
   if (!plan.review) return '';
-  if (!plan.review.consistency) return 'Check the walkthrough again before authorizing work.';
   if (plan.review.consistency.mismatches.length)
     return 'Correct or clarify the request above for the walkthrough findings (your objective and choices stay), then plan again and check before authorizing work.';
   return '';
@@ -281,7 +280,7 @@ function blockedCheckSummary(view: IntentView) {
   if (!plan || plan.revision !== view.revision?.id || plan.state !== 'completed' || !plan.review) return '';
   const block = planAcceptBlock(view);
   if (!block) return '';
-  const findings = plan.review.consistency?.mismatches ?? [];
+  const findings = plan.review.consistency.mismatches;
   return html`<p role="status">
     ${findings.length ? `Check found ${plural(findings.length, 'walkthrough finding', 'walkthrough findings')} blocking acceptance. ${block}` : block}
     ${findings.length ? html`<button @click=${view.focusFindings}>See findings</button>` : ''}
@@ -532,7 +531,7 @@ function continueCaption(view: IntentView): string {
   if (view.plan?.state === 'completed') {
     if (!view.plan.walkthroughs) return 'Plan walkthrough first';
     if (!view.plan.review) return 'Check walkthrough';
-    if (view.plan.review?.consistency?.mismatches.length) return 'Correct walkthrough first';
+    if (view.plan.review?.consistency.mismatches.length) return 'Correct walkthrough first';
     return 'Accept and build';
   }
   return 'Continue to planning';
@@ -545,7 +544,7 @@ function reviewNextStep(view: IntentView): string {
     return view.plan.attention
       ? 'Review the planning question above and update your direction before continuing.'
       : 'The planner stopped without a usable answer; your request needs no change. Continue to planning to try again. It uses no planning calls.';
-  if (view.plan?.review?.consistency?.mismatches.length)
+  if (view.plan?.review?.consistency.mismatches.length)
     return 'Correct or clarify the request above for the walkthrough findings (your objective and choices stay), then plan again and check before authorizing work.';
   if (!view.revision?.tasks.length)
     return 'Explain the missing behavior in your desired outcome, then update the proposal.';

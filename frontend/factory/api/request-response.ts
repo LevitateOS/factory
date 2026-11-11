@@ -501,6 +501,9 @@ export function intentPlanLaunch(value: unknown): IntentPlanLaunch {
   };
 }
 export type IntentPlanState = 'none' | 'pending' | 'completed' | 'attention' | 'failed' | 'cancelled';
+// The server attaches a review only with its consistency report (both are
+// produced together), so a review here always carries one.
+export type PlanReview = Exploration & {consistency: ConsistencyReport};
 export interface IntentPlanStatus {
   revision: string;
   state: IntentPlanState;
@@ -510,7 +513,7 @@ export interface IntentPlanStatus {
   candidates: number;
   attention?: string;
   walkthroughs?: ProposalContent;
-  review?: Exploration;
+  review?: PlanReview;
 }
 export function intentPlanStatus(value: unknown): IntentPlanStatus {
   const raw = record(value);
@@ -528,6 +531,10 @@ export function intentPlanStatus(value: unknown): IntentPlanStatus {
   const attention = nonEmpty(raw.attention);
   if (attention) out.attention = attention;
   if (raw.walkthroughs !== undefined && raw.walkthroughs !== null) out.walkthroughs = proposalContent(raw.walkthroughs);
-  if (raw.review !== undefined && raw.review !== null) out.review = exploration(raw.review);
+  if (raw.review !== undefined && raw.review !== null) {
+    const review = exploration(raw.review);
+    // Advice without a consistency report is no review: it must be checked.
+    if (review.consistency) out.review = {...review, consistency: review.consistency};
+  }
   return out;
 }

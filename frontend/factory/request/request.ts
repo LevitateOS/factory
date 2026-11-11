@@ -2349,8 +2349,8 @@ export class SodaIntent extends LitElement {
               review.recommendation?.revision === current.id &&
               review.consistency?.revision === current.id
           );
-          this.plan = {...planned, review};
-          const findings = review.consistency?.mismatches.length || 0;
+          this.plan = {...planned, review: {...review, consistency: review.consistency}};
+          const findings = review.consistency.mismatches.length;
           this.planNotice = findings
             ? 'The authored walkthrough needs a correction. Correct or clarify the request above (your objective and choices stay with your authorship), then plan again and check before accepting.'
             : 'JEV checked the walkthrough: no findings. Accept and build when you are satisfied.';
@@ -2360,13 +2360,9 @@ export class SodaIntent extends LitElement {
           if (findings > 0) this.focusFindings();
           return;
         }
-        if (planned.review?.consistency?.mismatches.length) {
+        if (planned.review?.consistency.mismatches.length) {
           this.planNotice =
             'The authored walkthrough needs a correction. Correct or clarify the request above (your objective and choices stay with your authorship), then plan again and check before accepting.';
-          return;
-        }
-        if (!planned.review?.consistency) {
-          this.planNotice = 'Check the walkthrough again before accepting this direction.';
           return;
         }
       }
