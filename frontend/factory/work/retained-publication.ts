@@ -207,6 +207,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
       : pending.funding
         ? 'Funding requested; waiting for confirmation.'
         : 'Publication requested; waiting for confirmation.';
+    let refusal = '';
     try {
       const response = await context.transport.request(`factory/runs/${pending.run}/actions`, {
         method: 'POST',
@@ -227,6 +228,10 @@ export class SodaFactoryRetainedPublication extends LitElement {
       });
       const receipt = object(await readSodaJSON(response));
       if (!this.live(serial)) return;
+      if (!response.ok) {
+        const code = receipt.error;
+        refusal = ` (HTTP ${response.status}${typeof code === 'string' && /^[a-z0-9_]{1,64}$/.test(code) ? `; ${code}` : ''})`;
+      }
       if (
         !response.ok ||
         (pending.reviewRetry ? receipt.command_id !== pending.command || !sameReviewRetry(pending.reviewRetry, receipt.review_retry) : pending.preparation
@@ -261,7 +266,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
       this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
     } catch {
       if (this.live(serial))
-        this.message = `${pending.reviewRetry ? 'Review retry' : pending.preparation ? 'Merge preparation' : pending.funding ? 'Funding' : 'Publication'} was not confirmed. The saved request is preserved; check the same request to recover its result.`;
+        this.message = `${pending.reviewRetry ? 'Review retry' : pending.preparation ? 'Merge preparation' : pending.funding ? 'Funding' : 'Publication'} was not confirmed${refusal}. The saved request is preserved; check the same request to recover its result.`;
     } finally {
       if (this.live(serial)) this.busy = false;
     }
