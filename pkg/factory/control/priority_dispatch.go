@@ -265,6 +265,10 @@ func observePrioritySubject(ctx context.Context, deps DispatchDeps, occupancy *p
 		return store.PriorityCandidateObservation{}, false, nil
 	}
 	if len(silent.Waits) > 0 {
+		if silent.Waits[0].Reason == WaitReassessmentPending {
+			report.Waits = append(report.Waits, silent.Waits[0])
+			return store.PriorityCandidateObservation{}, false, nil
+		}
 		return store.PriorityCandidateObservation{Subject: key, Repository: subject.Repository, Issue: subject.Issue, Exclusion: silent.Waits[0].Reason, Fingerprint: refreshed.Fingerprint}, true, nil
 	}
 	return store.PriorityCandidateObservation{}, true, nil

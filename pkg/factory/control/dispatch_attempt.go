@@ -393,28 +393,37 @@ func prepareAttemptInputs(ctx context.Context, deps DispatchDeps, occupancy *pas
 	return nil, nil
 }
 
-func confirmAttemptPreparation(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role string, recordedPrompt bool, retryID string) *planWait {
+func confirmAttemptPreparation(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role string, recordedPrompt bool, retryID string) (*planWait, *planWait) {
 	if retryID != "" {
 		if deps.PrepareRetry == nil {
-			return waitFor(WaitPreparation, "fresh retry preparation is unavailable")
+			return waitFor(WaitPreparation, "fresh retry preparation is unavailable"), nil
 		}
 		ready, err := deps.PrepareRetry(ctx, plan, retryID)
 		if err != nil {
-			return waitFor(WaitPreparation, "fresh retry preparation is not confirmed")
+			return waitFor(WaitPreparation, "fresh retry preparation is not confirmed"), nil
 		}
 		if !ready {
-			return waitFor(WaitPreparation, "fresh retry preparation is running")
+			return waitFor(WaitPreparation, "fresh retry preparation is running"), nil
 		}
 	} else if role == project.RoleCoder && !recordedPrompt && (plan.prep.Preparation.SourceCommit != plan.inputs.Tip || !plan.prep.State.Ready || plan.prep.State.Stopped) {
+		// Accepted-input observation already completed. Hold before creating a
+		// finite source checkout that cannot be used until this fence releases.
+		fenced, err := dispatchFenced(ctx, deps, plan.control.Repository)
+		if err != nil {
+			return nil, waitFor(DispatchErrStore, "completion fence unreadable")
+		}
+		if fenced {
+			return waitFor(WaitReassessmentPending, "completion fence holds new admissions until the reassessment decision releases"), nil
+		}
 		if deps.PrepareSource == nil {
-			return waitFor(WaitPreparation, "current source preparation is unavailable")
+			return waitFor(WaitPreparation, "current source preparation is unavailable"), nil
 		}
 		ready, err := deps.PrepareSource(ctx, plan)
 		if err != nil || !ready {
-			return waitFor(WaitPreparation, "current source preparation is not confirmed")
+			return waitFor(WaitPreparation, "current source preparation is not confirmed"), nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func renderAttemptPrompt(ctx context.Context, deps DispatchDeps, plan *attemptPlan, policy factory.RepositoryPolicy, role string, repository, issue int64, head string, recordedPrompt bool) (*planWait, *planWait) {
@@ -493,8 +502,8 @@ func planAttemptForRole(ctx context.Context, deps DispatchDeps, occupancy *passO
 	if wait, failed := prepareAttemptInputs(ctx, deps, occupancy, plan, role, preparation, repository, issue, control); failed != nil || wait != nil {
 		return nil, wait, failed
 	}
-	if wait := confirmAttemptPreparation(ctx, deps, plan, role, recordedPrompt, retryID); wait != nil {
-		return nil, wait, nil
+	if wait, failed := confirmAttemptPreparation(ctx, deps, plan, role, recordedPrompt, retryID); failed != nil || wait != nil {
+		return nil, wait, failed
 	}
 	if wait, failed := renderAttemptPrompt(ctx, deps, plan, policy, role, repository, issue, head, recordedPrompt); failed != nil || wait != nil {
 		return nil, wait, failed

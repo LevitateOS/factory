@@ -86,17 +86,54 @@ func (c *Coordinator) prepareSourceCoder(ctx context.Context, plan *attemptPlan)
 	if err != nil || !open {
 		return false, store.ErrDispatchClosed
 	}
-	identity, err := json.Marshal(struct {
+	inputs := struct {
 		Repository, Issue  int64
 		Acceptance, Source string
 		Authority          factory.AuthorityRef
 		Gate               int64
-	}{plan.control.Repository, plan.control.Issue, plan.control.Acceptance, plan.inputs.Tip, plan.effective.Authority, revision})
+		NativeProfile      string `json:",omitempty"`
+		NativeInstance     string `json:",omitempty"`
+	}{plan.control.Repository, plan.control.Issue, plan.control.Acceptance, plan.inputs.Tip, plan.effective.Authority, revision, "", ""}
+	identity, err := json.Marshal(inputs)
 	if err != nil {
 		return false, err
 	}
 	sum := sha256.Sum256(append([]byte("source-coder\x00"), identity...))
-	return c.prepareCoder(ctx, plan, hex.EncodeToString(sum[:16]), &revision)
+	command := hex.EncodeToString(sum[:16])
+	if plan.prep.Native != nil {
+		owner, available := c.Host.(execution.PreparationTarget)
+		if !available {
+			return false, execution.ErrPreparation
+		}
+		address, err := owner.CandidatePreparationAddress(plan.projectID, plan.prep.Preparation.ID)
+		if err != nil || address.Validate() != nil || address.Workspace != plan.projectID || address.ID != plan.prep.Preparation.ID ||
+			address.Native == nil || address.Native.Profile != plan.prep.Native.Profile {
+			return false, execution.ErrPreparation
+		}
+		// An exact legacy preparation in this incarnation keeps its original
+		// identity and deadline. A different native owner gets fresh admission.
+		prior, err := c.Store.CandidatePreparation(ctx, coderPreparationID(command, plan.inputs.Tip))
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return false, err
+		}
+		if err == nil && prior.Preparation.Native != nil && prior.Preparation.Native.Profile == address.Native.Profile &&
+			prior.Preparation.Native.InstanceID == address.Native.InstanceID {
+			return c.prepareCoder(ctx, plan, command, &revision)
+		}
+		inputs.NativeProfile, inputs.NativeInstance = string(address.Native.Profile), address.Native.InstanceID
+		identity, err = json.Marshal(inputs)
+		if err != nil {
+			return false, err
+		}
+		sum = sha256.Sum256(append([]byte("source-coder\x00"), identity...))
+		command = hex.EncodeToString(sum[:16])
+	}
+	return c.prepareCoder(ctx, plan, command, &revision)
+}
+
+func coderPreparationID(command, source string) string {
+	sum := sha256.Sum256([]byte("fresh-coder\x00" + command + "\x00" + source))
+	return "f" + hex.EncodeToString(sum[:12])
 }
 
 func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, command string, expectedGate *int64) (bool, error) {
@@ -104,9 +141,8 @@ func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, comma
 	if err != nil {
 		return false, err
 	}
-	sum := sha256.Sum256([]byte("fresh-coder\x00" + command + "\x00" + plan.inputs.Tip))
 	prep := source
-	prep.ID, prep.Revision = "f"+hex.EncodeToString(sum[:12]), 0
+	prep.ID, prep.Revision = coderPreparationID(command, plan.inputs.Tip), 0
 	prep.SourceCommit = plan.inputs.Tip
 	requested := time.Now().Add(10 * time.Minute).Unix()
 	if plan.deadline.Unix() < requested {
@@ -127,6 +163,9 @@ func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, comma
 	plan.preparationOwner = command
 	if record.Stopped || record.Retirement == "confirmed" {
 		return false, errors.New("retry preparation was retired")
+	}
+	if time.Now().Unix() >= record.NotAfter {
+		return false, factory.ErrAttemptTimeExhausted
 	}
 	if stored.State.Ready {
 		if !candidatePreparationStateMatches(stored.State, prep) {

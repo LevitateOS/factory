@@ -469,9 +469,13 @@ func projectCompletionAssignmentTx(ctx context.Context, tx *sql.Tx, runCache map
 		Revision:     stored.Revision,
 	}
 	if r := stored.RetainedPublication; r != nil {
-		projected.Retained = &factory.CompletionRetainedCandidate{AssignmentID: r.Assignment, PublicationID: r.Publication, RunID: r.Run, Candidate: r.Candidate}
+		projected.Retained = &factory.CompletionRetainedCandidate{AdoptedFrom: r.AdoptedFrom, AssignmentID: r.Assignment, PublicationID: r.Publication, RunID: r.Run, Candidate: r.Candidate}
 		// This owner never launched. Its original assignment/run/publication
 		// joins are checked together by CompletionMaterial.Validate below.
+		return projected, projected.Validate()
+	}
+	if stored.ExternalPublication != nil {
+		projected.External = stored.ExternalPublication
 		return projected, projected.Validate()
 	}
 	for _, runID := range stored.RunHistory {
@@ -524,19 +528,33 @@ func completionPublicationsTx(ctx context.Context, tx *sql.Tx, repository int64,
 		return nil, nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	owned := make(map[string]bool, len(assignments))
+	// Close the result before resolving exact owner/run references on this
+	// same transaction connection.
+	var publicationRows [][]byte
+	for rows.Next() {
+		var raw []byte
+		if err = rows.Scan(&raw); err != nil {
+			return nil, nil, err
+		}
+		publicationRows = append(publicationRows, raw)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, nil, err
+	}
+	if len(publicationRows) > factory.MaxReassessmentIssues {
+		return nil, nil, errors.New("completion material publications exceed their bound")
+	}
+	owned := make(map[string]factory.CompletionAssignment, len(assignments))
 	for _, assignment := range assignments {
-		owned[assignment.ID] = true
+		owned[assignment.ID] = assignment
 	}
 	publications := []factory.CompletionPublication{}
 	referenced := make(map[string]bool)
-	for rows.Next() {
-		var raw []byte
+	for _, raw := range publicationRows {
 		var stored factory.Publication
-		if err = rows.Scan(&raw); err != nil {
-			_ = rows.Close()
-			return nil, nil, err
-		}
 		if err = json.Unmarshal(raw, &stored); err != nil {
 			_ = rows.Close()
 			return nil, nil, errors.New("completion material publication is malformed")
@@ -545,11 +563,12 @@ func completionPublicationsTx(ctx context.Context, tx *sql.Tx, repository int64,
 			_ = rows.Close()
 			return nil, nil, errors.New("completion material publication is invalid")
 		}
-		if !owned[stored.AssignmentID] {
+		owner, exists := owned[stored.AssignmentID]
+		if !exists || owner.ProjectID != stored.ProjectID || owner.Issue != stored.Issue || owner.Acceptance != stored.Acceptance {
 			_ = rows.Close()
 			return nil, nil, errors.New("completion material publication lacks its assignment")
 		}
-		if !runs[stored.Run] {
+		if stored.Run != "" && !runs[stored.Run] {
 			var exists bool
 			if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_runs WHERE id=$1)`, stored.Run).Scan(&exists); err != nil || !exists {
 				_ = rows.Close()
@@ -557,8 +576,20 @@ func completionPublicationsTx(ctx context.Context, tx *sql.Tx, repository int64,
 			}
 			runs[stored.Run] = true
 		}
+		if owner.External != nil {
+			var ownerData []byte
+			var canonical factory.Assignment
+			if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, stored.AssignmentID).Scan(&ownerData); err != nil ||
+				json.Unmarshal(ownerData, &canonical) != nil {
+				return nil, nil, errors.New("completion external publication lacks its canonical owner")
+			}
+			if _, err = publicationExecutionOwner(ctx, tx, stored, canonical); err != nil {
+				return nil, nil, errors.New("completion external publication lacks its admitted planning provenance")
+			}
+		}
 		projected := factory.CompletionPublication{
-			ID: stored.ID, AssignmentID: stored.AssignmentID, ProjectID: stored.ProjectID,
+			External: stored.External,
+			ID:       stored.ID, AssignmentID: stored.AssignmentID, ProjectID: stored.ProjectID,
 			Role: stored.Role, Acceptance: stored.Acceptance, Run: stored.Run,
 			Candidate: stored.Candidate, BaseSHA: stored.BaseSHA, TargetBranch: stored.TargetBranch,
 			Stage: stored.Stage, Outcome: stored.Outcome, Reason: stored.Reason,

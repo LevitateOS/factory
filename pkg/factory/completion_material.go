@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -617,6 +618,7 @@ func (r CompletionReservation) Validate() error {
 type CompletionAssignment struct {
 	RunHistory   []CompletionRunState         `json:"run_history"`
 	Retained     *CompletionRetainedCandidate `json:"retained_candidate,omitempty"`
+	External     *ExternalPublicationOwner    `json:"external_publication,omitempty"`
 	Reservation  *CompletionReservation       `json:"reservation,omitempty"`
 	Subject      ExecutionSubject             `json:"subject,omitempty"`
 	ID           string                       `json:"id"`
@@ -638,6 +640,7 @@ type CompletionAssignment struct {
 // from the successful execution whose candidate it was authorized to publish.
 // Send deadlines, source credentials and operation payloads do not enter.
 type CompletionRetainedCandidate struct {
+	AdoptedFrom   string `json:"adopted_from,omitempty"`
 	AssignmentID  string `json:"assignment_id"`
 	PublicationID string `json:"publication_id"`
 	RunID         string `json:"run_id"`
@@ -670,7 +673,7 @@ func (a CompletionAssignment) validateSubject() error {
 	if err := a.Subject.Validate(); err != nil {
 		return err
 	}
-	if a.Retained != nil && a.Subject.Kind == SubjectIssue && a.Issue > 0 && project.ValidDecisionID(a.Acceptance) && a.Phase == "" {
+	if (a.Retained != nil || a.External != nil) && a.Subject.Kind == SubjectIssue && a.Issue > 0 && project.ValidDecisionID(a.Acceptance) && a.Phase == "" {
 		return nil
 	}
 	if !project.ValidExecutionPhase(a.Phase) || !SubjectKindAllowed(a.Subject.Kind, a.Phase) ||
@@ -693,10 +696,21 @@ func (a CompletionAssignment) validateSubject() error {
 }
 
 func (a CompletionAssignment) validateStage() error {
+	if e := a.External; e != nil {
+		if a.Retained != nil || e.Origin.validateFields() != nil || e.Origin.CommandID != a.ID ||
+			!ValidID(e.PlanAssignment) || e.PlanAssignment == a.ID || e.Connection == "" || len(e.Connection) > 128 ||
+			a.Stage != AssignmentRetained || a.ID != a.AttemptRoot || a.Role != project.RoleCoder ||
+			a.SourceCommit != e.Origin.Target.BaseOID || a.Subject.Kind != SubjectIssue || a.Phase != "" ||
+			a.Revision != 0 || a.Outcome != "" || a.Reason != "" || len(a.RunHistory) != 0 || a.Reservation != nil {
+			return errors.New("invalid completion external publication owner")
+		}
+		return nil
+	}
 	if a.Retained != nil {
 		r := a.Retained
 		if a.Stage != AssignmentRetained || a.ID != a.AttemptRoot || a.ID == r.AssignmentID ||
 			!ValidID(r.AssignmentID) || !ValidID(r.PublicationID) || !ValidID(r.RunID) ||
+			r.AdoptedFrom != "" && (!ValidID(r.AdoptedFrom) || r.AdoptedFrom == a.ID) ||
 			!ValidCommit(r.Candidate) || r.Candidate == a.SourceCommit || a.Role != project.RoleCoder ||
 			a.Subject.Kind != SubjectIssue || a.Phase != "" || a.Revision != 0 || a.Outcome != "" || a.Reason != "" ||
 			len(a.RunHistory) != 0 || a.Reservation != nil {
@@ -723,7 +737,7 @@ func (a CompletionAssignment) validateHistory() error {
 	if !ValidCommit(a.SourceCommit) || !ValidPreparationRef(a.Preparation) || a.Revision < 0 {
 		return errors.New("invalid completion assignment bindings")
 	}
-	if a.Retained == nil && len(a.RunHistory) == 0 || len(a.RunHistory) > MaxDispatchAttempts {
+	if a.Retained == nil && a.External == nil && len(a.RunHistory) == 0 || len(a.RunHistory) > MaxDispatchAttempts {
 		return errors.New("invalid completion assignment run history")
 	}
 	seen := make(map[string]bool, len(a.RunHistory))
@@ -764,27 +778,28 @@ func (a CompletionAssignment) Validate() error {
 // provenance. No raw operation/authorization payloads, review work,
 // journals, observation stamps or tuples enter.
 type CompletionPublication struct {
-	ID           string  `json:"id"`
-	AssignmentID string  `json:"assignment_id"`
-	ProjectID    string  `json:"project_id"`
-	Role         string  `json:"role"`
-	Acceptance   string  `json:"acceptance"`
-	Run          string  `json:"run"`
-	Candidate    string  `json:"candidate"`
-	BaseSHA      string  `json:"base_sha"`
-	TargetBranch string  `json:"target_branch"`
-	Stage        string  `json:"stage"`
-	Outcome      Outcome `json:"outcome,omitempty"`
-	Reason       string  `json:"reason,omitempty"`
-	Repository   int64   `json:"repository,string"`
-	Issue        int64   `json:"issue,string"`
-	Revision     int64   `json:"revision"`
-	PRNumber     int64   `json:"pr_number"`
-	PRID         int64   `json:"pr_id"`
+	External     *ExternalPublicationOrigin `json:"external,omitempty"`
+	ID           string                     `json:"id"`
+	AssignmentID string                     `json:"assignment_id"`
+	ProjectID    string                     `json:"project_id"`
+	Role         string                     `json:"role"`
+	Acceptance   string                     `json:"acceptance"`
+	Run          string                     `json:"run"`
+	Candidate    string                     `json:"candidate"`
+	BaseSHA      string                     `json:"base_sha"`
+	TargetBranch string                     `json:"target_branch"`
+	Stage        string                     `json:"stage"`
+	Outcome      Outcome                    `json:"outcome,omitempty"`
+	Reason       string                     `json:"reason,omitempty"`
+	Repository   int64                      `json:"repository,string"`
+	Issue        int64                      `json:"issue,string"`
+	Revision     int64                      `json:"revision"`
+	PRNumber     int64                      `json:"pr_number"`
+	PRID         int64                      `json:"pr_id"`
 }
 
 func (p CompletionPublication) validateIdentity() error {
-	if !ValidID(p.ID) || !ValidID(p.AssignmentID) || !ValidID(p.Run) {
+	if !ValidID(p.ID) || !ValidID(p.AssignmentID) || !ValidID(p.Run) && !(p.External != nil && p.Run == "") {
 		return errors.New("invalid completion publication identity")
 	}
 	if !ValidProjectID(p.ProjectID) || p.Role != project.RoleCoder {
@@ -801,6 +816,14 @@ func (p CompletionPublication) validateIdentity() error {
 	}
 	if !ValidTargetBranch(p.TargetBranch) {
 		return errors.New("invalid completion publication target branch")
+	}
+	if e := p.External; e != nil {
+		if e.Validate(p.Repository) != nil || e.CommandID != p.ID || p.AssignmentID != p.ID ||
+			e.Target.BaseRef != p.TargetBranch || e.Target.BaseOID != p.BaseSHA || p.PRNumber <= 0 || p.PRID <= 0 ||
+			p.Stage != PublicationPublished && p.Stage != PublicationFenced && p.Stage != PublicationWithdrawn ||
+			p.Run == "" && p.Candidate != e.Target.HeadOID {
+			return errors.New("invalid completion external publication provenance")
+		}
 	}
 	return nil
 }
@@ -1458,18 +1481,35 @@ func (m CompletionMaterial) validateAssignments(idx *completionMaterialIndex) er
 		if _, ok := assignments[assignment.AttemptRoot]; !ok {
 			return errors.New("completion material assignment lacks its attempt root")
 		}
+		if e := assignment.External; e != nil {
+			source, ok := assignments[e.PlanAssignment]
+			if e.Origin.Validate(m.Repository) != nil || !ok || source.External != nil || source.Retained != nil ||
+				source.Stage != AssignmentFinished || source.Outcome != Succeeded || source.Phase != project.ExecutionInvestigate ||
+				source.ProjectID != assignment.ProjectID || source.Issue != assignment.Issue || source.Acceptance != assignment.Acceptance ||
+				source.Preparation != assignment.Preparation || source.SourceCommit != assignment.SourceCommit {
+				return errors.New("completion external owner lacks its completed planning provenance")
+			}
+		}
 		if r := assignment.Retained; r != nil {
 			source, ok := assignments[r.AssignmentID]
-			if !ok || source.Retained != nil || source.Stage != AssignmentFinished || source.Outcome != Succeeded ||
+			if !ok || source.Retained != nil || source.External != nil || source.Stage != AssignmentFinished || source.Outcome != Succeeded ||
 				source.ProjectID != assignment.ProjectID || source.Issue != assignment.Issue || source.Acceptance != assignment.Acceptance ||
 				source.Preparation != assignment.Preparation || source.SourceCommit != assignment.SourceCommit || source.Role != project.RoleCoder {
 				return errors.New("completion retained candidate lacks its successful source")
 			}
 			found := false
+			refreshed := r.AdoptedFrom != ""
+			for _, publication := range m.Publications {
+				if publication.ID == r.PublicationID && publication.External != nil {
+					refreshed = true
+				}
+			}
 			for _, execution := range assignments {
-				if execution.AttemptRoot != source.AttemptRoot || execution.Retained != nil || execution.Stage != AssignmentFinished || execution.Outcome != Succeeded ||
+				root := assignments[execution.AttemptRoot]
+				sameOrigin := execution.AttemptRoot == source.AttemptRoot || refreshed && root.Retained != nil && root.Retained.AssignmentID == source.ID
+				if !sameOrigin || execution.Retained != nil || execution.External != nil || execution.Stage != AssignmentFinished || execution.Outcome != Succeeded ||
 					execution.ProjectID != source.ProjectID || execution.Issue != source.Issue || execution.Acceptance != source.Acceptance ||
-					execution.Role != project.RoleCoder || execution.SourceCommit != source.SourceCommit || execution.Preparation != source.Preparation {
+					execution.Role != project.RoleCoder || !refreshed && (execution.SourceCommit != source.SourceCommit || execution.Preparation != source.Preparation) {
 					continue
 				}
 				for _, run := range execution.RunHistory {
@@ -1506,25 +1546,65 @@ func (m CompletionMaterial) validatePublications(idx *completionMaterialIndex) e
 		}
 		publications[publication.ID] = true
 		owner, ok := idx.assignments[publication.AssignmentID]
-		if !ok {
+		if !ok || owner.ProjectID != publication.ProjectID || owner.Issue != publication.Issue || owner.Acceptance != publication.Acceptance {
 			return errors.New("completion material publication lacks its assignment")
 		}
-		if r := owner.Retained; r != nil && (publication.Run != r.RunID || publication.Candidate != r.Candidate || publication.Acceptance != owner.Acceptance || publication.BaseSHA != owner.SourceCommit) {
-			return errors.New("completion publication changed its retained candidate")
+		if e := owner.External; e != nil && !reflect.DeepEqual(publication.External, &e.Origin) {
+			return errors.New("completion publication changed its external owner origin")
+		}
+		if r := owner.Retained; r != nil {
+			if publication.BaseSHA != owner.SourceCommit || publication.External == nil && (publication.Run != r.RunID || publication.Candidate != r.Candidate) ||
+				publication.External != nil && publication.External.Target.HeadOID != r.Candidate {
+				return errors.New("completion publication changed its retained candidate")
+			}
+		}
+		if publication.Run != "" && publication.External != nil {
+			found := false
+			for _, execution := range m.Assignments {
+				if execution.ProjectID != publication.ProjectID || execution.Issue != publication.Issue || execution.Acceptance != publication.Acceptance ||
+					execution.Role != project.RoleCoder || execution.AttemptRoot != owner.AttemptRoot {
+					continue
+				}
+				for _, run := range execution.RunHistory {
+					if run.ID == publication.Run {
+						found = true
+					}
+				}
+			}
+			if !found {
+				return errors.New("completion external correction lacks its real owned run")
+			}
 		}
 		if _, ok := idx.acceptances[publication.Acceptance]; !ok {
 			return errors.New("completion material publication lacks its acceptance body")
 		}
 	}
 	for _, owner := range m.Assignments {
+		if owner.External != nil && !publications[owner.ID] {
+			return errors.New("completion external owner lacks its publication")
+		}
 		if r := owner.Retained; r != nil {
-			found := false
+			found, adopted := false, r.AdoptedFrom == ""
 			for _, p := range m.Publications {
-				if p.ID == r.PublicationID && p.AssignmentID == r.AssignmentID && p.Run == r.RunID && p.Candidate == r.Candidate && p.BaseSHA == owner.SourceCommit && p.Acceptance == owner.Acceptance {
+				original := idx.assignments[p.AssignmentID]
+				executionOwner := original.ID
+				if original.External != nil {
+					executionOwner = original.External.PlanAssignment
+				} else if original.Retained != nil {
+					executionOwner = original.Retained.AssignmentID
+				}
+				if executionOwner != r.AssignmentID || p.ProjectID != owner.ProjectID || p.Issue != owner.Issue || p.BaseSHA != owner.SourceCommit || p.Acceptance != owner.Acceptance {
+					continue
+				}
+				candidateMatches := (p.Run == r.RunID || p.Run == "" && p.External != nil) && p.Candidate == r.Candidate
+				if p.ID == r.PublicationID && (r.AdoptedFrom != "" || candidateMatches) {
 					found = true
 				}
+				if p.ID == r.AdoptedFrom && candidateMatches {
+					adopted = true
+				}
 			}
-			if !found {
+			if !found || !adopted {
 				return errors.New("completion retained candidate lacks its original publication")
 			}
 		}

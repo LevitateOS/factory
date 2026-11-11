@@ -3,11 +3,16 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/execution"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // FW32 material cutover: the producer captures the complete snapshot in
@@ -412,6 +417,237 @@ func TestCaptureCompletionMaterialComplete(t *testing.T) {
 	moved, err := db.CaptureCompletionLocal(ctx, 7)
 	if err != nil || moved.Equal(first) {
 		t.Fatalf("moved=%+v err=%v, want material control change to move the capture", moved, err)
+	}
+
+	// Provider facts are declared fixture inputs. Every publication and owner
+	// validates canonically; captures resolve their real PostgreSQL provenance.
+	writeAssignment := func(owner factory.Assignment, execution *factory.Run) {
+		t.Helper()
+		if err := owner.Validate(); err != nil {
+			t.Fatalf("external fixture owner: %v", err)
+		}
+		data, err := json.Marshal(owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, owner.ID, owner.Repository, owner.Issue, owner.Run, owner.Stage, owner.Revision, string(data)); err != nil {
+			t.Fatal(err)
+		}
+		if execution != nil {
+			if err := execution.Validate(); err != nil {
+				t.Fatalf("external fixture run: %v", err)
+			}
+			data, err := json.Marshal(execution)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES($1,FALSE,TRUE,$2)`, execution.ID, string(data)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO factory_run_views(run,repository,issue,attempt) VALUES($1,$2,$3,$4)`, execution.ID, owner.Repository, owner.Issue, owner.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	writePublication := func(publication factory.Publication, insert bool) {
+		t.Helper()
+		if err := publication.Validate(); err != nil {
+			t.Fatalf("external fixture publication: %v", err)
+		}
+		data, err := json.Marshal(publication)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if insert {
+			_, err = db.db.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)`, publication.AssignmentID, publication.Repository, publication.Issue, publication.Run, publication.Stage, publication.Revision, string(data))
+		} else {
+			_, err = db.db.ExecContext(ctx, `UPDATE factory_publications SET run=$2,data=$3 WHERE assignment=$1`, publication.AssignmentID, publication.Run, string(data))
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	planning, _, planningRun, _ := finishedPublishableAssignment(t, now, 3, true, "completed")
+	planning.Acceptance, planning.Subject.Issue.Acceptance = v2.ID, v2.ID
+	planning.NativeTool = &execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture", SHA256: strings.Repeat("a", 64), Executable: "/declared/fixture/muse"}
+	planning.Harness, planning.HarnessVers = project.FactoryHarnessMuse+"-fixture", "fixture"
+	planningRun.Harness = planning.Harness
+	planningRun.Outcome, planningRun.Reconciled = factory.Succeeded, true
+	planningPlan := phaseTestPlan(t, planning.ID, planning.SourceCommit, planning.Preparation)
+	planning.Result.Candidate, planning.Result.Phase = "", project.ExecutionInvestigate
+	planning.Result.PhaseResult = &factory.PhaseResult{Version: 2, Phase: project.ExecutionInvestigate, Status: "completed", Summary: "declared completed plan", Output: &factory.PhaseOutput{Plan: &planningPlan, PlanReview: strings.Repeat("e", 64)}}
+	writeAssignment(planning, &planningRun)
+	if err := db.SaveInvestigationPlan(ctx, planningPlan); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AdvancePlanHead(ctx, planning.ID, "", planningPlan.ID); err != nil {
+		t.Fatal(err)
+	}
+	externalPublication := func(owner factory.Assignment, number int64) factory.Publication {
+		t.Helper()
+		publication := publicationTestRecord()
+		publication.ID, publication.AssignmentID, publication.Run = owner.ID, owner.ID, ""
+		publication.Authority, publication.Acceptance, publication.Preparation = owner.Authority, owner.Acceptance, owner.Preparation
+		publication.BaseSHA, publication.Candidate = owner.SourceCommit, strings.Repeat("2", 40)
+		publication.PRNumber, publication.PRID = number, number+1000
+		publication.Stage, publication.Outcome, publication.Reason = factory.PublicationPublished, factory.Succeeded, factory.PublishReasonLinked
+		publication.CreatedUnix, publication.FinishedUnix = now.Unix(), now.Unix()
+		publication.External = &factory.ExternalPublicationOrigin{CommandID: owner.ID, Host: collaboration.HostID(strings.Repeat("a", 32)), Profile: collaboration.ProfileID(strings.Repeat("b", 32)), Connection: collaboration.ConnectionID(strings.Repeat("c", 32)), ActorID: 7, Policy: 1, ObservationDigest: strings.Repeat("d", 64), ObservationRevision: 1, ObservedUnix: now.Unix(),
+			Target: factory.PublicationPullTarget{AuthorID: 8, IssueID: number + 2000, HeadRepository: 7, HeadRef: "refs/heads/external-material", BaseRef: publication.TargetBranch, HeadOID: publication.Candidate, BaseOID: publication.BaseSHA}}
+		return publication
+	}
+	legacyExternal := externalPublication(planning, 901)
+	writePublication(legacyExternal, true)
+	retainedID := factory.NewID()
+	retainedOwner := factory.Assignment{ID: retainedID, AttemptRoot: retainedID, PublicationAssignment: retainedID, Subject: planning.Subject, ProjectID: planning.ProjectID, Role: project.RoleCoder, Authority: planning.Authority, ActorID: planning.ActorID, Acceptance: planning.Acceptance, Preparation: planning.Preparation, SourceCommit: planning.SourceCommit, Stage: factory.AssignmentRetained, Repository: 7, Issue: 3, NativeRev: 1, CreatedUnix: now.Unix(),
+		RetainedPublication: &factory.RetainedPublication{AdoptedFrom: legacyExternal.ID, Publication: legacyExternal.ID, Assignment: planning.ID, Run: planning.Run, Candidate: legacyExternal.Candidate, Connection: planning.Connection}}
+	writeAssignment(retainedOwner, nil)
+	retainedExternal := externalPublication(retainedOwner, 902)
+	writePublication(retainedExternal, true)
+	canonicalID := factory.NewID()
+	canonicalOwner := retainedOwner
+	canonicalOwner.ID, canonicalOwner.AttemptRoot, canonicalOwner.PublicationAssignment = canonicalID, canonicalID, canonicalID
+	canonicalOwner.RetainedPublication = nil
+	canonicalExternal := externalPublication(canonicalOwner, 903)
+	canonicalOwner.ExternalPublication = &factory.ExternalPublicationOwner{PlanAssignment: planning.ID, Connection: planning.Connection, Origin: *canonicalExternal.External}
+	writeAssignment(canonicalOwner, nil)
+	writePublication(canonicalExternal, true)
+	externalCapture, err := db.CaptureCompletionLocal(ctx, 7)
+	if err != nil {
+		t.Fatalf("runless external publications blocked complete material: %v", err)
+	}
+	assertExternal := func(local factory.CompletionLocal, expected factory.Publication) {
+		t.Helper()
+		for _, publication := range local.Material.Publications {
+			if publication.ID == expected.ID {
+				if publication.Run != expected.Run || publication.Candidate != expected.Candidate || !reflect.DeepEqual(publication.External, expected.External) {
+					t.Fatalf("external publication provenance changed: %+v", publication)
+				}
+				return
+			}
+		}
+		t.Fatalf("external publication %s was omitted", expected.ID)
+	}
+	for _, publication := range []factory.Publication{legacyExternal, retainedExternal, canonicalExternal} {
+		assertExternal(externalCapture, publication)
+	}
+	canonicalFound := false
+	for _, owner := range externalCapture.Material.Assignments {
+		if owner.ID == canonicalID {
+			canonicalFound = reflect.DeepEqual(owner.External, canonicalOwner.ExternalPublication) && len(owner.RunHistory) == 0
+		}
+	}
+	if !canonicalFound {
+		t.Fatal("non-executing external owner lost its real planning provenance")
+	}
+	correction, _, correctionRun, _ := finishedPublishableAssignment(t, now, 3, true, "completed")
+	correction.Acceptance, correction.Subject.Issue.Acceptance = v2.ID, v2.ID
+	correction.ParentAssignment, correction.AttemptRoot, correction.PublicationAssignment = retainedID, retainedID, retainedID
+	correction.Phase, correction.SourceCommit, correction.Result.Candidate = project.ExecutionCorrect, retainedExternal.Candidate, strings.Repeat("3", 40)
+	correctionRun.InputSHA, correctionRun.Outcome, correctionRun.Reconciled = correction.SourceCommit, factory.Succeeded, true
+	writeAssignment(correction, &correctionRun)
+	correctedExternal := retainedExternal
+	correctedExternal.Run, correctedExternal.Candidate = correction.Run, correction.Result.Candidate
+	operationID := factory.PublicationOperationID(correctedExternal.ID, factory.OpRefPublish, 2)
+	operation := publicationStoreIntent(operationID)
+	operation.TargetBranch, operation.ComparisonRef, operation.ComparisonOID = correctedExternal.TargetBranch, correctedExternal.TargetBranch, correctedExternal.BaseSHA
+	operation.Candidate, operation.ExpectedOld = correctedExternal.Candidate, retainedExternal.Candidate
+	operation.CorrectionNumber, operation.CorrectionAuthor = correctedExternal.PRNumber, correctedExternal.External.Target.AuthorID
+	correctedExternal.Corrections = []factory.PublicationOperation{{Work: operation, RunID: correction.Run, OperationID: operationID, Kind: factory.OpRefPublish, Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, Attempts: 1, Receipt: "declared-correction-receipt", UpdatedUnix: now.Unix()}}
+	writePublication(correctedExternal, false)
+	continuationID := factory.NewID()
+	continuationOwner := retainedOwner
+	continuationOwner.ID, continuationOwner.AttemptRoot, continuationOwner.PublicationAssignment = continuationID, continuationID, continuationID
+	continuationOwner.RetainedPublication = &factory.RetainedPublication{AdoptedFrom: correctedExternal.ID, Publication: legacyExternal.ID, Assignment: planning.ID, Run: correction.Run, Candidate: correctedExternal.Candidate, Connection: planning.Connection}
+	writeAssignment(continuationOwner, nil)
+	continuationExternal := externalPublication(continuationOwner, 904)
+	continuationExternal.Candidate, continuationExternal.External.Target.HeadOID = correctedExternal.Candidate, correctedExternal.Candidate
+	writePublication(continuationExternal, true)
+	correctedCapture, err := db.CaptureCompletionLocal(ctx, 7)
+	if err != nil {
+		t.Fatalf("external correction lost its actual run: %v", err)
+	}
+	assertExternal(correctedCapture, correctedExternal)
+	assertExternal(correctedCapture, continuationExternal)
+	continuationFound := false
+	for _, owner := range correctedCapture.Material.Assignments {
+		if owner.ID == continuationID {
+			continuationFound = reflect.DeepEqual(owner.Retained, &factory.CompletionRetainedCandidate{AdoptedFrom: correctedExternal.ID, AssignmentID: planning.ID, PublicationID: legacyExternal.ID, RunID: correction.Run, Candidate: correctedExternal.Candidate}) && len(owner.RunHistory) == 0
+		}
+	}
+	if !continuationFound {
+		t.Fatal("retained external continuation lost its original or immediate predecessor provenance")
+	}
+	if correctedCapture.Equal(externalCapture) {
+		t.Fatal("corrected external candidate did not change the material digest")
+	}
+	if repeat, err := db.CaptureCompletionLocal(ctx, 7); err != nil || !repeat.Equal(correctedCapture) {
+		t.Fatalf("external material recapture changed: %v", err)
+	}
+	fixtureDSN, ok := TestFixtureDSN()
+	if !ok {
+		t.Fatal("fixture connection disappeared")
+	}
+	reopenURI, err := url.Parse(fixtureDSN)
+	if err != nil {
+		t.Fatal("invalid fixture connection")
+	}
+	var database string
+	if err := db.db.QueryRowContext(ctx, `SELECT current_database()`).Scan(&database); err != nil {
+		t.Fatal(err)
+	}
+	reopenURI.Path = "/" + database
+	reopened, err := Open(reopenURI.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	if afterOpen, err := reopened.CaptureCompletionLocal(ctx, 7); err != nil || !afterOpen.Equal(correctedCapture) {
+		t.Fatalf("external material changed after reopen: %v", err)
+	}
+	for _, predecessor := range []string{factory.NewID(), canonicalExternal.ID} {
+		if _, err := db.db.ExecContext(ctx, `UPDATE factory_assignments SET data=jsonb_set(data,'{retained_publication,adopted_from}',to_jsonb($2::text)) WHERE id=$1`, continuationID, predecessor); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.CaptureCompletionLocal(ctx, 7); err == nil {
+			t.Fatal("dangling or foreign retained-review predecessor was accepted or omitted")
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE factory_assignments SET data=jsonb_set(data,'{retained_publication,adopted_from}',to_jsonb($2::text)) WHERE id=$1`, continuationID, correctedExternal.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, invalid := range []struct {
+		name   string
+		change func(*factory.Publication)
+	}{
+		{"missing run", func(publication *factory.Publication) {
+			publication.Run = factory.NewID()
+			publication.Corrections[0].RunID = publication.Run
+		}},
+		{"foreign run owner", func(publication *factory.Publication) {
+			publication.Run = a.Run
+			publication.Corrections[0].RunID = a.Run
+		}},
+		{"wrong project owner", func(publication *factory.Publication) { publication.ProjectID = "p" + strings.Repeat("9", 24) }},
+	} {
+		altered := correctedExternal
+		altered.Corrections = append([]factory.PublicationOperation(nil), correctedExternal.Corrections...)
+		invalid.change(&altered)
+		writePublication(altered, false)
+		if _, err := db.CaptureCompletionLocal(ctx, 7); err == nil {
+			t.Fatalf("%s publication was accepted or omitted", invalid.name)
+		}
+		writePublication(correctedExternal, false)
+	}
+	if _, err := db.db.ExecContext(ctx, `UPDATE factory_publications SET data=jsonb_set(data,'{external,observation_digest}','"malformed"'::jsonb) WHERE assignment=$1`, correctedExternal.AssignmentID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CaptureCompletionLocal(ctx, 7); err == nil {
+		t.Fatal("malformed external origin was accepted or omitted")
+	}
+	writePublication(correctedExternal, false)
+	if restored, err := db.CaptureCompletionLocal(ctx, 7); err != nil || !restored.Equal(correctedCapture) {
+		t.Fatalf("refused external rows changed the retained capture: %v", err)
 	}
 
 	if _, err := db.db.ExecContext(ctx, `INSERT INTO issue_acceptance_heads(repository, issue, decision) VALUES(7, 9, $1)`,

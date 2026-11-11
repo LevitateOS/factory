@@ -169,14 +169,22 @@ type ExternalPublicationOrigin struct {
 	Automatic   bool   `json:"automatic,omitempty"`
 }
 
-func (o ExternalPublicationOrigin) Validate(repository int64) error {
+func (o ExternalPublicationOrigin) validateFields() error {
 	t := o.Target
-	if repository < 1 || t.AuthorID < 1 || t.IssueID < 1 || t.HeadRepository < 1 || !ValidTargetBranch(t.HeadRef) || !ValidTargetBranch(t.BaseRef) ||
+	if t.AuthorID < 1 || t.IssueID < 1 || t.HeadRepository < 1 || !ValidTargetBranch(t.HeadRef) || !ValidTargetBranch(t.BaseRef) ||
 		!ValidCommit(t.HeadOID) || !ValidCommit(t.BaseOID) || t.HeadOID == t.BaseOID || !ValidID(o.CommandID) ||
 		!collaboration.ValidID(string(o.Host)) || !collaboration.ValidID(string(o.Profile)) || !collaboration.ValidID(string(o.Connection)) ||
 		o.ActorID < 1 || o.Policy < 1 || o.ObservationRevision < 1 || !ValidDigest(o.ObservationDigest) || o.ObservedUnix <= 0 {
 		return errors.New("invalid external publication origin")
 	}
+	return nil
+}
+
+func (o ExternalPublicationOrigin) Validate(repository int64) error {
+	if repository < 1 || o.validateFields() != nil {
+		return errors.New("invalid external publication origin")
+	}
+	t := o.Target
 	if t.HeadRepository != repository {
 		if o.Automatic {
 			return errors.New("automatic external adoption cannot execute forks")
