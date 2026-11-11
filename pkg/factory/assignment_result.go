@@ -30,6 +30,31 @@ type AssignmentResult struct {
 	RecordedUnix int64         `json:"recorded_unix"`
 }
 
+// UnassessedClear identifies an old completed review whose finish mapper
+// accepted an explicit clear without the carried actionable assessments.
+// It is an incomplete claim, never verification or authority to repeat a send.
+// Callers must independently prove historical ownership and settled/no-send
+// custody before allowing a newly authorized continuation to pass it.
+func (a Assignment) UnassessedClear() bool {
+	if !a.Succeeded() || a.Phase != project.ExecutionReview || a.ReviewContext == nil || a.ReviewContext.ValidateFor(a) != nil {
+		return false
+	}
+	out, ok := a.PhaseOutput()
+	if !ok || out.Clear == nil || len(out.Clear.Assessments) != 0 {
+		return false
+	}
+	c, clear := a.ReviewContext, out.Clear
+	if clear.CycleID != c.Cycle.ID || clear.Head != c.Cycle.Head || clear.BaseOID != c.Cycle.BaseOID || c.AdmittedTuple.Base != c.Cycle.BaseOID || clear.Validate(nil) != nil {
+		return false
+	}
+	content, err := FindingContentDigest(c.CarriedFindings)
+	if err != nil {
+		return false
+	}
+	coverage, err := ClearCoverageDigest(clear.Head, clear.BaseOID, content)
+	return err == nil && coverage == clear.CoverageDigest && (c.ClearCoverageDigest == "" || c.ClearCoverageDigest == coverage) && clear.Validate(c.CarriedFindings) != nil
+}
+
 // Validate extends Result validation with the dispatch binding.
 func (r AssignmentResult) Validate() error {
 	if !ValidID(r.AssignmentID) || !ValidID(r.RunID) {

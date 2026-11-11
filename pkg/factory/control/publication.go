@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -156,6 +157,12 @@ func (c *Coordinator) consumePublicationChildren(ctx context.Context, report *Pu
 		c.ownerMu.Unlock()
 		switch child.Role {
 		case project.RoleReviewer:
+			if child.UnassessedClear() {
+				if err := c.retireUnassessedReview(ctx, child, report); err != nil {
+					publicationWait(report, child.PublicationAssignment, "review_result_retirement_pending")
+				}
+				continue
+			}
 			if _, err := c.SubmitReviewForRun(ctx, child.Run); err != nil {
 				publicationWait(report, child.PublicationAssignment, "review_child_pending")
 				continue
@@ -182,6 +189,47 @@ func (c *Coordinator) consumePublicationChildren(ctx context.Context, report *Pu
 		c.publicationChildCursor = ""
 		c.ownerMu.Unlock()
 	}
+}
+
+// An old finish mapper could record a clear without its carried assessments.
+// Preserve that result, retire only its proved unsent custody and close the
+// spent allowance. A later explicit funding command may request a new review;
+// this cleanup neither invents a verdict nor admits another model or send.
+func (c *Coordinator) retireUnassessedReview(ctx context.Context, child factory.Assignment, report *PublishReport) error {
+	run, err := c.Store.FactoryRun(ctx, child.Run)
+	if err != nil || !run.Reconciled || run.Native != nil && !run.Native.Settled() {
+		return errors.New("unassessed review custody is not settled")
+	}
+	bound, owner, err := c.publicationAssignmentsForRun(ctx, run)
+	if err != nil || !reflect.DeepEqual(bound, child) || !child.UnassessedClear() {
+		return errors.New("unassessed review is not bound to its original run")
+	}
+	p, err := c.Store.PublicationByAssignment(ctx, owner.ID)
+	if err != nil || p.Stage != factory.PublicationPublished || p.WithdrawRequested || child.SourceCommit != p.Candidate {
+		return errors.New("unassessed review publication changed")
+	}
+	cycle, found := findReviewCycle(p, child.ReviewContext.Cycle.ID)
+	if !found || cycle != child.ReviewContext.Cycle || cycle.ReviewerAssignment != child.ID || cycle.BaseOID != p.PullTarget().BaseOID {
+		return errors.New("unassessed review cycle changed")
+	}
+	for _, operation := range p.ReviewOperations {
+		if operation.RunID == child.Run {
+			return errors.New("unassessed review already has a native operation")
+		}
+	}
+	carried, err := c.reviewCarriedFindings(ctx, p, cycle)
+	if err != nil || !reflect.DeepEqual(carried, child.ReviewContext.CarriedFindings) {
+		return errors.New("unassessed review finding history changed")
+	}
+	if err = c.stopCandidatePreparationsForRoot(ctx, p.Repository, p.ProjectID, p.Issue, owner.AttemptRoot); err != nil {
+		return err
+	}
+	closed, err := c.Store.CloseAttempt(ctx, child.ID)
+	if err != nil || !closed {
+		return errors.New("unassessed review allowance retirement is unconfirmed")
+	}
+	c.fenceChildPublication(ctx, p, report)
+	return nil
 }
 
 // publishCorrectionChild routes one settled corrector child to the
