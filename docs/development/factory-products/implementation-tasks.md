@@ -824,9 +824,18 @@ and causal APPROVED COMMENT receipt. Fresh explicit generation3 merged PR56 to
 88d626aeafeb94a22b5c1d6cf8a72399c42dd42c with native completion/original-issue
 closure; generations1/2 remain archived and unsent. Temporary fixture permission
 is restored. Exact receipts/current installed state and next action are recorded
-once in the active recovery ledger. Paid delivery-material
-acceptance, resulting-commit preparation and remaining installed/race gates are
-still required. The source-only override below is historical.
+once in the active recovery ledger. Actual issue57 Architect/Builder subsequently
+succeeded at merged88d626a and published PR58 with passing real CI, qualifying
+resulting-commit preparation. Fixes418450f/cc7871c release the completed private
+Builder before new-role admission; finite real-PG handoff checks pass. The original
+Inspector then succeeded, and COMMENT5864159837 carries its explicit clear.
+8838cbc's existing-PG check and actual installed31 prove finite merge-only
+recovery after Quit's pristine withdrawal, preserving the closed inference
+allowance. Command8a4872b0815a426b8622f32a74472612 merged PR58 to609f18f at19:38:22Z,
+confirmed issue57 closure and normal Delivered UI.37 roles/210minutes; fixture
+permission restored push. No planning/Builder/reviewer replay. Paid pre-merge delivery
+acceptance and remaining installed/race gates are still required. The
+source-only override below is historical.
 
 **Implementation-only owner override (2026-11-10), UNVERIFIED.** The owner now
 requests source reading/editing only, starting at Q15, with all execution and
@@ -3614,6 +3623,15 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+**Current scoped GitHub evidence (2026-11-11):** actual active Architect upgrade
+preserved captured executable/intent/deadline and then completed, followed by the
+next Builder (goal26-active-installed-update.json). Actual installed provider
+acquisition/selection advanced a fresh credential-free cache from retained1.4.14
+to verified1.4.15; cached reopen/manual recheck passed, both hashes preserved,
+zero roles/assignments/product commands and normal joined Quit. The existing
+active recovery ledger records source/build/profile/receipt scope. This does not
+qualify reference-complete older-bundle retirement or whole Q28.
 
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** Format104
 adds the missing database payload contract for Q15's captured review submission
