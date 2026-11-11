@@ -77,11 +77,11 @@ pub struct NativeSupervisor {
     control: Sender<Control>,
     owner: Option<JoinHandle<Result<()>>>,
     alive: Arc<AtomicBool>,
-    products: Option<crate::product::Products>,
-    github: Option<crate::github_provider::Client>,
-    collaboration: Option<crate::collaboration::Port>,
-    executions: Option<Arc<Mutex<crate::factory_provider::Executions>>>,
-    execution_profile: Option<PathBuf>,
+    products: crate::product::Products,
+    github: crate::github_provider::Client,
+    collaboration: crate::collaboration::Port,
+    executions: Arc<Mutex<crate::factory_provider::Executions>>,
+    execution_profile: PathBuf,
     execution_error: Arc<Mutex<ExecutionReadiness>>,
 }
 /// Whether native execution may take new effects.
@@ -255,32 +255,25 @@ impl NativeSupervisor {
                 }
             })
             .map_err(|_| "native supervisor owner could not start")?;
-        let mut supervisor = Self {
-            control,
-            owner: Some(owner),
-            alive,
-            products: None,
-            github: None,
-            collaboration: None,
-            executions: None,
-            execution_profile: None,
-            execution_error,
-        };
+        // A failed start has no handles to retire; the owner thread tears itself down.
         match ready.recv() {
-            Ok(Ok((products, github, collaboration, executions, profile))) => {
-                supervisor.products = Some(products);
-                supervisor.github = Some(github);
-                supervisor.collaboration = Some(collaboration);
-                supervisor.executions = Some(executions);
-                supervisor.execution_profile = Some(profile);
-                Ok(supervisor)
-            }
+            Ok(Ok((products, github, collaboration, executions, execution_profile))) => Ok(Self {
+                control,
+                owner: Some(owner),
+                alive,
+                products,
+                github,
+                collaboration,
+                executions,
+                execution_profile,
+                execution_error,
+            }),
             Ok(Err(error)) => {
-                let _ = supervisor.stop_inner();
+                let _ = stop_owner(owner, &alive, &control);
                 Err(error)
             }
             Err(_) => {
-                let _ = supervisor.stop_inner();
+                let _ = stop_owner(owner, &alive, &control);
                 Err("native supervisor startup stopped".into())
             }
         }
@@ -303,10 +296,7 @@ impl NativeSupervisor {
         target: &str,
         body: &[u8],
     ) -> Result<soda_unix_http::Response> {
-        self.products
-            .as_ref()
-            .ok_or("native runtime is unavailable")?
-            .blocking(method, target, body)
+        self.products.blocking(method, target, body)
     }
     /// Explicit host composition after the callback owner is ready. This starts
     /// the one Go coordinator; each effect still needs its recorded admission.
@@ -317,7 +307,6 @@ impl NativeSupervisor {
         let alive = self.alive.clone();
         async move {
             let result: Result<()> = async {
-                let products = products.ok_or("native runtime is unavailable")?;
                 let deadline = Instant::now() + Duration::from_secs(120);
                 loop {
                     if !alive.load(Ordering::SeqCst) {
@@ -371,11 +360,7 @@ impl NativeSupervisor {
         target: &str,
         body: &[u8],
     ) -> impl std::future::Future<Output = Result<soda_unix_http::Response>> {
-        let request = self
-            .products
-            .as_ref()
-            .map(|products| products.request(method, target, body));
-        async move { request.ok_or("native runtime is unavailable")?.await }
+        self.products.request(method, target, body)
     }
     /// Trusted native lifecycle read. No browser route, caller-supplied path,
     /// current process authority or recovery effect is admitted by this view.
@@ -387,8 +372,6 @@ impl NativeSupervisor {
         let products = self.products.clone();
         let broker_run = broker_run.to_owned();
         async move {
-            let products =
-                products.ok_or_else(|| std::io::Error::other("native runtime unavailable"))?;
             crate::factory_provider::NativeRecovery::read(products, &broker_run).await
         }
     }
@@ -398,14 +381,9 @@ impl NativeSupervisor {
         &self,
         start: crate::factory_provider::ExecutionStart,
     ) -> Result<crate::factory_provider::ExecutionTicket> {
-        let profile = self
-            .execution_profile
-            .as_ref()
-            .ok_or("native execution unavailable")?;
+        let profile = &self.execution_profile;
         let preparation = self
             .collaboration
-            .as_ref()
-            .ok_or("native preparation owner unavailable")?
             .execution_source(&start.intent, &start.bundle)?;
         self.with_executions(|executions| executions.launch(profile.clone(), start, preparation))
     }
@@ -417,12 +395,10 @@ impl NativeSupervisor {
         capability: crate::credentials::TokenCapability,
     ) -> Result<()> {
         self.collaboration
-            .as_ref()
-            .ok_or("native execution enrollment unavailable")?
             .enroll_execution_account(credentials, capability)
     }
     pub fn enroll_credentials(&self, credentials: Arc<crate::credentials::Credentials>) -> Result<()> {
-        self.collaboration.as_ref().ok_or("native credential owner unavailable")?.enroll_credentials(credentials)
+        self.collaboration.enroll_credentials(credentials)
     }
     /// Project only this enrollment's freshly observed central placement. The
     /// host still owns selection, claims and operation authority.
@@ -451,10 +427,7 @@ impl NativeSupervisor {
     /// The native receiver chooses an empty owned directory. Recovery publishes
     /// a fresh `checkout` child; only the registration ID crosses to Go.
     pub fn register_recovery_checkout(&self, path: &Path) -> Result<String> {
-        self.collaboration
-            .as_ref()
-            .ok_or("native work recovery unavailable")?
-            .register_recovery_checkout(path)
+        self.collaboration.register_recovery_checkout(path)
     }
     /// The native install/updater owner chooses this directory. No browser or Go
     /// callback accepts a path; selection alone admits no product execution.
@@ -462,15 +435,11 @@ impl NativeSupervisor {
         &self,
         directory: &Path,
     ) -> Result<crate::factory_provider::ToolSelection> {
-        self.collaboration
-            .as_ref()
-            .ok_or("native collaboration unavailable")?
-            .select_execution_tools(directory)
-            .await
+        self.collaboration.select_execution_tools(directory).await
     }
     /// Native host access to the existing tool owner; no caller supplies a path.
     pub fn execution_tools(&self) -> Result<Arc<crate::factory_provider::Tools>> {
-        self.collaboration.as_ref().ok_or("native collaboration unavailable")?.execution_tools()
+        self.collaboration.execution_tools()
     }
     /// Exact-run delivery over the native private channel. Go independently
     /// checks the capability and current worker on every protocol request.
@@ -518,8 +487,6 @@ impl NativeSupervisor {
     ) -> Result<T> {
         let mut executions = self
             .executions
-            .as_ref()
-            .ok_or("native execution unavailable")?
             .lock()
             .map_err(|_| "native execution owner failed")?;
         if !self.alive.load(Ordering::SeqCst) {
@@ -537,14 +504,7 @@ impl NativeSupervisor {
         repository: Option<String>,
     ) -> Result<crate::collaboration::NativeRequest> {
         self.collaboration
-            .as_ref()
-            .ok_or("native collaboration unavailable")?
-            .admit(
-                self.products.clone().ok_or("native products unavailable")?,
-                credentials,
-                capability,
-                repository,
-            )
+            .admit(self.products.clone(), credentials, capability, repository)
     }
     pub fn admit_fountain_product(
         &self,
@@ -553,9 +513,13 @@ impl NativeSupervisor {
         repository: String,
         client: Arc<crate::fountain_provider::Client>,
     ) -> Result<crate::collaboration::NativeRequest> {
-        self.collaboration.as_ref().ok_or("native collaboration unavailable")?
-            .admit_fountain(self.products.clone().ok_or("native products unavailable")?,
-                credentials, capability, repository, client)
+        self.collaboration.admit_fountain(
+            self.products.clone(),
+            credentials,
+            capability,
+            repository,
+            client,
+        )
     }
     pub fn stop(mut self) -> Result<()> {
         self.stop_inner()
@@ -564,9 +528,7 @@ impl NativeSupervisor {
         if !self.alive.load(Ordering::SeqCst) {
             return Err("native runtime is retired".into());
         }
-        self.github
-            .clone()
-            .ok_or("native GitHub owner is unavailable".into())
+        Ok(self.github.clone())
     }
     pub(crate) fn github_channel(
         &self,
@@ -588,18 +550,20 @@ impl NativeSupervisor {
             return Ok(());
         };
         self.alive.store(false, Ordering::SeqCst);
-        if let Some(collaboration) = &self.collaboration {
-            collaboration.retire();
-        }
-        if let Some(github) = &self.github {
-            github.retire();
-        }
-        if let Some(products) = &self.products {
-            products.retire();
-        }
-        let _ = self.control.send(Control::Stop);
-        owner.join().map_err(|_| "native supervisor owner failed")?
+        self.collaboration.retire();
+        self.github.retire();
+        self.products.retire();
+        stop_owner(owner, &self.alive, &self.control)
     }
+}
+fn stop_owner(
+    owner: JoinHandle<Result<()>>,
+    alive: &AtomicBool,
+    control: &Sender<Control>,
+) -> Result<()> {
+    alive.store(false, Ordering::SeqCst);
+    let _ = control.send(Control::Stop);
+    owner.join().map_err(|_| "native supervisor owner failed")?
 }
 impl Drop for NativeSupervisor {
     fn drop(&mut self) {
