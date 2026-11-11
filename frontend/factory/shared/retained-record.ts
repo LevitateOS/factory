@@ -87,7 +87,7 @@ export class PendingRecord<T extends object> {
   retain(pending: T): RetainResult {
     const current = this.read();
     if (current.blocked || (current.pending && !this.same(current.pending, pending))) return 'conflict';
-    if (current.pending && current.durable) return 'saved';
+    if (current.pending && current.durable && this.encode(current.pending) === this.encode(pending)) return 'saved';
     return writeStored(this.key, this.encode(pending)) ? 'saved' : 'unavailable';
   }
   settle(pending: T): boolean {

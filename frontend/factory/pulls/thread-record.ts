@@ -3,7 +3,7 @@ import {PendingRecord} from '../shared/retained-record.js';
 import {parseHumanAnchor, type HumanAnchor} from './anchor.js';
 
 export interface ThreadAddress {scope: string; host: string; actor: string; repository: string; pull: string; threadID: string}
-export interface PendingThread {command: string; resolved: boolean; anchor: HumanAnchor | null}
+export interface PendingThread {command: string; resolved: boolean; anchor: HumanAnchor | null; cancel: boolean}
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 const fields = ({scope, host, actor, repository, pull, threadID}: ThreadAddress) => ({scope, host, actor, repository, pull, threadID});
 export function threadRecordKey(address: ThreadAddress) {
@@ -15,10 +15,11 @@ export function threadRecordKey(address: ThreadAddress) {
 function decode(raw: string, address: ThreadAddress): PendingThread | undefined {
   try {
     const row = object(JSON.parse(raw));
-    check(Object.keys(row).length === 9 && Object.entries(fields(address)).every(([key, value]) => row[key] === value));
+    check(row.cancel === undefined || typeof row.cancel === 'boolean');
+    check(Object.keys(row).length === 9 + (row.cancel === undefined ? 0 : 1) && Object.entries(fields(address)).every(([key, value]) => row[key] === value));
     check(issued(row.command) && typeof row.resolved === 'boolean');
     return {command: row.command, resolved: row.resolved,
-      anchor: row.anchor === null ? null : parseHumanAnchor(row.anchor)};
+      anchor: row.anchor === null ? null : parseHumanAnchor(row.anchor), cancel: row.cancel === true};
   } catch { return; }
 }
 export const sameThread = (a: PendingThread, b: PendingThread) =>

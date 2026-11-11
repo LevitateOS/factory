@@ -118,14 +118,19 @@ export class SodaFactoryThreadResolution extends LitElement {
       if (action === 'submit') {
         check(selected && !pending && desired !== undefined && desired !== selected.resolved);
         check(desired ? selected.resolve : selected.unresolve);
-        pending = {command: factoryCommandId(), resolved: desired, anchor: selected.anchor};
+        pending = {command: factoryCommandId(), resolved: desired, anchor: selected.anchor, cancel: false};
         check(threadRecord(context).retain(pending) === 'saved');
         this.pending = pending;
       } else {
         check(pending && this.pending && pending.command === this.pending.command);
-        if (action === 'retry') check(selected && pending.resolved !== selected.resolved &&
+        if (action === 'retry') check(!pending.cancel && selected && pending.resolved !== selected.resolved &&
           (pending.resolved ? selected.resolve : selected.unresolve) &&
           JSON.stringify(pending.anchor) === JSON.stringify(selected.anchor));
+        if (action === 'cancel') {
+          pending = {...pending, cancel: true};
+          check(threadRecord(context).retain(pending) === 'saved');
+          this.pending = pending;
+        }
       }
       await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
@@ -155,8 +160,9 @@ export class SodaFactoryThreadResolution extends LitElement {
     }
     check(threadRecord(context).settle(pending));
     this.restore(context); this.selection = undefined;
-    this.message = outcome.effect === 'committed' ? 'Thread resolution changed. Refresh to read its current state.'
-      : action === 'cancel' ? 'Thread change cancelled.' : 'No thread change was committed.';
+    this.message = outcome.effect === 'committed'
+      ? pending.cancel ? 'The thread change was already recorded; cancellation was too late. Refresh to read its current state.' : 'Thread resolution changed. Refresh to read its current state.'
+      : pending.cancel ? 'Thread change cancelled.' : 'No thread change was committed.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-thread-saved', {detail: {repository: context.repository, pull: context.pull, thread: context.threadID}}));
   }
   render() {
@@ -166,7 +172,7 @@ export class SodaFactoryThreadResolution extends LitElement {
       <p role="status">${this.message}</p>
       ${this.pending ? html`<p>Saved ${this.pending.resolved ? 'resolve' : 'unresolve'} command.</p>
         <button type="button" @click=${() => this.act('lookup')} ?disabled=${this.busy || this.blocked}>Check saved thread change</button>
-        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked}>Retry original thread change</button>
+        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || this.pending.cancel}>Retry original thread change</button>
         <button type="button" @click=${() => this.act('cancel')} ?disabled=${this.busy || this.blocked}>Cancel saved thread change</button>`
         : selected ? html`<p>Current state: ${selected.resolved ? 'resolved' : 'unresolved'}</p>
           <button type="button" @click=${() => this.act('submit', !selected.resolved)}

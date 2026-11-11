@@ -138,13 +138,18 @@ export class SodaFactoryPullMerge extends LitElement {
       if (action === 'submit') {
         check(!pending && this.methods.includes(this.method) && validMergeMessage(this.method, noMergeMessage(this.method) ? '' : this.message));
         pending = {command: factoryCommandId(), method: this.method, message: noMergeMessage(this.method) ? '' : this.message,
-          external: context.parent.external_id, head: context.head, expectedHead: true};
+          external: context.parent.external_id, head: context.head, expectedHead: true, cancel: false};
         check(mergeRecord(context).retain(pending) === 'saved');
         this.pending = pending;
       } else {
         check(pending && this.pending && pending.command === this.pending.command);
         check(pending.external === context.parent.external_id);
-        if (action === 'retry') check(pending.head === context.head && this.methods.includes(pending.method));
+        if (action === 'retry') check(!pending.cancel && pending.head === context.head && this.methods.includes(pending.method));
+        if (action === 'cancel') {
+          pending = {...pending, cancel: true};
+          check(mergeRecord(context).retain(pending) === 'saved');
+          this.pending = pending;
+        }
       }
       settled = await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
@@ -179,8 +184,9 @@ export class SodaFactoryPullMerge extends LitElement {
     }
     check(mergeRecord(context).settle(pending));
     this.restore(context);
-    this.status = outcome.effect === 'committed' ? 'Merge recorded. Refresh to read the provider state.'
-      : action === 'cancel' ? 'Merge cancelled before it was committed.' : 'No merge was committed.';
+    this.status = outcome.effect === 'committed'
+      ? pending.cancel ? 'The merge was already recorded; cancellation was too late. Refresh to read the provider state.' : 'Merge recorded. Refresh to read the provider state.'
+      : pending.cancel ? 'Merge cancelled before it was committed.' : 'No merge was committed.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-merge-saved', {detail: {repository: context.repository, pull: context.pull, command: pending.command}}));
     return true;
   }
@@ -190,7 +196,7 @@ export class SodaFactoryPullMerge extends LitElement {
       <h3>Merge</h3><p role="status">${this.status}</p>
       ${this.pending ? html`<p>Saved ${this.pending.method} merge command. Check its outcome before starting another.</p>
         <button type="button" @click=${() => this.act('lookup')} ?disabled=${this.busy || this.blocked}>Check saved merge</button>
-        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || !this.allowed || !this.methods.includes(this.pending.method)}>Retry original merge</button>
+        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || this.pending.cancel || !this.allowed || !this.methods.includes(this.pending.method)}>Retry original merge</button>
         <button type="button" @click=${() => this.act('cancel')} ?disabled=${this.busy || this.blocked}>Cancel saved merge</button>`
         : html`<label>Method <select aria-label="Merge method" .value=${this.method} @change=${(event: Event) => {
             const next = (event.target as HTMLSelectElement).value;

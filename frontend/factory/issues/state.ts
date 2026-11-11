@@ -117,12 +117,17 @@ export class SodaFactoryIssueState extends LitElement {
       let pending = saved.pending;
       if (action === 'submit') {
         check(!pending && typeof close === 'boolean' && this.state === (close ? 'open' : 'closed'));
-        pending = {command: factoryCommandId(), external: context.parent.external_id, close};
+        pending = {command: factoryCommandId(), external: context.parent.external_id, close, cancel: false};
         check(issueStateRecord(context).retain(pending) === 'saved');
         this.pending = pending;
       } else {
         check(pending && this.pending && pending.command === this.pending.command && pending.external === context.parent.external_id);
-        if (action === 'retry') check(pending.close === (this.state === 'open'));
+        if (action === 'retry') check(!pending.cancel && pending.close === (this.state === 'open'));
+        if (action === 'cancel') {
+          pending = {...pending, cancel: true};
+          check(issueStateRecord(context).retain(pending) === 'saved');
+          this.pending = pending;
+        }
       }
       settled = await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
@@ -157,8 +162,9 @@ export class SodaFactoryIssueState extends LitElement {
     }
     check(issueStateRecord(context).settle(pending));
     this.restore(context);
-    this.message = outcome.effect === 'committed' ? 'Issue state recorded. Refresh to read the provider state.'
-      : action === 'cancel' ? 'State change cancelled before it was committed.' : 'No state change was committed.';
+    this.message = outcome.effect === 'committed'
+      ? pending.cancel ? 'The state change was already recorded; cancellation was too late. Refresh to read the provider state.' : 'Issue state recorded. Refresh to read the provider state.'
+      : pending.cancel ? 'State change cancelled before it was committed.' : 'No state change was committed.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('issue-state-saved', {detail: {repository: context.repository, issue: context.issue, command: pending.command}}));
     return true;
   }
@@ -169,7 +175,7 @@ export class SodaFactoryIssueState extends LitElement {
       <p role="status">${this.message}</p>
       ${this.pending ? html`<p>Saved ${this.pending.close ? 'close' : 'reopen'} command. Check its outcome before changing state again.</p>
         <button type="button" @click=${() => this.act('lookup')} ?disabled=${this.busy || this.blocked}>Check saved state</button>
-        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || !this.allowed || this.pending.close !== (this.state === 'open')}>Retry original state change</button>
+        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || this.pending.cancel || !this.allowed || this.pending.close !== (this.state === 'open')}>Retry original state change</button>
         <button type="button" @click=${() => this.act('cancel')} ?disabled=${this.busy || this.blocked}>Cancel saved state change</button>`
         : html`<button type="button" @click=${() => this.act('submit', close)} ?disabled=${this.busy || this.blocked || !this.durable || !this.allowed}>${this.state === 'unknown' ? 'Issue state unavailable' : close ? 'Close issue' : 'Reopen issue'}</button>`}
     </section>`;

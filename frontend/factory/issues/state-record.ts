@@ -12,6 +12,7 @@ export interface PendingIssueState {
   command: string;
   external: string;
   close: boolean;
+  cancel: boolean;
 }
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 const fields = ({scope, host, actor, repository, issue}: IssueStateAddress) => ({scope, host, actor, repository, issue});
@@ -23,11 +24,12 @@ export function issueStateRecordKey(address: IssueStateAddress) {
 function decode(raw: string, address: IssueStateAddress): PendingIssueState | undefined {
   try {
     const row = object(JSON.parse(raw));
-    check(Object.keys(row).length === 8);
+    check(row.cancel === undefined || typeof row.cancel === 'boolean');
+    check(Object.keys(row).length === 8 + (row.cancel === undefined ? 0 : 1));
     for (const [key, value] of Object.entries(fields(address))) check(row[key] === value);
     check(issued(row.command) && typeof row.close === 'boolean');
     check(typeof row.external === 'string' && !!row.external.trim() && row.external.length <= 512 && !row.external.includes('\0'));
-    return {command: row.command, external: row.external, close: row.close};
+    return {command: row.command, external: row.external, close: row.close, cancel: row.cancel === true};
   } catch { return; }
 }
 const same = (a: PendingIssueState, b: PendingIssueState) =>

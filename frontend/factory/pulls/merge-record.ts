@@ -15,6 +15,7 @@ export interface PendingMerge {
   external: string;
   head: string;
   expectedHead?: true;
+  cancel: boolean;
 }
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 const fields = ({scope, host, actor, repository, pull}: MergeAddress) => ({scope, host, actor, repository, pull});
@@ -26,7 +27,8 @@ export function mergeRecordKey(address: MergeAddress) {
 function decode(raw: string, address: MergeAddress): PendingMerge | undefined {
   try {
     const row = object(JSON.parse(raw));
-    check(Object.keys(row).length === (row.expectedHead === undefined ? 10 : 11));
+    check(row.cancel === undefined || typeof row.cancel === 'boolean');
+    check(Object.keys(row).length === 10 + (row.expectedHead === undefined ? 0 : 1) + (row.cancel === undefined ? 0 : 1));
     check(row.expectedHead === undefined || row.expectedHead === true);
     for (const [key, value] of Object.entries(fields(address))) check(row[key] === value);
     check(issued(row.command) && ['merge', 'squash', 'rebase', 'rebase-merge', 'fast-forward-only'].includes(String(row.method)));
@@ -34,7 +36,7 @@ function decode(raw: string, address: MergeAddress): PendingMerge | undefined {
     check(typeof row.external === 'string' && !!row.external.trim() && row.external.length <= 512);
     check(typeof row.head === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(row.head));
     return {command: row.command, method: row.method as MergeMethod, message: row.message,
-      external: row.external, head: row.head, ...(row.expectedHead === true ? {expectedHead: true as const} : {})};
+      external: row.external, head: row.head, cancel: row.cancel === true, ...(row.expectedHead === true ? {expectedHead: true as const} : {})};
   } catch { return; }
 }
 export const sameMerge = (a: PendingMerge, b: PendingMerge) =>
