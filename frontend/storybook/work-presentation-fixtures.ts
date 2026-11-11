@@ -72,7 +72,7 @@ export function presentationDetail(state: PresentationState) {
               ]
             : [],
       },
-      checks: {verdict: 'passed', pr_number: '21', head_oid: 'a'.repeat(40), base_oid: 'b'.repeat(40), results: []},
+      checks: {verdict: 'pass', pr_number: '21', head_oid: 'a'.repeat(40), base_oid: 'b'.repeat(40), results: []},
       merge: {stage: state === 'delivered' ? 'merged' : 'open', pr_number: '21'},
       // A host must consciously adopt wire URL hints; shared views use its port.
       links: {issue_url: '/recorded-forge/issues/12', pull_url: '/recorded-forge/pulls/21'},

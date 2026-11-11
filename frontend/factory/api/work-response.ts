@@ -34,8 +34,31 @@ export interface IssueBlocker {
   endpoint_repository?: string;
   endpoint_issue?: string;
 }
+// Closed vocabularies of the backend's recorded work facts. A value outside
+// the vocabulary (a newer backend) reads as 'unknown' so an older UI still
+// renders. Sources: pkg/factory/readiness.go, checks.go, merge.go,
+// publication.go, assignment.go, types.go (Outcome) and
+// pkg/factory/service/issue_view.go (closure).
+const READINESS = ['not_authorized', 'blocked', 'queued', 'active', 'needs_intervention', 'cancelled', 'completed'] as const;
+const CHECK_VERDICTS = ['pass', 'pending', 'failed', 'refused'] as const;
+const MERGE_STAGES = ['open', 'merged', 'failed', 'withdrawn', 'fenced'] as const;
+const PUBLICATION_STAGES = ['open', 'published', 'failed', 'withdrawn', 'fenced'] as const;
+const ATTEMPT_STAGES = ['assigned', 'finished', 'retained'] as const;
+const ATTEMPT_OUTCOMES = ['succeeded', 'failed', 'cancelled', 'needs-human'] as const;
+const CLOSURE_STATES = ['none', 'pending', 'confirmed'] as const;
+export type ReadinessState = (typeof READINESS)[number] | 'unknown';
+export type CheckVerdict = (typeof CHECK_VERDICTS)[number] | 'unknown';
+export type MergeStage = (typeof MERGE_STAGES)[number] | 'unknown';
+export type PublicationStage = (typeof PUBLICATION_STAGES)[number] | 'unknown';
+export type AttemptStage = (typeof ATTEMPT_STAGES)[number] | 'unknown';
+export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number] | 'unknown';
+export type ClosureState = (typeof CLOSURE_STATES)[number] | 'unknown';
+function member<T extends string>(vocabulary: readonly T[], value: unknown): T | 'unknown' {
+  return vocabulary.find((known) => known === value) ?? 'unknown';
+}
+
 export interface IssueReadiness {
-  readiness: string;
+  readiness: ReadinessState;
   reason: string;
   revision: number;
   assessed_unix: number;
@@ -49,7 +72,7 @@ export interface IssueCheckResult {
 }
 
 export interface IssueChecks {
-  verdict: string;
+  verdict: CheckVerdict;
   reason: string;
   resolution: string;
   head_oid: string;
@@ -64,7 +87,7 @@ export interface IssueChecks {
   results: IssueCheckResult[];
 }
 export interface IssueMerge {
-  stage: string;
+  stage: MergeStage;
   resolution: string;
   head_oid: string;
   base_oid: string;
@@ -79,11 +102,11 @@ export interface IssueMerge {
 export interface WorkAttempt {
   id: string;
   role: string;
-  stage: string;
+  stage: AttemptStage;
   run: string;
   attempts: number;
   created_unix: number;
-  outcome?: string;
+  outcome?: AttemptOutcome;
   reason?: string;
   finished_unix?: number;
 }
@@ -112,7 +135,7 @@ export interface WorkPublication {
   run: string;
   publish_effect: string;
   pr_create_effect: string;
-  stage: string;
+  stage: PublicationStage;
   corrections_total: number;
   reviews_total: number;
   created_unix: number;
@@ -124,7 +147,7 @@ export interface WorkPublication {
   reviews: WorkReview[];
 }
 export interface WorkClosure {
-  state: string;
+  state: ClosureState;
   occurrence?: string;
   closed_unix?: number;
 }
@@ -313,7 +336,7 @@ export function issueBlocker(value: unknown): IssueBlocker {
 function issueReadiness(value: unknown): IssueReadiness {
   const raw = record(value);
   return {
-    readiness: text(raw.readiness),
+    readiness: member(READINESS, raw.readiness),
     reason: text(raw.reason),
     revision: num(raw.revision),
     assessed_unix: num(raw.assessed_unix),
@@ -332,7 +355,7 @@ function checkResult(value: unknown): IssueCheckResult {
 function issueChecks(value: unknown): IssueChecks {
   const raw = record(value);
   return {
-    verdict: text(raw.verdict),
+    verdict: member(CHECK_VERDICTS, raw.verdict),
     reason: text(raw.reason),
     resolution: text(raw.resolution),
     head_oid: text(raw.head_oid),
@@ -351,7 +374,7 @@ function issueMerge(value: unknown): IssueMerge {
   const raw = record(value);
   const reason = nonEmpty(raw.reason);
   return {
-    stage: text(raw.stage),
+    stage: member(MERGE_STAGES, raw.stage),
     resolution: text(raw.resolution),
     head_oid: text(raw.head_oid),
     base_oid: text(raw.base_oid),
@@ -403,11 +426,11 @@ function workAttempt(value: unknown): WorkAttempt {
   return {
     id: text(raw.id),
     role: text(raw.role),
-    stage: text(raw.stage),
+    stage: member(ATTEMPT_STAGES, raw.stage),
     run: text(raw.run),
     attempts: num(raw.attempts),
     created_unix: num(raw.created_unix),
-    ...(outcome === undefined ? {} : {outcome}),
+    ...(outcome === undefined ? {} : {outcome: member(ATTEMPT_OUTCOMES, outcome)}),
     ...(reason === undefined ? {} : {reason}),
     ...(typeof raw.finished_unix === 'number' ? {finished_unix: raw.finished_unix} : {}),
   };
@@ -444,7 +467,7 @@ function workPublication(value: unknown): WorkPublication {
     publish_effect: text(raw.publish_effect),
     pr_create_effect: text(raw.pr_create_effect),
     target_branch: text(raw.target_branch),
-    stage: text(raw.stage),
+    stage: member(PUBLICATION_STAGES, raw.stage),
     corrections_total: num(raw.corrections_total),
     reviews_total: num(raw.reviews_total),
     created_unix: num(raw.created_unix),
@@ -459,7 +482,7 @@ function workPublication(value: unknown): WorkPublication {
 function workClosure(value: unknown): WorkClosure {
   const raw = record(value);
   return {
-    state: text(raw.state, 'none'),
+    state: raw.state === undefined ? 'none' : member(CLOSURE_STATES, raw.state),
     ...(typeof raw.occurrence === 'string' ? {occurrence: raw.occurrence} : {}),
     ...(typeof raw.closed_unix === 'number' ? {closed_unix: raw.closed_unix} : {}),
   };
