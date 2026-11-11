@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {ScopedBinding} from '../shared/read-state.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {factoryCommandId, factoryRunID, factoryRunStatusResponse} from '../api/run-response.js';
@@ -46,10 +47,12 @@ export class SodaFactoryVerificationRetry extends LitElement {
   declare private entries: FactoryRunDetail[];
   declare private message: string;
   declare private busy: boolean;
-  private current: VerificationRetryContext | undefined;
-  private generation = '';
-  private lifetime = new AbortController();
-  private serial = 0;
+  private bound = new ScopedBinding<VerificationRetryContext>(
+    (a, b) => a.transport === b.transport && a.repository === b.repository && a.runs.join('|') === b.runs.join('|'),
+    () => {
+      this.context = undefined;
+    }
+  );
   declare private recoveryMessage: string;
   private cmd = new PendingCommandController<PendingVerificationRequest, VerificationRequestAddress>(
     {
@@ -94,21 +97,8 @@ export class SodaFactoryVerificationRetry extends LitElement {
           typeof context.transport.generation === 'string' &&
           !!context.transport.generation
       );
-    if (
-      context?.transport === this.current?.transport &&
-      context?.repository === this.current?.repository &&
-      context?.transport.generation === this.generation &&
-      context?.runs.join('|') === this.current?.runs.join('|')
-    ) {
-      this.current = context;
-      return;
-    }
-    this.lifetime.abort();
-    this.lifetime = new AbortController();
-    this.generation = context?.transport.generation ?? '';
-    this.current = context;
+    if (this.bound.bind(context) === 'same') return;
     clearTimeout(this.refreshTimer);
-    this.serial++;
     this.entries = [];
     this.message = '';
     this.cmd.reset();
@@ -119,30 +109,22 @@ export class SodaFactoryVerificationRetry extends LitElement {
     this.reading = false;
     this.busy = false;
     if (context) {
-      void this.load(context, this.serial);
+      void this.load(context, this.bound.serial);
     }
   }
   disconnectedCallback() {
     this.context = undefined;
     super.disconnectedCallback();
   }
-  private live(serial: number, context: VerificationRetryContext): boolean {
-    if (serial !== this.serial || context.transport !== this.current?.transport) return false;
-    if (context.transport.generation !== this.generation) {
-      this.context = undefined;
-      return false;
-    }
-    return true;
-  }
   refresh() {
-    if (this.current && !this.busy) return this.load(this.current, this.serial);
+    if (this.bound.current && !this.busy) return this.load(this.bound.current, this.bound.serial);
   }
   private async resolveIdentity(context: VerificationRetryContext, serial: number): Promise<boolean> {
     this.cmd.resolving();
     try {
       if (!context.commandScope) throw Error('Missing verification identity');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]));
+      if (!this.bound.live(serial, context)) return false;
       const blocked = this.cmd.adopt({scope, repository: context.repository}) === 'blocked';
       this.recoveryMessage = blocked
         ? 'Saved verification request is unreadable or belongs to another scope. It was preserved; no new request was sent.'
@@ -151,7 +133,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
           : '';
       return !blocked;
     } catch {
-      if (this.live(serial, context)) {
+      if (this.bound.live(serial, context)) {
         this.cmd.unresolve();
         this.recoveryMessage = 'Verification identity could not be read. Refresh verification before retrying.';
       }
@@ -159,7 +141,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     }
   }
   private async load(context: VerificationRetryContext, serial: number, progressOnly = false) {
-    if (!this.live(serial, context) || this.reading) return;
+    if (!this.bound.live(serial, context) || this.reading) return;
     this.reading = true;
     clearTimeout(this.refreshTimer);
     if (!this.entries.length && !this.message) {
@@ -167,7 +149,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
       this.notice = 'loading';
     }
     if (!progressOnly) await this.resolveIdentity(context, serial);
-    if (!this.live(serial, context)) return;
+    if (!this.bound.live(serial, context)) return;
     const selected = [
       ...new Set([
         ...context.runs,
@@ -186,14 +168,14 @@ export class SodaFactoryVerificationRetry extends LitElement {
     const reads = await Promise.allSettled(
       runs.map(async (run) => {
         const response = await context.transport.request(`factory/runs/${run}`, {
-          signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
+          signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(15000)]),
         });
-        if (!this.live(serial, context)) throw Error('Verification context retired.');
+        if (!this.bound.live(serial, context)) throw Error('Verification context retired.');
         if (response.status === 401 || response.status === 403)
           this.entries = this.entries.filter((entry) => entry.id !== run);
         check(response.ok);
         const value = await readSodaJSON(response);
-        if (!this.live(serial, context)) throw Error('Verification context retired.');
+        if (!this.bound.live(serial, context)) throw Error('Verification context retired.');
         check(object(object(value).run).id === run);
         check(object(object(value).view).issue === undefined);
         const rawRepair = object(value).delivery_repair;
@@ -215,7 +197,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
         return entry;
       })
     );
-    if (!this.live(serial, context)) return;
+    if (!this.bound.live(serial, context)) return;
     this.reading = false;
     for (const [index, read] of reads.entries()) {
       if (read.status === 'rejected') this.unavailable.add(runs[index]!);
@@ -256,17 +238,17 @@ export class SodaFactoryVerificationRetry extends LitElement {
     }
     if (this.repairs.size || this.entries.some((entry) => this.unsettled(entry.delivery_repair?.progress)))
       this.refreshTimer = setTimeout(() => {
-        if (this.live(serial, context) && this.isConnected) void this.load(context, serial, true);
+        if (this.bound.live(serial, context) && this.isConnected) void this.load(context, serial, true);
       }, 4000);
   }
   private unsettled(progress: DeliveryRepairProgress | undefined) {
     return progress !== undefined && !SETTLED_REPAIR.has(progress.state);
   }
   private async requestAction(run: string, action: 'retry' | 'repair_delivery') {
-    const context = this.current;
+    const context = this.bound.current;
     if (
       !context ||
-      !this.live(this.serial, context) ||
+      !this.bound.live(this.bound.serial, context) ||
       !this.ready ||
       this.busy ||
       this.reading ||
@@ -281,7 +263,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
       return;
     const shown = this.pending;
     if (shown && (shown.run !== run || shown.action !== action)) return;
-    const serial = this.serial;
+    const serial = this.bound.serial;
     this.busy = true;
     clearTimeout(this.refreshTimer);
     try {
@@ -296,14 +278,14 @@ export class SodaFactoryVerificationRetry extends LitElement {
       let repair: ReturnType<typeof deliveryRepairDecision> | undefined;
       const outcome = await this.cmd.submit({
         command: pending,
-        live: () => this.live(serial, context),
+        live: () => this.bound.live(serial, context),
         classifyRefusal: action === 'retry' ? classifyRetryRefusal : () => 'keep',
         send: () =>
           context.transport.request(`factory/runs/${run}/actions`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({action: pending.action, ...(pending.command ? {command_id: pending.command} : {})}),
-            signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(90000)]),
+            signal: AbortSignal.any([this.bound.signal, AbortSignal.timeout(90000)]),
           }),
         receipt: (value) => {
           if (action === 'retry') {
@@ -340,7 +322,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
             : 'No repair request was confirmed. Retry this same request or refresh the verification status.';
       }
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (this.bound.live(serial, context)) this.busy = false;
     }
   }
   private confirmed(
@@ -359,7 +341,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
       action === 'retry'
         ? 'Verification Retry queued. The original result and spending are retained.'
         : 'Application repair requested. Diagnosis is queued; the original result and spending are retained.';
-    if (repair && this.current) void this.load(this.current, this.serial);
+    if (repair && this.bound.current) void this.load(this.bound.current, this.bound.serial);
   }
   private renderRepair(progress: DeliveryRepairProgress) {
     const states: Record<RepairState, string> = {
@@ -389,7 +371,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     </section>`;
   }
   protected render() {
-    if (!this.current || (!this.entries.length && !this.message && !this.recoveryMessage)) return html``;
+    if (!this.bound.current || (!this.entries.length && !this.message && !this.recoveryMessage)) return html``;
     return html`<section aria-label="Application verification needs attention">
       ${this.entries.length ? html`<p>Previous verification results and spending stay recorded.</p>` : ''}
       ${this.entries.map(
@@ -407,7 +389,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
         class="ui button"
         ?disabled=${this.busy || this.reading}
         @click=${() => {
-          if (this.current) void this.load(this.current, this.serial);
+          if (this.bound.current) void this.load(this.bound.current, this.bound.serial);
         }}
       >
         Refresh verification
