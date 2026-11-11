@@ -139,6 +139,8 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 			class, status = "native", native.Status
 		case errors.Is(cause, context.DeadlineExceeded):
 			class = "deadline"
+		case errors.Is(cause, control.ErrReadinessPassPending):
+			class = "readiness_budget"
 		case errors.Is(cause, errNativeRead), errors.Is(cause, errNativeReadScope):
 			class = "projection"
 		case errors.As(cause, &waiting):
