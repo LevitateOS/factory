@@ -178,7 +178,7 @@ impl Client {
             Read::PullBranches {repository:selected,head_repository,base_branch,head_branch} if selected==repository=>{
                 json!({"kind":"pull_branches","account":account,"branches":self.pull_branches(repository,head_repository,base_branch,head_branch).await?})
             }
-            Read::PublicationRefs { repository:selected,name,base_branch } if selected==repository => {
+            Read::PublicationRefs { repository:selected,name,base_branch,comparison_repository } if selected==repository && comparison_repository.is_empty() => {
                 json!({"kind":"publication_refs","account":account,"publication":self.publication_refs(repository,name,base_branch).await?})
             }
             Read::BranchCreation { repository:selected,name,commit } if selected==repository => {
@@ -252,7 +252,7 @@ impl Client {
                 if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
                 json!({"kind":"setup_source","account":account,"publication":{"repository":repository,"commit":commit,"target_ref":target_ref,"files":files,"source_files":source_files}})
             }
-            Read::SourceBundle { repository: selected, base, commit, target_ref } if selected == repository => {
+            Read::SourceBundle { repository: selected, base, commit, target_ref, number, head_repository } if selected == repository && number.is_none() && head_repository.is_empty() => {
                 if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
                 // The host source owner validates objects and reachability. A
                 // complete bundle is also valid when the importer knows a base.

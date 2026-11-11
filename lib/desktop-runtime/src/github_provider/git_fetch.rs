@@ -11,6 +11,39 @@ use sha2::{Digest, Sha256};
 use soda_execution_protocol::MAX_STAGE_BUNDLE;
 
 impl Reader<'_> {
+    async fn source_pull(
+        &self,
+        number: u64,
+        repository: &str,
+        target: &str,
+        base: &str,
+        commit: &str,
+    ) -> Result<Value> {
+        let pull = self.raw_subject(true, number).await?;
+        let head_ref = r::nonempty(&pull["head"], "ref")?;
+        let base_ref = r::nonempty(&pull["base"], "ref")?;
+        if pull["state"] != "open"
+            || pull["merged"] != false
+            || pull["draft"] != false
+            || r::id(&pull["head"]["repo"]["id"])? != repository
+            || r::id(&pull["base"]["repo"]["id"])? != self.repository
+            || pull["head"]["sha"] != commit
+            || pull["base"]["sha"] != base
+            || target.strip_prefix("refs/heads/") != Some(head_ref)
+            || !super::request::branch_name(base_ref)
+            || head_ref == base_ref
+        {
+            return Err(Failure::new(409, "github_source_pull_changed"));
+        }
+        if self.automation_branch_tip(base_ref).await? != base {
+            return Err(Failure::new(409, "github_source_pull_changed"));
+        }
+        Ok(
+            json!({"pull_id":r::id(&pull["id"])?,"author_id":r::id(&pull["user"]["id"])?,
+            "head_repository":repository,"head_name":r::nonempty(&pull["head"]["repo"],"full_name")?,
+            "head":commit,"head_ref":head_ref,"base":base,"base_ref":base_ref}),
+        )
+    }
     pub(super) async fn setup_source(&self, q: &Value) -> Result<Value> {
         let commit = r::text(q, "commit")?;
         let target = r::text(q, "target_ref")?;
@@ -104,7 +137,29 @@ impl Reader<'_> {
         let base = r::text(q, "base")?;
         let commit = r::text(q, "commit")?;
         let target = r::text(q, "target_ref")?;
-        self.source_tip(target, commit).await?;
+        let head_repository = q["head_repository"].as_str().unwrap_or("");
+        let number = q["number"].as_u64();
+        let before = if let Some(number) = number {
+            Some(
+                self.source_pull(number, head_repository, target, base, commit)
+                    .await?,
+            )
+        } else {
+            None
+        };
+        let head = if !head_repository.is_empty() && head_repository != self.repository {
+            Some(Reader::new(self.client, self.token, head_repository).await?)
+        } else {
+            None
+        };
+        let source = head.as_ref().unwrap_or(self);
+        if before
+            .as_ref()
+            .is_some_and(|pull| pull["head_name"] != source.name)
+        {
+            return Err(Failure::new(409, "github_source_pull_changed"));
+        }
+        source.source_tip(target, commit).await?;
         // Protocol v0, one known protected ancestor, no thin pack or sideband.
         // Git validates objects, prerequisites and ancestry inside the importer.
         let want = format!("want {commit} ofs-delta\n");
@@ -117,7 +172,7 @@ impl Reader<'_> {
         let body = format!("{:04x}{want}0000{have}0009done\n", want.len() + 4,).into_bytes();
         let (reply, _) = self
             .client
-            .git_request(&self.name, self.token, GitService::UploadPack, Some(body))
+            .git_request(&source.name, self.token, GitService::UploadPack, Some(body))
             .await?;
         let mut pack = reply.as_slice();
         let acknowledgement = packet(&mut pack)?;
@@ -139,14 +194,26 @@ impl Reader<'_> {
             return Err(Failure::new(413, "github_source_bundle_too_large"));
         }
         bundle.extend_from_slice(pack);
-        self.source_tip(target, commit).await?;
+        source.source_tip(target, commit).await?;
+        if let (Some(number), Some(before)) = (number, before) {
+            if self
+                .source_pull(number, head_repository, target, base, commit)
+                .await?
+                != before
+            {
+                return Err(Failure::new(409, "github_source_pull_changed"));
+            }
+        }
         let sha256: String = Sha256::digest(&bundle)
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
-        Ok(
-            json!({"repository":self.repository,"base":base,"commit":commit,"target":target,"sha256":sha256,
-            "bundle":base64::engine::general_purpose::STANDARD.encode(bundle)}),
-        )
+        let mut result = json!({"repository":self.repository,"base":base,"commit":commit,"target":target,"sha256":sha256,
+            "bundle":base64::engine::general_purpose::STANDARD.encode(bundle)});
+        if let Some(number) = number {
+            result["number"] = json!(number);
+            result["head_repository"] = json!(head_repository);
+        }
+        Ok(result)
     }
 }

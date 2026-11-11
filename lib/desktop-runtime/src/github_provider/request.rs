@@ -23,6 +23,10 @@ pub enum Read {
         base: String,
         commit: String,
         target_ref: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        number: Option<u32>,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        head_repository: String,
     },
     SetupSource {
         repository: String,
@@ -35,6 +39,8 @@ pub enum Read {
         repository: String,
         name: String,
         base_branch: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        comparison_repository: String,
     },
     Identity,
     Binding,
@@ -326,11 +332,16 @@ impl Read {
             base,
             commit: oid,
             target_ref,
+            number,
+            head_repository,
             ..
         } = self
         {
             if !base.is_empty() && !commit(base)
                 || !commit(oid)
+                || number.is_some() != !head_repository.is_empty()
+                || number.is_some_and(|number| number == 0)
+                || !head_repository.is_empty() && (!remote_id(head_repository) || base.is_empty())
                 || !target_ref
                     .strip_prefix("refs/heads/")
                     .is_some_and(branch_name)
@@ -346,10 +357,18 @@ impl Read {
             }
         }
         if let Self::PublicationRefs {
-            name, base_branch, ..
+            repository,
+            name,
+            base_branch,
+            comparison_repository,
         } = self
         {
-            if !branch_name(name) || !branch_name(base_branch) || name == base_branch {
+            if !branch_name(name)
+                || !branch_name(base_branch)
+                || name == base_branch
+                || !comparison_repository.is_empty()
+                    && (!remote_id(comparison_repository) || comparison_repository == repository)
+            {
                 return Err(Failure::invalid());
             }
         }

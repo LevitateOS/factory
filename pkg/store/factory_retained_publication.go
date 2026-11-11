@@ -732,9 +732,13 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 		p.Tuple = &tuple
 	}
 	if prior.External != nil {
+		consent := ""
+		if prior.PullTarget().HeadRepository != prior.Repository {
+			consent = command
+		}
 		if observed == nil || observed.Validate(prior.Repository) != nil || observed.CommandID != command || observed.Policy != prior.Authority.Policy || observed.ObservedUnix > now.Unix() || now.Unix()-observed.ObservedUnix > 30 ||
 			observed.Target != (factory.PublicationPullTarget{AuthorID: prior.PullTarget().AuthorID, IssueID: prior.PullTarget().IssueID, HeadRepository: prior.PullTarget().HeadRepository, HeadRef: prior.PullTarget().HeadRef, BaseRef: prior.PullTarget().BaseRef, HeadOID: prior.Candidate, BaseOID: prior.PullTarget().BaseOID}) ||
-			observed.Host != prior.External.Host || observed.Profile != prior.External.Profile || observed.Connection != prior.External.Connection || observed.ActorID != prior.External.ActorID || observed.ForkConsent != "" {
+			observed.Host != prior.External.Host || observed.Profile != prior.External.Profile || observed.Connection != prior.External.Connection || observed.ActorID != prior.External.ActorID || observed.ForkConsent != consent {
 			return p, a, ErrAdmissionChanged
 		}
 		var revision int64

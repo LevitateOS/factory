@@ -144,7 +144,7 @@ func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, princi
 		target.HeadOID = p.Candidate
 		request := factory.ExternalPullAdoption{Policy: funding.Policy, Repository: p.Repository, Issue: p.Issue,
 			Acceptance: p.Acceptance, PlanAssignment: origin.ID, PRNumber: p.PRNumber, PRID: p.PRID,
-			Target: target, Connection: funding.Connection, Limits: funding.Limits}
+			Target: target, Connection: funding.Connection, Limits: funding.Limits, ForkConsent: target.HeadRepository != p.Repository}
 		capture, err := c.captureExternalOrigin(ctx, command, request, policy)
 		if err != nil {
 			return factory.RetainedCandidateFundingReceipt{}, err

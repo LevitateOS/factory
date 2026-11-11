@@ -20,22 +20,23 @@ import (
 // Repository, ActorID and PRAuthorID are canonical Factory keys. The reviewer
 // owns findings; this work grants no ref publication.
 type ReviewWork struct {
-	Comments     []FindingComment `json:"comments,omitempty"`
-	OperationID  string           `json:"operation_id"`
-	AuthRevision string           `json:"authorization_revision"`
-	Repository   int64            `json:"repository"`
-	ActorID      int64            `json:"actor_id"`
-	PRNumber     int64            `json:"pr_number"`
-	PRID         int64            `json:"pr_id"`
-	IssueID      int64            `json:"issue_id"`
-	PRAuthorID   int64            `json:"pr_author_id"`
-	HeadRef      string           `json:"head_ref"`
-	BaseRef      string           `json:"base_ref"`
-	HeadOID      string           `json:"head_oid"`
-	BaseOID      string           `json:"base_oid"`
-	NativeRev    int64            `json:"native_revision"`
-	NotAfter     int64            `json:"not_after"`
-	Event        string           `json:"event"`
+	Comments       []FindingComment `json:"comments,omitempty"`
+	OperationID    string           `json:"operation_id"`
+	AuthRevision   string           `json:"authorization_revision"`
+	Repository     int64            `json:"repository"`
+	HeadRepository int64            `json:"head_repository,omitempty"`
+	ActorID        int64            `json:"actor_id"`
+	PRNumber       int64            `json:"pr_number"`
+	PRID           int64            `json:"pr_id"`
+	IssueID        int64            `json:"issue_id"`
+	PRAuthorID     int64            `json:"pr_author_id"`
+	HeadRef        string           `json:"head_ref"`
+	BaseRef        string           `json:"base_ref"`
+	HeadOID        string           `json:"head_oid"`
+	BaseOID        string           `json:"base_oid"`
+	NativeRev      int64            `json:"native_revision"`
+	NotAfter       int64            `json:"not_after"`
+	Event          string           `json:"event"`
 	// AgentVerdict separates inspection from provider disposition. It is
 	// explicit whenever a personal account publishes a comment review.
 	AgentVerdict string `json:"agent_verdict,omitempty"`
@@ -76,6 +77,7 @@ func (op ReviewOperation) validateReviewWork(p Publication) error {
 		return err
 	}
 	if op.Work.Repository != p.Repository || op.Work.PRNumber != p.PRNumber || op.Work.PRID != p.PRID ||
+		op.Work.HeadRepositoryID() != p.PullTarget().HeadRepository ||
 		op.Work.IssueID != p.PullTarget().IssueID || op.Work.PRAuthorID != p.PullTarget().AuthorID ||
 		op.Work.HeadRef != p.PullTarget().HeadRef || op.Work.BaseRef != p.PullTarget().BaseRef || op.Work.BaseOID != p.PullTarget().BaseOID ||
 		op.Work.AuthRevision != ReviewAuthRevision(p.AssignmentID, op.RunID) {
@@ -185,13 +187,22 @@ func (w ReviewWork) ValidateTarget() error {
 	if w.VoteBinding != nil && (w.VoteBinding.Validate() != nil || w.VoteBinding.Kind != OpReviewSubmit || w.VoteBinding.ActorID != w.ActorID || w.Event == "COMMENT") {
 		return errors.New("invalid automation vote binding")
 	}
-	if w.Repository <= 0 || w.ActorID <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 || w.PRAuthorID <= 0 {
+	if w.Repository <= 0 || w.HeadRepository < 0 || w.ActorID <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 || w.PRAuthorID <= 0 {
 		return errors.New("invalid review target")
 	}
 	if !ValidTargetBranch(w.HeadRef) || !ValidTargetBranch(w.BaseRef) || w.HeadRef == w.BaseRef || !ValidCommit(w.HeadOID) || !ValidCommit(w.BaseOID) {
 		return errors.New("invalid exact review candidate")
 	}
 	return nil
+}
+
+// Missing historical head-repository bindings mean the workflow repository.
+// A fork must always retain its distinct canonical repository explicitly.
+func (w ReviewWork) HeadRepositoryID() int64 {
+	if w.HeadRepository != 0 {
+		return w.HeadRepository
+	}
+	return w.Repository
 }
 
 // Validate checks persisted semantic inputs. Deadline freshness belongs to the
@@ -244,16 +255,17 @@ func (w ReviewWork) Disposition() string {
 // revision observations. PRAuthorID is canonical. Native review history is
 // checked in that same bracket.
 type ReviewObservation struct {
-	NativeRev    int64  `json:"native_revision"`
-	ObservedUnix int64  `json:"observed_unix"`
-	PRID         int64  `json:"pr_id"`
-	PRNumber     int64  `json:"pr_number"`
-	IssueID      int64  `json:"issue_id"`
-	PRAuthorID   int64  `json:"pr_author_id"`
-	HeadRef      string `json:"head_ref"`
-	BaseRef      string `json:"base_ref"`
-	HeadOID      string `json:"head_oid"`
-	BaseOID      string `json:"base_oid"`
+	NativeRev      int64  `json:"native_revision"`
+	ObservedUnix   int64  `json:"observed_unix"`
+	PRID           int64  `json:"pr_id"`
+	PRNumber       int64  `json:"pr_number"`
+	IssueID        int64  `json:"issue_id"`
+	PRAuthorID     int64  `json:"pr_author_id"`
+	HeadRepository int64  `json:"head_repository,omitempty"`
+	HeadRef        string `json:"head_ref"`
+	BaseRef        string `json:"base_ref"`
+	HeadOID        string `json:"head_oid"`
+	BaseOID        string `json:"base_oid"`
 }
 
 // ReviewAuthRevision binds one submitted review to its assignment and run:
@@ -575,7 +587,7 @@ func ReviewWorkEqual(a, b ReviewWork) bool {
 		}
 	}
 	return a.OperationID == b.OperationID && a.AuthRevision == b.AuthRevision &&
-		a.Repository == b.Repository && a.ActorID == b.ActorID && a.PRNumber == b.PRNumber &&
+		a.Repository == b.Repository && a.HeadRepository == b.HeadRepository && a.ActorID == b.ActorID && a.PRNumber == b.PRNumber &&
 		a.PRID == b.PRID && a.IssueID == b.IssueID && a.PRAuthorID == b.PRAuthorID &&
 		a.HeadRef == b.HeadRef && a.BaseRef == b.BaseRef && a.HeadOID == b.HeadOID &&
 		a.BaseOID == b.BaseOID && a.NativeRev == b.NativeRev && a.NotAfter == b.NotAfter &&

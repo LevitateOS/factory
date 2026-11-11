@@ -1,4 +1,4 @@
-//! Finite paired review/CI observations for an owned same-repository PR. GitHub facts
+//! Finite paired review/CI observations for an exact base/head PR. GitHub facts
 //! stay here; Go owns required-check policy, assessment and canonical revisions.
 use super::{
     reads::{page_items, Reader},
@@ -54,7 +54,7 @@ impl Reader<'_> {
         }
         Ok(before)
     }
-    async fn automation_branch_tip(&self, name: &str) -> Result<String> {
+    pub(super) async fn automation_branch_tip(&self, name: &str) -> Result<String> {
         if !branch_name(name) {
             return Err(Failure::protocol());
         }
@@ -89,10 +89,10 @@ impl Reader<'_> {
         let base = r::nonempty(&pull["base"], "sha")?;
         let head_ref = r::nonempty(&pull["head"], "ref")?;
         let base_ref = r::nonempty(&pull["base"], "ref")?;
+        let head_repository = r::id(&pull["head"]["repo"]["id"])?;
         if pull["state"] != "open"
             || pull["merged"] != false
             || pull["draft"] != false
-            || r::id(&pull["head"]["repo"]["id"])? != self.repository
             || r::id(&pull["base"]["repo"]["id"])? != self.repository
             || !commit(head)
             || !commit(base)
@@ -102,9 +102,18 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_automation_pull_unavailable"));
         }
+        let fork = if head_repository != self.repository {
+            Some(Reader::new(self.client, self.token, &head_repository).await?)
+        } else {
+            None
+        };
+        let head_reader = fork.as_ref().unwrap_or(self);
+        if pull["head"]["repo"]["full_name"] != head_reader.name {
+            return Err(Failure::protocol());
+        }
         let (issue, head_tip, base_tip) = tokio::try_join!(
             self.raw_subject(false, number),
-            self.automation_branch_tip(head_ref),
+            head_reader.automation_branch_tip(head_ref),
             self.automation_branch_tip(base_ref)
         )?;
         if issue["pull_request"]["url"] != self.url(&format!("/pulls/{number}")) {
@@ -114,7 +123,7 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_automation_checks_changed"));
         }
         Ok(
-            json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,"issue_id":r::id(&issue["id"])?,"author":r::actor(&pull["user"])?,"head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),"head_tip":head_tip,"base_tip":base_tip}),
+            json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,"issue_id":r::id(&issue["id"])?,"author":r::actor(&pull["user"])?,"head_repository":{"external_id":head_repository,"name":head_reader.name},"head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),"head_tip":head_tip,"base_tip":base_tip}),
         )
     }
     pub(super) async fn latest_check_sources(&self, head: &str) -> Result<Vec<Value>> {

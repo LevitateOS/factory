@@ -31,10 +31,11 @@ function decode(raw: string): Capture | undefined {
 // Selection is a read; only the explicit funded command below creates work.
 // The existing retained-command owner fences a lost API reply across reloads.
 export class SodaFactoryExternalPull extends LitElement {
-  static properties = {busy: {state: true}, message: {state: true}, offer: {state: true}};
+  static properties = {busy: {state: true}, message: {state: true}, offer: {state: true}, forkApproved: {state: true}};
   declare private busy: boolean;
   declare private message: string;
   declare private offer: ExternalPullAdoption | undefined;
+  declare private forkApproved: boolean;
   private cmd = new PendingCommandController<Capture, {scope: string}>(
     {
       read: () => this.record?.read() ?? {pending: undefined, blocked: true, durable: false},
@@ -56,14 +57,14 @@ export class SodaFactoryExternalPull extends LitElement {
   private lifetime = new AbortController();
   private scope = '';
   private record: PendingRecord<Capture> | undefined;
-  constructor() { super(); this.busy = false; this.message = ''; }
+  constructor() { super(); this.busy = false; this.message = ''; this.forkApproved = false; }
   protected createRenderRoot() { return this; }
   set context(context: Context | undefined) {
     const prior = this.current; this.current = context;
     if (context?.transport === prior?.transport && context?.transport.generation === this.generation && context?.repository === prior?.repository && context?.issue === prior?.issue && context?.commandScope === prior?.commandScope) { this.requestUpdate(); return; }
     this.generation = context?.transport.generation ?? '';
     this.lifetime.abort(); this.lifetime = new AbortController(); this.serial++;
-    this.record = undefined; this.scope = ''; this.offer = undefined; this.cmd.reset(); this.busy = false; this.message = '';
+    this.record = undefined; this.scope = ''; this.offer = undefined; this.forkApproved = false; this.cmd.reset(); this.busy = false; this.message = '';
     if (context) void this.recover(context, this.serial);
   }
   disconnectedCallback() { super.disconnectedCallback(); this.lifetime.abort(); this.serial++; }
@@ -93,7 +94,7 @@ export class SodaFactoryExternalPull extends LitElement {
     if (!context?.available || !this.ready || this.busy || this.pending) return;
     const form = event.currentTarget as HTMLFormElement, number = new FormData(form).get('number');
     if (typeof number !== 'string' || !/^[1-9][0-9]{0,9}$/.test(number)) return;
-    this.busy = true; this.offer = undefined; this.message = '';
+    this.busy = true; this.offer = undefined; this.forkApproved = false; this.message = '';
     try {
       const value = await this.post(context, {action: 'inspect-external-pr', external_selection: {issue: context.issue, number}}, signal);
       if (!this.live(serial)) return;
@@ -106,6 +107,7 @@ export class SodaFactoryExternalPull extends LitElement {
   private async adopt() {
     const context = this.current, record = this.record, serial = this.serial, signal = this.lifetime.signal;
     if (!context?.available || !this.ready || !record || this.busy || !this.pending && !this.offer) return;
+    if (!this.pending && this.offer?.fork_consent && !this.forkApproved) return;
     this.busy = true; this.message = '';
     try {
       if (await context.commandScope?.(signal) !== this.scope || !this.live(serial)) return;
@@ -145,11 +147,12 @@ export class SodaFactoryExternalPull extends LitElement {
     if (!this.current?.available && !this.pending) return html``;
     const offer = this.pending?.request ?? this.offer;
     return html`<details><summary>Adopt an external pull request</summary>
-      <p>Review an existing PR for this accepted issue. A fresh Architect pass is funded when no current plan can be reused. Fork execution is currently unavailable.</p>
+      <p>Review an existing PR for this accepted issue. A fresh Architect pass is funded when no current plan can be reused. Fork PRs require distinct head and base branch names. Corrections require permission to push to the original PR branch.</p>
       <form @submit=${(event: SubmitEvent) => this.inspect(event)}><label>Pull request number <input name="number" inputmode="numeric" pattern="[1-9][0-9]*" required ?disabled=${this.busy || !!this.pending}></label>
         <button type="submit" ?disabled=${this.busy || !this.ready || !!this.pending || !this.current?.available}>Inspect PR</button></form>
       ${offer ? html`<p>PR #${offer.pr_number}, head ${offer.target.head_oid}, base ${offer.target.base_oid}. ${offer.plan_assignment === '' ? 'Includes fresh planning.' : 'Reuses the completed issue plan.'} Funding source: ${offer.connection}. Up to ${offer.limits.active_minutes} minutes per run, ${offer.limits.review_rounds} reviews and ${offer.limits.correction_cycles} corrections.</p>
-        <button type="button" @click=${() => this.adopt()} ?disabled=${this.busy || !this.ready || !this.current?.available}>${this.pending ? 'Recover original adoption' : offer.plan_assignment === '' ? 'Plan, adopt and fund review/correction' : 'Adopt and fund review/correction'}</button>` : ''}
+        ${offer.fork_consent && !this.pending ? html`<label><input type="checkbox" name="fork_consent" .checked=${this.forkApproved} @change=${(event: Event) => { this.forkApproved = (event.target as HTMLInputElement).checked; }} ?disabled=${this.busy}>Allow Factory to execute this fork's code at the captured commit using the selected funding source.</label>` : ''}
+        <button type="button" @click=${() => this.adopt()} ?disabled=${this.busy || !this.ready || !this.current?.available || !this.pending && offer.fork_consent && !this.forkApproved}>${this.pending ? 'Recover original adoption' : offer.plan_assignment === '' ? 'Plan, adopt and fund review/correction' : 'Adopt and fund review/correction'}</button>` : ''}
       <p role="status">${this.message}</p></details>`;
   }
 }

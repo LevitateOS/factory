@@ -14,16 +14,31 @@ import (
 )
 
 func (p NativePublication) observeCorrectionPull(ctx context.Context, account *nativeProductAccount, w factory.PublicationWork, publication factory.Publication, refs nativePublicationRefs) error {
+	if target := publication.PullTarget(); target.HeadRepository != publication.Repository {
+		policy, err := p.Store.RepositoryPolicy(ctx, publication.Repository)
+		if err != nil {
+			return err
+		}
+		observed, err := (NativeReviews{p.NativeInputSource}).ObserveReview(ctx, factory.ReviewWork{Repository: publication.Repository, HeadRepository: target.HeadRepository, ActorID: policy.Review.ActorID, PRNumber: publication.PRNumber, PRID: publication.PRID, IssueID: target.IssueID, PRAuthorID: target.AuthorID, HeadRef: publication.PublicationRef(), BaseRef: w.ComparisonRef, HeadOID: refs.Tip, BaseOID: refs.Comparison})
+		if err != nil {
+			return err
+		}
+		if observed.HeadRepository != target.HeadRepository || observed.HeadOID != refs.Tip || observed.BaseOID != refs.Comparison {
+			return errNativeRead
+		}
+		return nil
+	}
 	var raw struct {
-		Repository string                      `json:"repository"`
-		Number     int64                       `json:"number"`
-		PullID     string                      `json:"pull_id"`
-		IssueID    string                      `json:"issue_id"`
-		Author     collaboration.ObservedActor `json:"author"`
-		HeadRef    string                      `json:"head_ref"`
-		BaseRef    string                      `json:"base_ref"`
-		HeadTip    string                      `json:"head_tip"`
-		BaseTip    string                      `json:"base_tip"`
+		Repository     string                            `json:"repository"`
+		Number         int64                             `json:"number"`
+		PullID         string                            `json:"pull_id"`
+		IssueID        string                            `json:"issue_id"`
+		Author         collaboration.ObservedActor       `json:"author"`
+		HeadRepository *collaboration.ObservedRepository `json:"head_repository,omitempty"`
+		HeadRef        string                            `json:"head_ref"`
+		BaseRef        string                            `json:"base_ref"`
+		HeadTip        string                            `json:"head_tip"`
+		BaseTip        string                            `json:"base_tip"`
 	}
 	if err := account.read(ctx, nativeRead{Kind: "automation_review", Repository: account.repository.ExternalID, Number: uint32(w.CorrectionNumber)}, &raw); err != nil {
 		return err
@@ -31,6 +46,9 @@ func (p NativePublication) observeCorrectionPull(ctx context.Context, account *n
 	actor, err := p.Store.CollaborationActor(ctx, collaboration.ActorID(w.CorrectionAuthor))
 	if err != nil {
 		return err
+	}
+	if account.binding.Host.Provider == collaboration.GitHub && (raw.HeadRepository == nil || raw.HeadRepository.ExternalID != account.repository.ExternalID) {
+		return errNativeRead
 	}
 	if raw.Repository != account.repository.ExternalID || raw.Number != publication.PRNumber || raw.PullID != strconv.FormatInt(publication.PRID, 10) || raw.IssueID != strconv.FormatInt(publication.PullTarget().IssueID, 10) || raw.Author.ExternalID != actor.ExternalID || raw.HeadRef != publication.PublicationRef() || raw.BaseRef != w.ComparisonRef || raw.HeadTip != refs.Tip || raw.BaseTip != refs.Comparison {
 		return errNativeRead
@@ -48,6 +66,9 @@ func (p NativePublication) decodeRefCapture(ctx context.Context, account *native
 	if !prep.Transfer.controllerMatches(account) {
 		return prep, errNativeReadScope
 	}
+	if prep.Transfer.ComparisonRepository != "" && prep.Transfer.ComparisonRepository == prep.Branch.Repository {
+		return prep, errNativeReadScope
+	}
 	return prep, account.current(ctx)
 }
 func nativeRefPublicationRecord(c factory.RefPublicationCapture) collaboration.OperationRecord {
@@ -56,15 +77,16 @@ func nativeRefPublicationRecord(c factory.RefPublicationCapture) collaboration.O
 }
 
 func (p NativePublication) correctionBinding(ctx context.Context, account *nativeProductAccount, w factory.PublicationWork) (*nativeBranchCorrection, error) {
-	if account.binding.Host.Provider != collaboration.Fountain {
-		return nil, nil
-	}
 	publication, err := p.Store.PublicationByAssignment(ctx, w.AssignmentID)
 	if err != nil {
 		return nil, err
 	}
 	if publication.ID != w.Publication || publication.PRNumber != w.CorrectionNumber || publication.PRID <= 0 || publication.PullTarget().IssueID <= 0 {
 		return nil, errNativeReadScope
+	}
+	fork := publication.PullTarget().HeadRepository != publication.Repository
+	if account.binding.Host.Provider != collaboration.Fountain && !fork {
+		return nil, nil
 	}
 	author, err := p.Store.CollaborationActor(ctx, collaboration.ActorID(w.CorrectionAuthor))
 	if err != nil {
@@ -74,7 +96,18 @@ func (p NativePublication) correctionBinding(ctx context.Context, account *nativ
 	if err != nil || id <= 0 || author.Host != account.binding.Host.ID {
 		return nil, errNativeReadScope
 	}
-	return &nativeBranchCorrection{Number: w.CorrectionNumber, ExpectedAuthorID: id, ExpectedPRID: publication.PRID, ExpectedIssueID: publication.PullTarget().IssueID}, nil
+	correction := &nativeBranchCorrection{Number: w.CorrectionNumber, ExpectedAuthorID: id, ExpectedPRID: publication.PRID, ExpectedIssueID: publication.PullTarget().IssueID}
+	if fork {
+		if account.binding.Host.Provider != collaboration.GitHub || publication.External == nil || publication.External.ForkConsent != publication.External.CommandID || int64(account.repository.ID) != publication.PullTarget().HeadRepository {
+			return nil, errNativeReadScope
+		}
+		base, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(publication.Repository))
+		if err != nil || base.Host != account.binding.Host.ID {
+			return nil, errNativeReadScope
+		}
+		correction.Repository, correction.ForkConsent = base.ExternalID, publication.External.ForkConsent
+	}
+	return correction, nil
 }
 
 func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.PublicationWork) (factory.OperationOutcome, error) {
@@ -112,7 +145,7 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 		}
 		sum := sha256.Sum256(w.Bundle)
-		prep := nativeBranchCreatePreparation{Version: 3, Account: account.identity.Account.ExternalID, NotAfter: nativePublicationDeadline(w.NotAfter), Branch: nativeBranchCreateWrite{Repository: refs.Repository, RepositoryNodeID: refs.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: refs.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:]), ExpectedOld: w.ExpectedOld}}
+		prep := nativeBranchCreatePreparation{Version: 3, Account: account.identity.Account.ExternalID, NotAfter: nativePublicationDeadline(w.NotAfter), Branch: nativeBranchCreateWrite{Repository: refs.Repository, RepositoryNodeID: refs.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: refs.ComparisonBranch, ComparisonOID: w.ComparisonOID, ComparisonRepository: refs.ComparisonRepository, BundleSHA256: hex.EncodeToString(sum[:]), ExpectedOld: w.ExpectedOld}}
 		if err = prep.Transfer.captureController(account, &prep.NotAfter); err != nil {
 			return empty, err
 		}

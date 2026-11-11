@@ -17,25 +17,39 @@ import (
 // re-exported from the retained native run and checked against this digest.
 type nativeBranchTransfer struct {
 	nativePublicationAuthority
-	PullRequest      *nativeBranchCorrection `json:"pull_request,omitempty"`
-	Base             string `json:"base"`
-	ComparisonBranch string `json:"comparison_branch"`
-	ComparisonOID    string `json:"comparison_oid"`
-	BundleSHA256     string `json:"bundle_sha256"`
-	ExpectedOld      string `json:"expected_old,omitempty"`
+	PullRequest          *nativeBranchCorrection `json:"pull_request,omitempty"`
+	Base                 string                  `json:"base"`
+	ComparisonBranch     string                  `json:"comparison_branch"`
+	ComparisonOID        string                  `json:"comparison_oid"`
+	ComparisonRepository string                  `json:"comparison_repository,omitempty"`
+	BundleSHA256         string                  `json:"bundle_sha256"`
+	ExpectedOld          string                  `json:"expected_old,omitempty"`
 }
 
 type nativeBranchCorrection struct {
-	Number           int64 `json:"number"`
-	ExpectedAuthorID int64 `json:"expected_author_id"`
-	ExpectedPRID     int64 `json:"expected_pr_id"`
-	ExpectedIssueID  int64 `json:"expected_issue_id"`
+	Repository       string `json:"repository,omitempty"`
+	ForkConsent      string `json:"fork_consent,omitempty"`
+	Number           int64  `json:"number"`
+	ExpectedAuthorID int64  `json:"expected_author_id"`
+	ExpectedPRID     int64  `json:"expected_pr_id"`
+	ExpectedIssueID  int64  `json:"expected_issue_id"`
 }
 
 func (t nativeBranchTransfer) valid(q factory.HumanBranchCreateCommand) bool {
 	comparison := q
 	comparison.Name, comparison.Commit = t.ComparisonBranch, collaboration.CommitID(t.Base)
-	if c := t.PullRequest; c != nil && (t.ControllerGrantID == "" || t.ExpectedOld == "" || c.Number <= 0 || c.ExpectedAuthorID <= 0 || c.ExpectedPRID <= 0 || c.ExpectedIssueID <= 0) {
+	if c := t.PullRequest; c != nil {
+		if t.ExpectedOld == "" || c.Number <= 0 || c.ExpectedAuthorID <= 0 || c.ExpectedPRID <= 0 || c.ExpectedIssueID <= 0 {
+			return false
+		}
+		if t.ControllerGrantID == "" {
+			if t.SourceConnection != "" || !nativeRemoteID(c.Repository) || !factory.ValidID(c.ForkConsent) || t.ComparisonRepository != c.Repository {
+				return false
+			}
+		} else if c.Repository != "" || c.ForkConsent != "" || t.ComparisonRepository != "" {
+			return false
+		}
+	} else if t.ComparisonRepository != "" {
 		return false
 	}
 	return comparison.Validate() == nil && t.ComparisonBranch != q.Name && factory.ValidCommit(t.ComparisonOID) && factory.ValidDigest(t.BundleSHA256) && (t.ExpectedOld == "" || factory.ValidCommit(t.ExpectedOld) && t.ExpectedOld != string(q.Commit))
@@ -67,6 +81,8 @@ type nativeBranchPublishReceipt struct {
 	New                    string                      `json:"new"`
 	Comparison             string                      `json:"comparison"`
 	ComparisonBranch       string                      `json:"comparison_branch"`
+	ComparisonRepository   string                      `json:"comparison_repository,omitempty"`
+	PullRequest            *nativeBranchCorrection     `json:"pull_request,omitempty"`
 	ComparisonCondition    string                      `json:"comparison_condition"`
 	RefCondition           string                      `json:"ref_condition"`
 	BundleSHA256           string                      `json:"bundle_sha256"`
@@ -78,11 +94,24 @@ func validateNativeBranchTransferReceipt(q factory.HumanBranchCreateCommand, p n
 	if p.Transfer == nil || nativeDecode(payload, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Branch.Repository || r.Branch != "refs/heads/"+q.Name || r.Old != p.Transfer.ExpectedOld || r.New != string(q.Commit) || r.Comparison != p.Transfer.ComparisonOID || r.ComparisonBranch != "refs/heads/"+p.Transfer.ComparisonBranch || r.RefCondition != "exact_old_oid" || r.BundleSHA256 != p.Transfer.BundleSHA256 || !factory.ValidDigest(r.ProviderResponseSHA256) {
 		return r, factoryservice.ErrHumanBranchCreateUnavailable
 	}
+	if r.ComparisonRepository != p.Transfer.ComparisonRepository {
+		return r, errNativeRead
+	}
 	if p.Transfer.ControllerGrantID == "" {
 		if r.HostOperation != nil || r.RepositoryCondition != "bounded_observation" || r.ComparisonCondition != "bounded_observation" {
 			return r, errNativeRead
 		}
+		if c := p.Transfer.PullRequest; c != nil {
+			if r.PullRequest == nil || *r.PullRequest != *c || c.Repository == r.Repository {
+				return r, errNativeRead
+			}
+		} else if r.PullRequest != nil {
+			return r, errNativeRead
+		}
 	} else {
+		if r.PullRequest != nil {
+			return r, errNativeRead
+		}
 		h := r.HostOperation
 		if !h.matches(p.Transfer.ControllerGrantID, q.ID) || r.RepositoryCondition != "current_host_permission" || r.ComparisonCondition != "atomic_comparison_oid" {
 			return r, errNativeRead

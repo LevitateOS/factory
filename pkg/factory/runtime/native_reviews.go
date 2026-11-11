@@ -81,14 +81,14 @@ func (p NativeReviews) ObserveReview(ctx context.Context, w factory.ReviewWork) 
 	if err != nil || policy.Review.ActorID != w.ActorID {
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
-	if observed.PRID != w.PRID || observed.IssueID != w.IssueID || observed.PRAuthorID != w.PRAuthorID || observed.HeadRef != w.HeadRef || observed.BaseRef != w.BaseRef || observed.HeadOID != w.HeadOID || observed.BaseOID != w.BaseOID {
+	if observed.PRID != w.PRID || observed.IssueID != w.IssueID || observed.PRAuthorID != w.PRAuthorID || observed.HeadRepository != w.HeadRepositoryID() || observed.HeadRef != w.HeadRef || observed.BaseRef != w.BaseRef || observed.HeadOID != w.HeadOID || observed.BaseOID != w.BaseOID {
 		return empty, &factory.PublicationRefusal{Reason: "pr_mismatch"}
 	}
 	return observed, nil
 }
 
 // ReadExternalPullTarget is an authenticated, non-executing selection read.
-// Native connectors currently admit only same-repository, open, non-draft PRs.
+// Native connectors admit open, non-draft PRs with authenticated source identity.
 // The explicit command must subsequently reobserve every returned identity.
 func (p NativeReviews) ReadExternalPullTarget(ctx context.Context, repository, number int64) (factory.ReviewObservation, error) {
 	var empty factory.ReviewObservation
@@ -107,15 +107,16 @@ func (p NativeReviews) ReadExternalPullTarget(ctx context.Context, repository, n
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
 	var raw struct {
-		Repository string                      `json:"repository"`
-		Number     int64                       `json:"number"`
-		PullID     string                      `json:"pull_id"`
-		IssueID    string                      `json:"issue_id"`
-		Author     collaboration.ObservedActor `json:"author"`
-		HeadRef    string                      `json:"head_ref"`
-		BaseRef    string                      `json:"base_ref"`
-		HeadTip    string                      `json:"head_tip"`
-		BaseTip    string                      `json:"base_tip"`
+		Repository     string                            `json:"repository"`
+		Number         int64                             `json:"number"`
+		PullID         string                            `json:"pull_id"`
+		IssueID        string                            `json:"issue_id"`
+		Author         collaboration.ObservedActor       `json:"author"`
+		HeadRepository *collaboration.ObservedRepository `json:"head_repository,omitempty"`
+		HeadRef        string                            `json:"head_ref"`
+		BaseRef        string                            `json:"base_ref"`
+		HeadTip        string                            `json:"head_tip"`
+		BaseTip        string                            `json:"base_tip"`
 	}
 	if err = account.read(ctx, nativeRead{Kind: "automation_review", Repository: account.repository.ExternalID, Number: uint32(number)}, &raw); err != nil {
 		return empty, err
@@ -123,12 +124,29 @@ func (p NativeReviews) ReadExternalPullTarget(ctx context.Context, repository, n
 	if raw.Repository != account.repository.ExternalID || raw.Number != number || !nativeActor(raw.Author) {
 		return empty, &factory.PublicationRefusal{Reason: "pr_mismatch"}
 	}
-	mapping, err := account.mapRead(ctx, raw.Repository, account.repository.Name, []collaboration.ObservedActor{raw.Author}, nil)
+	refs := []collaboration.ObservedRepository{}
+	headRepository := repository
+	if raw.HeadRepository != nil {
+		refs = append(refs, *raw.HeadRepository)
+	} else if account.binding.Host.Provider == collaboration.GitHub {
+		return empty, errNativeRead
+	}
+	mapping, err := account.mapRead(ctx, raw.Repository, account.repository.Name, []collaboration.ObservedActor{raw.Author}, refs)
 	if err != nil {
 		return empty, err
 	}
+	if raw.HeadRepository != nil {
+		ref, ok := mapping.References[raw.HeadRepository.ExternalID]
+		if !ok {
+			return empty, errNativeRead
+		}
+		headRepository = int64(ref.ID)
+	}
 	pullID, pullErr := strconv.ParseInt(raw.PullID, 10, 64)
 	issueID, issueErr := strconv.ParseInt(raw.IssueID, 10, 64)
+	if headRepository != repository && raw.HeadRef == raw.BaseRef {
+		return empty, &factory.PublicationRefusal{Reason: "external_reference_names_overlap"}
+	}
 	w := factory.ReviewWork{Repository: repository, ActorID: policy.Review.ActorID, PRNumber: number, PRID: pullID, IssueID: issueID, PRAuthorID: int64(mapping.Actors[raw.Author.ExternalID].ID), HeadRef: raw.HeadRef, BaseRef: raw.BaseRef, HeadOID: raw.HeadTip, BaseOID: raw.BaseTip}
 	if pullErr != nil || issueErr != nil || w.ValidateTarget() != nil {
 		return empty, errNativeRead
@@ -144,7 +162,7 @@ func (p NativeReviews) ReadExternalPullTarget(ctx context.Context, repository, n
 	if err := account.currentBackground(ctx, factory.OpReviewSubmit); err != nil {
 		return empty, err
 	}
-	return factory.ReviewObservation{NativeRev: revision, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: raw.HeadTip, BaseOID: raw.BaseTip}, nil
+	return factory.ReviewObservation{NativeRev: revision, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRepository: headRepository, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: raw.HeadTip, BaseOID: raw.BaseTip}, nil
 }
 
 // ReadExternalPullContext captures candidate evidence before paid planning. The
@@ -175,7 +193,7 @@ func (p NativeReviews) ReadExternalPullContext(ctx context.Context, request fact
 		log.Printf("external pull context refused stage=%q class=%q native_status=%d", reason, class, status)
 		return pull, files, factory.ReviewObservation{}, errors.Join(&factory.PublicationRefusal{Reason: reason}, cause)
 	}
-	if request.Validate() != nil || request.Target.HeadRepository != request.Repository {
+	if request.Validate() != nil {
 		return fail("external_pr_context_request", errNativeReadScope)
 	}
 	policy, err := p.Store.RepositoryPolicy(ctx, request.Repository)
@@ -183,13 +201,16 @@ func (p NativeReviews) ReadExternalPullContext(ctx context.Context, request fact
 		return fail("external_pr_context_policy", err)
 	}
 	t := request.Target
-	w := factory.ReviewWork{Repository: request.Repository, ActorID: policy.Review.ActorID, PRNumber: request.PRNumber, PRID: request.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: t.HeadOID, BaseOID: t.BaseOID}
+	w := factory.ReviewWork{Repository: request.Repository, HeadRepository: t.HeadRepository, ActorID: policy.Review.ActorID, PRNumber: request.PRNumber, PRID: request.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: t.HeadOID, BaseOID: t.BaseOID}
 	account, err := p.account(ctx, strconv.FormatInt(request.Repository, 10), factory.OpReviewSubmit)
 	if err != nil {
 		return fail("external_pr_context_account", err)
 	}
 	if int64(account.binding.Actor.ID) != w.ActorID || account.binding.Connection.ID != policy.Review.NativeConnection || p.Config.Profile != policy.Review.NativeProfile {
 		return fail("external_pr_context_authority", nil)
+	}
+	if t.HeadRepository != request.Repository && account.binding.Host.Provider != collaboration.GitHub {
+		return fail("external_pr_context_fork_unsupported", errNativeReadScope)
 	}
 	reads := nativeCollaborationReads{account}
 	actor, repository := account.binding.Actor.ID, account.repository.ID
@@ -201,7 +222,7 @@ func (p NativeReviews) ReadExternalPullContext(ctx context.Context, request fact
 		return fail("external_pr_context_pull_page", errNativeRead)
 	}
 	pull = pulls.Items[0]
-	if pull.Ref.ExternalID != strconv.FormatInt(request.PRID, 10) || pull.State != "open" || pull.Draft == nil || *pull.Draft || pull.Author == nil || int64(pull.Author.ID) != t.AuthorID || pull.Head.Repository == nil || int64(pull.Head.Repository.ID) != request.Repository || pull.Base.Repository == nil || int64(pull.Base.Repository.ID) != request.Repository || pull.Head.Commit == nil || pull.Base.Commit == nil || string(*pull.Head.Commit) != t.HeadOID || string(*pull.Base.Commit) != t.BaseOID || pull.Head.Name != strings.TrimPrefix(t.HeadRef, "refs/heads/") || pull.Base.Name != strings.TrimPrefix(t.BaseRef, "refs/heads/") {
+	if pull.Ref.ExternalID != strconv.FormatInt(request.PRID, 10) || pull.State != "open" || pull.Draft == nil || *pull.Draft || pull.Author == nil || int64(pull.Author.ID) != t.AuthorID || pull.Head.Repository == nil || int64(pull.Head.Repository.ID) != t.HeadRepository || pull.Base.Repository == nil || int64(pull.Base.Repository.ID) != request.Repository || pull.Head.Commit == nil || pull.Base.Commit == nil || string(*pull.Head.Commit) != t.HeadOID || string(*pull.Base.Commit) != t.BaseOID || pull.Head.Name != strings.TrimPrefix(t.HeadRef, "refs/heads/") || pull.Base.Name != strings.TrimPrefix(t.BaseRef, "refs/heads/") {
 		return fail("external_pr_context_pull_identity", nil)
 	}
 	// One complete page is the fixed pre-planning evidence bound. Never silently

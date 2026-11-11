@@ -697,6 +697,9 @@ func (c *Coordinator) buildReviewWork(ctx context.Context, p factory.Publication
 		HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: head, BaseOID: p.PullTarget().BaseOID,
 		Event: event, Body: body,
 	}
+	if p.PullTarget().HeadRepository != p.Repository {
+		w.HeadRepository = p.PullTarget().HeadRepository
+	}
 	if policy.AutomaticReviewEvent(w.PRAuthorID, event) == "COMMENT" {
 		w.AgentVerdict, w.Event = event, "COMMENT"
 	} else {

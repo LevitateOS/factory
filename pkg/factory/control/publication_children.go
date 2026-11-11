@@ -539,6 +539,20 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 	return correctionPlan, false
 }
 
+func (c *Coordinator) refuseUnavailableForkCorrection(ctx context.Context, p factory.Publication, role string, report *PublishReport) bool {
+	if role != project.RoleCoder || p.External == nil || p.PullTarget().HeadRepository == p.Repository {
+		return false
+	}
+	source, ok := c.Publication.(interface {
+		AdmitCorrectionSource(context.Context, factory.Publication) error
+	})
+	if !ok || source.AdmitCorrectionSource(ctx, p) != nil {
+		publicationWait(report, p.ID, "fork_correction_unavailable")
+		return true
+	}
+	return false
+}
+
 func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Publication, report *PublishReport) {
 	if !admitPublicationChildInput(p) {
 		return
@@ -565,6 +579,9 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 		return
 	}
 	role := in.role
+	if c.refuseUnavailableForkCorrection(ctx, p, role, report) {
+		return
+	}
 	policyReview := in.policyReview
 	wire, stop := c.resolvePublicationChildWire(ctx, p, owner, in, report)
 	if stop {
@@ -619,6 +636,9 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 		return
 	} else if wait != nil {
 		publicationWait(report, p.ID, wait.Reason)
+		return
+	}
+	if c.refuseUnavailableForkCorrection(ctx, p, role, report) {
 		return
 	}
 	c.executePublicationChild(ctx, deps, &occupancy, plan, p, owner, childID, preparationID, role, correctionPlan, report)
@@ -688,7 +708,7 @@ func (c *Coordinator) recheckPublicationChild(ctx context.Context, p factory.Pub
 			return waitFor("child_dispatch_inputs_changed", "external adoption policy changed before launch"), nil
 		}
 		t := p.PullTarget()
-		if _, err := c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, ActorID: plan.policy.Review.ActorID, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: p.Candidate, BaseOID: t.BaseOID}); err != nil {
+		if _, err := c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, HeadRepository: t.HeadRepository, ActorID: plan.policy.Review.ActorID, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: t.IssueID, PRAuthorID: t.AuthorID, HeadRef: t.HeadRef, BaseRef: t.BaseRef, HeadOID: p.Candidate, BaseOID: t.BaseOID}); err != nil {
 			return waitFor("child_dispatch_inputs_changed", "external PR identity, head, base or permission changed before launch"), nil
 		}
 	}

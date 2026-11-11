@@ -536,7 +536,7 @@ func validateCandidatePreparationRegistration(preparation execution.PreparationR
 			return errors.New("invalid merged preparation source")
 		}
 	}
-	if r.SourcePull != nil && (preparation.Native == nil || r.SourcePull.Validate() != nil || r.PublicationID != r.SourcePull.Publication || r.Repository != r.SourcePull.Repository || r.SourcePull.HeadRepository != r.Repository || r.SourcePull.Head != preparation.Preparation.SourceCommit) {
+	if r.SourcePull != nil && (preparation.Native == nil || r.SourcePull.Validate() != nil || r.PublicationID != r.SourcePull.Publication || r.Repository != r.SourcePull.Repository || r.SourcePull.Head != preparation.Preparation.SourceCommit) {
 		return errors.New("external PR preparation source is unavailable or unbound")
 	}
 	return nil

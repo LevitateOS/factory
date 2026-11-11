@@ -81,6 +81,13 @@ impl Reader<'_> {
             let issue = self.raw_subject(false, number).await?;
             let head = r::nonempty(&pull["head"], "sha")?;
             let base = r::nonempty(&pull["base"], "sha")?;
+            let head_repository = r::id(&pull["head"]["repo"]["id"])?;
+            let fork = if head_repository != self.repository {
+                Some(Reader::new(self.client, self.token, &head_repository).await?)
+            } else {
+                None
+            };
+            let head_reader = fork.as_ref().unwrap_or(self);
             // REST 2026-03-10 omits merge_commit_sha. Bind the GraphQL result
             // to the independently read numeric PR and repository node IDs.
             let query="query FactoryMergedCommit($pull:ID!){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} headRefOid merged mergeCommit{oid repository{id}}}}}";
@@ -113,14 +120,17 @@ impl Reader<'_> {
             }
             let merged = r::nonempty(&result["mergeCommit"], "oid")?;
             let branch = r::nonempty(&pull["base"], "ref")?;
+            let head_ref = r::nonempty(&pull["head"], "ref")?;
             if pull["merged"] != true
                 || pull["state"] != "closed"
                 || r::id(&pull["base"]["repo"]["id"])? != self.repository
-                || r::id(&pull["head"]["repo"]["id"])? != self.repository
+                || pull["head"]["repo"]["full_name"] != head_reader.name
                 || !commit(head)
                 || !commit(base)
                 || !commit(merged)
                 || !super::request::branch_name(branch)
+                || !super::request::branch_name(head_ref)
+                || head_ref == branch
                 || issue["pull_request"]["url"] != self.url(&format!("/pulls/{number}"))
             {
                 return Err(Failure::new(409, "github_merge_completion_pending"));
@@ -154,7 +164,8 @@ impl Reader<'_> {
             };
             Ok(
                 json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,
-                "issue_id":r::id(&issue["id"])?,"head":head,"head_ref":format!("refs/heads/{}",r::nonempty(&pull["head"],"ref")?),
+                "issue_id":r::id(&issue["id"])?,"head":head,"head_ref":format!("refs/heads/{head_ref}"),
+                "head_repository":{"external_id":head_repository,"name":head_reader.name},
                 "base_ref":format!("refs/heads/{branch}"),"commit":merged,"base_tip":tip,"base_contains":contains,
                 "merger":r::actor(&pull["merged_by"])?,"merged_at":r::date(&pull,"merged_at")?,
                 "closed_at":r::date(&issue,"closed_at")?,"issue_closed":issue["state"]=="closed"}),

@@ -24,16 +24,17 @@ type NativePublication struct{ NativeInputSource }
 var _ control.PublicationExecutor = NativePublication{}
 
 type nativePublicationRefs struct {
-	Repository       string `json:"repository"`
-	Name             string `json:"name"`
-	RepositoryNodeID string `json:"repository_node_id"`
-	Push             *bool  `json:"push"`
-	Archived         *bool  `json:"archived"`
-	Disabled         *bool  `json:"disabled"`
-	Branch           string `json:"branch"`
-	Tip              string `json:"tip"`
-	ComparisonBranch string `json:"comparison_branch"`
-	Comparison       string `json:"comparison"`
+	Repository           string `json:"repository"`
+	Name                 string `json:"name"`
+	RepositoryNodeID     string `json:"repository_node_id"`
+	Push                 *bool  `json:"push"`
+	Archived             *bool  `json:"archived"`
+	Disabled             *bool  `json:"disabled"`
+	Branch               string `json:"branch"`
+	Tip                  string `json:"tip"`
+	ComparisonBranch     string `json:"comparison_branch"`
+	Comparison           string `json:"comparison"`
+	ComparisonRepository string `json:"comparison_repository,omitempty"`
 }
 
 func nativePublicationCommandID(profile, id string) string {
@@ -67,8 +68,81 @@ func (p NativePublication) registered(ctx context.Context, id string) (factory.P
 	}
 	return publication, op, w, nil
 }
-func (p NativePublication) branchRequest(ctx context.Context, w factory.PublicationWork) (factory.HumanBranchCreateCommand, error) {
+
+// The workflow and its issue stay in the base repository. Only a separately
+// consented external correction may target the captured fork's existing ref.
+func (p NativePublication) branchRepository(ctx context.Context, w factory.PublicationWork) (collaboration.RepositoryRef, error) {
 	repo, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(w.Repository))
+	if err != nil {
+		return repo, err
+	}
+	if w.CorrectionNumber == 0 {
+		return repo, nil
+	}
+	publication, err := p.Store.PublicationByAssignment(ctx, w.AssignmentID)
+	if err != nil || publication.Validate() != nil || publication.ID != w.Publication || publication.Repository != w.Repository || publication.PRNumber != w.CorrectionNumber {
+		return repo, errNativeReadScope
+	}
+	target := publication.PullTarget()
+	if target.HeadRepository == w.Repository {
+		return repo, nil
+	}
+	if publication.External == nil || publication.External.ForkConsent != publication.External.CommandID || target.HeadRepository <= 0 {
+		return repo, errNativeReadScope
+	}
+	host, err := p.Store.CollaborationHost(ctx, repo.Host)
+	if err != nil || host.Provider != collaboration.GitHub {
+		return repo, errNativeReadScope
+	}
+	fork, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(target.HeadRepository))
+	if err != nil || fork.Host != repo.Host {
+		return repo, errNativeReadScope
+	}
+	return fork, nil
+}
+
+func (p NativePublication) publicationAccount(ctx context.Context, w factory.PublicationWork, kind string) (*nativeProductAccount, error) {
+	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
+	if err != nil {
+		return nil, err
+	}
+	repo, err := p.branchRepository(ctx, w)
+	if err != nil {
+		return nil, err
+	}
+	if repo.ID == account.repository.ID {
+		return account, nil
+	}
+	return p.savedAccount(ctx, int64(repo.ID), account.binding.Actor.ID, account.binding.Connection.ID)
+}
+
+// AdmitCorrectionSource checks the actual fork destination before a Fixer can
+// spend its bounded run. Publication still rechecks these facts before sending.
+func (p NativePublication) AdmitCorrectionSource(ctx context.Context, publication factory.Publication) error {
+	if publication.Validate() != nil || publication.External == nil || publication.External.ForkConsent != publication.External.CommandID || publication.PullTarget().HeadRepository == publication.Repository || publication.WithdrawRequested || publication.Stage != factory.PublicationPublished {
+		return errNativeReadScope
+	}
+	policy, err := p.Store.RepositoryPolicy(ctx, publication.Repository)
+	if err != nil {
+		return err
+	}
+	w := factory.PublicationWork{AssignmentID: publication.AssignmentID, Publication: publication.ID, Repository: publication.Repository, ActorID: policy.Publish.ActorID, CorrectionNumber: publication.PRNumber, CorrectionAuthor: publication.PullTarget().AuthorID, ExpectedOld: publication.Candidate, ComparisonRef: publication.TargetBranch, ComparisonOID: publication.PullTarget().BaseOID}
+	account, err := p.publicationAccount(ctx, w, factory.OpRefPublish)
+	if err != nil {
+		return err
+	}
+	refs, err := p.refs(ctx, account, w)
+	if err != nil {
+		return err
+	}
+	if refs.Tip != publication.Candidate || refs.Comparison != publication.PullTarget().BaseOID {
+		return errNativeReadScope
+	}
+	return p.observeCorrectionPull(ctx, account, w, publication, refs)
+}
+
+func (p NativePublication) branchRequest(ctx context.Context, w factory.PublicationWork) (factory.HumanBranchCreateCommand, error) {
+	repo, err := p.branchRepository(ctx, w)
 	if err != nil {
 		return factory.HumanBranchCreateCommand{}, err
 	}
@@ -105,11 +179,19 @@ func (p NativePublication) refs(ctx context.Context, account *nativeProductAccou
 	if !strings.HasPrefix(w.ComparisonRef, "refs/heads/") {
 		return raw, errNativeReadScope
 	}
-	err := account.read(ctx, nativeRead{Kind: "publication_refs", Repository: account.repository.ExternalID, Name: name, BaseBranch: comparison}, &raw)
+	base, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(w.Repository))
 	if err != nil {
 		return raw, err
 	}
-	if raw.Repository != account.repository.ExternalID || raw.Branch != name || raw.ComparisonBranch != comparison || !nativeReviewNode(raw.RepositoryNodeID, 1024) || raw.Push == nil || !*raw.Push || raw.Archived == nil || *raw.Archived || raw.Disabled == nil || *raw.Disabled || !(raw.Tip == "" || factory.ValidCommit(raw.Tip)) || !factory.ValidCommit(raw.Comparison) {
+	comparisonRepository := ""
+	if base.ID != account.repository.ID {
+		comparisonRepository = base.ExternalID
+	}
+	err = account.read(ctx, nativeRead{Kind: "publication_refs", Repository: account.repository.ExternalID, Name: name, BaseBranch: comparison, ComparisonRepository: comparisonRepository}, &raw)
+	if err != nil {
+		return raw, err
+	}
+	if raw.Repository != account.repository.ExternalID || raw.ComparisonRepository != comparisonRepository || raw.Branch != name || raw.ComparisonBranch != comparison || !nativeReviewNode(raw.RepositoryNodeID, 1024) || raw.Push == nil || !*raw.Push || raw.Archived == nil || *raw.Archived || raw.Disabled == nil || *raw.Disabled || !(raw.Tip == "" || factory.ValidCommit(raw.Tip)) || !factory.ValidCommit(raw.Comparison) {
 		return raw, errNativeRead
 	}
 	_, err = account.mapRead(ctx, raw.Repository, raw.Name, nil, nil)
@@ -152,7 +234,7 @@ func (p NativePublication) ObservePublication(ctx context.Context, w factory.Pub
 	if publication.ID != w.Publication || publication.AssignmentID != w.AssignmentID || publication.Repository != w.Repository || publication.Issue != w.Issue || publication.BaseSHA != w.BaseSHA || publication.TargetBranch != w.ComparisonRef {
 		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
-	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
+	account, err := p.publicationAccount(ctx, w, kind)
 	if err != nil {
 		return empty, err
 	}
@@ -328,7 +410,7 @@ func (p NativePublication) lookupPublicationAccount(ctx context.Context, w facto
 		}
 		return account, err
 	}
-	return p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
+	return p.publicationAccount(ctx, w, kind)
 }
 func (p NativePublication) admitSubmit(ctx context.Context, w factory.PublicationWork, kind string) (*nativeProductAccount, error) {
 	if w.Validate() != nil {
@@ -355,7 +437,7 @@ func (p NativePublication) admitSubmit(ctx context.Context, w factory.Publicatio
 	if !open || !policy.Enabled || policy.Paused {
 		return nil, &factory.PublicationWait{Reason: "dispatch_closed"}
 	}
-	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
+	account, err := p.publicationAccount(ctx, w, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -668,18 +750,22 @@ func (p NativePublication) AdoptPRCreation(ctx context.Context, w factory.Public
 		return empty, err
 	}
 	var issue struct {
-		Repository string                      `json:"repository"`
-		Number     int64                       `json:"number"`
-		PullID     string                      `json:"pull_id"`
-		IssueID    string                      `json:"issue_id"`
-		Author     collaboration.ObservedActor `json:"author"`
-		HeadRef    string                      `json:"head_ref"`
-		BaseRef    string                      `json:"base_ref"`
-		HeadTip    string                      `json:"head_tip"`
-		BaseTip    string                      `json:"base_tip"`
+		Repository     string                            `json:"repository"`
+		Number         int64                             `json:"number"`
+		PullID         string                            `json:"pull_id"`
+		IssueID        string                            `json:"issue_id"`
+		Author         collaboration.ObservedActor       `json:"author"`
+		HeadRepository *collaboration.ObservedRepository `json:"head_repository,omitempty"`
+		HeadRef        string                            `json:"head_ref"`
+		BaseRef        string                            `json:"base_ref"`
+		HeadTip        string                            `json:"head_tip"`
+		BaseTip        string                            `json:"base_tip"`
 	}
 	if err = account.read(ctx, nativeRead{Kind: "automation_review", Repository: account.repository.ExternalID, Number: uint32(raw.Pull.Number)}, &issue); err != nil {
 		return empty, err
+	}
+	if account.binding.Host.Provider == collaboration.GitHub && (issue.HeadRepository == nil || issue.HeadRepository.ExternalID != account.repository.ExternalID) {
+		return empty, errNativeRead
 	}
 	if issue.Repository != account.repository.ExternalID || issue.Number != raw.Pull.Number || issue.PullID != raw.Pull.ExternalID || !nativeRemoteID(issue.IssueID) || issue.Author.ExternalID != prep.Account || issue.HeadRef != "refs/heads/"+q.HeadBranch || issue.BaseRef != "refs/heads/"+q.BaseBranch || issue.HeadTip != w.Candidate || issue.BaseTip != w.ComparisonOID {
 		return empty, errNativeRead

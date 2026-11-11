@@ -405,20 +405,21 @@ func (p NativeMerges) ObserveCompletion(ctx context.Context, w factory.MergeWork
 		return empty, err
 	}
 	var raw struct {
-		Repository  string                      `json:"repository"`
-		Number      int64                       `json:"number"`
-		PullID      string                      `json:"pull_id"`
-		IssueID     string                      `json:"issue_id"`
-		Head        string                      `json:"head"`
-		HeadRef     string                      `json:"head_ref"`
-		BaseRef     string                      `json:"base_ref"`
-		Commit      string                      `json:"commit"`
-		BaseTip     string                      `json:"base_tip"`
-		Contains    bool                        `json:"base_contains"`
-		Merger      collaboration.ObservedActor `json:"merger"`
-		MergedAt    *time.Time                  `json:"merged_at"`
-		ClosedAt    *time.Time                  `json:"closed_at"`
-		IssueClosed bool                        `json:"issue_closed"`
+		Repository     string                            `json:"repository"`
+		Number         int64                             `json:"number"`
+		PullID         string                            `json:"pull_id"`
+		IssueID        string                            `json:"issue_id"`
+		Head           string                            `json:"head"`
+		HeadRepository *collaboration.ObservedRepository `json:"head_repository,omitempty"`
+		HeadRef        string                            `json:"head_ref"`
+		BaseRef        string                            `json:"base_ref"`
+		Commit         string                            `json:"commit"`
+		BaseTip        string                            `json:"base_tip"`
+		Contains       bool                              `json:"base_contains"`
+		Merger         collaboration.ObservedActor       `json:"merger"`
+		MergedAt       *time.Time                        `json:"merged_at"`
+		ClosedAt       *time.Time                        `json:"closed_at"`
+		IssueClosed    bool                              `json:"issue_closed"`
 	}
 	if err = account.read(ctx, nativeRead{Kind: "merge_completion", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber)}, &raw); err != nil {
 		return empty, fmt.Errorf("merge completion provider read: %w", err)
@@ -426,9 +427,25 @@ func (p NativeMerges) ObserveCompletion(ctx context.Context, w factory.MergeWork
 	if raw.Repository != account.repository.ExternalID || raw.Number != w.PRNumber || raw.PullID != strconv.FormatInt(w.PRID, 10) || raw.IssueID != strconv.FormatInt(w.IssueID, 10) || raw.Head != w.HeadOID || raw.HeadRef != w.HeadRef || raw.BaseRef != w.BaseRef || raw.Commit != adopted.MergedCommit || !nativeActor(raw.Merger) || raw.MergedAt == nil || raw.ClosedAt == nil || !factory.ValidCommit(raw.BaseTip) {
 		return empty, errNativeRead
 	}
-	mapped, err := account.mapRead(ctx, raw.Repository, account.repository.Name, []collaboration.ObservedActor{raw.Merger}, nil)
+	publication, err := p.Store.PublicationByID(ctx, w.PublicationID)
+	if err != nil || publication.Validate() != nil || publication.Repository != w.Repository || publication.PRNumber != w.PRNumber || publication.PRID != w.PRID {
+		return empty, errNativeRead
+	}
+	refs := []collaboration.ObservedRepository{}
+	if raw.HeadRepository != nil {
+		refs = append(refs, *raw.HeadRepository)
+	} else if account.binding.Host.Provider == collaboration.GitHub || publication.PullTarget().HeadRepository != w.Repository {
+		return empty, errNativeRead
+	}
+	mapped, err := account.mapRead(ctx, raw.Repository, account.repository.Name, []collaboration.ObservedActor{raw.Merger}, refs)
 	if err != nil {
 		return empty, err
+	}
+	if raw.HeadRepository != nil {
+		ref, ok := mapped.References[raw.HeadRepository.ExternalID]
+		if !ok || int64(ref.ID) != publication.PullTarget().HeadRepository {
+			return empty, errNativeRead
+		}
 	}
 	original, err := (nativeIssueInputs{account}).ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
