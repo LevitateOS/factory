@@ -131,12 +131,12 @@ func (p NativeMerges) LookupOp(ctx context.Context, id string) (factory.Operatio
 func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
 	fail := func(stage string, cause error) (factory.MergeObservation, error) {
-		class, status := "owner", 0
+		class, code, status := "owner", "", 0
 		var native *NativePortError
 		var waiting *factory.PublicationWait
 		switch {
 		case errors.As(cause, &native):
-			class, status = "native", native.Status
+			class, code, status = "native", native.Code, native.Status
 		case errors.Is(cause, context.DeadlineExceeded):
 			class = "deadline"
 		case errors.Is(cause, control.ErrReadinessPassPending):
@@ -146,9 +146,9 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 		case errors.As(cause, &waiting):
 			class = "wait"
 		}
-		// Stage and class are bounded owner labels, never provider error text,
-		// credentials, review bodies or returned material.
-		log.Printf("native merge observation held stage=%q class=%q native_status=%d", stage, class, status)
+		// NativePortError.Code is already validated as a bounded identifier.
+		// Never log provider error text, credentials, bodies or returned material.
+		log.Printf("native merge observation held stage=%q class=%q native_status=%d native_code=%q", stage, class, status, code)
 		return empty, cause
 	}
 	if w.ValidateTarget() != nil || !nativeIndex(w.PRNumber) {
