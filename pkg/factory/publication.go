@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -64,13 +65,13 @@ func validPublishReason(reason string) bool {
 // not completed factory work: pending completion still owes derived native
 // effects, and needs_intervention owes an operator decision.
 const (
-	OpCompletionPending           = "pending"
-	OpCompletionComplete          = "complete"
-	OpCompletionNeedsIntervention = "needs_intervention"
+	OpCompletionPending           = collaboration.CompletionPending
+	OpCompletionComplete          = collaboration.CompletionComplete
+	OpCompletionNeedsIntervention = collaboration.CompletionNeedsIntervention
 )
 
 // ValidOpCompletion reports whether state is a known completion state.
-func ValidOpCompletion(state string) bool {
+func ValidOpCompletion(state collaboration.CompletionState) bool {
 	switch state {
 	case OpCompletionPending, OpCompletionComplete, OpCompletionNeedsIntervention:
 		return true
@@ -146,7 +147,9 @@ type Publication struct {
 // finished work carries its outcome, reason and finish time. A published
 // publication links exactly the PR its own creation receipt proved.
 func (p Publication) Validate() error {
-	if err:=p.validateExternalOrigin(); err!=nil { return err }
+	if err := p.validateExternalOrigin(); err != nil {
+		return err
+	}
 	if err := checkPublicationIdentity(p); err != nil {
 		return err
 	}
@@ -204,7 +207,7 @@ func checkPublicationScope(p Publication) error {
 	if !ValidPreparationRef(p.Preparation) {
 		return errors.New("invalid publication preparation")
 	}
-	if !ValidID(p.Run) && !(p.External!=nil && p.Run=="") {
+	if !ValidID(p.Run) && !(p.External != nil && p.Run == "") {
 		return errors.New("invalid publication run")
 	}
 	return nil
@@ -263,10 +266,12 @@ func checkPublicationOperations(p Publication) error {
 func checkPublicationCorrections(p Publication) (string, error) {
 	initial := p.Candidate
 	if len(p.Corrections) == 0 {
-		if p.External!=nil && p.Run!="" { return "",errors.New("external origin has no Builder run") }
+		if p.External != nil && p.Run != "" {
+			return "", errors.New("external origin has no Builder run")
+		}
 		return initial, nil
 	}
-	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced && !(p.External!=nil && p.Stage==PublicationWithdrawn)) || !p.HasPullTarget() || p.InitialCandidate()=="" {
+	if (p.Stage != PublicationPublished && p.Stage != PublicationFenced && !(p.External != nil && p.Stage == PublicationWithdrawn)) || !p.HasPullTarget() || p.InitialCandidate() == "" {
 		return "", errors.New("corrections require a published linked PR")
 	}
 	initial = p.InitialCandidate()
@@ -286,7 +291,9 @@ func checkPublicationCorrections(p Publication) (string, error) {
 	if committedRun != "" && p.Run != committedRun {
 		return "", errors.New("publication run differs from its committed correction")
 	}
-	if committedRun=="" && p.External!=nil && p.Run!="" { return "",errors.New("external candidate has no correction run") }
+	if committedRun == "" && p.External != nil && p.Run != "" {
+		return "", errors.New("external candidate has no correction run")
+	}
 	return initial, nil
 }
 
@@ -326,8 +333,10 @@ func checkPublicationCorrection(p Publication, i int, head, committedRun string,
 }
 
 func checkPublicationPRLinks(p Publication, initial string) error {
-	if p.External!=nil {
-		if initial!=p.External.Target.HeadOID { return errors.New("external publication origin head changed") }
+	if p.External != nil {
+		if initial != p.External.Target.HeadOID {
+			return errors.New("external publication origin head changed")
+		}
 		return nil
 	}
 	for _, op := range []PublicationOperation{p.Publish, p.PRCreate} {
@@ -367,7 +376,9 @@ func checkPublishedPublicationOutcome(p Publication) error {
 	if p.PRNumber <= 0 || p.PRID <= 0 {
 		return errors.New("published publication lacks its PR links")
 	}
-	if p.External!=nil { return nil }
+	if p.External != nil {
+		return nil
+	}
 	if p.PRCreate.Effect != OpEffectCommitted || p.PRCreate.PRNumber != p.PRNumber || p.PRCreate.PRID != p.PRID {
 		return errors.New("published PR is not the recorded creation effect")
 	}
@@ -509,9 +520,9 @@ type OperationOutcome struct {
 	ActorID        int64
 	RepositoryID   int64
 	Receipt        []byte
-	Effect         string
-	Cancellation   string
-	Completion     string
+	Effect         collaboration.EffectState
+	Cancellation   collaboration.CancellationState
+	Completion     collaboration.CompletionState
 	Reason         string
 	NotObserved    bool
 }

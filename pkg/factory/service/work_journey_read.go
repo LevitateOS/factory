@@ -539,7 +539,7 @@ func applyJourneyPublicationSections(view *IssueJourney, publication *factory.Pu
 		if op.Work != nil {
 			candidate = op.Work.Candidate
 		}
-		correction, err := journeyCorrectionDTO(candidate, op.Effect, op.Completion, op.Reason)
+		correction, err := journeyCorrectionDTO(candidate, string(op.Effect), string(op.Completion), op.Reason)
 		if err != nil {
 			invalidCorrection = true
 			continue

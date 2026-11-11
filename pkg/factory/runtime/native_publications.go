@@ -72,11 +72,13 @@ func (p NativePublication) branchRequest(ctx context.Context, w factory.Publicat
 	if err != nil {
 		return factory.HumanBranchCreateCommand{}, err
 	}
-	name:=factory.PublicationBranch(w.AssignmentID)
-	if w.CorrectionNumber>0 {
-		publication,err:=p.Store.PublicationByAssignment(ctx,w.AssignmentID)
-		if err!=nil || publication.ID!=w.Publication || publication.PRNumber!=w.CorrectionNumber { return factory.HumanBranchCreateCommand{},errNativeReadScope }
-		name=factory.RefHead(publication.PublicationRef())
+	name := factory.PublicationBranch(w.AssignmentID)
+	if w.CorrectionNumber > 0 {
+		publication, err := p.Store.PublicationByAssignment(ctx, w.AssignmentID)
+		if err != nil || publication.ID != w.Publication || publication.PRNumber != w.CorrectionNumber {
+			return factory.HumanBranchCreateCommand{}, errNativeReadScope
+		}
+		name = factory.RefHead(publication.PublicationRef())
 	}
 	q := factory.HumanBranchCreateCommand{ID: nativePublicationCommandID(string(p.Config.Profile), w.OperationID), Host: repo.Host, Repository: repo.ID, Actor: collaboration.ActorID(w.ActorID), Name: name, Commit: collaboration.CommitID(w.Candidate)}
 	return q, q.Validate()
@@ -92,10 +94,12 @@ func (p NativePublication) pullRequest(ctx context.Context, w factory.Publicatio
 func (p NativePublication) refs(ctx context.Context, account *nativeProductAccount, w factory.PublicationWork) (nativePublicationRefs, error) {
 	var raw nativePublicationRefs
 	name := factory.PublicationBranch(w.AssignmentID)
-	if w.CorrectionNumber>0 {
-		publication,err:=p.Store.PublicationByAssignment(ctx,w.AssignmentID)
-		if err!=nil || publication.ID!=w.Publication || publication.PRNumber!=w.CorrectionNumber { return raw,errNativeReadScope }
-		name=factory.RefHead(publication.PublicationRef())
+	if w.CorrectionNumber > 0 {
+		publication, err := p.Store.PublicationByAssignment(ctx, w.AssignmentID)
+		if err != nil || publication.ID != w.Publication || publication.PRNumber != w.CorrectionNumber {
+			return raw, errNativeReadScope
+		}
+		name = factory.RefHead(publication.PublicationRef())
 	}
 	comparison := strings.TrimPrefix(w.ComparisonRef, "refs/heads/")
 	if !strings.HasPrefix(w.ComparisonRef, "refs/heads/") {
@@ -182,7 +186,7 @@ func nativePublicationOutcome(w factory.PublicationWork, kind string, o collabor
 		return factory.OperationOutcome{OperationID: w.OperationID, NotObserved: true}
 	}
 	r := o.Record
-	result := factory.OperationOutcome{OperationID: w.OperationID, InstallationID: r.Authority, Kind: kind, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: string(r.Effect), Cancellation: string(r.Cancellation), Completion: string(r.Completion), Reason: r.Reason}
+	result := factory.OperationOutcome{OperationID: w.OperationID, InstallationID: r.Authority, Kind: kind, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: r.Effect, Cancellation: r.Cancellation, Completion: r.Completion, Reason: r.Reason}
 	if r.Receipt != nil {
 		result.Receipt = append([]byte(nil), r.Receipt.Payload...)
 	}

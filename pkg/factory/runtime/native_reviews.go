@@ -73,22 +73,32 @@ func (p NativeReviews) ObserveReview(ctx context.Context, w factory.ReviewWork) 
 	if len(w.Comments) != 0 {
 		return empty, &factory.PublicationWait{Reason: "native_review_inline_unavailable"}
 	}
-	observed,err:=p.ReadExternalPullTarget(ctx,w.Repository,w.PRNumber)
-	if err!=nil { return empty,err }
-	policy,err:=p.Store.RepositoryPolicy(ctx,w.Repository)
-	if err!=nil || policy.Review.ActorID!=w.ActorID { return empty,&factory.PublicationRefusal{Reason:"authority_lost"} }
-	if observed.PRID!=w.PRID || observed.IssueID!=w.IssueID || observed.PRAuthorID!=w.PRAuthorID || observed.HeadRef!=w.HeadRef || observed.BaseRef!=w.BaseRef || observed.HeadOID!=w.HeadOID || observed.BaseOID!=w.BaseOID { return empty,&factory.PublicationRefusal{Reason:"pr_mismatch"} }
-	return observed,nil
+	observed, err := p.ReadExternalPullTarget(ctx, w.Repository, w.PRNumber)
+	if err != nil {
+		return empty, err
+	}
+	policy, err := p.Store.RepositoryPolicy(ctx, w.Repository)
+	if err != nil || policy.Review.ActorID != w.ActorID {
+		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
+	}
+	if observed.PRID != w.PRID || observed.IssueID != w.IssueID || observed.PRAuthorID != w.PRAuthorID || observed.HeadRef != w.HeadRef || observed.BaseRef != w.BaseRef || observed.HeadOID != w.HeadOID || observed.BaseOID != w.BaseOID {
+		return empty, &factory.PublicationRefusal{Reason: "pr_mismatch"}
+	}
+	return observed, nil
 }
 
 // ReadExternalPullTarget is an authenticated, non-executing selection read.
 // Native connectors currently admit only same-repository, open, non-draft PRs.
 // The explicit command must subsequently reobserve every returned identity.
-func (p NativeReviews) ReadExternalPullTarget(ctx context.Context,repository,number int64) (factory.ReviewObservation,error) {
+func (p NativeReviews) ReadExternalPullTarget(ctx context.Context, repository, number int64) (factory.ReviewObservation, error) {
 	var empty factory.ReviewObservation
-	if !nativeIndex(number) || repository<1 { return empty,errNativeReadScope }
-	policy,err:=p.Store.RepositoryPolicy(ctx,repository)
-	if err!=nil { return empty,err }
+	if !nativeIndex(number) || repository < 1 {
+		return empty, errNativeReadScope
+	}
+	policy, err := p.Store.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return empty, err
+	}
 	account, err := p.account(ctx, strconv.FormatInt(repository, 10), factory.OpReviewSubmit)
 	if err != nil {
 		return empty, err
@@ -117,10 +127,12 @@ func (p NativeReviews) ReadExternalPullTarget(ctx context.Context,repository,num
 	if err != nil {
 		return empty, err
 	}
-	pullID,pullErr:=strconv.ParseInt(raw.PullID,10,64)
-	issueID,issueErr:=strconv.ParseInt(raw.IssueID,10,64)
-	w:=factory.ReviewWork{Repository:repository,ActorID:policy.Review.ActorID,PRNumber:number,PRID:pullID,IssueID:issueID,PRAuthorID:int64(mapping.Actors[raw.Author.ExternalID].ID),HeadRef:raw.HeadRef,BaseRef:raw.BaseRef,HeadOID:raw.HeadTip,BaseOID:raw.BaseTip}
-	if pullErr!=nil || issueErr!=nil || w.ValidateTarget()!=nil { return empty,errNativeRead }
+	pullID, pullErr := strconv.ParseInt(raw.PullID, 10, 64)
+	issueID, issueErr := strconv.ParseInt(raw.IssueID, 10, 64)
+	w := factory.ReviewWork{Repository: repository, ActorID: policy.Review.ActorID, PRNumber: number, PRID: pullID, IssueID: issueID, PRAuthorID: int64(mapping.Actors[raw.Author.ExternalID].ID), HeadRef: raw.HeadRef, BaseRef: raw.BaseRef, HeadOID: raw.HeadTip, BaseOID: raw.BaseTip}
+	if pullErr != nil || issueErr != nil || w.ValidateTarget() != nil {
+		return empty, errNativeRead
+	}
 	encoded, err := json.Marshal(raw)
 	if err != nil {
 		return empty, err
@@ -222,7 +234,7 @@ func nativeReviewOutcome(w factory.ReviewWork, lookup collaboration.OperationLoo
 		return factory.OperationOutcome{OperationID: w.OperationID, NotObserved: true}
 	}
 	r := lookup.Record
-	out := factory.OperationOutcome{OperationID: w.OperationID, InstallationID: r.Authority, Kind: factory.OpReviewSubmit, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: string(r.Effect), Cancellation: string(r.Cancellation), Completion: string(r.Completion), Reason: r.Reason}
+	out := factory.OperationOutcome{OperationID: w.OperationID, InstallationID: r.Authority, Kind: factory.OpReviewSubmit, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: r.Effect, Cancellation: r.Cancellation, Completion: r.Completion, Reason: r.Reason}
 	if r.Receipt != nil {
 		out.Receipt = append([]byte(nil), r.Receipt.Payload...)
 	}

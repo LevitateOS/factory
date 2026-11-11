@@ -1,6 +1,10 @@
 package factory
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/levitateos/factory/pkg/collaboration"
+)
 
 // CurrentReviewContext is the exact review/correction input granted by its
 // recorded cycle. Carried findings come from the existing canonical collector;
@@ -49,11 +53,11 @@ type CurrentReviewHead struct {
 }
 
 type CurrentReviewOperation struct {
-	Effect       string `json:"effect"`
-	Cancellation string `json:"cancellation"`
-	Completion   string `json:"completion"`
-	Reason       string `json:"reason"`
-	NotObserved  bool   `json:"not_observed"`
+	Effect       collaboration.EffectState       `json:"effect"`
+	Cancellation collaboration.CancellationState `json:"cancellation"`
+	Completion   collaboration.CompletionState   `json:"completion"`
+	Reason       string                          `json:"reason"`
+	NotObserved  bool                            `json:"not_observed"`
 }
 
 type CurrentPublicationContext struct {
@@ -66,7 +70,9 @@ type CurrentPublicationContext struct {
 }
 
 func (c CurrentReviewContext) ValidateFor(a Assignment) error {
-	if c.External!=nil && (c.External.Validate(a.Repository)!=nil || c.External.CommandID!=a.PublicationAssignment || c.External.Target.BaseOID!=c.Cycle.BaseOID || c.Implementation!=nil) { return errors.New("external review context invents implementation evidence or changes its admitted origin") }
+	if c.External != nil && (c.External.Validate(a.Repository) != nil || c.External.CommandID != a.PublicationAssignment || c.External.Target.BaseOID != c.Cycle.BaseOID || c.Implementation != nil) {
+		return errors.New("external review context invents implementation evidence or changes its admitted origin")
+	}
 	if c.Publication.AssignmentID != a.PublicationAssignment || c.Cycle.PublicationID != c.Publication.ID || c.Cycle.AttemptRoot != a.AttemptRoot || c.Cycle.Validate() != nil || c.AdmittedTuple.Validate() != nil || c.AdmittedTuple.Head != a.SourceCommit || c.Cycle.Head != a.SourceCommit || len(c.CarriedFindings) > MaxOutstandingFindings {
 		return errors.New("required review context differs from assigned cycle")
 	}

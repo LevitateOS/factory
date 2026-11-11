@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 )
 
@@ -294,7 +295,7 @@ func (c *Coordinator) submitMergeOp(ctx context.Context, m *factory.Merge, op *f
 }
 
 // settleMergeOp settles one submitted merge by its effect.
-func (c *Coordinator) settleMergeOp(ctx context.Context, m factory.Merge, effect string, report *MergeReport) {
+func (c *Coordinator) settleMergeOp(ctx context.Context, m factory.Merge, effect collaboration.EffectState, report *MergeReport) {
 	switch effect {
 	case factory.OpEffectCommitted:
 		c.completeMerge(ctx, &m, report)

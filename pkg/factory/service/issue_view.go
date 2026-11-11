@@ -192,14 +192,16 @@ func workPublicationDTO(p factory.Publication) *workPublicationView {
 		CorrectionsTotal: len(p.Corrections), ReviewsTotal: len(p.ReviewOperations),
 		CreatedUnix: p.CreatedUnix, FinishedUnix: p.FinishedUnix,
 	}
-	if p.External!=nil { view.Origin="external" }
+	if p.External != nil {
+		view.Origin = "external"
+	}
 	corrections := p.Corrections
 	if len(corrections) > maxWorkHistoryEntries {
 		corrections = corrections[len(corrections)-maxWorkHistoryEntries:]
 	}
 	for _, correction := range corrections {
 		entry := workCorrectionView{
-			Effect: correction.Effect, Completion: correction.Completion,
+			Effect: string(correction.Effect), Completion: string(correction.Completion),
 			Reason: correction.Reason, UpdatedUnix: correction.UpdatedUnix,
 		}
 		if correction.Work != nil {
@@ -215,7 +217,7 @@ func workPublicationDTO(p factory.Publication) *workPublicationView {
 		view.Reviews = append(view.Reviews, workReviewView{
 			Run: review.RunID, HeadOID: review.Work.HeadOID, Event: review.Work.Event,
 			AgentVerdict: review.Work.AgentVerdict,
-			Effect:       review.Outcome.Effect, Completion: review.Outcome.Completion,
+			Effect:       string(review.Outcome.Effect), Completion: string(review.Outcome.Completion),
 			Reason: review.Outcome.Reason,
 		})
 	}

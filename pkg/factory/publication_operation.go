@@ -3,6 +3,8 @@ package factory
 import (
 	"errors"
 	"fmt"
+
+	"github.com/levitateos/factory/pkg/collaboration"
 )
 
 // Native operation effect states mirrored from the conditional-operation
@@ -10,14 +12,14 @@ import (
 // are terminal native verdicts; indeterminate keeps a retained native
 // fence owned by offline recovery.
 const (
-	OpEffectPending       = "pending"
-	OpEffectCommitted     = "committed"
-	OpEffectNotCommitted  = "not_committed"
-	OpEffectIndeterminate = "indeterminate"
+	OpEffectPending       = collaboration.EffectPending
+	OpEffectCommitted     = collaboration.EffectCommitted
+	OpEffectNotCommitted  = collaboration.EffectNotCommitted
+	OpEffectIndeterminate = collaboration.EffectIndeterminate
 )
 
 // ValidOpEffect reports whether effect is a known native effect state.
-func ValidOpEffect(effect string) bool {
+func ValidOpEffect(effect collaboration.EffectState) bool {
 	switch effect {
 	case OpEffectPending, OpEffectCommitted, OpEffectNotCommitted, OpEffectIndeterminate:
 		return true
@@ -30,15 +32,15 @@ func ValidOpEffect(effect string) bool {
 // cancellation was ever requested; pending means the ordering against an
 // in-flight write is still unknown.
 const (
-	OpCancelNone          = "none"
-	OpCancelPending       = "pending"
-	OpCancelCancelled     = "cancelled"
-	OpCancelTooLate       = "too_late"
-	OpCancelIndeterminate = "indeterminate"
+	OpCancelNone          = collaboration.CancellationNone
+	OpCancelPending       = collaboration.CancellationPending
+	OpCancelCancelled     = collaboration.CancellationCancelled
+	OpCancelTooLate       = collaboration.CancellationTooLate
+	OpCancelIndeterminate = collaboration.CancellationIndeterminate
 )
 
 // ValidOpCancellation reports whether status is a known cancellation state.
-func ValidOpCancellation(status string) bool {
+func ValidOpCancellation(status collaboration.CancellationState) bool {
 	switch status {
 	case OpCancelNone, OpCancelPending, OpCancelCancelled, OpCancelTooLate, OpCancelIndeterminate:
 		return true
@@ -54,27 +56,27 @@ func ValidOpCancellation(status string) bool {
 // receipt. Decoded link fields are adopted only from this operation's own
 // committed receipt and verified against the submitted intent.
 type PublicationOperation struct {
-	Work           *PublicationIntent `json:"work,omitempty"`
-	RunID          string             `json:"run_id,omitempty"`
-	OperationID    string             `json:"operation_id"`
-	InstallationID string             `json:"installation_id,omitempty"`
-	ActorID        int64              `json:"actor_id,omitempty"`
-	RepositoryID   int64              `json:"repository_id,omitempty"`
-	Kind           string             `json:"kind"`
-	Effect         string             `json:"effect,omitempty"`
-	Cancellation   string             `json:"cancellation,omitempty"`
-	Completion     string             `json:"completion,omitempty"`
-	Reason         string             `json:"reason,omitempty"`
-	Receipt        string             `json:"receipt,omitempty"`
-	HeadRef        string             `json:"head_ref,omitempty"`
-	BaseRef        string             `json:"base_ref,omitempty"`
-	HeadOID        string             `json:"head_oid,omitempty"`
-	BaseOID        string             `json:"base_oid,omitempty"`
-	Attempts       int                `json:"attempts"`
-	PRNumber       int64              `json:"pr_number,omitempty"`
-	PRID           int64              `json:"pr_id,omitempty"`
-	IssueID        int64              `json:"issue_id,omitempty"`
-	UpdatedUnix    int64              `json:"updated_unix"`
+	Work           *PublicationIntent              `json:"work,omitempty"`
+	RunID          string                          `json:"run_id,omitempty"`
+	OperationID    string                          `json:"operation_id"`
+	InstallationID string                          `json:"installation_id,omitempty"`
+	ActorID        int64                           `json:"actor_id,omitempty"`
+	RepositoryID   int64                           `json:"repository_id,omitempty"`
+	Kind           string                          `json:"kind"`
+	Effect         collaboration.EffectState       `json:"effect,omitempty"`
+	Cancellation   collaboration.CancellationState `json:"cancellation,omitempty"`
+	Completion     collaboration.CompletionState   `json:"completion,omitempty"`
+	Reason         string                          `json:"reason,omitempty"`
+	Receipt        string                          `json:"receipt,omitempty"`
+	HeadRef        string                          `json:"head_ref,omitempty"`
+	BaseRef        string                          `json:"base_ref,omitempty"`
+	HeadOID        string                          `json:"head_oid,omitempty"`
+	BaseOID        string                          `json:"base_oid,omitempty"`
+	Attempts       int                             `json:"attempts"`
+	PRNumber       int64                           `json:"pr_number,omitempty"`
+	PRID           int64                           `json:"pr_id,omitempty"`
+	IssueID        int64                           `json:"issue_id,omitempty"`
+	UpdatedUnix    int64                           `json:"updated_unix"`
 }
 
 // Validate rejects malformed operation records. An unsubmitted operation

@@ -3,6 +3,8 @@ package factory
 import (
 	"errors"
 	"fmt"
+
+	"github.com/levitateos/factory/pkg/collaboration"
 )
 
 // MergeOperation is one persisted conditional merge. Work is its
@@ -12,27 +14,27 @@ import (
 // native receipt. Link fields are adopted only from this operation's
 // own committed receipt and verified against the submitted intent.
 type MergeOperation struct {
-	Work           *MergeIntent `json:"work,omitempty"`
-	OperationID    string       `json:"operation_id"`
-	InstallationID string       `json:"installation_id,omitempty"`
-	ActorID        int64        `json:"actor_id,omitempty"`
-	RepositoryID   int64        `json:"repository_id,omitempty"`
-	Kind           string       `json:"kind"`
-	Effect         string       `json:"effect,omitempty"`
-	Cancellation   string       `json:"cancellation,omitempty"`
-	Completion     string       `json:"completion,omitempty"`
-	Reason         string       `json:"reason,omitempty"`
-	Receipt        string       `json:"receipt,omitempty"`
-	HeadRef        string       `json:"head_ref,omitempty"`
-	BaseRef        string       `json:"base_ref,omitempty"`
-	HeadOID        string       `json:"head_oid,omitempty"`
-	BaseOID        string       `json:"base_oid,omitempty"`
-	MergedCommit   string       `json:"merged_commit,omitempty"`
-	Attempts       int          `json:"attempts"`
-	PRNumber       int64        `json:"pr_number,omitempty"`
-	PRID           int64        `json:"pr_id,omitempty"`
-	IssueID        int64        `json:"issue_id,omitempty"`
-	UpdatedUnix    int64        `json:"updated_unix"`
+	Work           *MergeIntent                    `json:"work,omitempty"`
+	OperationID    string                          `json:"operation_id"`
+	InstallationID string                          `json:"installation_id,omitempty"`
+	ActorID        int64                           `json:"actor_id,omitempty"`
+	RepositoryID   int64                           `json:"repository_id,omitempty"`
+	Kind           string                          `json:"kind"`
+	Effect         collaboration.EffectState       `json:"effect,omitempty"`
+	Cancellation   collaboration.CancellationState `json:"cancellation,omitempty"`
+	Completion     collaboration.CompletionState   `json:"completion,omitempty"`
+	Reason         string                          `json:"reason,omitempty"`
+	Receipt        string                          `json:"receipt,omitempty"`
+	HeadRef        string                          `json:"head_ref,omitempty"`
+	BaseRef        string                          `json:"base_ref,omitempty"`
+	HeadOID        string                          `json:"head_oid,omitempty"`
+	BaseOID        string                          `json:"base_oid,omitempty"`
+	MergedCommit   string                          `json:"merged_commit,omitempty"`
+	Attempts       int                             `json:"attempts"`
+	PRNumber       int64                           `json:"pr_number,omitempty"`
+	PRID           int64                           `json:"pr_id,omitempty"`
+	IssueID        int64                           `json:"issue_id,omitempty"`
+	UpdatedUnix    int64                           `json:"updated_unix"`
 }
 
 // Validate rejects malformed operation records. An unsubmitted operation
@@ -550,10 +552,10 @@ func (g MergeGeneration) validateUnionShape() error {
 // indeterminate or committed predecessors prove nothing and forbid
 // replacement; a committed predecessor is adopted, never replaced.
 type MergePredecessorProof struct {
-	Generation      int    `json:"generation"`
-	Effect          string `json:"effect,omitempty"`
-	Cancellation    string `json:"cancellation,omitempty"`
-	NoEffectRefusal string `json:"no_effect_refusal,omitempty"`
+	Generation      int                             `json:"generation"`
+	Effect          collaboration.EffectState       `json:"effect,omitempty"`
+	Cancellation    collaboration.CancellationState `json:"cancellation,omitempty"`
+	NoEffectRefusal string                          `json:"no_effect_refusal,omitempty"`
 }
 
 // Validate checks the proof shape. Uncertainty never proves replaceability.

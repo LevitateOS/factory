@@ -76,7 +76,7 @@ func nativeMergeOutcome(w factory.MergeWork, lookup collaboration.OperationLooku
 		return factory.OperationOutcome{OperationID: w.OperationID, NotObserved: true}
 	}
 	r := lookup.Record
-	out := factory.OperationOutcome{OperationID: w.OperationID, InstallationID: r.Authority, Kind: factory.OpMerge, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: string(r.Effect), Cancellation: string(r.Cancellation), Completion: string(r.Completion), Reason: r.Reason}
+	out := factory.OperationOutcome{OperationID: w.OperationID, InstallationID: r.Authority, Kind: factory.OpMerge, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: r.Effect, Cancellation: r.Cancellation, Completion: r.Completion, Reason: r.Reason}
 	if r.Receipt != nil {
 		out.Receipt = append([]byte(nil), r.Receipt.Payload...)
 	}

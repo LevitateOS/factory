@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/project"
 )
@@ -250,10 +251,10 @@ func journeyCorrectionDTO(candidate, effect, completion, reason string) (journey
 	if candidate != "" && !factory.ValidCommit(candidate) {
 		return journeyCorrectionView{}, errors.New("journey correction names an invalid candidate")
 	}
-	if effect != "" && !factory.ValidOpEffect(effect) {
+	if effect != "" && !factory.ValidOpEffect(collaboration.EffectState(effect)) {
 		return journeyCorrectionView{}, errors.New("journey correction carries an unknown effect")
 	}
-	if completion != "" && !factory.ValidOpCompletion(completion) {
+	if completion != "" && !factory.ValidOpCompletion(collaboration.CompletionState(completion)) {
 		return journeyCorrectionView{}, errors.New("journey correction carries an unknown completion")
 	}
 	if reason != "" && (len(reason) > maxJourneyWaitChars || strings.TrimSpace(reason) == "") {

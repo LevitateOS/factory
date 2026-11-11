@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
@@ -398,7 +399,7 @@ func retryAssignmentOutcomeMatches(a factory.Assignment, nativeOutcome string) b
 		a.Reason == factory.AssignReasonNoReport && a.Result != nil && !a.Result.Reported && a.Result.Status == "blocked"
 }
 
-func retryOperationNeedsResolution(attempts int, effect, cancellation, completion string) bool {
+func retryOperationNeedsResolution(attempts int, effect collaboration.EffectState, cancellation collaboration.CancellationState, completion collaboration.CompletionState) bool {
 	if attempts == 0 {
 		return false
 	}

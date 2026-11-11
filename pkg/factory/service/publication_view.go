@@ -30,11 +30,11 @@ type PublicationOperations struct {
 
 func PublicationOperationsView(p factory.Publication) *PublicationOperations {
 	rendered := &PublicationOperations{
-		PublishCompletion: p.Publish.Completion, PublishCancellation: p.Publish.Cancellation,
-		PRCreateCompletion: p.PRCreate.Completion, PRCreateCancellation: p.PRCreate.Cancellation,
+		PublishCompletion: string(p.Publish.Completion), PublishCancellation: string(p.Publish.Cancellation),
+		PRCreateCompletion: string(p.PRCreate.Completion), PRCreateCancellation: string(p.PRCreate.Cancellation),
 		WithdrawRequested: p.WithdrawRequested,
-		PublishEffect:     p.Publish.Effect, PublishReason: p.Publish.Reason,
-		PRCreateEffect: p.PRCreate.Effect, PRCreateReason: p.PRCreate.Reason,
+		PublishEffect:     string(p.Publish.Effect), PublishReason: p.Publish.Reason,
+		PRCreateEffect: string(p.PRCreate.Effect), PRCreateReason: p.PRCreate.Reason,
 		Stage: p.Stage, Reason: p.Reason,
 		PublishOperation: p.Publish.OperationID, PRCreateOp: p.PRCreate.OperationID,
 	}
