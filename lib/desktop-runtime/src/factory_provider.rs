@@ -42,7 +42,7 @@ pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub(crate) use muse::connection as muse_connection;
 pub(crate) use muse::helper as muse_helper;
 pub use muse::MuseConnector;
-pub use muse_login::{MuseLogin, MuseLoginView};
+pub use muse_login::{MuseLogin, MuseLoginView, MusePhase};
 pub use muse_attempt::MuseRun;
 pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};

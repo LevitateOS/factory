@@ -1,7 +1,7 @@
 //! Window/profile ownership for the CLI's existing login handoff.
 use super::{caller, Desktop};
 use serde::Serialize;
-use soda_desktop_runtime::factory_provider::{MuseLogin, MuseLoginView, ToolStatus, Tools};
+use soda_desktop_runtime::factory_provider::{MuseLogin, MuseLoginView, MusePhase, ToolStatus, Tools};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
@@ -28,7 +28,7 @@ pub(super) struct View {
     #[serde(flatten)]
     view: MuseLoginView,
 }
-fn active(view: &MuseLoginView) -> bool { matches!(view.phase, "requesting" | "waiting") }
+fn active(view: &MuseLoginView) -> bool { view.phase.active() }
 fn tools(app: &tauri::AppHandle) -> Result<Arc<Tools>, String> {
     let state = app.state::<Desktop>();
     if state.ready_epoch().is_none() { return Err("Muse sign-in is unavailable until Factory is ready".into()); }
@@ -63,7 +63,7 @@ impl MuseSignIn {
             if attempt.is_some_and(|attempt| attempt != state.attempt)
                 || owner.is_some_and(|owner| owner != state.owner) { return; }
             state.view = state.login.as_ref().map(MuseLogin::view).unwrap_or_else(|| state.view.clone());
-            if active(&state.view) { state.view = MuseLoginView { phase: "cancelled", prompt: None, error: None }; }
+            if active(&state.view) { state.view = MuseLoginView { phase: MusePhase::Cancelled, prompt: None, error: None }; }
             (state.preparing.take(), state.login.take())
         };
         if let Some(task) = task { task.abort(); let _ = task.await; }
@@ -136,7 +136,7 @@ pub(super) async fn muse_sign_in(window: WebviewWindow, app: tauri::AppHandle) -
     let attempt = auth.attempt;
     auth.epoch = epoch;
     auth.owner = label.clone();
-    auth.view = MuseLoginView { phase: "requesting", prompt: None, error: None };
+    auth.view = MuseLoginView { phase: MusePhase::Requesting, prompt: None, error: None };
     let worker = app.clone();
     let profile = state.paths.profile.clone();
     auth.preparing = Some(tauri::async_runtime::spawn(async move {
@@ -149,7 +149,7 @@ pub(super) async fn muse_sign_in(window: WebviewWindow, app: tauri::AppHandle) -
         let result = selection.and_then(|selection| MuseLogin::start(&profile, selection));
         match result {
             Ok(login) => auth.login = Some(login),
-            Err(_) => auth.view = MuseLoginView { phase: "failed", prompt: None, error: Some("Muse sign-in is unavailable. Verify Muse and try again.") },
+            Err(_) => auth.view = MuseLoginView { phase: MusePhase::Failed, prompt: None, error: Some("Muse sign-in is unavailable. Verify Muse and try again.") },
         }
         auth.preparing = None;
     }));
@@ -166,7 +166,7 @@ pub(super) async fn muse_sign_in_cancel(window: WebviewWindow, app: tauri::AppHa
 pub(super) fn muse_sign_in_open(window: WebviewWindow, app: tauri::AppHandle, attempt: u64) -> Result<(), String> {
     caller(&window)?;
     let view = status(&app, window.label());
-    if view.attempt != attempt || !view.can_control || view.view.phase != "waiting" { return Err("Muse sign-in prompt is no longer current".into()); }
+    if view.attempt != attempt || !view.can_control || view.view.phase != MusePhase::Waiting { return Err("Muse sign-in prompt is no longer current".into()); }
     let prompt = view.view.prompt.ok_or("Muse sign-in prompt unavailable")?;
     app.opener().open_url(prompt.verification_uri, None::<&str>).map_err(|_| "Muse sign-in page could not open".into())
 }

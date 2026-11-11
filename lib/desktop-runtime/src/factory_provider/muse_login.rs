@@ -16,14 +16,20 @@ pub struct Prompt {
     pub verification_uri: String,
     pub expires_at: u64,
 }
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MusePhase { Idle, Requesting, Waiting, Complete, Cancelled, Failed }
+impl MusePhase {
+    pub fn active(self) -> bool { matches!(self, Self::Requesting | Self::Waiting) }
+}
 #[derive(Clone, Serialize)]
 pub struct MuseLoginView {
-    pub phase: &'static str,
+    pub phase: MusePhase,
     pub prompt: Option<Prompt>,
     pub error: Option<&'static str>,
 }
 impl Default for MuseLoginView {
-    fn default() -> Self { Self { phase: "idle", prompt: None, error: None } }
+    fn default() -> Self { Self { phase: MusePhase::Idle, prompt: None, error: None } }
 }
 pub struct MuseLogin {
     view: Arc<Mutex<MuseLoginView>>,
@@ -74,12 +80,12 @@ impl MuseLogin {
         crate::private_fs::private_dir(profile).map_err(|_| unavailable())?;
         let helper = super::muse_helper()?;
         let profile = profile.to_path_buf();
-        let view = Arc::new(Mutex::new(MuseLoginView { phase: "requesting", ..Default::default() }));
+        let view = Arc::new(Mutex::new(MuseLoginView { phase: MusePhase::Requesting, ..Default::default() }));
         let cancelled = Arc::new(AtomicBool::new(false));
         let state = view.clone();
         let stop = cancelled.clone();
         let thread = thread::Builder::new().name("factory-muse-login".into()).spawn(move || {
-            let outcome = (|| -> io::Result<&'static str> {
+            let outcome = (|| -> io::Result<MusePhase> {
                 let mut command = Command::new(helper);
                 command.arg("--login").arg(selection.tool.executable).arg(selection.tool.sha256)
                     .current_dir(profile).env_clear().env("PATH", "/usr/bin:/bin")
@@ -114,14 +120,14 @@ impl MuseLogin {
                         if let Some(prompt) = prompt(&bytes, expires_at)? {
                             let mut view = state.lock().map_err(|_| unavailable())?;
                             if view.prompt.as_ref().is_some_and(|previous| previous != &prompt) { return Err(unavailable()); }
-                            view.phase = "waiting";
+                            view.phase = MusePhase::Waiting;
                             view.prompt = Some(prompt);
                         }
                         if let Some(status) = child.try_wait()? {
                             exited = true;
-                            return if status.success() && state.lock().map_err(|_| unavailable())?.prompt.is_some() { Ok("complete") } else { Err(unavailable()) };
+                            return if status.success() && state.lock().map_err(|_| unavailable())?.prompt.is_some() { Ok(MusePhase::Complete) } else { Err(unavailable()) };
                         }
-                        if stop.load(Ordering::SeqCst) { return Ok("cancelled"); }
+                        if stop.load(Ordering::SeqCst) { return Ok(MusePhase::Cancelled); }
                         if Instant::now() >= deadline { return Err(unavailable()); }
                         thread::sleep(Duration::from_millis(20));
                     }
@@ -136,7 +142,7 @@ impl MuseLogin {
                 view.prompt = None;
                 match outcome {
                     Ok(phase) => { view.phase = phase; view.error = None; }
-                    Err(_) => { view.phase = "failed"; view.error = Some("Muse sign-in could not finish. Check your connection and try again."); }
+                    Err(_) => { view.phase = MusePhase::Failed; view.error = Some("Muse sign-in could not finish. Check your connection and try again."); }
                 }
             }
         })?;
