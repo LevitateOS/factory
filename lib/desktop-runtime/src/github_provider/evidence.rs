@@ -281,16 +281,13 @@ impl Reader<'_> {
             self.protection_sources(&branch_target, encoded)
         )?;
         let captured_branch = branch_identity(&branch.value, r::text(&before, "branch")?)?;
-        if self.protection_sources(&branch_target, encoded).await?
-            != (classic.clone(), rules.clone())
-        {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
-        let (pull, branch) = tokio::try_join!(
+        let (sources, pull, branch) = tokio::try_join!(
+            self.protection_sources(&branch_target, encoded),
             self.raw_subject(true, number),
             self.get(&branch_target, &[])
         )?;
-        if self.protection_binding(&pull)? != before
+        if sources != (classic.clone(), rules.clone())
+            || self.protection_binding(&pull)? != before
             || captured_branch != branch_identity(&branch.value, r::text(&before, "branch")?)?
         {
             return Err(Failure::new(409, "github_checks_changed"));

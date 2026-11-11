@@ -265,14 +265,17 @@ impl Reader<'_> {
     }
 
     pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
-        let (mut snapshot, binding) = tokio::try_join!(
+        let (mut snapshot, (binding, evaluation, sources)) = tokio::try_join!(
             self.automation_review_snapshot(number),
-            self.check_evaluation(number)
+            async {
+                let binding = self.check_evaluation(number).await?;
+                let (evaluation, sources) = self.evaluation_sources(&binding).await?;
+                Ok((binding, evaluation, sources))
+            }
         )?;
         if snapshot["head_tip"] != binding["head"] || snapshot["base_tip"] != binding["base"] {
             return Err(Failure::new(409,"github_checks_changed"));
         }
-        let (evaluation, sources) = self.evaluation_sources(&binding).await?;
         let mut contexts = BTreeMap::<String, String>::new();
         for source in &sources {
             let context = r::nonempty(source, "context")?;

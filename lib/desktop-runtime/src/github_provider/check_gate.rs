@@ -42,14 +42,18 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_checks_changed"));
         }
         let request = json!({"number":number,"head":head});
-        let (evaluation, sources) = match self.evaluation_sources(&before).await {
-            Ok((evaluation, sources)) => (evaluation, Some(sources)),
-            Err(failure) if failure.code == "github_automation_checks_incomplete" => (head.into(), None),
-            Err(failure) => return Err(failure),
-        };
-        // Policy already pairs its sources and PR/branch binding. Bracket that
-        // observation with CI reads instead of repeating the complete policy read.
-        let protection = self.protection(&request).await?;
+        let ((evaluation, sources), protection) = tokio::try_join!(
+            async {
+                match self.evaluation_sources(&before).await {
+                    Ok((evaluation, sources)) => Ok((evaluation, Some(sources))),
+                    Err(failure) if failure.code == "github_automation_checks_incomplete" => Ok((head.into(), None)),
+                    Err(failure) => Err(failure),
+                }
+            },
+            self.protection(&request)
+        )?;
+        // Policy pairs its own sources and PR/branch binding. Compare CI again
+        // after that paired observation instead of repeating the complete policy read.
         let (after, latest) = tokio::join!(self.check_evaluation(number), async {
             if sources.is_some() {
                 self.evaluation_sources(&before).await
