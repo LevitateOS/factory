@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use soda_execution_protocol::workspace::Status;
 use soda_execution_protocol::{
     AgentExecution as AgentExecuted, AgentExpectation, AgentObserved,
-    AgentStarted as AgentStartedReply, CandidateState, StopReason, MAX_EXECUTABLE,
+    AgentStarted as AgentStartedReply, CandidateState, ProfileRunState, StopReason, MAX_EXECUTABLE,
     MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
     MAX_START_REPLY,
 };
@@ -234,8 +234,7 @@ struct ProfileRun {
     profile: String,
     run: Option<String>,
     sha256: Option<String>,
-    launched: bool,
-    retiring: bool,
+    state: Option<ProfileRunState>,
 }
 
 #[derive(Deserialize)]
@@ -702,22 +701,22 @@ impl Broker {
     /// this to clean a prior desktop incarnation.
     pub(super) fn next_profile_state(
         profile: &str,
-    ) -> io::Result<Option<(String, String, bool, bool)>> {
+    ) -> io::Result<Option<(String, String, ProfileRunState)>> {
         if !id(profile, 32) {
             return Err(refused("broker profile inspection declaration invalid"));
         }
         let reply: ProfileRun = exchange(
-            json!({"kind":"next_profile_run","version":2,"profile":profile}),
+            json!({"kind":"next_profile_run","version":3,"profile":profile}),
             None,
             PREPARE_TIME,
         )?;
-        if reply.kind != "profile_run" || reply.version != 2 || reply.profile != profile {
+        if reply.kind != "profile_run" || reply.version != 3 || reply.profile != profile {
             return Err(refused("broker profile inspection identity invalid"));
         }
-        match (reply.run, reply.sha256, reply.launched, reply.retiring) {
-            (None, None, false, false) => Ok(None),
-            (Some(run), Some(sha256), launched, retiring) if id(&run, 32) && id(&sha256, 64) => {
-                Ok(Some((run, sha256, launched, retiring)))
+        match (reply.run, reply.sha256, reply.state) {
+            (None, None, None) => Ok(None),
+            (Some(run), Some(sha256), Some(state)) if id(&run, 32) && id(&sha256, 64) => {
+                Ok(Some((run, sha256, state)))
             }
             _ => Err(refused("broker profile inspection selector invalid")),
         }
@@ -727,7 +726,7 @@ impl Broker {
     /// launch outcome is unknown to callers outside startup reconciliation.
     pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
         Ok(Self::next_profile_state(profile)?
-            .map(|(run, sha256, launched, retiring)| (run, sha256, launched || retiring)))
+            .map(|(run, sha256, state)| (run, sha256, state != ProfileRunState::Staged)))
     }
 
     pub fn preparing(cancellation: AgentCancellation) -> BrokerPreparation {

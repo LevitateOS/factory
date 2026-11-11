@@ -9,7 +9,7 @@ use crate::product::Products;
 use crate::supervisor::NativeChannel;
 use serde::Deserialize;
 use serde_json::Value;
-use soda_execution_protocol::CandidateState;
+use soda_execution_protocol::{CandidateState, ProfileRunState};
 use std::io;
 use std::path::PathBuf;
 use std::sync::{
@@ -587,7 +587,7 @@ pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Re
     }
     let mut seen = std::collections::BTreeSet::new();
     for _ in 0..64 {
-        let Some((run, source, launched, _)) = super::Broker::next_profile_state(profile)? else {
+        let Some((run, source, state)) = super::Broker::next_profile_state(profile)? else {
             break;
         };
         if !seen.insert(run.clone()) {
@@ -601,9 +601,11 @@ pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Re
                 return Err(refused("CLI recovery source differs"));
             }
             recovered.recover_root().await?;
-        } else if !launched {
-            // Also finishes an interrupted retirement that still proves no
-            // launch. A launched or unproven retirement keeps Go recovery.
+        } else if matches!(
+            state,
+            ProfileRunState::Staged | ProfileRunState::RetiringUnlaunched
+        ) {
+            // A launched or unproven retirement keeps Go recovery below.
             if !super::Broker::retire_unlaunched(&run, profile, &source)? {
                 return Err(refused("native staging recovery did not advance"));
             }

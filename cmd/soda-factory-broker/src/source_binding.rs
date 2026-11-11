@@ -331,11 +331,13 @@ fn receipt_locked(
 ) -> io::Result<SetupReceipt> {
     let runs = state()?;
     let source = runs.join(run);
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("preparation bundle missing"));
-    }
+    verified_source(
+        &source,
+        profile,
+        digest,
+        "preparation bundle missing",
+        |_| Ok(()),
+    )?;
     let input = approved(&source)?;
     let directory =
         preparation_run(&preparations()?, run)?.ok_or_else(|| denied("preparation missing"))?;
@@ -436,11 +438,9 @@ pub(super) fn read(
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     preparation_caller_current()?;
     let source = runs.join(run);
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("context source missing"));
-    }
+    verified_source(&source, profile, digest, "context source missing", |_| {
+        Ok(())
+    })?;
     let directory = preparation_run(&preparations()?, run)?
         .ok_or_else(|| denied("context preparation missing"))?;
     if prepared_output(&directory)? != Some(0o555)

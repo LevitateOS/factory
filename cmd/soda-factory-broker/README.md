@@ -136,10 +136,11 @@ refused a wrong digest, quiesced an unlaunched staged run without deleting it,
 then retired it exactly; the temporary units and state were removed. This
 probe did not exercise quiescence of a live agent service.
 
-Restart reconciliation uses `{"kind":"next_profile_run","version":1,
+Restart reconciliation uses `{"kind":"next_profile_run","version":3,
 "profile":"<32 lowercase hex>"}`. The root broker returns at most one
-`profile_run` selector with exact run, SHA-256 and a `launched` boolean, or
-both selectors null with `launched:false`. It reads
+`profile_run` selector with exact run, SHA-256 and a `state` of `staged`,
+`launched`, `retiring_unlaunched` or `retiring`, or run, SHA-256 and state all
+null. It reads
 the root-owned profile declaration and rehashes the bounded bundle; retiring
 tombstones use their profile/digest-bound name. Under the same state lock it
 removes incomplete `.stage` directories, which never represented admitted

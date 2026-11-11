@@ -4,9 +4,9 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{
-    AgentExecution as AgentExecutionReply, AgentStarted as AgentStartedReply, MAX_EXECUTABLE,
-    MAX_EXECUTION_REPLY as MAX_AGENT_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
-    MAX_START_REPLY,
+    AgentExecution as AgentExecutionReply, AgentStarted as AgentStartedReply, ProfileRunState,
+    MAX_EXECUTABLE, MAX_EXECUTION_REPLY as MAX_AGENT_REPLY, MAX_PROMPT,
+    MAX_STAGE_BUNDLE as MAX_BUNDLE, MAX_START_REPLY,
 };
 use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -113,12 +113,6 @@ enum Request {
         sha256: String,
     },
     RetireLaunched {
-        version: u8,
-        run: String,
-        profile: String,
-        sha256: String,
-    },
-    FinishRetiring {
         version: u8,
         run: String,
         profile: String,
@@ -237,8 +231,7 @@ struct ProfileRun<'a> {
     profile: &'a str,
     run: Option<&'a str>,
     sha256: Option<&'a str>,
-    launched: bool,
-    retiring: bool,
+    state: Option<ProfileRunState>,
 }
 
 #[derive(Serialize)]
@@ -639,6 +632,40 @@ fn verified_digest(directory: &Path, name: &'static str, digest: &str) -> io::Re
     Ok(())
 }
 
+// The shared staged-source guard: the immutable root-owned run directory, its
+// profile, the caller's own declarations in its order, then the exact bundle.
+fn verified_source(
+    source: &Path,
+    profile: &str,
+    digest: &str,
+    missing: &'static str,
+    declarations: impl FnOnce(&Path) -> io::Result<()>,
+) -> io::Result<()> {
+    private_dir(source, 0o555)?;
+    verified_profile(source, profile)?;
+    declarations(source)?;
+    if !verified_bundle(source, digest)? {
+        return Err(denied(missing));
+    }
+    Ok(())
+}
+
+// A completed preparation for exactly this candidate and source bundle.
+fn verified_prepared(
+    directory: &Path,
+    candidate: &str,
+    digest: &str,
+    invalid: &'static str,
+) -> io::Result<()> {
+    if read_manifest(&directory.join("manifest.env"))?.as_deref()
+        != Some(manifest(candidate, digest).as_str())
+        || prepared_output(directory)? != Some(0o555)
+    {
+        return Err(denied(invalid));
+    }
+    prepared_checkout(directory)
+}
+
 fn manifest(candidate: &str, digest: &str) -> String {
     format!("FACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\n")
 }
@@ -954,11 +981,13 @@ fn prepare(
     if source.join("owner.setup_sha256").try_exists()? {
         preparation_caller_current()?;
     }
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("reviewer source bundle missing"));
-    }
+    verified_source(
+        &source,
+        profile,
+        digest,
+        "reviewer source bundle missing",
+        |_| Ok(()),
+    )?;
     let seconds = if source.join("owner.setup_sha256").try_exists()? {
         source_binding::approved(&source)?
             .limits()
@@ -1057,22 +1086,22 @@ fn attest_reviewer(
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    verified_role(&source, "reviewer")?;
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("reviewer source bundle missing"));
-    }
+    verified_source(
+        &source,
+        profile,
+        digest,
+        "reviewer source bundle missing",
+        |source| verified_role(source, "reviewer"),
+    )?;
     let preparations = preparations()?;
     let directory = preparation_run(&preparations, run)?
         .ok_or_else(|| denied("reviewer preparation missing"))?;
-    if read_manifest(&directory.join("manifest.env"))?.as_deref()
-        != Some(manifest(candidate, digest).as_str())
-        || prepared_output(&directory)? != Some(0o555)
-    {
-        return Err(denied("reviewer preparation identity invalid"));
-    }
-    prepared_checkout(&directory)?;
+    verified_prepared(
+        &directory,
+        candidate,
+        digest,
+        "reviewer preparation identity invalid",
+    )?;
     let socket_unit = format!("soda-factory-reviewer@{run}.socket");
     start_preparation(&socket_unit, 90)?;
     let socket_path = directory.join("reviewer.sock");
@@ -1128,22 +1157,26 @@ fn attest_provider_relay(
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    let role = read_role(&source)?;
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("provider relay source bundle missing"));
-    }
+    let mut role = String::new();
+    verified_source(
+        &source,
+        profile,
+        digest,
+        "provider relay source bundle missing",
+        |source| {
+            role = read_role(source)?;
+            Ok(())
+        },
+    )?;
     let preparations = preparations()?;
     let directory = preparation_run(&preparations, run)?
         .ok_or_else(|| denied("provider relay preparation missing"))?;
-    if read_manifest(&directory.join("manifest.env"))?.as_deref()
-        != Some(manifest(candidate, digest).as_str())
-        || prepared_output(&directory)? != Some(0o555)
-    {
-        return Err(denied("provider relay preparation identity invalid"));
-    }
-    prepared_checkout(&directory)?;
+    verified_prepared(
+        &directory,
+        candidate,
+        digest,
+        "provider relay preparation identity invalid",
+    )?;
     start_provider_relay(run, desktop_uid).map(|uid| (uid, role))
 }
 
@@ -1226,16 +1259,19 @@ fn arm_agent(
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    verified_role(&source, role)?;
-    verified_digest(&source, "owner.tool_sha256", expected_tool)?;
-    verified_digest(&source, "owner.prompt_sha256", expected_prompt)?;
+    verified_source(
+        &source,
+        profile,
+        digest,
+        "agent source bundle missing",
+        |source| {
+            verified_role(source, role)?;
+            verified_digest(source, "owner.tool_sha256", expected_tool)?;
+            verified_digest(source, "owner.prompt_sha256", expected_prompt)
+        },
+    )?;
     let tool = expected_tool.to_owned();
     let prompt = expected_prompt.to_owned();
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("agent source bundle missing"));
-    }
     let preparations = preparations()?;
     let directory =
         preparation_run(&preparations, run)?.ok_or_else(|| denied("agent preparation missing"))?;
@@ -1244,13 +1280,12 @@ fn arm_agent(
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
-    if read_manifest(&directory.join("manifest.env"))?.as_deref()
-        != Some(manifest(candidate, digest).as_str())
-        || prepared_output(&directory)? != Some(0o555)
-    {
-        return Err(denied("agent preparation identity invalid"));
-    }
-    prepared_checkout(&directory)?;
+    verified_prepared(
+        &directory,
+        candidate,
+        digest,
+        "agent preparation identity invalid",
+    )?;
     manager("is-active", "provider-relay", run)?;
     let expected = agent_manifest(role, profile, candidate, digest, &tool, &prompt);
     let path = directory.join("agent.role");
@@ -1508,6 +1543,35 @@ fn read_worker(
     Ok(())
 }
 
+// Consume the one launch of a ready worker before it receives launch bytes:
+// declare the root run launched, record the consumed marker in its
+// preparation, then stop the socket so no second connection can launch.
+fn consume_launch(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    directory: &Path,
+    socket: &Path,
+    survived: &'static str,
+) -> io::Result<()> {
+    mark_root_launch(run, profile, digest)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o444)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("agent.launch"))?;
+    file.write_all(b"consumed\n")?;
+    file.sync_all()?;
+    file.set_permissions(fs::Permissions::from_mode(0o444))?;
+    File::open(directory)?.sync_all()?;
+    manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
+    if socket.exists() {
+        return Err(denied(survived));
+    }
+    Ok(())
+}
+
 fn execute_agent<R: Read, W: Write>(
     input: &mut R,
     output: &mut W,
@@ -1558,22 +1622,14 @@ fn execute_agent<R: Read, W: Write>(
         if ready != *b"R" {
             return Err(denied("agent execution readiness invalid"));
         }
-        mark_root_launch(run, profile, bundle_sha256)?;
-        let marker = directory.join("agent.launch");
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o444)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(&marker)?;
-        file.write_all(b"consumed\n")?;
-        file.sync_all()?;
-        file.set_permissions(fs::Permissions::from_mode(0o444))?;
-        File::open(&directory)?.sync_all()?;
-        manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
-        if path.exists() {
-            return Err(denied("agent launch socket survived consumption"));
-        }
+        consume_launch(
+            run,
+            profile,
+            bundle_sha256,
+            &directory,
+            &path,
+            "agent launch socket survived consumption",
+        )?;
         worker.write_all(&(bytes.len() as u32).to_le_bytes())?;
         worker.write_all(&bytes)?;
         let upload_deadline = Instant::now() + Duration::from_secs(120);
@@ -1722,13 +1778,16 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
-    private_dir(&source, 0o555)?;
-    verified_profile(&source, profile)?;
-    read_role(&source)?;
-    source_binding::verify(&source)?;
-    if !verified_bundle(&source, digest)? {
-        return Err(denied("quiesced run source missing"));
-    }
+    verified_source(
+        &source,
+        profile,
+        digest,
+        "quiesced run source missing",
+        |source| {
+            read_role(source)?;
+            source_binding::verify(source)
+        },
+    )?;
     let agent_stopped = match preparation_run(&preparations()?, run)? {
         Some(directory) => stop_agent(run, &directory),
         None => Ok(()),
@@ -1749,34 +1808,153 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum RetirementMode {
-    Any,
-    Unlaunched,
-    Launched,
-    Pending,
+/// Where one run's root state lives, found under the broker lock. The launch
+/// evidence inside it is read through `RootPhase` only where a decision needs
+/// it, so each operation keeps its own verification order.
+enum RootRun {
+    /// Neither a staged nor a retiring directory.
+    Absent,
+    /// Some entry at `runs/{run}`; the caller verifies what it is.
+    Staged(PathBuf),
+    /// The first `.retiring-{run}-{profile}-{digest}` entry for this run.
+    Retiring(PathBuf),
 }
 
-fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::Result<bool> {
+impl RootRun {
+    fn load(runs: &Path, run: &str) -> io::Result<Self> {
+        for entry in fs::read_dir(runs)? {
+            let entry = entry?;
+            if retiring_run(&entry.file_name().to_string_lossy()) == Some(run) {
+                return Ok(Self::Retiring(entry.path()));
+            }
+        }
+        let directory = runs.join(run);
+        match directory.symlink_metadata() {
+            Ok(_) => Ok(Self::Staged(directory)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Self::Absent),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+/// What `owner.lifecycle` declares about the one worker launch.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lifecycle {
+    /// "2": staged, and no launch bytes were ever sent.
+    Unlaunched,
+    /// "3", or mode 0600 while `mark_root_launch` rewrites it: a torn
+    /// transition stays launched because the worker may already have bytes.
+    Launched,
+    /// Absent: staged by a broker without lifecycle declarations, or a
+    /// retiring run whose cleanup already removed it.
+    Undeclared,
+}
+
+/// The launch evidence that retirement and restart reconciliation decide on.
+#[derive(Clone, Copy)]
+enum RootPhase {
+    /// `consumed`: the preparation holds a valid `agent.launch` marker. It is
+    /// read only while the declaration is not already launched.
+    Staged {
+        lifecycle: Lifecycle,
+        consumed: bool,
+    },
+    /// The preparation is gone. `unlaunched` only while the retained
+    /// declaration still says so; missing, torn or invalid is not proof.
+    Retiring { unlaunched: bool },
+}
+
+impl RootPhase {
+    fn staged(directory: &Path, preparations: &Path, run: &str) -> io::Result<Self> {
+        let lifecycle = lifecycle(directory)?;
+        let consumed = lifecycle != Lifecycle::Launched
+            && match preparation_run(preparations, run)? {
+                Some(preparation) => launch_consumed(&preparation)?,
+                None => false,
+            };
+        Ok(Self::Staged {
+            lifecycle,
+            consumed,
+        })
+    }
+
+    // The unlaunched declaration becomes launched (durably, through a torn
+    // 0600 state) before any launch marker or launch bytes exist, and the
+    // retiring rename happens under the run lock.
+    fn retiring(directory: &Path) -> Self {
+        Self::Retiring {
+            unlaunched: matches!(lifecycle(directory), Ok(Lifecycle::Unlaunched)),
+        }
+    }
+
+    fn launched(self) -> bool {
+        match self {
+            Self::Staged {
+                lifecycle,
+                consumed,
+            } => lifecycle == Lifecycle::Launched || consumed,
+            Self::Retiring { unlaunched } => !unlaunched,
+        }
+    }
+
+    // A staged run without a declaration or marker reports `Staged`, although
+    // unlaunched retirement still refuses it as legacy.
+    fn profile_state(self) -> ProfileRunState {
+        match (self, self.launched()) {
+            (Self::Staged { .. }, false) => ProfileRunState::Staged,
+            (Self::Staged { .. }, true) => ProfileRunState::Launched,
+            (Self::Retiring { .. }, false) => ProfileRunState::RetiringUnlaunched,
+            (Self::Retiring { .. }, true) => ProfileRunState::Retiring,
+        }
+    }
+}
+
+/// One exact retirement request. `Settled` (`retire_bundle`) comes from an
+/// owner that already holds the durable outcome and needs no launch evidence.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Retirement {
+    Settled,
+    Unlaunched,
+    Launched,
+}
+
+impl Retirement {
+    fn permits(self, phase: RootPhase) -> io::Result<()> {
+        match (self, phase) {
+            (
+                Self::Unlaunched,
+                RootPhase::Staged {
+                    lifecycle: Lifecycle::Unlaunched,
+                    consumed: false,
+                }
+                | RootPhase::Retiring { unlaunched: true },
+            ) => Ok(()),
+            (Self::Unlaunched, RootPhase::Staged { .. }) => Err(denied(
+                "launched or legacy run requires outcome reconciliation",
+            )),
+            (Self::Unlaunched, RootPhase::Retiring { .. }) => {
+                Err(denied("unlaunched retirement state unconfirmed"))
+            }
+            (Self::Launched, RootPhase::Staged { .. }) if !phase.launched() => {
+                Err(denied("unlaunched run has no recovered outcome"))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+fn retire(run: &str, profile: &str, digest: &str, mode: Retirement) -> io::Result<bool> {
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let preparations = preparations()?;
     let retiring = runs.join(format!(".retiring-{run}-{profile}-{digest}"));
-    for entry in fs::read_dir(&runs)? {
-        let entry = entry?;
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if retiring_run(&name) == Some(run) {
-            if entry.path() != retiring {
+    let directory = match RootRun::load(&runs, run)? {
+        RootRun::Retiring(found) => {
+            if found != retiring {
                 return Err(denied("run retirement digest differs"));
             }
             verified_retiring_profile(&retiring, profile)?;
-            // A partial prior retirement no longer has a preparation marker.
-            // Only its retained unlaunched lifecycle declaration proves that
-            // the worker never received launch bytes.
-            if mode == RetirementMode::Unlaunched && !retiring_unlaunched(&retiring) {
-                return Err(denied("unlaunched retirement state unconfirmed"));
-            }
+            mode.permits(RootPhase::retiring(&retiring))?;
             match runs.join(run).symlink_metadata() {
                 Ok(_) => return Err(denied("run retirement state conflicts")),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -1790,25 +1968,18 @@ fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::R
             File::open(&runs)?.sync_all()?;
             return Ok(true);
         }
-    }
-    if mode == RetirementMode::Pending {
-        return Ok(false);
-    }
-    let directory = runs.join(run);
-    let metadata = match directory.symlink_metadata() {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+        RootRun::Absent => {
             if preparation_run(&preparations, run)?.is_some() {
                 return Err(denied("orphan preparation cannot retire"));
             }
-            if mode == RetirementMode::Unlaunched {
-                return Ok(false);
+            if mode != Retirement::Unlaunched {
+                stop_relay(run)?;
             }
-            stop_relay(run)?;
             return Ok(false);
         }
-        Err(error) => return Err(error),
+        RootRun::Staged(directory) => directory,
     };
+    let metadata = directory.symlink_metadata()?;
     if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o555 {
         return Err(denied("staged run directory invalid"));
     }
@@ -1818,14 +1989,8 @@ fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::R
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
-    if mode == RetirementMode::Unlaunched {
-        if run_lifecycle(&directory)? != Some(false) || launched_run(run)? {
-            return Err(denied(
-                "launched or legacy run requires outcome reconciliation",
-            ));
-        }
-    } else if mode == RetirementMode::Launched && !launched_run(run)? {
-        return Err(denied("unlaunched run has no recovered outcome"));
+    if mode != Retirement::Settled {
+        mode.permits(RootPhase::staged(&directory, &preparations, run)?)?;
     }
     clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
@@ -1917,22 +2082,14 @@ fn retiring_run(name: &str) -> Option<&str> {
     retiring_identity(name).map(|(run, _, _)| run)
 }
 
-// The unlaunched declaration becomes launched (durably, through a torn 0600
-// state) before any launch marker or launch bytes exist, and the retiring
-// rename happens under the run lock. A missing, torn, launched or invalid
-// declaration is not proof.
-fn retiring_unlaunched(directory: &Path) -> bool {
-    matches!(run_lifecycle(directory), Ok(Some(false)))
-}
-
-fn run_lifecycle(directory: &Path) -> io::Result<Option<bool>> {
+fn lifecycle(directory: &Path) -> io::Result<Lifecycle> {
     let file = match OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(directory.join("owner.lifecycle"))
     {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Lifecycle::Undeclared),
         Err(error) => return Err(error),
     };
     let metadata = file.metadata()?;
@@ -1948,21 +2105,27 @@ fn run_lifecycle(directory: &Path) -> io::Result<Option<bool>> {
     if metadata.mode() & 0o7777 == 0o600 {
         // A torn transition remains launched even if its contents are not
         // complete. The worker cannot receive launch bytes before this sync.
-        return Ok(Some(true));
+        return Ok(Lifecycle::Launched);
     }
-    if !matches!(bytes, [b'2' | b'3', b'\n']) {
-        return Err(denied("broker run lifecycle version invalid"));
+    match &bytes {
+        b"2\n" => Ok(Lifecycle::Unlaunched),
+        b"3\n" => Ok(Lifecycle::Launched),
+        _ => Err(denied("broker run lifecycle version invalid")),
     }
-    Ok(Some(bytes == *b"3\n"))
 }
 
 fn mark_root_launch(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let directory = runs.join(run);
-    private_dir(&directory, 0o555)?;
-    verified_profile(&directory, profile)?;
-    if !verified_bundle(&directory, digest)? || run_lifecycle(&directory)? != Some(false) {
+    verified_source(
+        &directory,
+        profile,
+        digest,
+        "broker launch fence unavailable",
+        |_| Ok(()),
+    )?;
+    if lifecycle(&directory)? != Lifecycle::Unlaunched {
         return Err(denied("broker launch fence unavailable"));
     }
     let path = directory.join("owner.lifecycle");
@@ -1982,18 +2145,8 @@ fn mark_root_launch(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     marker.sync_all()
 }
 
-// Return one exact selector at a time to stay inside the fixed broker frame
-// bound. The desktop supervisor holds its profile lock while consuming these;
-// the root broker validates every selector from its own private declarations.
-fn launched_run(run: &str) -> io::Result<bool> {
-    let root = state()?.join(run);
-    if run_lifecycle(&root)? == Some(true) {
-        return Ok(true);
-    }
-    let Some(directory) = preparation_run(&preparations()?, run)? else {
-        return Ok(false);
-    };
-    match directory.join("agent.launch").symlink_metadata() {
+fn launch_consumed(preparation: &Path) -> io::Result<bool> {
+    match preparation.join("agent.launch").symlink_metadata() {
         Ok(metadata)
             if metadata.is_file()
                 && metadata.uid() == 0
@@ -2009,7 +2162,10 @@ fn launched_run(run: &str) -> io::Result<bool> {
     }
 }
 
-fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, bool)>> {
+// Return one exact selector at a time to stay inside the fixed broker frame
+// bound. The desktop supervisor holds its profile lock while consuming these;
+// the root broker validates every selector from its own private declarations.
+fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, ProfileRunState)>> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     for entry in fs::read_dir(&runs)? {
@@ -2054,8 +2210,8 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, b
             if staged_digest(&path)?.is_some_and(|actual| actual != digest) {
                 return Err(denied("retiring bundle digest mismatch"));
             }
-            let launched = !retiring_unlaunched(&path);
-            return Ok(Some((run.to_owned(), digest.to_owned(), launched, true)));
+            let state = RootPhase::retiring(&path).profile_state();
+            return Ok(Some((run.to_owned(), digest.to_owned(), state)));
         }
         if id(&name, 32) {
             private_dir(&path, 0o555)?;
@@ -2066,8 +2222,8 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, b
             source_binding::verify(&path)?;
             let digest =
                 staged_digest(&path)?.ok_or_else(|| denied("staged run bundle missing"))?;
-            let launched = launched_run(&name)?;
-            return Ok(Some((name, digest, launched, false)));
+            let state = RootPhase::staged(&path, &preparations()?, &name)?.profile_state();
+            return Ok(Some((name, digest, state)));
         }
         return Err(denied("broker run entry invalid"));
     }
@@ -2107,16 +2263,14 @@ fn stage(
     ) {
         preparation_caller_current()?;
     }
-    for entry in fs::read_dir(&runs)? {
-        let name = entry?.file_name();
-        if retiring_run(&name.to_string_lossy()) == Some(run) {
-            return Err(denied("run retirement pending"));
-        }
+    if let RootRun::Retiring(_) = RootRun::load(&runs, run)? {
+        return Err(denied("run retirement pending"));
     }
+    // `exists` follows a dangling entry to "absent"; the rename then replaces it.
     let final_dir = runs.join(run);
     if final_dir.exists() {
         private_dir(&final_dir, 0o555)?;
-        if run_lifecycle(&final_dir)? != Some(false) {
+        if lifecycle(&final_dir)? != Lifecycle::Unlaunched {
             return Err(denied("run already launched or legacy staged"));
         }
         verified_profile(&final_dir, profile)?;
@@ -2270,11 +2424,13 @@ fn serve() -> io::Result<()> {
             let runs = state()?;
             let (_lock, _run_lock) = lock_run(&runs, &run)?;
             let directory = runs.join(&run);
-            private_dir(&directory, 0o555)?;
-            verified_profile(&directory, &profile)?;
-            if !verified_bundle(&directory, &sha256)? {
-                return Err(denied("task receipt source missing"));
-            }
+            verified_source(
+                &directory,
+                &profile,
+                &sha256,
+                "task receipt source missing",
+                |_| Ok(()),
+            )?;
             task_receipts::verify(&directory, &manifest_digest, &invocation)?;
             match task_receipts::read(&directory, &command) {
                 Ok(Some(reply)) => reply,
@@ -2558,7 +2714,7 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256, RetirementMode::Any)?;
+            let removed = retire(&run, &profile, &sha256, Retirement::Settled)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,
@@ -2577,7 +2733,7 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker unlaunched retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256, RetirementMode::Unlaunched)?;
+            let removed = retire(&run, &profile, &sha256, Retirement::Unlaunched)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,
@@ -2596,26 +2752,7 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker launched retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256, RetirementMode::Launched)?;
-            serde_json::to_vec(&Retired {
-                kind: "retired",
-                version: 1,
-                run: &run,
-                profile: &profile,
-                removed,
-            })?
-        }
-        Request::FinishRetiring {
-            version,
-            run,
-            profile,
-            sha256,
-        } => {
-            if version != 1 || !id(&run, 32) || !id(&profile, 32) || !id(&sha256, 64) {
-                return Err(denied("broker pending retirement declaration invalid"));
-            }
-            unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256, RetirementMode::Pending)?;
+            let removed = retire(&run, &profile, &sha256, Retirement::Launched)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,
@@ -2644,19 +2781,18 @@ fn serve() -> io::Result<()> {
             })?
         }
         Request::NextProfileRun { version, profile } => {
-            if version != 2 || !id(&profile, 32) {
+            if version != 3 || !id(&profile, 32) {
                 return Err(denied("broker profile inspection declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let next = next_profile_run(&profile)?;
             serde_json::to_vec(&ProfileRun {
                 kind: "profile_run",
-                version: 2,
+                version: 3,
                 profile: &profile,
-                run: next.as_ref().map(|(run, _, _, _)| run.as_str()),
-                sha256: next.as_ref().map(|(_, sha256, _, _)| sha256.as_str()),
-                launched: next.as_ref().is_some_and(|(_, _, launched, _)| *launched),
-                retiring: next.as_ref().is_some_and(|(_, _, _, retiring)| *retiring),
+                run: next.as_ref().map(|(run, _, _)| run.as_str()),
+                sha256: next.as_ref().map(|(_, sha256, _)| sha256.as_str()),
+                state: next.as_ref().map(|(_, _, state)| *state),
             })?
         }
         Request::PrepareReviewer {

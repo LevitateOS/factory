@@ -19,15 +19,18 @@ pub(super) fn serve<R: Read, W: Write>(
         let runs = state()?;
         let (_lock, _run_lock) = lock_run(&runs, run)?;
         let directory = runs.join(run);
-        private_dir(&directory, 0o555)?;
-        verified_profile(&directory, profile)?;
-        verified_role(&directory, "coder")?;
-        verified_digest(&directory, "owner.tool_sha256", tool)?;
-        verified_digest(&directory, "owner.prompt_sha256", prompt)?;
-        if !verified_bundle(&directory, source_sha)? {
-            return Err(denied("task source missing"));
-        }
-        if run_lifecycle(&directory)? != Some(false) {
+        verified_source(
+            &directory,
+            profile,
+            source_sha,
+            "task source missing",
+            |source| {
+                verified_role(source, "coder")?;
+                verified_digest(source, "owner.tool_sha256", tool)?;
+                verified_digest(source, "owner.prompt_sha256", prompt)
+            },
+        )?;
+        if lifecycle(&directory)? != Lifecycle::Unlaunched {
             return Err(denied("task source already launched"));
         }
         // The broker has no DAC override capability. Unlock only this exact
@@ -62,21 +65,14 @@ pub(super) fn serve<R: Read, W: Write>(
         if ready != *b"R" {
             return Err(denied("task worker readiness invalid"));
         }
-        mark_root_launch(run, profile, source_sha)?;
-        let mut marker = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o444)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(directory.join("agent.launch"))?;
-        marker.write_all(b"consumed\n")?;
-        marker.sync_all()?;
-        marker.set_permissions(fs::Permissions::from_mode(0o444))?;
-        File::open(&directory)?.sync_all()?;
-        manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
-        if path.exists() {
-            return Err(denied("task launch socket survived consumption"));
-        }
+        consume_launch(
+            run,
+            profile,
+            source_sha,
+            &directory,
+            &path,
+            "task launch socket survived consumption",
+        )?;
         let request = serde_json::to_vec(&serde_json::json!({"kind":"task_workspace","version":1,
             "run":run,"profile":profile,"candidate":candidate,"manifest_digest":manifest_digest}))?;
         worker.write_all(&(request.len() as u32).to_le_bytes())?;

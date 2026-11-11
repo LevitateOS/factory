@@ -607,3 +607,20 @@ pub struct AgentObserved {
     pub sequence: u64,
     pub live: bool,
 }
+
+/// What the root broker's restart inspection found for one profile run.
+/// Only the two unlaunched states may be retired without a recovered outcome.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProfileRunState {
+    /// Staged with no launch declaration or consumed marker. A run staged
+    /// without a lifecycle declaration also reports this; the broker still
+    /// refuses to retire it as unlaunched.
+    Staged,
+    /// Staged with a launched or torn declaration or a consumed marker.
+    Launched,
+    /// An interrupted retirement whose retained declaration proves no launch.
+    RetiringUnlaunched,
+    /// An interrupted retirement that cannot prove it was never launched.
+    Retiring,
+}
