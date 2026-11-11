@@ -112,13 +112,38 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err = db.UpdatePublication(ctx, p); err != nil {
 				t.Fatal(err)
 			}
+			canonical, err := db.Assignment(ctx, origin.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy, err := db.RepositoryPolicy(ctx, p.Repository)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy.IntentMinutes++
+			if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+				t.Fatal(err)
+			}
+			policy, err = db.RepositoryPolicy(ctx, p.Repository)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scopeTx, err := db.db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope, captured, _, err := retainedFundingScopeTx(ctx, scopeTx, p.ID)
+			_ = scopeTx.Rollback()
+			if err != nil || !reflect.DeepEqual(captured, canonical) || captured.Authority.Policy == policy.Revision || scope.Authority.Policy != policy.Revision {
+				t.Fatal("current funding policy rewrote original assignment authority", err)
+			}
 			var raw []byte
 			before, err := db.AttemptAllowance(ctx, 7, 3)
 			if err != nil {
 				t.Fatal(err)
 			}
 			offer, err := db.RetainedCandidateFundingOffer(ctx, p.ID)
-			if err != nil || offer.PreviousRoot != origin.ID || offer.CarryUnused {
+			if err != nil || offer.PreviousRoot != origin.ID || offer.CarryUnused || offer.Policy != policy.Revision {
 				t.Fatal("ordinary candidate funding offer", err)
 			}
 			changed := offer

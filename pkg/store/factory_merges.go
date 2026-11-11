@@ -595,7 +595,11 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 		return fail(ErrMergeConflict)
 	}
 	if p.ID == p.AssignmentID {
-		return retainedFundingScopeTx(ctx, tx, id)
+		p, a, g, err := retainedFundingScopeTx(ctx, tx, id)
+		// Merge preparation consumes current authority; funding keeps the
+		// original execution/planning owner immutable for provenance checks.
+		a.Authority = p.Authority
+		return p, a, g, err
 	}
 	if err := checkDispatchOpenTx(ctx, tx, p.Repository); err != nil {
 		return fail(err)

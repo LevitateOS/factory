@@ -294,7 +294,7 @@ func (s *Store) RetainedCandidateFundingOffer(ctx context.Context, publication s
 	limits.CorrectionCycles = min(limits.CorrectionCycles, 1)
 	limits.MaxChildren = 1
 	f := factory.RetainedCandidateFunding{Native: g.sponsorship.Native, Publication: p.ID, PreviousRoot: previous, Candidate: p.Candidate, Base: p.PullTarget().BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
-	f.Requirements, f.Approval = a.Authority.RequirementsID, a.Authority.ApprovalID
+	f.Requirements, f.Approval = p.Authority.RequirementsID, p.Authority.ApprovalID
 	if exists {
 		prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
 		if err != nil {
@@ -427,7 +427,9 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	if grants.policy.TargetBranch != p.TargetBranch || grants.policy.Roles[project.RoleReviewer].Account != source.Connection || !slices.Contains(grants.sponsorship.Roles, project.RoleReviewer) || grants.policy.Judgments != nil && grants.policy.Judgments.Account != source.Connection {
 		return fail(ErrRetainedPublicationIneligible)
 	}
-	a.Authority = current
+	// Keep immutable execution/planning captures valid. This local publication
+	// projection carries current authority for a new continuation only.
+	p.Authority = current
 	return p, a, grants, nil
 }
 
@@ -474,7 +476,7 @@ func (s *Store) FundRetainedCandidateObserved(ctx context.Context, command, prin
 	if f.Candidate != p.Candidate || f.Base != p.PullTarget().BaseOID || f.Acceptance != p.Acceptance || !f.MatchesSource(g.sponsorship) || f.Policy != g.policy.Revision {
 		return empty, ErrRetainedPublicationIneligible
 	}
-	if f.Requirements != a.Authority.RequirementsID || f.Approval != a.Authority.ApprovalID {
+	if f.Requirements != p.Authority.RequirementsID || f.Approval != p.Authority.ApprovalID {
 		return empty, ErrAdmissionChanged
 	}
 	origin, err := publicationExecutionOwner(ctx, tx, p, a)
@@ -524,7 +526,6 @@ func (s *Store) FundRetainedCandidateObserved(ctx context.Context, command, prin
 		if f.CarryUnused != unused {
 			return empty, ErrRetainedPublicationIneligible
 		}
-		p.Authority = a.Authority
 		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, observed, now)
 		if err != nil {
 			return empty, err
@@ -688,7 +689,7 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 	a := factory.Assignment{
 		ID: command, AttemptRoot: command, PublicationAssignment: command,
 		Subject: owner.Subject, ProjectID: owner.ProjectID, Role: project.RoleCoder,
-		Authority: owner.Authority, ActorID: owner.ActorID, Acceptance: owner.Acceptance,
+		Authority: prior.Authority, ActorID: owner.ActorID, Acceptance: owner.Acceptance,
 		Preparation: owner.Preparation, SourceCommit: owner.SourceCommit,
 		Stage: factory.AssignmentRetained, NativeRev: owner.NativeRev,
 		Repository: owner.Repository, Issue: owner.Issue, CreatedUnix: now.Unix(),
@@ -705,7 +706,7 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 		p.Tuple = &tuple
 	}
 	if prior.External != nil {
-		if observed == nil || observed.Validate(prior.Repository) != nil || observed.CommandID != command || observed.Policy != owner.Authority.Policy || observed.ObservedUnix > now.Unix() || now.Unix()-observed.ObservedUnix > 30 ||
+		if observed == nil || observed.Validate(prior.Repository) != nil || observed.CommandID != command || observed.Policy != prior.Authority.Policy || observed.ObservedUnix > now.Unix() || now.Unix()-observed.ObservedUnix > 30 ||
 			observed.Target != (factory.PublicationPullTarget{AuthorID: prior.PullTarget().AuthorID, IssueID: prior.PullTarget().IssueID, HeadRepository: prior.PullTarget().HeadRepository, HeadRef: prior.PullTarget().HeadRef, BaseRef: prior.PullTarget().BaseRef, HeadOID: prior.Candidate, BaseOID: prior.PullTarget().BaseOID}) ||
 			observed.Host != prior.External.Host || observed.Profile != prior.External.Profile || observed.Connection != prior.External.Connection || observed.ActorID != prior.External.ActorID || observed.ForkConsent != "" {
 			return p, a, ErrAdmissionChanged
