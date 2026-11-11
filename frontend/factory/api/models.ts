@@ -60,6 +60,10 @@ export const texts = (value: unknown): string[] =>
 export function member<T extends string>(vocabulary: readonly T[], value: unknown): T | 'unknown' {
   return vocabulary.find((known) => known === value) ?? 'unknown';
 }
+const GENERATION_STATES = ['pending', 'committed', 'refused', 'completed', 'not_requested'] as const;
+// The native-work generation vocabulary; 'not_requested' means no generation record exists yet.
+export type GenerationState = (typeof GENERATION_STATES)[number] | 'unknown';
+export const generationState = (value: unknown): GenerationState => member(GENERATION_STATES, value);
 export const id = (value: unknown): value is string =>
   typeof value === 'string' && /^[1-9][0-9]{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
 export const projectId = (value: unknown): value is string =>

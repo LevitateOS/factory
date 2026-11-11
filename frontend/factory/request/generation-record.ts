@@ -1,4 +1,5 @@
-import {check, id, object} from '../api/models.js';
+import {check, generationState, id, object} from '../api/models.js';
+import type {GenerationState} from '../api/models.js';
 import type {IntentRevision} from '../api/request-response.js';
 import {requestDraftKey, validRequestDraft} from './draft.js';
 import type {RequestDraft, RequestDraftAddress} from './draft.js';
@@ -97,7 +98,7 @@ export async function settleGeneration(address: RequestDraftAddress, pending: Pe
   }
 }
 export interface GenerationReceipt {
-  state: 'not_requested' | 'pending' | 'committed' | 'completed' | 'refused';
+  state: Exclude<GenerationState, 'unknown'>;
   operation: string;
   raw: Record<string, unknown>;
 }
@@ -109,8 +110,9 @@ export function generationReceipt(
 ): GenerationReceipt {
   const row = object(value);
   check(row.intent_id === revision.intent && row.revision_id === revision.id);
-  check(['not_requested', 'pending', 'committed', 'completed', 'refused'].includes(String(row.state)));
-  if (row.state === 'not_requested') {
+  const state = generationState(row.state);
+  check(state !== 'unknown');
+  if (state === 'not_requested') {
     exact(row, ['intent_id', 'revision_id', 'state']);
     return {state: 'not_requested', operation: 'intent-' + revision.id, raw: row};
   }
@@ -142,5 +144,5 @@ export function generationReceipt(
   );
   object(row.payload);
   if (row.task_issue_ids !== undefined) object(row.task_issue_ids);
-  return {state: row.state as GenerationReceipt['state'], operation, raw: row};
+  return {state, operation, raw: row};
 }

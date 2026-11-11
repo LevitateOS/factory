@@ -1,4 +1,5 @@
-import {flag, list, num, optionalNum, record, text, texts} from './models.js';
+import {flag, generationState, list, num, optionalNum, record, text, texts} from './models.js';
+import type {GenerationState} from './models.js';
 
 // Lenient readers for the request-overview, issue-plan, repository-access
 // and scope-revision reads. Missing or mistyped fields fall back to
@@ -46,7 +47,7 @@ export interface RequestAttention {
 export interface RequestOverview {
   readonly direction: RequestDirection;
   readonly context: RequestContext;
-  readonly generation: string;
+  readonly generation: GenerationState;
   readonly setup: {state: string; project?: string};
   readonly work_items: RequestCounts;
   readonly mappings: readonly RequestMapping[];
@@ -128,7 +129,7 @@ export function requestOverview(value: unknown, intent: string): RequestOverview
   return {
     direction: requestDirection(data.direction),
     context: requestContext(data.context),
-    generation: typeof data.generation === 'string' ? data.generation : text(record(data.generation).state),
+    generation: generationState(typeof data.generation === 'string' ? data.generation : record(data.generation).state),
     setup: requestSetup(data.setup),
     work_items: requestCounts(data.work_items),
     mappings: list(data.mappings).map(requestMapping),
@@ -379,7 +380,7 @@ export interface RevisionWork {
   readonly content_version: number;
 }
 export interface RevisionGeneration {
-  readonly state: string;
+  readonly state: GenerationState;
   readonly submitted_keys: readonly string[];
   readonly submitted_differs: boolean;
 }
@@ -497,7 +498,7 @@ function revisionEntry(value: unknown): RevisionEntry {
     repository: text(raw.repository),
     created_unix: num(raw.created_unix),
     generation: {
-      state: text(generation.state),
+      state: generationState(generation.state),
       submitted_keys: texts(generation.submitted_keys),
       submitted_differs: flag(generation.submitted_differs),
     },

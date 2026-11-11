@@ -314,6 +314,7 @@ function generationText(view: IntentView, generation: IntentGenerationStatus): s
     return 'Factory work is created. Execution still needs its own access and finite funding.';
   if (generation.state === 'refused')
     return 'Factory could not create the native work; an administrator must inspect the refusal.';
+  if (generation.state === 'not_requested') return 'Factory has not been asked to create work yet.';
   return 'Factory reported an unrecognized status. Your direction is saved.';
 }
 function generationStatus(view: IntentView) {

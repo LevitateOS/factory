@@ -1,6 +1,7 @@
 import {html} from 'lit';
 import type {TemplateResult} from 'lit';
 import {check, object} from '../api/models.js';
+import type {GenerationState} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import type {IntentRevision} from '../api/request-response.js';
 import {activityTimestamp} from '../shared/format.js';
@@ -27,7 +28,6 @@ import type {
 // stay distinct and no selection, plan or effect is invented.
 
 import type {IntentGeneration} from '../api/intent-generation-response.js';
-export {intentGeneration} from '../api/intent-generation-response.js';
 export type {IntentGeneration, IntentTaskBinding} from '../api/intent-generation-response.js';
 
 export type SourceState = 'ready' | 'missing' | 'unavailable';
@@ -367,12 +367,12 @@ function requestSetupText(state: string): string {
   if (state === 'ready') return 'Project setup ready.';
   return 'Project setup status unavailable.';
 }
-function requestGenerationText(state: string): string {
+function requestGenerationText(state: GenerationState): string {
   if (state === 'refused') return 'Native work generation was refused.';
   if (state === 'pending') return 'Native work generation pending.';
   if (state === 'committed' || state === 'completed') return 'Native work generated.';
   if (state === 'not_requested') return 'Native work not requested yet.';
-  return `Generation state: ${state}.`;
+  return 'Native work generation state is not recognized by this view.';
 }
 function requestDirectionText(view: RequestOverview): string {
   if (view.state === 'accepted') return view.direction.objective;

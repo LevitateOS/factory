@@ -1,4 +1,17 @@
-import {check, record, list, member, text, num, flag, optionalNum, texts, SodaRequestError} from './models.js';
+import {
+  check,
+  record,
+  list,
+  member,
+  generationState,
+  text,
+  num,
+  flag,
+  optionalNum,
+  texts,
+  SodaRequestError,
+} from './models.js';
+import type {GenerationState} from './models.js';
 
 export interface Department {
   id: string;
@@ -222,7 +235,7 @@ function savedRequest(value: unknown): SavedRequest {
   };
 }
 export interface IntentGenerationStatus {
-  state: string;
+  state: GenerationState;
   revision: string;
   tasks: number;
   authorization?: string;
@@ -231,7 +244,7 @@ export interface IntentGenerationStatus {
 export function intentGeneration(value: unknown): IntentGenerationStatus {
   const raw = record(value);
   const out: IntentGenerationStatus = {
-    state: text(raw.state),
+    state: generationState(raw.state),
     revision: text(raw.revision_id),
     tasks: Object.keys(record(raw.task_issue_ids)).length,
   };
