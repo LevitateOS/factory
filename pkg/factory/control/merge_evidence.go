@@ -245,7 +245,7 @@ func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, repor
 		return
 	}
 	if op.Work == nil {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return
 	}
 	work := op.Work.Apply(c.mergeWork(*m, factory.RepositoryPolicy{}))
@@ -258,14 +258,14 @@ func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, repor
 		}
 		var refused *factory.PublicationRefusal
 		if errors.As(err, &refused) {
-			c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+			c.fenceUnattributedMerge(ctx, *m, report)
 		} else {
 			c.mergeCallError(report, m.ID, err)
 		}
 		return
 	}
 	if confirmation.MergedCommit != op.MergedCommit || !op.Work.AcceptsResult(confirmation.MergedCommit) || confirmation.BaseTip == "" || confirmation.BaseTip != confirmation.MergedCommit && !confirmation.BaseContainsMergedCommit || confirmation.MergerID != work.ActorID || !confirmation.IssueClosed || confirmation.MergedUnix <= 0 || confirmation.ClosedUnix <= 0 {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return
 	}
 	if !confirmation.OriginalClosed || !factory.ValidNativeOccurrence(confirmation.OriginalClosingOccurrence) || confirmation.OriginalClosedUnix <= 0 {

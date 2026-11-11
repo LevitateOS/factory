@@ -93,7 +93,7 @@ func (c *Coordinator) adoptObservedMergeOp(ctx context.Context, m *factory.Merge
 		return true
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return false
 	}
 	return c.storeMerge(ctx, m, report)
@@ -287,7 +287,7 @@ func (c *Coordinator) submitMergeOp(ctx context.Context, m *factory.Merge, op *f
 		return false
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return false
 	}
 	return c.storeMerge(ctx, m, report)
@@ -313,13 +313,13 @@ func (c *Coordinator) adoptMergeReceipt(ctx context.Context, m *factory.Merge, r
 		return true
 	}
 	if op.Work == nil {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return false
 	}
 	work := op.Work.Apply(c.mergeWork(*m, factory.RepositoryPolicy{}))
 	result, err := c.Merges.AdoptMerge(ctx, work, op.Outcome())
 	if err != nil {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return false
 	}
 	method := result.Method
@@ -329,7 +329,7 @@ func (c *Coordinator) adoptMergeReceipt(ctx context.Context, m *factory.Merge, r
 	if method != op.Work.MergeMethod() || !op.Work.AcceptsResult(result.MergedCommit) ||
 		result.PRNumber != work.PRNumber || result.PRID != work.PRID || result.IssueID != work.IssueID || result.ActorID != work.ActorID ||
 		result.HeadRef != work.HeadRef || result.BaseRef != work.BaseRef || result.HeadOID != work.HeadOID || result.BaseOID != work.BaseOID {
-		c.finishMerge(ctx, *m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+		c.fenceUnattributedMerge(ctx, *m, report)
 		return false
 	}
 	op.PRNumber, op.PRID, op.IssueID = result.PRNumber, result.PRID, result.IssueID

@@ -319,3 +319,15 @@ func (c *Coordinator) finishPublication(ctx context.Context, p factory.Publicati
 		report.Fenced = append(report.Fenced, p.ID)
 	}
 }
+
+// fenceUnattributedPublication fences one publication whose native
+// observation cannot be attributed to its recorded operation. A publication
+// already fenced for that reason waits instead of rewriting its row on every
+// pass.
+func (c *Coordinator) fenceUnattributedPublication(ctx context.Context, p factory.Publication, report *PublishReport) {
+	if p.Stage == factory.PublicationFenced && p.Reason == factory.PublishReasonUnattributed {
+		publicationWait(report, p.ID, factory.PublishReasonUnattributed)
+		return
+	}
+	c.finishPublication(ctx, p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
+}

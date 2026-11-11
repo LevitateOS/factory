@@ -218,6 +218,17 @@ func (c *Coordinator) finishMerge(ctx context.Context, m factory.Merge, stage, r
 	return true
 }
 
+// fenceUnattributedMerge fences one merge whose native observation cannot be
+// attributed to its recorded operation. A merge already fenced for that
+// reason waits instead of rewriting its row on every pass.
+func (c *Coordinator) fenceUnattributedMerge(ctx context.Context, m factory.Merge, report *MergeReport) {
+	if m.Stage == factory.MergeFenced && m.Reason == factory.MergeReasonUnattributed {
+		mergeWait(report, m.ID, factory.MergeReasonUnattributed)
+		return
+	}
+	c.finishMerge(ctx, m, factory.MergeFenced, factory.MergeReasonUnattributed, report)
+}
+
 // PrepareUnsentMerge authorizes a new identity only after the ledger proves
 // the predecessor never allocated an operation. Native absence alone is not
 // authority. The normal merge pass still observes current review/CI/permission

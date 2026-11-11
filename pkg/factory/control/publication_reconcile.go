@@ -128,7 +128,7 @@ func (c *Coordinator) adoptObservedOperations(ctx context.Context, p *factory.Pu
 				continue
 			}
 			if !op.Adopt(outcome, time.Now().Unix()) {
-				c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
+				c.fenceUnattributedPublication(ctx, *p, report)
 				return false
 			}
 			if !c.storePublication(ctx, p, report) {
@@ -368,7 +368,7 @@ func (c *Coordinator) submitPublicationOp(ctx context.Context, p *factory.Public
 		return false
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
+		c.fenceUnattributedPublication(ctx, *p, report)
 		return false
 	}
 	return c.storePublication(ctx, p, report)
@@ -390,7 +390,7 @@ func (c *Coordinator) pushPublicationBranch(ctx context.Context, p *factory.Publ
 		return false
 	}
 	if !op.Adopt(outcome, time.Now().Unix()) {
-		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
+		c.fenceUnattributedPublication(ctx, *p, report)
 		return false
 	}
 	return c.storePublication(ctx, p, report)
@@ -429,7 +429,7 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 			continue
 		}
 		if op.Work == nil {
-			c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
+			c.fenceUnattributedPublication(ctx, *p, report)
 			return false
 		}
 		work := op.Work.Apply(c.publicationWork(a, *p, run, nil, factory.RepositoryPolicy{}, op.Kind))
@@ -449,7 +449,7 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 			}
 		}
 		if err != nil {
-			c.finishPublication(ctx, *p, factory.PublicationFenced, factory.PublishReasonUnattributed, report)
+			c.fenceUnattributedPublication(ctx, *p, report)
 			return false
 		}
 	}
