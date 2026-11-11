@@ -19,24 +19,44 @@ replay, immutable old rows, no new run/reservation/send authority, current-grant
 and uncertain-effect refusal, and the earlier continuation cases. Evidence:
 /home/vince/Projects/factory-real-cycle-20261110/retained-history-pg4.log.
 Warm release Muse helper build and current pinned CLI configuration validation
-pass without inference. Implementation commit `6ffe6b2` is on `main` and installed
-as composite inventory `5bb721d0024c24d56a2669ffab1c18fae832db86b4b7af172af44b543e02ab56`.
-Normal exact-prior upgrade/reopen preserved the profile; new instance
-`6b159ca000773a0a7eebc546bee3500d`, developer session
-`b9b56f96dd8be04d55da95ba432bc656`, guest child9.sh. Unchanged main-source setups
-`fc244d310ceb0d23c2e2af86c` / `fe0242b982fce309124eef81b` are ready.
+pass without inference. Implementation commits `6ffe6b2` and `76678ed` are on
+`main`; the latter preserves the original Architect's policy capture while a
+new grant uses current authority. Its real PostgreSQL regression is retained in
+/home/vince/Projects/factory-real-cycle-20261110/retained-authority-pg.log.
+Current installed stage11 composite inventory is
+`1f424a1e535712be7ee290ab067d31e62bf1fc359dec1054c57e4a4d7b45fac9`;
+instance `dcc39ac80af626572e164a62b818f48c`, developer session
+`c65e316ad7aba54b7a8d1d600b3bc694`, guest child12.sh. Normal exact-prior
+upgrades preserved the original profile and receipts.
 Under standing permission, normal UI saved source total200 (spent177), policy8
 with15minutes/run, one review and zero corrections, and temporary global capacity2
 to preserve the separate retained Fountain allowance without contacting its host.
-No new inference or continuation command has run for this fix yet. Next: fund
-one fresh Inspector on issue54/PR56/e91506e9 via its installed Work panel, then
-restore policy15/2/1 and global capacity1 after terminal custody. Preserve the
-prior timeout, old closed root and uncertain publication unchanged.
+Fresh command `3bc784e12eae4c82a20da6482d109352` was admitted at
+2026-11-11T09:59:08.8861105Z for issue54/PR56/e91506e9. Its review identity
+`c3a4b7ca100158616fb46dd89f79df3b` is reserved, but a live read proves zero
+descendant assignments, zero candidate preparations and zero active/unsettled
+runs. No new inference or source charge occurred. Dispatch waits for setup
+prepared for the current app instance; old ready setups belong to instance
+6b159ca0. INCOMPLETE: commit `2248b78` extends the existing explicit funding
+command to atomically retire only a changed-setup, proved unlaunched grant and
+preserve its spent round. One shared proof omits only those never-admitted
+markers from derived history while retaining canonical rows. The existing real
+PostgreSQL case passed in12.149s without skips, including unchanged-setup refusal,
+admitted child/preparation refusal, canonical-cycle preservation and no new
+run/reservation. Evidence: retained-setup-recovery-pg3.log in the same private
+evidence directory above. Next: commit/push this recovery record on main, then
+install the Go-only update, prepare unchanged scripts after that final restart,
+and explicitly fund the fresh review. Restore policy15/2/1 and capacity1 after
+terminal custody. Preserve the prior timeout and uncertain publication.
 
 Main consolidation: both old detached worktree base commits are ancestors of
 `main`; all six leftover permission/read-only edits are already present in main.
-The old guidance branch adds no content missing from current AGENTS.md. Existing
-worktrees/stashes are preserved as historical state; subsequent work uses main.
+The old guidance branch adds no content missing from current AGENTS.md. Four
+additional unlanded sm/r8 commits were brought directly onto main as
+`c273bf9`, `059b3d4`, `00b4d3f`, `6bc61d5`, preserving concurrent changes.
+The existing offline locked desktop native-check compile passed in15.73s;
+main-consolidation-rust-check.log is retained in the same private directory.
+Existing worktrees/stashes remain historical state; subsequent work uses main.
 
 ## Bounded live GitHub/Muse correction journey (2026-11-11)
 
