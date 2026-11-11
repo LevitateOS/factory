@@ -1,11 +1,12 @@
 //! Exact nonsecret Go launch binding, retained before custody and root staging.
 //! This is native effect evidence; Go still owns current product admission.
 use super::{receipt, Policy, ReceiptScope, Role};
+use crate::private_fs::publish_linked;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, DirBuilder, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -245,18 +246,7 @@ impl LaunchIntent {
         if bytes.is_empty() {
             return Ok(());
         }
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(&pending)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        fs::hard_link(&pending, &committed)?;
-        File::open(&root)?.sync_all()?;
-        fs::remove_file(pending)?;
-        File::open(&root)?.sync_all()
+        publish_linked(&root, &pending, &committed, &[bytes])
     }
     pub(super) fn retained_manifest(&self, profile: &Path) -> io::Result<Vec<u8>> {
         receipt::profile(profile, self.scope()?.profile)?;
@@ -453,18 +443,7 @@ impl LaunchIntent {
         let committed = root.join(format!("{}.json", scope.run));
         let pending = root.join(format!("{}.pending", scope.run));
         absent(&committed)?;
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(&pending)?;
-        file.write_all(self.raw.as_bytes())?;
-        file.sync_all()?;
-        fs::hard_link(&pending, &committed)?;
-        File::open(&root)?.sync_all()?;
-        fs::remove_file(&pending)?;
-        File::open(&root)?.sync_all()
+        publish_linked(&root, &pending, &committed, &[self.raw.as_bytes()])
     }
 }
 

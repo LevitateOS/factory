@@ -101,3 +101,28 @@ pub(crate) fn publish_bytes(path: &Path, bytes: &[u8]) -> io::Result<()> {
     fs::remove_file(pending)?;
     File::open(parent)?.sync_all()
 }
+
+/// Publish one immutable run record under caller-named `pending` and
+/// `committed` paths in `root`. Unlike `publish_bytes`, `root` is not synced
+/// between writing `pending` and linking it.
+pub(crate) fn publish_linked(
+    root: &Path,
+    pending: &Path,
+    committed: &Path,
+    parts: &[&[u8]],
+) -> io::Result<()> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(pending)?;
+    for part in parts {
+        file.write_all(part)?;
+    }
+    file.sync_all()?;
+    fs::hard_link(pending, committed)?;
+    File::open(root)?.sync_all()?;
+    fs::remove_file(pending)?;
+    File::open(root)?.sync_all()
+}

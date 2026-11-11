@@ -3,6 +3,7 @@
 //! proof that the broker, credential and worker lifetimes are retired.
 use super::broker::{AgentProcess, AgentRun, Broker};
 use super::Role;
+use crate::private_fs::publish_linked;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{
@@ -10,7 +11,7 @@ use soda_execution_protocol::{
     MAX_OUTPUT,
 };
 use std::fs::{self, DirBuilder, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
@@ -292,21 +293,17 @@ pub fn write_retained(
     let receipts = ensure_receipts(profile_dir)?;
     let pending = receipts.join(format!("{}.pending", scope.run));
     let committed = receipts.join(format!("{}.receipt", scope.run));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(&pending)?;
-    file.write_all(&(bytes.len() as u32).to_le_bytes())?;
-    file.write_all(&bytes)?;
-    file.write_all(&run.output)?;
-    file.write_all(&run.candidate_bundle)?;
-    file.sync_all()?;
-    fs::hard_link(&pending, &committed)?;
-    File::open(&receipts)?.sync_all()?;
-    fs::remove_file(&pending)?;
-    File::open(&receipts)?.sync_all()
+    publish_linked(
+        &receipts,
+        &pending,
+        &committed,
+        &[
+            &(bytes.len() as u32).to_le_bytes(),
+            &bytes,
+            &run.output,
+            &run.candidate_bundle,
+        ],
+    )
 }
 
 /// Read a durable exact receipt after restart. `None` means no completed
