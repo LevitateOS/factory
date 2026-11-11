@@ -137,9 +137,23 @@ pub struct RunOwner {
     prompt_sha256: String,
     deadline: Instant,
     profile_dir: PathBuf,
-    attempted: bool,
-    receipt_persisted: bool,
-    retired: bool,
+    phase: Phase,
+}
+
+/// The one attempt's lifecycle. Only `RunOwner::advance` changes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Phase {
+    /// Staged and attested; no broker attempt yet.
+    Prepared,
+    /// The broker attempt began; no terminal receipt is durable.
+    Attempted,
+    /// Uncertain terminal: worker and relay stopped, custody sealed and
+    /// released, root preserved. Entered only after every step returned Ok.
+    Quiesced,
+    /// The terminal receipt is durable; retirement has not completed.
+    ReceiptDurable,
+    /// Local custody sealed and released and the broker root retired.
+    Retired,
 }
 
 /// Inputs to one native run preparation. The older start methods project here
@@ -439,9 +453,7 @@ impl RunOwner {
             prompt_sha256: prompt_sha256.to_owned(),
             deadline,
             profile_dir: profile_dir.to_path_buf(),
-            attempted: false,
-            receipt_persisted: false,
-            retired: false,
+            phase: Phase::Prepared,
         })
     }
 
@@ -484,7 +496,10 @@ impl RunOwner {
         } else {
             Err(refused("provider custody retirement unconfirmed"))
         };
-        stopped.and(sealed).and(quiesced).and(released)
+        // A failed step leaves the phase Attempted so a later retire retries.
+        stopped.and(sealed).and(quiesced).and(released)?;
+        self.advance(Phase::Quiesced);
+        Ok(())
     }
 
     /// One attempt only. The broker rehashes prompt and executable bytes under
@@ -508,7 +523,7 @@ impl RunOwner {
         duration: Duration,
         on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
     ) -> io::Result<(AgentRun, Settled)> {
-        if self.attempted || self.retired {
+        if self.phase != Phase::Prepared {
             return Err(refused("provider run already consumed"));
         }
         let remaining = self.deadline.saturating_duration_since(Instant::now());
@@ -519,7 +534,7 @@ impl RunOwner {
         // Preparation and scheduling consume the already captured deadline.
         // The requested maximum never grants a fresh execution window.
         let duration = duration.min(remaining);
-        self.attempted = true;
+        self.advance(Phase::Attempted);
         let result = Broker::execute_agent_controlled(
             &self.run,
             &self.profile,
@@ -558,7 +573,7 @@ impl RunOwner {
             let _ = self.quiesce_uncertain();
             return Err(refused("provider run receipt not durable"));
         }
-        self.receipt_persisted = true;
+        self.advance(Phase::ReceiptDurable);
         // Cancellation cannot discard an actual terminal receipt. Finish local
         // custody and root retirement before returning its observed stop reason.
         match self.retire_after_attempt() {
@@ -569,23 +584,34 @@ impl RunOwner {
 
     /// Before a receipt is durable, retirement quiesces the exact worker and
     /// relay but preserves root staging for an uncertain-outcome recovery.
+    /// A completed quiescence is not repeated.
     pub fn retire(&mut self) -> io::Result<()> {
-        if !self.retired {
+        if self.phase != Phase::Retired {
             self.cancellation.cancel();
         }
-        if self.attempted && !self.receipt_persisted {
-            self.quiesce_uncertain()?;
-            return Err(refused("provider run outcome unconfirmed"));
+        match self.phase {
+            Phase::Attempted => {
+                self.quiesce_uncertain()?;
+                Err(refused("provider run outcome unconfirmed"))
+            }
+            Phase::Quiesced => Err(refused("provider run outcome unconfirmed")),
+            Phase::Prepared | Phase::ReceiptDurable | Phase::Retired => {
+                self.retire_after_attempt().map(drop)
+            }
         }
-        self.retire_after_attempt().map(drop)
     }
 
     /// Yields `Settled` only when this call completed retirement after a
     /// durable receipt; an earlier or receipt-less retirement proves nothing.
     fn retire_after_attempt(&mut self) -> io::Result<Option<Settled>> {
-        if self.retired {
-            return Ok(None);
-        }
+        let durable = match self.phase {
+            Phase::Prepared => false,
+            Phase::ReceiptDurable => true,
+            Phase::Retired => return Ok(None),
+            Phase::Attempted | Phase::Quiesced => {
+                return Err(refused("provider run outcome unconfirmed"))
+            }
+        };
         let stopped = self.owner.stop();
         if !self.owner.locally_stopped() {
             return Err(refused("provider local custody retirement unconfirmed"));
@@ -597,8 +623,18 @@ impl RunOwner {
         stopped?;
         self.owner.retire()?;
         let custody = self.custody.release()?;
-        self.retired = true;
-        Ok(self.receipt_persisted.then_some(Settled { custody }))
+        self.advance(Phase::Retired);
+        Ok(durable.then_some(Settled { custody }))
+    }
+
+    fn advance(&mut self, next: Phase) {
+        debug_assert!(matches!(
+            (self.phase, next),
+            (Phase::Prepared, Phase::Attempted | Phase::Retired)
+                | (Phase::Attempted, Phase::Quiesced | Phase::ReceiptDurable)
+                | (Phase::ReceiptDurable, Phase::Retired)
+        ));
+        self.phase = next;
     }
 }
 
