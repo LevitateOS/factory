@@ -12,16 +12,96 @@ pub struct ExecutionClaimRequest {
     pub manifest_digest: String,
     pub not_after: i64,
 }
+/// The host reply's three legal shapes; any other state/digest/acquired
+/// combination fails deserialization.
+#[derive(Clone, PartialEq, Eq)]
+pub enum ClaimState {
+    Claimed { acquired: bool },
+    Retired(String),
+    NotStarted(String),
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum WireState {
+    Claimed,
+    Retired,
+    NotStarted,
+}
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+struct WireClaim {
+    command_id: String,
+    grant_id: String,
+    manifest_digest: String,
+    not_after: i64,
+    state: WireState,
+    retirement_digest: String,
+    acquired: bool,
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(try_from = "WireClaim", into = "WireClaim")]
 pub struct ExecutionClaim {
     pub command_id: String,
     pub grant_id: String,
     pub manifest_digest: String,
     pub not_after: i64,
-    pub state: String,
-    pub retirement_digest: String,
-    pub acquired: bool,
+    pub state: ClaimState,
+}
+impl TryFrom<WireClaim> for ExecutionClaim {
+    type Error = &'static str;
+    fn try_from(wire: WireClaim) -> std::result::Result<Self, Self::Error> {
+        let state = match wire.state {
+            WireState::Claimed if wire.retirement_digest.is_empty() => ClaimState::Claimed {
+                acquired: wire.acquired,
+            },
+            WireState::Retired if hex(&wire.retirement_digest, 64) && !wire.acquired => {
+                ClaimState::Retired(wire.retirement_digest)
+            }
+            WireState::NotStarted if hex(&wire.retirement_digest, 64) && !wire.acquired => {
+                ClaimState::NotStarted(wire.retirement_digest)
+            }
+            _ => return Err("invalid execution claim state"),
+        };
+        Ok(Self {
+            command_id: wire.command_id,
+            grant_id: wire.grant_id,
+            manifest_digest: wire.manifest_digest,
+            not_after: wire.not_after,
+            state,
+        })
+    }
+}
+impl From<ExecutionClaim> for WireClaim {
+    fn from(claim: ExecutionClaim) -> Self {
+        let (state, retirement_digest, acquired) = match claim.state {
+            ClaimState::Claimed { acquired } => (WireState::Claimed, String::new(), acquired),
+            ClaimState::Retired(digest) => (WireState::Retired, digest, false),
+            ClaimState::NotStarted(digest) => (WireState::NotStarted, digest, false),
+        };
+        Self {
+            command_id: claim.command_id,
+            grant_id: claim.grant_id,
+            manifest_digest: claim.manifest_digest,
+            not_after: claim.not_after,
+            state,
+            retirement_digest,
+            acquired,
+        }
+    }
+}
+impl ExecutionClaim {
+    /// Wire state name and receipt digest of a settled (retired or not started) claim.
+    pub fn settled(&self) -> Option<(&'static str, &str)> {
+        match &self.state {
+            ClaimState::Claimed { .. } => None,
+            ClaimState::Retired(digest) => Some(("retired", digest)),
+            ClaimState::NotStarted(digest) => Some(("not_started", digest)),
+        }
+    }
+    /// True only for the original reserve reply that acquired dispatch.
+    pub fn acquired(&self) -> bool {
+        matches!(self.state, ClaimState::Claimed { acquired: true })
+    }
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -29,6 +109,29 @@ pub struct ExecutionRetirement {
     pub manifest_digest: String,
     pub state: String,
     pub receipt_digest: String,
+}
+impl ExecutionRetirement {
+    pub fn retired(manifest_digest: String, receipt_digest: String) -> Self {
+        Self {
+            manifest_digest,
+            state: "retired".into(),
+            receipt_digest,
+        }
+    }
+    pub fn not_started(manifest_digest: String, receipt_digest: String) -> Self {
+        Self {
+            manifest_digest,
+            state: "not_started".into(),
+            receipt_digest,
+        }
+    }
+    fn claim_state(&self) -> Option<ClaimState> {
+        match self.state.as_str() {
+            "retired" => Some(ClaimState::Retired(self.receipt_digest.clone())),
+            "not_started" => Some(ClaimState::NotStarted(self.receipt_digest.clone())),
+            _ => None,
+        }
+    }
 }
 impl Client {
     fn check_execution_scope(
@@ -66,11 +169,6 @@ impl Client {
             || claim.grant_id != grant.id
             || claim.manifest_digest != request.manifest_digest
             || claim.not_after != request.not_after
-            || match claim.state.as_str() {
-                "claimed" => !claim.retirement_digest.is_empty(),
-                "retired" | "not_started" => !hex(&claim.retirement_digest, 64) || claim.acquired,
-                _ => true,
-            }
         {
             return Err(invalid());
         }
@@ -98,7 +196,7 @@ impl Client {
             )
             .await?;
         self.check_execution_claim(grant, request, &claim)?;
-        if claim.acquired {
+        if claim.acquired() {
             return Err(invalid());
         }
         Ok(claim)
@@ -151,8 +249,8 @@ impl Client {
         retirement: &ExecutionRetirement,
     ) -> Result<ExecutionClaim> {
         self.check_execution_scope(grant, request)?;
+        let expected = retirement.claim_state().ok_or_else(invalid)?;
         if retirement.manifest_digest != request.manifest_digest
-            || !matches!(retirement.state.as_str(), "retired" | "not_started")
             || !hex(&retirement.receipt_digest, 64)
         {
             return Err(invalid());
@@ -196,10 +294,7 @@ impl Client {
             self.execution_claim(grant, request).await?
         };
         self.check_execution_claim(grant, request, &claim)?;
-        if claim.acquired
-            || claim.state != retirement.state
-            || claim.retirement_digest != retirement.receipt_digest
-        {
+        if claim.state != expected {
             return Err(invalid());
         }
         Ok(claim)

@@ -18,6 +18,7 @@ use std::sync::{
 use std::time::Duration;
 use tokio::{runtime::Handle, sync::Notify};
 
+type RetireFn = fn(String, String) -> ExecutionRetirement;
 fn unavailable() -> io::Error {
     io::Error::other("captured Fountain execution claim unavailable")
 }
@@ -69,6 +70,15 @@ async fn captured(
     Ok((Arc::new(client), grant, request))
 }
 
+/// Admitted: constructed but not yet entered, so Drop records no-start.
+/// Entered: the worker owns custody and the watcher runs.
+enum Phase {
+    Admitted,
+    Entered {
+        cancellation: AgentCancellation,
+        monitor: std::thread::JoinHandle<()>,
+    },
+}
 pub(super) struct Lease {
     client: Arc<Client>,
     grant: OperationGrant,
@@ -79,10 +89,8 @@ pub(super) struct Lease {
     no_start: PathBuf,
     no_start_receipt: Vec<u8>,
     alive: Arc<AtomicBool>,
-    entered: bool,
-    cancellation: Option<AgentCancellation>,
     stop: Arc<Notify>,
-    monitor: Option<std::thread::JoinHandle<()>>,
+    phase: Phase,
     runtime: Handle,
     channel: NativeChannel,
     admission: zeroize::Zeroizing<Vec<u8>>,
@@ -108,7 +116,7 @@ impl Lease {
         let no_start = root.join("controller-not-started.json");
         let no_start_receipt = preparation_no_start(&claim.manifest_digest)?;
         let acquired = client.claim_execution(&profile, &grant, &claim).await;
-        if !acquired.is_ok_and(|value| value.acquired && value.state == "claimed") {
+        if !acquired.is_ok_and(|value| value.acquired()) {
             // This owner has not entered a constructor, even if the claim's
             // original reply was lost. Absence is never dispatch authority.
             publish_bytes(&no_start, &no_start_receipt)?;
@@ -133,10 +141,8 @@ impl Lease {
             no_start,
             no_start_receipt,
             alive,
-            entered: false,
-            cancellation: None,
             stop: Arc::new(Notify::new()),
-            monitor: None,
+            phase: Phase::Admitted,
             runtime: Handle::current(),
             channel,
             admission: zeroize::Zeroizing::new(bytes),
@@ -174,7 +180,7 @@ impl Lease {
             .claim_execution(&profile, &grant, &request)
             .await
             .map_err(|_| unavailable())?;
-        if !claim.acquired || claim.state != "claimed" {
+        if !claim.acquired() {
             return Err(unavailable());
         }
         let lease = Self {
@@ -187,10 +193,8 @@ impl Lease {
             no_start: no_start_path(&profile, intent),
             no_start_receipt: no_start_bytes(intent)?,
             alive,
-            entered: false,
-            cancellation: None,
             stop: Arc::new(Notify::new()),
-            monitor: None,
+            phase: Phase::Admitted,
             runtime: Handle::current(),
             channel,
             admission,
@@ -264,7 +268,7 @@ impl Lease {
         {
             return Err(unavailable());
         }
-        self.cancellation = Some(cancellation.clone());
+        let cancel_handle = cancellation.clone();
         let (client, grant, deadline, alive, stop) = (
             self.client.clone(),
             self.grant.clone(),
@@ -276,8 +280,9 @@ impl Lease {
         // from either a blocking owner or an async desktop inspection caller.
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .build()?;
-        self.monitor = Some(std::thread::Builder::new().name("factory-controller-watch".into()).spawn(move || runtime.block_on(async move {
+            .build()
+            .inspect_err(|_| cancellation.cancel())?;
+        let monitor = std::thread::Builder::new().name("factory-controller-watch".into()).spawn(move || runtime.block_on(async move {
             loop {
                 let remaining = time::OffsetDateTime::from_unix_timestamp(deadline)
                     .map(|expires| (expires-time::OffsetDateTime::now_utc()).whole_milliseconds()).unwrap_or(0);
@@ -293,8 +298,11 @@ impl Lease {
                 }
                 tokio::select! { _ = stop.notified() => return, _ = tokio::time::sleep(Duration::from_secs(1)) => {} }
             }
-        }))?);
-        self.entered = true;
+        })).inspect_err(|_| cancel_handle.cancel())?;
+        self.phase = Phase::Entered {
+            cancellation: cancel_handle,
+            monitor,
+        };
         Ok(())
     }
 }
@@ -368,16 +376,16 @@ pub(super) async fn recover_preparation(
         .join("native-preparations")
         .join(key)
         .join("controller-not-started.json");
-    let (state, receipt) = match read_bytes(&marker, 1024) {
+    let (retire, receipt) = match read_bytes(&marker, 1024) {
         Ok(bytes) if bytes == preparation_no_start(&claim.manifest_digest)? => {
-            ("not_started", bytes)
+            (ExecutionRetirement::not_started as RetireFn, bytes)
         }
         Ok(_) => return Err(unavailable()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let Some(retired) = retired else {
                 return Ok(());
             };
-            ("retired",serde_json::to_vec(&serde_json::json!({"kind":"factory_controller_preparation_retired","version":1,"intent_sha256":claim.manifest_digest,"retirement_sha256":digest(retired)})).map_err(io::Error::other)?)
+            (ExecutionRetirement::retired as RetireFn,serde_json::to_vec(&serde_json::json!({"kind":"factory_controller_preparation_retired","version":1,"intent_sha256":claim.manifest_digest,"retirement_sha256":digest(retired)})).map_err(io::Error::other)?)
         }
         Err(error) => return Err(error),
     };
@@ -386,11 +394,7 @@ pub(super) async fn recover_preparation(
             profile,
             &grant,
             &claim,
-            &ExecutionRetirement {
-                manifest_digest: claim.manifest_digest.clone(),
-                state: state.into(),
-                receipt_digest: digest(&receipt),
-            },
+            &retire(claim.manifest_digest.clone(), digest(&receipt)),
         )
         .await
         .map_err(|error| {
@@ -400,17 +404,20 @@ pub(super) async fn recover_preparation(
 }
 impl Drop for Lease {
     fn drop(&mut self) {
-        if let Some(cancel) = &self.cancellation {
-            cancel.cancel();
-        }
-        if let Some(monitor) = self.monitor.take() {
-            self.stop.notify_one();
-            // The worker has joined before this lease. The watcher never
-            // depends on the caller's executor to acknowledge retirement.
-            let _ = monitor.join();
-        }
-        if !self.entered {
-            let _ = publish_bytes(&self.no_start, &self.no_start_receipt);
+        match std::mem::replace(&mut self.phase, Phase::Admitted) {
+            Phase::Entered {
+                cancellation,
+                monitor,
+            } => {
+                cancellation.cancel();
+                self.stop.notify_one();
+                // The worker has joined before this lease. The watcher never
+                // depends on the caller's executor to acknowledge retirement.
+                let _ = monitor.join();
+            }
+            Phase::Admitted => {
+                let _ = publish_bytes(&self.no_start, &self.no_start_receipt);
+            }
         }
     }
 }
@@ -438,28 +445,24 @@ pub(super) async fn recover(
         Err(e) => return Err(e),
     };
     let retirement = if let Some(bytes) = no_start {
-        Some(("not_started", digest(&bytes)))
+        Some((ExecutionRetirement::not_started as RetireFn, digest(&bytes)))
     } else if let Some(run) = super::muse_receipt::retired(profile, intent)? {
         if !run.root_retired || !run.process.tree_retired || !run.process.finished {
             return Ok(());
         }
         let bytes = serde_json::to_vec(&serde_json::json!({"kind":"factory_controller_retirement","version":1,"intent_sha256":intent.digest(),"process":run.process})).map_err(io::Error::other)?;
-        Some(("retired", digest(&bytes)))
+        Some((ExecutionRetirement::retired as RetireFn, digest(&bytes)))
     } else {
         None
     };
-    if let Some((state, receipt_digest)) = retirement {
+    if let Some((retire, receipt_digest)) = retirement {
         let (client, grant, request) = captured(credentials, profile, intent).await?;
         client
             .retire_execution(
                 profile,
                 &grant,
                 &request,
-                &ExecutionRetirement {
-                    manifest_digest: request.manifest_digest.clone(),
-                    state: state.into(),
-                    receipt_digest,
-                },
+                &retire(request.manifest_digest.clone(), receipt_digest),
             )
             .await
             .map_err(|_| unavailable())?;

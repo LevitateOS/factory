@@ -1474,7 +1474,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         command_id:preparation.file_name().into_string().map_err(|_|"preparation key invalid")?,manifest_digest:Sha256::digest(serde_json::to_vec(&prepared)?).iter().map(|b|format!("{b:02x}")).collect(),
         not_after:prepared["controller"]["not_after"].as_i64().ok_or("preparation grant deadline absent")?};
     let retired=history.execution_claim(&original_grant,&preparation_claim).await.map_err(|e|e.code)?;
-    ensure(retired.state==if preparation.path().join("controller-not-started.json").is_file(){"not_started"}else{"retired"}&&!retired.acquired&&retired.retirement_digest.len()==64,"physical preparation retirement did not settle its original host claim")?;
+    ensure(retired.settled().is_some_and(|(state,digest)|state==if preparation.path().join("controller-not-started.json").is_file(){"not_started"}else{"retired"}&&digest.len()==64),"physical preparation retirement did not settle its original host claim")?;
     }
     let reopened=NativeSupervisor::start(Path::new(&payload),Path::new(&backend),profile)?;
     let reopened_ready=reopened.health()?;
@@ -1540,13 +1540,13 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(grant.active&&grant.allows_current("execution.launch")&&grant.allows_current("issue.comment.publish")&&!grant.allows_current("git.ref.publish"),"native per-operation authority missing or enlarged")?;
         let claim_request=ExecutionClaimRequest{command_id:"123456789abcdef0123456789abcdef8".into(),manifest_digest:"8".repeat(64),not_after:grant.not_after};
         let claimed=client.claim_execution(profile,&grant,&claim_request).await.map_err(|e|e.code)?;
-        ensure(claimed.acquired&&claimed.state=="claimed","first native claim did not acquire exactly one dispatch")?;
+        ensure(claimed.acquired(),"first native claim did not acquire exactly one dispatch")?;
         let observed=client.claim_execution(profile,&grant,&claim_request).await.map_err(|e|e.code)?;
-        ensure(!observed.acquired&&observed.manifest_digest==claimed.manifest_digest,"claim replay acquired another launch")?;
+        ensure(!observed.acquired()&&observed.manifest_digest==claimed.manifest_digest,"claim replay acquired another launch")?;
         let mut changed_claim=claim_request.clone();changed_claim.manifest_digest="9".repeat(64);
         ensure(matches!(client.claim_execution(profile,&grant,&changed_claim).await,Err(e)if e.status==400),"changed native claim capture was accepted")?;
         let no_start=ExecutionRetirement{manifest_digest:claim_request.manifest_digest.clone(),state:"not_started".into(),receipt_digest:"a".repeat(64)};
-        ensure(client.retire_execution(profile,&grant,&claim_request,&no_start).await.map_err(|e|e.code)?.state=="not_started","known fixture no-start did not retire claim")?;
+        ensure(client.retire_execution(profile,&grant,&claim_request,&no_start).await.map_err(|e|e.code)?.settled().is_some_and(|(state,_)|state=="not_started"),"known fixture no-start did not retire claim")?;
         let lost_claim=ExecutionClaimRequest{command_id:"123456789abcdef0123456789abcdef9".into(),manifest_digest:"9".repeat(64),not_after:grant.not_after};
         let claim_worker=client.clone();let claim_profile=profile.to_path_buf();let captured_grant=grant.clone();let captured_request=lost_claim.clone();
         let first_claim=tokio::spawn(async move{claim_worker.claim_execution(&claim_profile,&captured_grant,&captured_request).await});
@@ -1558,7 +1558,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let release=fs::write(root.join("claim-request-release"),b"release original claim");
         let original_claim=first_claim.await?;release?;
         ensure(claim_paused&&matches!(concurrent,Err(e)if e.status==404),"lookup absence did not fence concurrent claim")?;
-        ensure(!original_claim.map_err(|e|e.code)?.acquired,"lost reserve reply authorized a launch from lookup")?;
+        ensure(!original_claim.map_err(|e|e.code)?.acquired(),"lost reserve reply authorized a launch from lookup")?;
         let native=client.native_revision().await.map_err(|e|e.code)?;
         ensure(native.idle&&!native.inhibited,"native effect domain not idle")?;
         let note=Note{issue_id:5,content:"Native controller completion-note qualification".into(),merge_ref:"native-controller-qualification".into()};
@@ -1588,13 +1588,13 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PAYLOAD").is_some() {
             if let Some(worker)=controller_worker(profile,store.clone(),client.clone(),origin,&saved.connection,&grant).await? {
             let retired=client.execution_claim(&grant,&worker).await.map_err(|e|e.code)?;
-            ensure(retired.state=="retired"&&!retired.acquired&&retired.retirement_digest.len()==64,"native physical retirement did not settle the exact host claim")?;
+            ensure(retired.settled().is_some_and(|(state,digest)|state=="retired"&&digest.len()==64),"native physical retirement did not settle the exact host claim")?;
             }
         }
-        ensure(!client.claim_execution(profile,&grant,&lost_claim).await.map_err(|e|e.code)?.acquired,"reopen acquired an old dispatch")?;
+        ensure(!client.claim_execution(profile,&grant,&lost_claim).await.map_err(|e|e.code)?.acquired(),"reopen acquired an old dispatch")?;
         let lost_no_start=ExecutionRetirement{manifest_digest:lost_claim.manifest_digest.clone(),state:"not_started".into(),receipt_digest:"b".repeat(64)};
         client.retire_execution(profile,&grant,&lost_claim,&lost_no_start).await.map_err(|e|e.code)?;
-        ensure(!client.retire_execution(profile,&grant,&lost_claim,&lost_no_start).await.map_err(|e|e.code)?.acquired,"retirement replay acquired dispatch")?;
+        ensure(!client.retire_execution(profile,&grant,&lost_claim,&lost_no_start).await.map_err(|e|e.code)?.acquired(),"retirement replay acquired dispatch")?;
         let placement=client.placement().await.map_err(|e|e.code)?;
         let placement=if placement.state=="retiring" && std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_WITHDRAW").is_some() {placement} else {
             let withdrawal=Selection{command_id:"123456789abcdef0123456789abcdef5".into(),expected_revision:placement.revision,action:"withdraw".into(),not_after:epoch() as i64+120};
@@ -1642,7 +1642,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(!original_grant.active,"retired controller grant regained authority")?;
         ensure(matches!(rebound_client.submit_note(profile,&original_grant,operation,native.revision,not_after,&note).await,Err(error)if error.status==400),"a new connection rebound the old captured source")?;
         let old_claim=rebound_client.execution_claim(&original_grant,&lost_claim).await.map_err(|e|e.code)?;
-        ensure(!old_claim.acquired&&old_claim.retirement_digest==lost_no_start.receipt_digest,"reconnected lookup changed claim retirement or authority")?;
+        ensure(old_claim.settled().is_some_and(|(_,digest)|digest==lost_no_start.receipt_digest),"reconnected lookup changed claim retirement or authority")?;
         let history=rebound_client.recover_note(profile,&original_grant,operation).await.map_err(|e|e.code)?;
         ensure(history.intent_digest==completed.intent_digest&&history.receipt==completed.receipt,"reconnected read changed the original effect")?;
         ensure(fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?==original_intent,"history lookup rewrote the captured source/deadline")?;
