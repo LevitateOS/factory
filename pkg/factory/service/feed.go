@@ -26,6 +26,10 @@ type FeedVisibility func(context.Context, int64) (string, error)
 
 type Feed struct {
 	Store *store.Store
+	// Optional local projection under the request's existing admission. It must
+	// neither refresh provider state nor authorize work. Page supplies fresh
+	// repository visibility brackets around this diagnostic and all details.
+	AllowanceHolds func(context.Context, collaboration.ActorID, collaboration.RepositoryID) ([]FeedAllowanceHold, error)
 }
 
 func feedSubscriber(actor collaboration.ActorID) (string, error) {
@@ -178,29 +182,98 @@ func (f Feed) Page(ctx context.Context, actor collaboration.ActorID, query facto
 		}
 		joined = append(joined, entry)
 	}
+	type repositoryHolds struct {
+		repository int64
+		holds      []FeedAllowanceHold
+	}
+	var diagnostics []repositoryHolds
+	if f.AllowanceHolds != nil {
+		repositories := query.Repositories
+		if !projectScope {
+			subscription, _, err := f.Subscription(ctx, actor)
+			if err != nil {
+				return empty, fmt.Errorf("%w: %w", ErrFeedSubscriptionUnavailable, err)
+			}
+			repositories = factory.ApplyFeedSubscription(query, subscription).Repositories
+		}
+		seen := make(map[int64]bool)
+		for _, repository := range repositories {
+			if seen[repository] {
+				continue
+			}
+			if len(seen) == 8 {
+				break
+			}
+			seen[repository] = true
+			if _, err := readVisible(ctx, repository); errors.Is(err, ErrRepositoryHidden) {
+				continue
+			} else if err != nil {
+				return empty, err
+			}
+			diagnostic := repositoryHolds{repository: repository}
+			holds, err := f.AllowanceHolds(ctx, actor, collaboration.RepositoryID(repository))
+			if err != nil && !errors.Is(err, ErrRepositoryHidden) {
+				return empty, err
+			}
+			if err == nil {
+				if len(holds) > 64 {
+					return empty, ErrFeedUnavailable
+				}
+				for _, hold := range holds {
+					if hold.Repository != strconv.FormatInt(repository, 10) {
+						return empty, ErrFeedUnavailable
+					}
+					if hold.Issue != "" {
+						issue, err := strconv.ParseInt(hold.Issue, 10, 64)
+						if err != nil || issue <= 0 || strconv.FormatInt(issue, 10) != hold.Issue {
+							return empty, ErrFeedUnavailable
+						}
+					}
+				}
+				diagnostic.holds = holds
+			}
+			diagnostics = append(diagnostics, diagnostic)
+		}
+	}
 	// A later post/product/stage read may outlive an earlier repository check.
 	// Seal each distinct repository afresh after ALL assembly, including records
 	// and system posts that did not need the human-post detail reader. Do not
 	// reuse the initial observations at this authority boundary.
 	final := make(map[int64]visibilityObservation)
+	finalVisible := func(repository int64) (visibilityObservation, error) {
+		if err := ctx.Err(); err != nil {
+			return visibilityObservation{}, err
+		}
+		observed, ok := final[repository]
+		if !ok {
+			observed.name, observed.err = visible(ctx, actor, collaboration.RepositoryID(repository))
+			final[repository] = observed
+		}
+		return observed, observed.err
+	}
 	view.Entries = make([]factory.FeedEntry, 0, len(joined))
 	for _, entry := range joined {
-		if err := ctx.Err(); err != nil {
-			return empty, err
-		}
-		observed, ok := final[entry.Repository]
-		if !ok {
-			observed.name, observed.err = visible(ctx, actor, collaboration.RepositoryID(entry.Repository))
-			final[entry.Repository] = observed
-		}
-		if errors.Is(observed.err, ErrRepositoryHidden) {
+		observed, err := finalVisible(entry.Repository)
+		if errors.Is(err, ErrRepositoryHidden) {
 			continue
 		}
-		if observed.err != nil {
-			return empty, observed.err
+		if err != nil {
+			return empty, err
 		}
 		entry.Project = observed.name
 		view.Entries = append(view.Entries, entry)
+	}
+	if f.AllowanceHolds != nil {
+		holds := make([]FeedAllowanceHold, 0)
+		for _, diagnostic := range diagnostics {
+			if _, err := finalVisible(diagnostic.repository); errors.Is(err, ErrRepositoryHidden) {
+				continue
+			} else if err != nil {
+				return empty, err
+			}
+			holds = append(holds, diagnostic.holds...)
+		}
+		view.AllowanceHolds = &holds
 	}
 	if err := ctx.Err(); err != nil {
 		return empty, err

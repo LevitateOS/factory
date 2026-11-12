@@ -117,11 +117,19 @@ commands and newly settled results wake it immediately. To measure idle traffic,
 use two local status snapshots after startup/selection has settled, with no UI
 refreshes between them. Compare semantic reads and suppressions as well as wire
 attempts so a quota refusal is not mistaken for quiet scheduling.
-The Feed also refreshes passively every five minutes; planning and repair
-progress refresh every minute. Explicit refresh and commands remain immediate.
+The Feed also refreshes passively five minutes after its latest page read
+finishes; an explicit refresh resets that wait. Planning and repair progress
+refresh every minute while work is in flight; known settled planning/generation
+states stop polling. Explicit refresh and commands remain immediate.
 Feed assembly observes each repository once before reading details and once
 afterward, regardless of row count. Status/access inner fields share only their
 request's admission; their outer permission checks and every writer remain fresh.
+Native Feed responses include their small local allowance warning, avoiding a
+separate full repository-status request for that notice. The final visibility
+check also seals warnings when the Feed has no rows. Older hosts that omit the
+optional warning field retain their existing status-read behavior. A native CI
+snapshot shares one fresh PR between its review and check projections, removing
+two duplicate PR reads across the before/after snapshots without caching them.
 
 ### Linux execution services
 

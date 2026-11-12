@@ -529,6 +529,13 @@ export class SodaIntent extends LitElement {
       return;
     const accepted = revision.state === 'accepted';
     if (!accepted && (revision.state !== 'draft' || revision.repository === '0')) return;
+    // Settled work changes through an explicit command or refresh. Leaving its
+    // page open must not keep reauthorizing the same remote repository.
+    if (accepted) {
+      if (this.generation?.revision === revision.id &&
+          ['completed', 'refused', 'not_requested'].includes(this.generation.state)) return;
+    } else if (this.plan?.revision === revision.id &&
+        ['none', 'completed', 'attention', 'failed', 'cancelled'].includes(this.plan.state)) return;
     this.progressReading = true;
     try {
       const value = await this.call(

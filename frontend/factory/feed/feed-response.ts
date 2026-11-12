@@ -1,5 +1,6 @@
 import {check, id, object} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
+import type {AllowanceHold} from './allowance.js';
 
 // Combined feed wire contract. The server owns identity, visibility,
 // cursors and every bound on the JSON it sends; the browser reads only
@@ -253,6 +254,7 @@ export interface FeedPayload {
 }
 
 export interface FeedPageView {
+  allowanceHolds?: AllowanceHold[];
   entries: FeedEntry[];
   next: string;
   truncated: boolean;
@@ -304,7 +306,20 @@ export function parseFeedPageView(value: unknown): FeedPageView {
       return [];
     }
   });
-  return {entries, next: typeof data.next === 'string' ? data.next : '', truncated: data.truncated === true};
+  const allowanceHolds = data.allowance_holds === undefined ? undefined : (() => {
+    check(Array.isArray(data.allowance_holds) && data.allowance_holds.length <= 512);
+    return data.allowance_holds.flatMap((raw): AllowanceHold[] => {
+      if (!raw || typeof raw !== 'object') return [];
+      const hold = raw as Record<string, unknown>;
+      if (!id(hold.repository)) return [];
+      const issue = typeof hold.issue === 'string' && id(hold.issue) ? hold.issue : undefined;
+      return [{repository: hold.repository, ...(issue ? {issue} : {})}];
+    });
+  })();
+  return {
+    entries, next: typeof data.next === 'string' ? data.next : '', truncated: data.truncated === true,
+    ...(allowanceHolds === undefined ? {} : {allowanceHolds}),
+  };
 }
 
 export function parseFeedSubscriptionView(value: unknown): FeedSubscriptionView {

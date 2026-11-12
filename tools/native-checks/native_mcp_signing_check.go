@@ -5788,7 +5788,69 @@ func initialIntakeFixture() error {
 		}
 		complete = page
 	}
+	encoded, err := json.Marshal(complete)
+	if err != nil || strings.Contains(string(encoded), `"allowance_holds"`) {
+		return errors.New("host without Feed allowance callback advertised support")
+	}
+	diagnostics, visibility := make(map[collaboration.RepositoryID]int), make(map[collaboration.RepositoryID]int)
+	feed.AllowanceHolds = func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.FeedAllowanceHold, error) {
+		if actor != 7 {
+			return nil, errors.New("Feed allowance diagnostic escaped admitted actor")
+		}
+		diagnostics[repository]++
+		return []factoryservice.FeedAllowanceHold{{Repository: strconv.FormatInt(int64(repository), 10), Issue: "1"}}, ctx.Err()
+	}
+	configuredVisible := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
+		visibility[repository]++
+		return "Declared visible repository", ctx.Err()
+	}
+	configured, err := feed.Page(ctx, 7, query, false, configuredVisible, posts)
+	if err != nil || configured.AllowanceHolds == nil || len(*configured.AllowanceHolds) != 2 || diagnostics[42] != 1 || diagnostics[43] != 1 || visibility[42] != 2 || visibility[43] != 2 {
+		return fmt.Errorf("Feed local allowance projection added visibility reads: diagnostics=%v visibility=%v err=%v", diagnostics, visibility, err)
+	}
+	if err := feed.SaveSubscription(ctx, 7, 1, factory.FeedSubscription{Repositories: []int64{42}}); err != nil {
+		return err
+	}
+	diagnostics, visibility = make(map[collaboration.RepositoryID]int), make(map[collaboration.RepositoryID]int)
+	subscribed, err := feed.Page(ctx, 7, query, false, configuredVisible, posts)
+	if err != nil || subscribed.AllowanceHolds == nil || len(*subscribed.AllowanceHolds) != 1 || diagnostics[42] != 1 || diagnostics[43] != 0 || visibility[42] != 2 || visibility[43] != 0 {
+		return fmt.Errorf("Feed diagnostic exceeded effective subscription: diagnostics=%v visibility=%v err=%v", diagnostics, visibility, err)
+	}
+	if err := feed.SaveSubscription(ctx, 7, 2, factory.FeedSubscription{Repositories: []int64{42, 43}}); err != nil {
+		return err
+	}
 	unknownVisibility := errors.New("declared current provider authority unavailable")
+	for _, unknown := range []bool{false, true} {
+		reads, projected := 0, false
+		feed.AllowanceHolds = func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.FeedAllowanceHold, error) {
+			projected = true // Declared withdrawal during local diagnostic assembly.
+			return []factoryservice.FeedAllowanceHold{{Repository: "44", Issue: "1"}}, ctx.Err()
+		}
+		page, err := feed.Page(ctx, 7, factory.FeedQuery{Repositories: []int64{44}, Limit: 20}, true, func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
+			reads++
+			if projected {
+				if unknown {
+					return "", unknownVisibility
+				}
+				return "", factoryservice.ErrRepositoryHidden
+			}
+			return "Declared visible empty repository", ctx.Err()
+		}, posts)
+		if reads != 2 || !projected || len(page.Entries) != 0 {
+			return errors.New("empty Feed skipped the fresh final diagnostic visibility bracket")
+		}
+		if unknown {
+			if !errors.Is(err, unknownVisibility) || page.AllowanceHolds != nil {
+				return errors.New("unknown empty-Feed final authority exposed allowance diagnostics")
+			}
+		} else {
+			encoded, encodeErr := json.Marshal(page)
+			if err != nil || encodeErr != nil || page.AllowanceHolds == nil || len(*page.AllowanceHolds) != 0 || !strings.Contains(string(encoded), `"allowance_holds":[]`) {
+				return errors.New("withdrawn empty Feed did not emit supported-empty allowance holds")
+			}
+		}
+	}
+	feed.AllowanceHolds = nil
 	for _, unknown := range []bool{false, true} {
 		reads := make(map[collaboration.RepositoryID]int)
 		page, err := feed.Page(ctx, 7, query, false, func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
@@ -5816,6 +5878,7 @@ func initialIntakeFixture() error {
 			}
 		}
 	}
+	fmt.Println("PASS: configured Feed allowance diagnostics add no per-row/per-repository visibility reads, respect the effective subscription, and seal holds even on an empty page; declared withdrawal during local projection omits all holds with explicit supported-empty [], unknown authority refuses the response, and callback absence omits the field. No provider or inference effect.")
 	fmt.Println("PASS: real PostgreSQL Feed/Post page assembly makes exactly two current visibility observations per distinct repository regardless of row count, repeats both for every response, uses fresh final names, filters all rows after final withdrawal without changing cursors, and refuses the entire page on unknown final authority. Provider authority changes declared; no inference/native/provider effect.")
 	fmt.Println("PASS: creator permission revoked during controlled evidence I/O refuses initial acceptance without a decision/head; a fresh authorized read recovers the same original issue (provider permission declared; actual coordinator/PostgreSQL)")
 	fmt.Println("PASS: same-account human intake, replay, unknown-result hold, retained origin after edit, recursion refusal and unrelated issue admission (declared provider facts; actual coordinator/PostgreSQL)")
@@ -13690,7 +13753,8 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		return err
 	}
 	var calls atomic.Int64
-	var deny atomic.Bool
+	var denyAt atomic.Int64
+	var denied atomic.Int64
 	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var command struct {
 			Operation string
@@ -13710,7 +13774,8 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		case command.Call.Kind == "read" && command.Call.Query.Kind == "identity":
 			observation = map[string]any{"kind": "identity", "account": account}
 		case command.Call.Kind == "read" && command.Call.Query.Kind == "repository" && command.Call.Query.Repository == "123":
-			if calls.Add(1) == 4 && deny.Load() {
+			if calls.Add(1) == denyAt.Load() {
+				denied.Add(1)
 				w.WriteHeader(404)
 				json.NewEncoder(w).Encode(map[string]string{"error": "github_not_visible"})
 				return
@@ -13781,20 +13846,37 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	for _, suffix := range []string{"", "/access"} {
 		for _, withdrawn := range []bool{false, true} {
 			calls.Store(0)
-			deny.Store(withdrawn)
+			denyAt.Store(0)
+			if withdrawn {
+				denyAt.Store(4)
+			}
 			status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory%s", repository, suffix))
 			if err != nil || calls.Load() != 4 || !withdrawn && status != 200 || withdrawn && status == 200 {
 				return fmt.Errorf("request-owned repository capture suffix=%q withdrawn=%t calls=%d status=%d: %w", suffix, withdrawn, calls.Load(), status, err)
 			}
 		}
 	}
+	for _, withdrawn := range []bool{false, true} {
+		calls.Store(0)
+		denied.Store(0)
+		denyAt.Store(0)
+		if withdrawn {
+			denyAt.Store(3)
+		}
+		status, body, err := read(fmt.Sprintf("/api/factory/feed?repositories=%d&limit=20&scope=project", repository))
+		holds, explicit := body["allowance_holds"].([]any)
+		entries, page := body["entries"].([]any)
+		if err != nil || status != 200 || calls.Load() != 3 || !explicit || len(holds) != 0 || !page || len(entries) != 0 || withdrawn && denied.Load() != 1 || !withdrawn && denied.Load() != 0 {
+			return fmt.Errorf("request-owned Feed capture withdrawn=%t calls=%d denied=%d status=%d explicit=%t page=%t: %w", withdrawn, calls.Load(), denied.Load(), status, explicit, page, err)
+		}
+	}
 	calls.Store(0)
-	deny.Store(false)
+	denyAt.Store(0)
 	status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory", repository+1))
 	if err != nil || status != 404 || calls.Load() != 1 {
 		return fmt.Errorf("read capture expanded canonical repository: status=%d calls=%d: %w", status, calls.Load(), err)
 	}
-	fmt.Println("PASS: actual Go native HTTP/PG status and access use four fresh repository reads each; inner request-owned callbacks add none, final visibility withdrawal refuses, and foreign actor/repository scope cannot use the capture. Native provider replies declared; no coordinator Start, provider, model or execution.")
+	fmt.Println("PASS: actual Go native HTTP/PG status/access use four fresh repository reads, and empty Feed with explicit allowance_holds uses three including final visibility; inner callbacks add none, final withdrawal exposes no rows/advisory, and foreign actor/repository scope cannot use the capture. Native provider replies declared; no coordinator Start, provider, model or execution.")
 	return nil
 }
 

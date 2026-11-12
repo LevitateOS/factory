@@ -1843,6 +1843,23 @@ measurement until first expiry09:35:01Z/all debits09:39:33Z on2026-11-12. After
 once, measure settled quiet traffic through local status snapshots, then trace
 the original merge using its retained ready decision. Never delete/reset/copy
 around the hold. Genuine user-side provider revocation is separately pending.
+The owner's further request minimization removes the separate full status HTTP
+read after every native Feed page (up to8 followed repositories). A bounded local
+allowance-only projection shares the request admission and the Feed's separate
+fresh final visibility seal, including empty pages; subscription scope is retained.
+Older hosts omit this optional field and keep their previous UI fallback. Feed
+passive refresh now waits5min after completion rather than running on an interval;
+known settled plan/generation pages stop minute polling. Native CI snapshots
+share their fresh PR between projections, eliminating2 duplicate PR GETs per
+automation-check read while retaining full paired snapshots and permission guards.
+`request68-{native-feed,feed-holds}-pg.log` pass actual native HTTP/PG count,
+subscription, empty/advisory withdrawal, unknown refusal and compatibility cases
+with declared provider replies. `request68-native-check.log`, final UI typecheck,
+Lit and build logs pass offline. Backend `lean-feed-server` builds as
+SHA256a6c0f8f14ae3764d387418160b4750a0fbdfbfd63a0e624ebd0ae0f1704737a1.
+No GitHub/model/app action was needed for these checks. Matching installed assets
+and positive quiet-traffic qualification remain distinct requirements; preserve
+the original budget/receipts and the09:40Z retry boundary above.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation

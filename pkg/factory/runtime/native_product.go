@@ -84,7 +84,26 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 			nativeProductUnavailable(w)
 			return false
 		},
-		Feed:     factoryhttp.Feed{Service: factoryservice.Feed{Store: application.Store}, Posts: posts, Visibility: bound.visibility},
+		Feed: factoryhttp.Feed{Service: factoryservice.Feed{Store: application.Store,
+			AllowanceHolds: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.FeedAllowanceHold, error) {
+				if err := view.visible(ctx, actor, repository); err != nil {
+					return nil, err
+				}
+				var holds []factoryservice.FeedAllowanceHold
+				if observation := application.Coordinator.LatestDispatchObservation(int64(repository)); observation != nil {
+					for _, wait := range observation.Waits[:min(len(observation.Waits), 64)] {
+						if !wait.CoderTime || wait.Reason != control.WaitAllowance {
+							continue
+						}
+						hold := factoryservice.FeedAllowanceHold{Repository: strconv.FormatInt(int64(repository), 10)}
+						if wait.Issue > 0 {
+							hold.Issue = strconv.FormatInt(wait.Issue, 10)
+						}
+						holds = append(holds, hold)
+					}
+				}
+				return holds, ctx.Err()
+			}}, Posts: posts, Visibility: bound.visibility},
 		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
 			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.visible,
@@ -237,7 +256,7 @@ type nativeProductAccount struct {
 	binding    collaboration.ConnectionBinding
 	repository *collaboration.RepositoryRef
 	controller *nativeControllerGrant
-	// Set only on the read-only RepositoryStatus/Access callback clone.
+	// Set only on read-only RepositoryStatus/Access and Feed diagnostic callbacks.
 	readAdmission *NativeRepository
 }
 

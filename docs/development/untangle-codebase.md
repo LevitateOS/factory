@@ -885,6 +885,17 @@ is resolved by joined process/socket retirement. `goal67-budget-restart.json` an
 running. Next: positive quiet-volume qualification after the original600 debits
 expire09:39:33Z (2026-11-12), using09:40Z as the safe retry time, then the original
 merge's retained ready decision. Preserve the hold; no budget reset or paid replay.
+The further request-minimization slice joins the Feed's local allowance-only
+warning into its existing visibility-bracketed response, eliminating a separate
+full status HTTP request per followed repository. Explicit[] prevents fallback;
+older hosts omit the field. Empty pages also get a fresh final seal. Feed's5min
+wait starts after completion; settled planning/generation stops minute polling.
+Native CI shares one fresh PR between projections within each paired snapshot,
+saving2 PR GETs per semantic check read. No cross-request cache or write-guard
+relaxation. Real native HTTP/PG count/subscription/withdrawal/empty/unknown cases
+and Rust/UI builds/checks pass offline (`request68-*`); no GitHub/model call.
+Matching installed qualification and original-budget quiet-volume measurement
+remain pending; this source pass does not claim connected completion.
 No original operation or paid receipt changed.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.

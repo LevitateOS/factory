@@ -85,6 +85,9 @@ impl Reader<'_> {
     }
     async fn automation_review_snapshot(&self, number: u64) -> Result<Value> {
         let pull = self.raw_subject(true, number).await?;
+        self.automation_review_for_pull(number, &pull).await
+    }
+    async fn automation_review_for_pull(&self, number: u64, pull: &Value) -> Result<Value> {
         let head = r::nonempty(&pull["head"], "sha")?;
         let base = r::nonempty(&pull["base"], "sha")?;
         let head_ref = r::nonempty(&pull["head"], "ref")?;
@@ -229,7 +232,10 @@ impl Reader<'_> {
     }
     pub(super) async fn check_evaluation(&self, number: u64) -> Result<Value> {
         let raw = self.raw_subject(true, number).await?;
-        let mut binding = self.protection_binding(&raw)?;
+        self.check_evaluation_for_pull(number, &raw).await
+    }
+    async fn check_evaluation_for_pull(&self, number: u64, raw: &Value) -> Result<Value> {
+        let mut binding = self.protection_binding(raw)?;
         let query = "query FactoryCheckEvaluation($pull:ID!){node(id:$pull){__typename ... on PullRequest{id number repository{id} headRefOid baseRefOid potentialMergeCommit{oid parents(first:2){nodes{oid}}}}}}";
         let token = zeroize::Zeroizing::new(self.token.to_vec());
         let variables = json!({"pull":r::text(&raw,"node_id")?});
@@ -265,10 +271,13 @@ impl Reader<'_> {
     }
 
     pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
+        // Both projections bind the same fresh PR; automation_checks still
+        // repeats the complete snapshot after its repository permission check.
+        let pull = self.raw_subject(true, number).await?;
         let (mut snapshot, (binding, evaluation, sources)) = tokio::try_join!(
-            self.automation_review_snapshot(number),
+            self.automation_review_for_pull(number, &pull),
             async {
-                let binding = self.check_evaluation(number).await?;
+                let binding = self.check_evaluation_for_pull(number, &pull).await?;
                 let (evaluation, sources) = self.evaluation_sources(&binding).await?;
                 Ok((binding, evaluation, sources))
             }

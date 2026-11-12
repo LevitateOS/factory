@@ -118,7 +118,7 @@ export class SodaFactoryFeed extends LitElement {
   private rechecking = false;
   private serial = 0;
   private reading: number | undefined;
-  private refreshTimer: ReturnType<typeof setInterval> | undefined;
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private drafts = new Map<string, string>();
   private revisionEditor = new FeedRevisionEditor('');
   private threads = new Map<string, Thread>();
@@ -182,7 +182,7 @@ export class SodaFactoryFeed extends LitElement {
       (context?.transport.generation ?? '') === this.generation
     )
       return;
-    clearInterval(this.refreshTimer);
+    clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
     this.serial++;
     this.reading = undefined;
@@ -233,11 +233,15 @@ export class SodaFactoryFeed extends LitElement {
   }
 
   private startPolling() {
-    if (this.refreshTimer || this.accessFailure) return;
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = undefined;
+    if (!this.current || this.accessFailure) return;
     // Feed/status reads revalidate provider access. Passive discovery follows
     // the background cadence; explicit refresh and posting remain immediate.
-    this.refreshTimer = setInterval(() => {
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = undefined;
       if (this.isConnected && document.visibilityState === 'visible' && !this.view.busy) void this.readLatest(false);
+      else this.startPolling();
     }, 300000);
   }
 
@@ -252,7 +256,7 @@ export class SodaFactoryFeed extends LitElement {
     this.rechecking = false;
     this.serial++;
     this.reading = undefined;
-    clearInterval(this.refreshTimer);
+    clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
     this.lifetime.abort();
     this.lifetime = new AbortController();
@@ -418,6 +422,8 @@ export class SodaFactoryFeed extends LitElement {
       return;
     }
     this.reading = serial;
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = undefined;
     this.view = {...this.view, busy: true, readFailed: false, message: this.view.readFailed ? '' : this.view.message};
     const anchor = Array.from(this.querySelectorAll<HTMLElement>('.soda-feed-post')).find(
       (el) => el.getBoundingClientRect().bottom > 0
@@ -427,7 +433,6 @@ export class SodaFactoryFeed extends LitElement {
       const page = parseFeedPageView(await this.readJSON(context, this.feedPath('')));
       if (!this.live(serial)) return;
       this.accessFailure = undefined;
-      this.startPolling();
       const focused = this.focusedEntry;
       if (focused) {
         const fresh = page.entries.find((entry) => feedEntryKey(entry) === feedEntryKey(focused));
@@ -459,6 +464,7 @@ export class SodaFactoryFeed extends LitElement {
         truncated: this.view.pagedBack ? this.view.truncated : page.truncated,
         confirmedUnix: Math.floor(Date.now() / 1000),
         message,
+        ...(page.allowanceHolds === undefined ? {} : {allowance: page.allowanceHolds}),
       };
       if (anchor && anchorTop !== undefined) {
         await this.updateComplete;
@@ -469,7 +475,9 @@ export class SodaFactoryFeed extends LitElement {
           else window.scrollBy({top: delta});
         }
       }
-      void this.readAllowance(serial);
+      // New hosts return the local advisory inside this already-authorized
+      // page. An explicit empty list also avoids a separate full status read.
+      if (page.allowanceHolds === undefined) void this.readAllowance(serial);
       for (const key of this.openDrawers) {
         const entry = this.entryForKey(key);
         if (entry && !this.threads.get(key)?.pagedOlder) void this.loadReplies(entry);
@@ -483,7 +491,10 @@ export class SodaFactoryFeed extends LitElement {
           message: error instanceof Error ? error.message : 'The combined feed is unavailable.',
         };
     } finally {
-      if (this.reading === serial) this.reading = undefined;
+      if (this.reading === serial) {
+        this.reading = undefined;
+        if (this.live(serial)) this.startPolling();
+      }
     }
   }
 
