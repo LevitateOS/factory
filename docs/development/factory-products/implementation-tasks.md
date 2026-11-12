@@ -1769,14 +1769,30 @@ stay exact; setup/execution authority is not renewed. The final affected Rust
 typecheck passes (`retired-corrected-context-rust-final-check.log`). Existing
 native context assertions include prior-instance reads and unchanged source;
 their runtime execution awaits matching app/broker/preparer/context-unit assets.
-**Q17 remains INCOMPLETE:** install the matching64 assets and recover the original
-correction publication, then real CI and paid delivery judgment/reinspection.
-Normal Quit63 confirms all process/socket retirement. No role is running; never
-renew old send authority or repeat the successful Fixer. Installed56
+Installed64/source5336f457 applies the exact-prior app/helper upgrade, preserving
+the original execution manifestd7311d18 and installing2697ff1c. Native correction
+operation`soda-2a2ae20a06be4623917f1204ec96f3c1-publish-2` commits once07:22:58Z,
+with exact-old-head/fork/source/actor/consent receipt and complete reconciliation.
+Real CI43174849337/job131036496761/app15368 succeeds on390aaf41. The read-only
+actual native context request succeeds using the original62 preparation/address,
+with unchanged stored preparation and no setup/model. The owner-approved fixture
+admin grant is guarded and restored to write/admin=false. Real funded decision
+892ed414a044433dd448e6d29a25ba7f selects ready_to_merge at0.92 and records
+acceptance06d87b1343fd13593c6af45c2185871f at07:32:36Z, binding original Inspector,
+corrected tuple, complete material, CI and policy10. Fingerprint657d3d427aef97cae74427424a1aa0c1860df6fffab3d94edad26a13a223804c
+and the one-minute charge remain retained; total245. Evidence:
+`goal64-correction-ci-paid-delivery.json`.
+**Q17 remains INCOMPLETE:** original merge31019ff6 remains open/unbound with
+zero attempts/no operation; current funded-acceptance admission reports
+funded_delivery_unavailable despite the saved ready decision. Trace that join
+and reuse the original receipt, without another model call. Normal Quit64 resolves
+its lost reply through joined app/backend/PG/Muse/socket retirement. No role or
+check is running. Never renew an old send deadline or replay the Fixer. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.
-Saved credentials and the244-minute charge remain. Exact release/check inputs
-are retained outside Git; no connected context/CI/judgment pass is claimed yet.
+Saved credentials remain. Exact release/check inputs are retained outside Git;
+current native context, fork publication, CI and paid decision pass their scopes,
+but the full fork/merge and installed withdrawal/revocation gates remain open.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

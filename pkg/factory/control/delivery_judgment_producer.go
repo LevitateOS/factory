@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"log"
 	"reflect"
 	"strconv"
 	"time"
@@ -252,7 +253,13 @@ func (c *Coordinator) reconcileDeliveryResolution(ctx context.Context, p *factor
 // currentFundedDeliveryAcceptance re-composes the same semantic evidence on
 // merge admission. Expected resolution effects may advance native revision;
 // any other change prevents reuse without another valid decision.
-func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication) (*factory.DeliveryAcceptance, factory.DeliveryDecision, error) {
+func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication) (_ *factory.DeliveryAcceptance, _ factory.DeliveryDecision, resultErr error) {
+	stage, fingerprint, started := "acceptance", "", time.Now()
+	defer func() {
+		if resultErr != nil && factory.ValidID(p.ID) {
+			log.Printf("funded delivery admission publication=%q revision=%d stage=%q fingerprint=%q context_done=%t elapsed_ms=%d", p.ID, p.Revision, stage, fingerprint, ctx.Err() != nil, time.Since(started).Milliseconds())
+		}
+	}()
 	basis, err := c.deliveryReviewEvidence(ctx, p)
 	if err != nil || c.Planning == nil {
 		return nil, factory.DeliveryDecision{}, nil
@@ -260,28 +267,34 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 	if !hasFundedDeliveryAcceptance(p) {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
+	stage = "chooser"
 	chooser, boundRevision, err := c.deliveryChooser(ctx, p.Repository)
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
+	stage = "material"
 	material, cycle, policy, err := c.deliveryMaterial(ctx, p, basis.review, chooser.DeliveryModel())
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, err
 	}
+	stage = "validation"
 	if boundRevision != 0 && boundRevision != policy.Revision {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
 	if err := material.validate(); err != nil {
 		return nil, factory.DeliveryDecision{}, err
 	}
-	fingerprint, err := factory.DeliveryFingerprint(material.Input)
+	stage = "fingerprint"
+	fingerprint, err = factory.DeliveryFingerprint(material.Input)
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, err
 	}
+	stage = "receipt"
 	receipt, err := c.Store.DeliveryJudgment(ctx, fingerprint)
 	if err != nil || !receipt.CurrentFor(fingerprint) || receipt.Decision.Effective != factory.DeliveryEffectiveReady {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
+	stage = "acceptance"
 	for _, acceptance := range p.DeliveryAcceptances {
 		if acceptance.Kind != factory.AcceptanceJevAcceptance || acceptance.Round != cycle.Round || acceptance.DecisionID != deliveryContentDigest("soda-funded-delivery-v1:" + fingerprint)[:32] {
 			continue

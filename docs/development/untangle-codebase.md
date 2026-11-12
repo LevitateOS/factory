@@ -829,12 +829,31 @@ setup receipt, native address, process/custody and deadline remain authoritative
 Affected Rust typecheck passes retired-corrected-context-rust-final-check.log.
 Existing native integration assertions cover live and prior-instance context,
 refusals and unchanged source; runtime qualification awaits matching64 assets.
-**Next executable action:** build/install64's matching app/broker/preparer/context
-unit and backend, then recover this original correction publication. Reuse the
-successful Fixer/candidate/original review; never renew old send deadlines.
-Normal Quit63 retires app/backend/PG/Muse/socket; no role is running, usage244.
-Real branch publication/CI/paid judgment/reinspection remain unqualified.
-Credentials/profile and original uncertain outcomes stay exact.
+Actual installed64/source5336f457 app/backend/broker/preparer/context unit pass
+the exact-prior upgrade; prior execution manifestd7311d18 remains and current
+manifest is2697ff1c. The original correction registers/publishes once07:22:58Z:
+soda-2a2ae20a06be4623917f1204ec96f3c1-publish-2, causal receipt binds old31fe/new390a,
+base db730, exact fork1454291951/PR62, actor353332758 and original explicit consent.
+Real CI43174849337/job131036496761/app15368 succeeds07:23:07Z. A read-only actual
+native request reads the retired62 recipe/candidate with its original address
+and unchanged stored preparation. Real NativeMerges material is complete/eligible.
+An explicitly approved, timed fixture-only admin grant exposes classic protection
+for this check, then restores write/admin=false; no privilege remains elevated.
+The original real Jev call at07:32:36Z selects ready_to_merge with0.92 confidence,
+decision892ed414a044433dd448e6d29a25ba7f and acceptance06d87b1343fd13593c6af45c2185871f.
+Its exact fingerprint657d3d427aef97cae74427424a1aa0c1860df6fffab3d94edad26a13a223804c
+binds original Inspector9c79, corrected tuple/complete material/checks/policy10.
+One original-source minute raises244→245; no planning/Builder/Inspector/Fixer
+replay occurs. `goal64-correction-ci-paid-delivery.json` retains exact inputs.
+**Next executable action:** trace original merge31019ff6's funded acceptance join.
+It still reports funded_delivery_unavailable despite that receipt; it remains
+open/unbound, attempts0/no operation, so no merge send is claimed. Reuse the saved
+decision and candidate, never repeat inference or renew an old send deadline.
+Normal Quit64 joins app/backend/PG/Muse/socket retirement after0 active/unsettled
+runs and245 minutes. No check is running; current code5336f45 is clean/pushed.
+Owned edits are these current evidence updates; source diagnosis continues.
+Credentials/profile/original uncertain outcomes stay exact. Remaining installed
+source withdrawal and user-side remote revocation keep their existing scopes.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
 user-side GitHub revocation is pending. Earlier55 evidence remains preserved.
 The existing initial-intake fixture additionally passes creator withdrawal
