@@ -6,9 +6,10 @@
 INCOMPLETE. Fountain and user-started Daybreak are excluded. Completed below:
 retained genuine Inspector → Fixer → re-inspection → current-CI/allowed-merge
 journey. The actual next Architect/Builder also succeeded at that merged result.
-Remaining: final connected merge of the fork candidate using its retained paid
-delivery judgment/acceptance, required installed
-withdrawal/revocation/I/O and remaining update activation/retirement composition.
+Remaining: required installed withdrawal/revocation/I/O and remaining update
+activation/retirement composition, plus scoped completion reconciliation.
+The fork candidate's retained paid-decision merge now commits and reconciles;
+see the installed volume qualification below for its current receipt and limits.
 Reuse valid scoped evidence; a second forced correction cycle is unnecessary.
 
 **Retained cycle completed.** Original root `b191af3f22ad4122b1e7b28956571c03`,
@@ -5737,4 +5738,45 @@ the first fixture attempt's mismatched harness/tool label is preserved in
 request106-progress-pg.log. No model/live provider effect ran in those checks.
 Next: install this backend-only correction over97, measure the same Work page,
 then retry the retained candidate through a fresh finite merge command and
-capture its complete live traffic/causal receipt. Whole volume scope remains open.
+capture its complete live traffic/causal receipt. Whole volume scope remains open
+at this intermediate checkpoint.
+
+**Measured volume scope qualified.** Installed108 (backend c4dba2ae4506b11250bfeab6f4b605013f313e83,
+inventory7ef75b6c281c0d1a88c040afd735164ae6c1e698f28d7a0e6b209e4bb52bbbe0)
+upgrades exact97; the original budget is byte-identical across installation
+(package108-*). Same Feed navigation32; Work34 additional versus40 before the
+fix. The322.445s funded-idle sample's24 scheduled calls remains applicable:
+the changed path is explicit run-status admission, not passive scheduling.
+
+Fresh normal-UI merge command1bc6784ba2c541b399e0b22a5b6a9bb6 binds generation3
+operation soda-2a2ae20a06be4623917f1204ec96f3c1-merge-generation-3, preserving old
+261f…/generation2 and its cancelled receipt/deadline. Original fingerprint657d3d42…c804c,
+paid decision892ed414…5ba7f, acceptance06d87b13…5871f, reviewed head390aaf41…455e
+and basedb730481…a34 are reused without model replay. Its one causal GraphQL
+receipt commits PR62 at2026-11-12T23:27:32Z, result
+2513e1d640756e2e79d99b9398d846f7de5784db. Initial completion observation returned
+native_unavailable; its transient cause is not established. A read-only diagnostic
+of that same production adapter then confirms merged/base containment, original
+issue closure occurrence7404 and current completion. The installed coordinator's
+normal next pass adopts the original receipt as merged/revision8, with245 source
+minutes and0 active runs. No second merge command, authority renewal or model run.
+Fixture-only admin is restored to write/admin=false; guard joined.
+
+Actual108 counters: navigation66; command plus initial completion192; diagnostic
+original completion20; automatic recovery plus normal background51; final Work
+refresh28; total357. Earlier105 comparison/idle96 plus5 guard API calls make458
+real GitHub calls in this qualification. No suppressed calls or provider/local
+ceiling was reached (retained used509/600 at stop). These are measured counts,
+not a claim of optimal volume or qualification for arbitrary repository/load
+counts. The final semantic tree confirms the same route, settled refresh and no
+new merge offer; it does not capture static Delivered prose, so no separate
+visual assertion is claimed. Final UI refresh does not replay delivery.
+
+Exact private evidence: goal108-volume.json, goal108-merge-progress-2.log,
+goal109-original-completion.json, goal108-merge-recovery2.log,
+goal108-final-tree-raw.json, goal76-final108.json, goal105-fixture-admin.log and
+goal108-retirement.log under factory-real-cycle-20261110. Normal Quit's lost reply
+resolves through socket/PostgreSQL retirement. No owned app/check/guard or
+uncertain new effect remains. Current task1 is complete within this measured
+installed fixture scope; other GitHub/Muse tasks and whole-product security
+closure remain open. Next uses the original merged receipt, never another send.

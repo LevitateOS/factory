@@ -38,29 +38,35 @@ contracts and zero-call receipt recovery after credential withdrawal/restart,
 not a new Muse Builder run or a new connected merge. Exact identities and
 artifacts remain in the [active evidence ledger](../untangle-codebase.md#retained-review-recovery-fix-2026-11-11).
 
-- [ ] **1. Qualify complete installed GitHub request volume.** Existing reductions
-  are implemented (`006b50a`, `72aa783`, `a6a2cc2`); the complete controlled native
-  merge/recovery check is `ad6dc4c`. Measure actual startup/navigation, funded
-  quiet operation, held/retried work and a successful merge using local traffic
-  counters. The simulated204-call journey and latest56-call navigation do not
-  establish acceptable full installed volume. Trace and fix concrete remaining
-  amplification before more live attempts. At the last stop the retained journal
-  had471/600 debits; no live operation was authorized on its insufficient
-  remaining capacity. Never wait for quota, reset journals or rotate accounts.
-  This admission requirement affects connected checks below, not local code work.
+- [x] **1. Qualify complete installed GitHub request volume.** Qualified for the
+  retained single-repository fixture on installed108/backend `c4dba2a`:
+  startup0, Feed32, Work34 additional (40 before the fix), funded idle24/322.445s,
+  merge command/initial completion192, diagnostic original completion20,
+  automatic reconciliation/background51 and final Work refresh28. Current
+  installed journey357 calls, with0 suppressed and one causal merge; baseline
+  comparison96 plus fixture permission guard5 make458 calls for this qualification.
+  Original merge reconciliation ends merged/revision8, source245/active0;
+  no new inference or quota waiting/reset/rotation. Exact phase counters,
+  installed inputs, original receipt and limits:
+  [volume evidence](../untangle-codebase.md#installed-github-volume-qualification-2026-11-13-active).
+  This qualifies the measured fixture, not arbitrary repository count or load.
+  Remaining automated/installed/security scopes below stay open. Reuse the
+  qualified reductions and controlled check (`006b50a`, `72aa783`, `a6a2cc2`,
+  `ad6dc4c`) alongside this current connected evidence. Continue measuring later
+  affected paths locally; never wait for quota, reset journals or rotate accounts.
+  Admission remains required before any later connected check.
 
-- [ ] **2. Finish PR62's real paid-decision → merge → completion path (Q15/Q17).**
-  Recover current provider facts and original receipts first. The original
-  allocated merge `261f778c1a874f3c9e0cbbd1989249c4` is definitively cancelled
-  before dispatch, with its original work/deadline preserved. Use a fresh finite
-  explicit merge command for the retained corrected candidate and paid decision;
-  never renew that cancelled command. Prove one causal merge receipt, exact
-  reviewed head versus resulting commit, base containment, issue closure and
-  final UI/accounting reconciliation. Use the already authorized fixture-only
-  permission guard and restore write on success or failure. Reuse planning,
-  Builder, Inspector, Fixer and paid judgment; this item needs no new inference
-  while their evidence remains applicable. Changed material must hold rather
-  than silently spend again. Charge at last read:245 minutes,0 active runs.
+- [ ] **2. Finish PR62's completion evidence reconciliation (Q15/Q17).** Its real
+  paid-decision merge now commits and reconciles through installed108:
+  command `1bc6784ba2c541b399e0b22a5b6a9bb6`, generation3, result
+  `2513e1d640756e2e79d99b9398d846f7de5784db`. Original head/base, causal receipt,
+  base containment, issue closure,245 charged minutes/0 active runs and restored
+  fixture write permission are proved in item1's evidence. Original cancelled
+  `261f778c1a874f3c9e0cbbd1989249c4` and all prior paid work stay preserved.
+  Remaining: confirm the installed presentation's static Delivered/closure text
+  (the semantic control tree does not expose it), and join these exact receipts
+  into Q15/Q17's full scoped completion records. Do not issue another merge or
+  model call for this already merged candidate.
 
 - [ ] **3. Close automatic own-issue intake through delivery (Q16/Q26).** Polling,
   cursors, original creation/creator checks and pagination have scoped evidence;
