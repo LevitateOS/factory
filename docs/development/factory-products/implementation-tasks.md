@@ -1732,13 +1732,22 @@ uses this final common-helper backend with native59/UI unchanged.
 The separate execution-retry native-check assertion follows readiness and passes
 the affected pinned-compiler typecheck (`request60-execution-retry-check.log`);
 its UI scenario was not rerun and native59 stays unchanged.
-**Q17 remains INCOMPLETE:** exact-prior60-to61 install, then one fresh bounded
+Installed61/source74a1bdc proves the running backend is the qualified a6cf837c
+binary. The read-only actual store offer is positive for3662, same source15/2/1;
+the UI hides it behind that publication's withdrawn zero-send draft merge0c57fe42.
+The shared UI now exposes funding as a separate explicit action alongside merge/
+review recovery. Both retain the existing single pending-command journal; an
+unknown reply cannot select another action or identity. Typecheck, Lit validation,
+production UI build and `request63-retained-ui.log` pass both-offer, exact-source/
+bounds, double-click and remount/same-command recovery. Actual61 sends no new
+command or inference; usage237. Details: `goal61-funding-offer-and-ui.json`.
+**Q17 remains INCOMPLETE:** exact-prior61-to62 UI-only install, then one fresh bounded
 fork correction using the preserved original Architect/Inspector and finding.
 Actual successful Fixer/judgment/reinspection/CI remains required. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.
-Normal Quit60 confirms all process/socket retirement; saved credentials remain.
-No role/check is running; package61 installation is the next owned work.
+Normal Quit61 retires the selected app; verify process/socket retirement before
+package62 installation. Saved credentials remain. No role/check is running.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

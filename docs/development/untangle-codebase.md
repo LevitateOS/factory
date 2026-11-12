@@ -791,11 +791,22 @@ Check-only019f595 aligns execution-retry's assertion with known readiness;
 request60-execution-retry-check.log typechecks the affected native-ui/native-check
 binary using pinned stable Rust. The first compiler-path/cache mismatch is kept
 in its separate failure log. No cache cleaning, native rebuild or UI rerun.
-**Next executable action:** install backend-only61 over60, reusing native59/UI,
+Installed61/source74a1bdc reaches Ready. `/proc` confirms the running backend is
+the exact a6cf837c binary. The exported read-only store diagnostic admits3662's
+fresh source15/2/1 funding offer. UI still masks it behind that publication's
+withdrawn zero-send merge0c57fe4278cd7775f7b7efcfe2e3932a. Shared retained-publication
+now presents a separate explicit funding action alongside existing merge/review
+recovery, with exact limits/source. The single pending journal still fences
+unknown sends and preserves the original action/identity. Typecheck, Lit,
+production shared UI build and request63-retained-ui.log pass both-offer funding,
+duplicate suppression and identical-command recovery across remount. Evidence:
+goal61-funding-offer-and-ui.json; no new command/inference/charge on61, usage237.
+**Next executable action:** install UI-only62 over61, reusing native59/backend61,
 then one fresh bounded fork continuation using original Architect/Inspector and
 finding. Actual successful Fixer/judgment/reinspection/CI stays unqualified.
-No role/check is running. Package61 installation is next; saved credentials,
-profile and original receipts stay.
+No role/check is running. Quit61 was sent normally; observe original process/
+socket retirement before package62 installation. Saved credentials, profile and
+original receipts stay.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
 user-side GitHub revocation is pending. Earlier55 evidence remains preserved.
 The existing initial-intake fixture additionally passes creator withdrawal

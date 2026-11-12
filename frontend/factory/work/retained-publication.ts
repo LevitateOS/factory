@@ -58,6 +58,11 @@ function sameReviewRetry(left: ReviewRetry, value: unknown): boolean {
   const right = reviewRetry(value);
   return right !== undefined && sameFields(left, right);
 }
+function fundingDescription(funding: RetainedCandidateFunding): string {
+  return funding.carry_unused
+    ? `Resume only unused review/correction budget on source ${funding.connection}, at ${funding.limits.active_minutes} minutes per run. Earlier spent rounds, head limits and charges carry forward; no budget is added. The earlier attempt stays closed and its incomplete result is preserved. Planning, initial Builder and completed publication do not run again.`
+    : `${funding.previous_root ? 'Start a fresh review continuation for the published PR. The earlier attempt stays closed. ' : ''}Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. Earlier charges and spent review rounds are preserved. Planning, initial Builder and completed publication do not run again.`;
+}
 function sameCapture(left: Capture, right: Capture): boolean {
   return left.command === right.command && left.publication === right.publication &&
     left.run === right.run && left.candidate === right.candidate &&
@@ -180,7 +185,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
       if (this.live(serial)) this.message = 'The saved publication request is unavailable. No new request was sent.';
     }
   }
-  private async publish() {
+  private async publish(choice: 'default' | 'funding' = 'default') {
     const context = this.current,
       record = this.record,
       serial = this.serial;
@@ -192,6 +197,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
     if (
       !this.pending &&
       (!publication ||
+        (choice === 'funding' && !funding?.available) ||
         (!context.detail?.capabilities.publish_retained?.available && !funding?.available && !preparation?.available && !retry?.available))
     )
       return;
@@ -206,9 +212,11 @@ export class SodaFactoryRetainedPublication extends LitElement {
       (publication && {
         command: factoryCommandId(),
         publication: publication.id,
-        run: retry?.available ? retry.review_retry.run : publication.run,
+        run: choice !== 'funding' && retry?.available ? retry.review_retry.run : publication.run,
         candidate: publication.candidate,
-        ...(retry?.available
+        ...(choice === 'funding' && funding?.available
+          ? {funding: structuredClone(funding.funding)}
+          : retry?.available
           ? {reviewRetry: structuredClone(retry.review_retry)}
           : preparation?.available
           ? {preparation: structuredClone(preparation.merge_preparation)}
@@ -306,12 +314,13 @@ export class SodaFactoryRetainedPublication extends LitElement {
     const preparation =
       this.pending ? this.pending.preparation : retry ? undefined : preparationOffer?.available ? preparationOffer.merge_preparation : undefined;
     const funding = this.pending ? this.pending.funding : retry || preparation ? undefined : offer?.available ? offer.funding : undefined;
+    const alternativeFunding = !this.pending && (retry || preparation) && offer?.available ? offer.funding : undefined;
     if (!this.pending && publication?.stage !== 'fenced' && !offer?.available && !preparation && !retry) return html``;
     return html`<section
       aria-label=${retry ? 'Retry unsent review' : preparation ? 'Prepare unsent merge' : funding ? 'Fund retained candidate review' : 'Publish retained candidate'}
     >
       <p>
-        ${retry ? `Authorize a five-minute submission of the completed review for commit ${retry.head} under policy ${retry.policy}. The earlier operation has a definitive no-send outcome and stays preserved. This adds no inference funding and does not rerun the reviewer. Current target and permission checks still apply.` : preparation?.retry_no_send ? `Authorize only a five-minute merge retry under policy ${preparation.policy} for reviewed commit ${preparation.head}. The earlier unsent authorization and all old receipts stay preserved. This adds no inference funding; planning, Builder and review do not run again. Current review, CI and permission checks still apply.` : preparation ? `Prepare a fresh merge under policy ${preparation.policy} for reviewed commit ${preparation.head}. The earlier preparation has no recorded send and stays preserved. Current review, CI and permission checks still apply; this adds no inference budget.` : funding ? (funding.carry_unused ? `Resume only unused review/correction budget on source ${funding.connection}, at ${funding.limits.active_minutes} minutes per run. Earlier spent rounds, head limits and charges carry forward; no budget is added. The earlier attempt stays closed and its incomplete result is preserved. Planning, initial Builder and completed publication do not run again.` : `${funding.previous_root ? 'Start a fresh review continuation for the published PR. The earlier attempt stays closed. ' : ''}Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. Earlier charges and spent review rounds are preserved. Planning, initial Builder and completed publication do not run again.`) : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
+        ${retry ? `Authorize a five-minute submission of the completed review for commit ${retry.head} under policy ${retry.policy}. The earlier operation has a definitive no-send outcome and stays preserved. This adds no inference funding and does not rerun the reviewer. Current target and permission checks still apply.` : preparation?.retry_no_send ? `Authorize only a five-minute merge retry under policy ${preparation.policy} for reviewed commit ${preparation.head}. The earlier unsent authorization and all old receipts stay preserved. This adds no inference funding; planning, Builder and review do not run again. Current review, CI and permission checks still apply.` : preparation ? `Prepare a fresh merge under policy ${preparation.policy} for reviewed commit ${preparation.head}. The earlier preparation has no recorded send and stays preserved. Current review, CI and permission checks still apply; this adds no inference budget.` : funding ? fundingDescription(funding) : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
       </p>
       ${funding?.requirements ? html`<p>Uses the current approved workspace setup. A setup change requires a fresh funding offer.</p>` : ''}
       <button
@@ -322,6 +331,14 @@ export class SodaFactoryRetainedPublication extends LitElement {
       >
         ${this.pending ? 'Check saved request' : retry ? 'Retry confirmed unsent review' : preparation?.retry_no_send ? 'Retry confirmed unsent merge' : preparation ? 'Prepare merge under current policy' : funding?.carry_unused ? 'Resume unused review budget' : funding ? 'Fund review and correction' : 'Publish retained candidate'}
       </button>
+      ${alternativeFunding ? html`
+        <div role="group" aria-label="Fund retained candidate review">
+          <p>${fundingDescription(alternativeFunding)}</p>
+          ${alternativeFunding.requirements ? html`<p>Uses the current approved workspace setup. A setup change requires a fresh funding offer.</p>` : ''}
+          <button class="ui button" type="button" ?disabled=${this.busy || !this.ready} @click=${() => this.publish('funding')}>
+            ${alternativeFunding.carry_unused ? 'Resume unused review budget' : 'Fund review and correction'}
+          </button>
+        </div>` : ''}
       <p role="status">${this.message}</p>
     </section>`;
   }
