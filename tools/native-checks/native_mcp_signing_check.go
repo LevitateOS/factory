@@ -3279,6 +3279,8 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	var input struct {
 		Repository, Issue, Connection, Decision string
 		ExpectedChecks                          map[string]string
+		ExpectedMaterialBlocker                 *string
+		ExpectMaterialRefusal                   bool
 		EvaluationCommit                        string
 		Checks                                  factory.CheckTarget
 		Correction                              struct {
@@ -3306,7 +3308,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	if strings.HasPrefix(action, "check-background-creation") {
 		fixtureTimeout = 120 * time.Second
 	}
-	if action == "check-background-delivery-material" {
+	if action == "check-background-delivery-material" || action == "check-background-assembly-material" {
 		fixtureTimeout = 150 * time.Second
 	}
 	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") || strings.HasPrefix(action, "check-background-merge") {
@@ -3337,12 +3339,45 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	if strings.HasPrefix(action, "check-background-creation") {
 		return connectedCreationFixture(ctx, source, int64(connection.Actor), connection.ID, repository, issue, profile, action)
 	}
-	if action == "check-background-delivery-material" {
+	if action == "check-background-assembly-material" {
+		// Dummy-only native wire qualification uses the production collector,
+		// without granting policy execution, funding, or any write capability.
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{Kind: kind, ActorID: int64(connection.Actor), NativeProfile: config.Profile, NativeConnection: connection.ID}
+		}
+		policy := factory.RepositoryPolicy{Repository: repository, Revision: 1, Publish: ref(factory.OpRefPublish), Merge: ref(factory.OpMerge)}
+		encoded, err := json.Marshal(policy)
+		if err != nil {
+			return err
+		}
+		raw, err := sql.Open("pgx", config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer raw.Close()
+		if _, err = raw.ExecContext(ctx, `INSERT INTO factory_policies(repository,revision,data) VALUES($1,1,$2) ON CONFLICT(repository) DO NOTHING`, repository, string(encoded)); err != nil {
+			return err
+		}
+	}
+	if action == "check-background-delivery-material" || action == "check-background-assembly-material" {
 		port := factoryruntime.NativeMerges{NativeInputSource: source}
 		w := factory.MergeWork{Method: "merge", Repository: repository, Issue: issue, PRNumber: input.Checks.PRNumber, PRID: input.Checks.PRID, IssueID: input.Checks.IssueID, ActorID: int64(connection.Actor), PRAuthorID: int64(connection.Actor), ReviewerID: int64(connection.Actor), ReviewEvent: "COMMENT", HeadRef: input.Checks.HeadRef, BaseRef: input.Checks.BaseRef, HeadOID: input.Checks.HeadOID, BaseOID: input.Checks.BaseOID}
 		material, err := port.ReadDeliveryMaterial(ctx, w)
 		if err != nil {
+			if action == "check-background-assembly-material" && input.ExpectMaterialRefusal {
+				if !reflect.DeepEqual(material, factory.DeliveryNativeMaterial{}) {
+					return errors.New("refused assembly exposed partial material")
+				}
+				fmt.Println("PASS: changed or withdrawn assembly refuses without partial material")
+				return nil
+			}
 			return err
+		}
+		if input.ExpectMaterialRefusal {
+			return errors.New("changed or withdrawn assembly supplied material")
+		}
+		if input.ExpectedMaterialBlocker != nil && (material.Blocker != *input.ExpectedMaterialBlocker || material.Eligible != (*input.ExpectedMaterialBlocker == "")) {
+			return fmt.Errorf("assembly eligibility/blocker differs: eligible=%t blocker=%q", material.Eligible, material.Blocker)
 		}
 		if material.Revision <= 0 || material.Repository != repository || material.PRID != w.PRID || material.Head != w.HeadOID || material.Base != w.BaseOID || material.Title == "" || material.Comments == nil || material.Reviews == nil || material.Threads == nil {
 			return errors.New("native delivery material lost its exact scope or complete collections")
@@ -14143,7 +14178,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		materialReads.Store(0)
 		closingReadiness.Store(0)
 		material, readErr := native.ReadDeliveryMaterial(ctx, w)
-		wantReads, wantClosing := int64(11), int64(1)
+		wantReads, wantClosing := int64(9), int64(1)
 		if version >= 2 {
 			wantReads, wantClosing = 1, 0
 		}
@@ -14164,7 +14199,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	}
 	inventoryMode.Store(false)
 	fmt.Println("PASS: real Go material reader accepts known-prior and version1 envelopes, rejects unknown versions/mixed payloads at the first read, and preserves closing withdrawal refusal with no provider/model/write.")
-	fmt.Println("PASS: production material reader completes both five-read discussion traversals and original input, then exactly one closing paired CI/protection read; closing permission withdrawal exposes no material. Exactly 13 declared native reads, no provider/model/write.")
+	fmt.Println("PASS: production material reader completes both four-read discussion traversals and original input, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Exactly 11 declared native reads, no provider/model/write.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access and Work each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
 	return nil
 }

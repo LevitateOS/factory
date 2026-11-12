@@ -173,9 +173,15 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if !reflect.DeepEqual(first, second) {
 		return empty, errNativeDeliveryMaterial
 	}
-	after, err := p.observeProviderMerge(bounded, w, account)
+	var closingOpinions nativeReviewOpinions
+	after, err := p.observeProviderMergeWithOpinions(bounded, w, account, &closingOpinions)
 	if err != nil {
 		return empty, nativeDeliveryReadFailure(bounded, "provider recheck", err)
+	}
+	if account.binding.Host.Provider == collaboration.GitHub {
+		if err := nativeDeliveryOpinions(&first, closingOpinions); err != nil {
+			return empty, err
+		}
 	}
 	// The two complete discussion traversals above bind the exact pull tuple.
 	// One closing provider observation already contains paired complete
@@ -218,6 +224,9 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	}
 	if capture != nil {
 		*capture = nativeDeliveryMergeCapture{account: account, policyRevision: policy.Revision, observation: after}
+	}
+	if raw, err := json.Marshal(first); err != nil || len(raw) > 256*1024 {
+		return empty, errNativeDeliveryMaterial
 	}
 	return first, nil
 }
@@ -306,30 +315,15 @@ func nativeDeliveryDiscussion(ctx context.Context, reads nativeCollaborationRead
 		}
 		material.Reviews = append(material.Reviews, factory.DeliveryNativeReview{ID: r.ExternalID, ActorID: nativeDeliveryActor(r.Author), Type: r.State, Commit: string(r.Commit), Content: r.Body, Digest: inputDigest([]byte(r.Body)), Official: r.Official, Stale: r.Stale, Dismissed: r.State == "dismissed"})
 	}
-	opinions, err := reads.readReviewOpinions(ctx, nativeSubjectRef{Kind: "pull", ExternalID: pull.Ref.ExternalID, Number: w.PRNumber}, w.HeadOID, w.BaseOID)
-	if err != nil {
-		return material, nativeDeliveryReadFailure(ctx, "current review opinions", err)
-	}
-	material.ReviewDecision = opinions.Decision
-	for _, opinion := range opinions.Items {
-		matched := false
-		for _, review := range material.Reviews {
-			if review.ID == opinion.ID && review.Type == opinion.State {
-				matched = true
-				break
-			}
+	if reads.binding.Host.Provider != collaboration.GitHub {
+		opinions, err := reads.readReviewOpinions(ctx, nativeSubjectRef{Kind: "pull", ExternalID: pull.Ref.ExternalID, Number: w.PRNumber}, w.HeadOID, w.BaseOID)
+		if err != nil {
+			return material, nativeDeliveryReadFailure(ctx, "current review opinions", err)
 		}
-		if !matched {
-			return material, errNativeDeliveryMaterial
-		}
-		if opinions.Decision != nil && *opinions.Decision == "CHANGES_REQUESTED" && opinion.State == "changes_requested" {
-			material.BlockingReviewIDs = append(material.BlockingReviewIDs, opinion.ID)
+		if err := nativeDeliveryOpinions(&material, opinions); err != nil {
+			return material, err
 		}
 	}
-	if opinions.Decision != nil && *opinions.Decision == "CHANGES_REQUESTED" && len(material.BlockingReviewIDs) == 0 {
-		return material, errNativeDeliveryMaterial
-	}
-	sort.Strings(material.BlockingReviewIDs)
 	threads, err := nativeDeliveryPages(ctx, &remaining, func(ctx context.Context, cursor string) (collaboration.Page[collaboration.ReviewThread], error) {
 		return reads.ReadThreads(ctx, actor, repo, w.PRNumber, factoryservice.ThreadQuery{Cursor: cursor, Limit: 20})
 	}, func(t collaboration.ReviewThread) string { return t.ExternalID })
@@ -397,6 +391,30 @@ func nativeDeliveryDiscussion(ctx context.Context, reads nativeCollaborationRead
 		return material, errNativeDeliveryMaterial
 	}
 	return material, nil
+}
+
+func nativeDeliveryOpinions(material *factory.DeliveryNativeMaterial, opinions nativeReviewOpinions) error {
+	material.ReviewDecision = opinions.Decision
+	for _, opinion := range opinions.Items {
+		matched := false
+		for _, review := range material.Reviews {
+			if review.ID == opinion.ID && review.Type == opinion.State {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return errNativeDeliveryMaterial
+		}
+		if opinions.Decision != nil && *opinions.Decision == "CHANGES_REQUESTED" && opinion.State == "changes_requested" {
+			material.BlockingReviewIDs = append(material.BlockingReviewIDs, opinion.ID)
+		}
+	}
+	if opinions.Decision != nil && *opinions.Decision == "CHANGES_REQUESTED" && len(material.BlockingReviewIDs) == 0 {
+		return errNativeDeliveryMaterial
+	}
+	sort.Strings(material.BlockingReviewIDs)
+	return nil
 }
 
 func nativeDeliveryReadFailure(ctx context.Context, stage string, err error) error {

@@ -500,6 +500,10 @@ type nativeMergeReadiness struct {
 }
 
 func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeWork, account *nativeProductAccount) (factory.MergeObservation, error) {
+	return p.observeProviderMergeWithOpinions(ctx, w, account, nil)
+}
+
+func (p NativeMerges) observeProviderMergeWithOpinions(ctx context.Context, w factory.MergeWork, account *nativeProductAccount, captured *nativeReviewOpinions) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
 	var facts nativeMergeFacts
 	var paired nativeMergeReadiness
@@ -563,6 +567,9 @@ func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeW
 	opinions, err := reads.reviewOpinionProjection(paired.Opinions, pull, w.HeadOID, w.BaseOID)
 	if err != nil {
 		return empty, err
+	}
+	if captured != nil {
+		*captured = opinions
 	}
 	veto := false
 	for _, opinion := range opinions.Items {

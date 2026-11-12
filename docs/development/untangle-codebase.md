@@ -5599,3 +5599,35 @@ replayed. The private database archive/copy contains no account keyring and is
 not a release artifact. Next: install this backend-only correction, read the exact
 native acceptance failure once, then resume issue57/PR62 under fresh explicit
 merge authority; finish independent installed withdrawal/revocation gates.
+
+Installed77 includes f4abec4's Feed correction and reads the original20 Feed
+entries and issue57's complete work journey. Original acceptance dd35489bbd3f43df2e2397b53
+reads successfully; no new inference occurred. Fresh merge command
+ddea070040b24a4787438ca8bbaccaad encountered request amplification in full delivery
+material collection: app77 made430 sends, reaching600 retained profile debits
+including app76. Leaf merge-readiness counts above do not qualify this composition.
+Normal Quit retired app/socket/backend/PostgreSQL at20:48:41Z; the fixture team's
+temporary admin was restored to write and read back (goal77-fixture-admin.log).
+Last pre-failure merge observation was open/unallocated, not final no-send proof.
+Preserve its original operation/deadline, all600 debits and existing paid results.
+Current status INCOMPLETE: recover final stopped merge state, then fix and prove
+bounded full coordinator/material collection locally. No quota waiting/reset,
+account rotation or further live attempt is authorized as a workaround.
+
+Stopped-copy recovery (request78-retained-read.log) confirms ddea…caad remains
+open with attempts0, no work, generation0 and no resulting commit. The installed
+original remains stopped. The production collector now reuses closing paired
+readiness's current writer opinions: complete material falls101→87 sends (fork89),
+while both full discussion traversals remain. Current human veto is retained;
+an opinion absent from captured reviews, changed head and withdrawn access refuse
+without partial material. request87-budget-local.log and
+fc-github-assembly87/assembly-budget.json pass through real native/keyring/Go/PG
+with a dummy no-forwarding provider. request87-progress-pg.log and
+request85-external-pg.log pass the affected original recovery/command gates.
+Explicit merge commands now take their own next progress pass even when a passive
+sweep is due. These are scoped corrections, not full merge qualification.
+The attempted extra send-handoff API was discarded; request87-unshipped-handoff.patch
+retains the experiment and request86's synthetic failed fixture state. No live
+effect or inference was repeated. Next: consolidate paired discussion collection
+under the native read owner and prove the complete request budget before returning
+to the retained installed candidate. Full GitHub/Muse qualification stays INCOMPLETE.

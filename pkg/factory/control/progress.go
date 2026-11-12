@@ -255,15 +255,18 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	}
 	c.observeProgressStage("standing_preparation")
 	c.observeStandingPreparations(ctx, standingPreparationCursor)
+	// Explicit finite merge commands own their next pass even when passive work
+	// is due. Sharing that pass with an old repository sweep can exhaust its
+	// provider budget before the requested merge reaches admission.
+	if c.driveRequestedMerges(ctx) {
+		return
+	}
 	// Local retirement, checkpoints and withdrawal stay responsive. Passive
 	// provider discovery and delivery do not re-read unchanged repositories on
 	// every worker tick; a terminal or explicit command wakes them immediately.
 	if standingPreparationCursor != nil && !terminalObserved && time.Now().Before(c.nextPassiveProgress) {
-		// A merge-only command advances its exact saved row. It must not wake
-		// intake, unrelated merges, CI refresh or paid-delivery producers.
 		_ = c.recoverCreationStep(ctx, true)
 		_ = c.driveCompletions(ctx, c.completionDriveDeps(), true)
-		c.driveRequestedMerges(ctx)
 		c.observeProgressStage("retry_preparation")
 		_ = c.reconcileRetryPreparations(ctx)
 		return
@@ -311,9 +314,9 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	}
 }
 
-func (c *Coordinator) driveRequestedMerges(ctx context.Context) {
+func (c *Coordinator) driveRequestedMerges(ctx context.Context) bool {
 	if c.Merges == nil {
-		return
+		return false
 	}
 	c.ownerMu.Lock()
 	publications := make([]string, 0, min(len(c.requestedMerges), mergePassLimit))
@@ -327,7 +330,7 @@ func (c *Coordinator) driveRequestedMerges(ctx context.Context) {
 	c.ownerMu.Unlock()
 	for _, publication := range publications {
 		if ctx.Err() != nil {
-			return
+			return true
 		}
 		m, err := c.Store.MergeByPublication(ctx, publication)
 		if err != nil {
@@ -336,4 +339,5 @@ func (c *Coordinator) driveRequestedMerges(ctx context.Context) {
 		report := MergeReport{Merged: []MergeLink{}}
 		c.reconcileMerge(ctx, m, &report)
 	}
+	return len(publications) > 0
 }

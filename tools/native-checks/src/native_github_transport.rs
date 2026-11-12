@@ -84,6 +84,39 @@ pub(super) async fn run_assembly_budget_declared(
         attempts()? == navigation,
         "unfunded idle runtime polled provider",
     )?;
+    // Exercise the real Go composition too: leaf readiness alone cannot prove
+    // that the complete delivery collector fits its coordinator's wire budget.
+    let material_helper = std::env::var_os("FACTORY_ASSEMBLY_HELPER")
+        .ok_or("assembly material helper missing")?;
+    let material_input = root.join("material-input.json");
+    let mut material_body = json!({
+        "Repository":repository,"Issue":"12","Connection":saved.connection,
+        "Checks":{"pr_number":"7","pr_id":"700","issue_id":"800",
+            "head_ref":"refs/heads/topic","base_ref":"refs/heads/main",
+            "head_oid":"a".repeat(40),"base_oid":"b".repeat(40)}
+    });
+    for (scenario, blocker, refused) in [
+        ("assembly-positive", "", false),
+        ("assembly-fork", "", false),
+        ("assembly-veto", "requested_changes", false),
+        ("assembly-unmatched-opinion", "", true),
+        ("assembly-head-change", "", true),
+        ("assembly-withdrawn", "", true),
+    ] {
+    set_mode(&io, scenario)?;
+    material_body["ExpectedMaterialBlocker"] = json!(blocker);
+    material_body["ExpectMaterialRefusal"] = json!(refused);
+    fs::write(&material_input, serde_json::to_vec(&material_body)?)?;
+    let before_material = attempts()?;
+    let material_status = tokio::process::Command::new(&material_helper)
+        .arg(profile).arg(runtime.health()?.instance)
+        .arg("check-background-assembly-material").arg(&material_input)
+        .status().await?;
+    let material_attempts = attempts()? - before_material;
+    stages.push(json!({"phase":"full-delivery-material","scenario":scenario,"attempts":material_attempts}));
+    ensure(material_status.success(), "full native delivery material refused")?;
+    ensure(material_attempts <= 90, "full delivery material exceeds admission budget")?;
+    }
     for scenario in [
         "assembly-positive",
         "assembly-fork",
@@ -129,6 +162,7 @@ pub(super) async fn run_assembly_budget_declared(
             )?;
         }
         stages.push(json!({"phase":scenario,"attempts":count,"status":result.status}));
+
     }
     store.withdraw(&saved.connection).await?;
     runtime.stop()?;
