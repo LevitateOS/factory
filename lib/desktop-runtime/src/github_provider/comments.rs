@@ -3,7 +3,6 @@
 //! provides retry authorization, a remote idempotency key or conditional writes.
 use super::{reads::Reader, records as r, request::remote_id, Client, CreateOutcome, Failure};
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Instant;
 
@@ -12,31 +11,9 @@ use std::time::Instant;
 // clientMutationId is not a documented deduplication key and is not used as one.
 pub(super) const CREATE_COMMENT: &str = "mutation FactoryCreateComment($subject:ID!,$body:String!){addComment(input:{subjectId:$subject,body:$body}){subject{__typename id ... on Issue{url} ... on PullRequest{url}} commentEdge{node{id fullDatabaseId body createdAt updatedAt url minimizedReason author{login ... on User{id} ... on Bot{id}}}}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct Comment {
-    pub repository: String,
-    pub subject: String,
-    pub subject_id: String,
-    pub number: u64,
-    pub body: String,
-}
-impl Comment {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.subject_id)
-            || !matches!(self.subject.as_str(), "issue" | "pull")
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || self.body.len() > 64 * 1024
-            || self.body.trim().is_empty()
-            || self.body.contains('\0')
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::Comment;
+
+
 
 impl Client {
     /// Native integration surface, matching semantic reads: no URL, method,

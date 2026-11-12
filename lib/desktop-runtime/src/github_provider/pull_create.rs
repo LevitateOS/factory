@@ -4,31 +4,19 @@
 use super::{
     reads::Reader,
     records as r,
-    request::{branch_name, commit, node_id, remote_id, repository_name},
+    request::{node_id, remote_id, repository_name},
     Client, CreateOutcome, Failure, PullBranchRead,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Instant;
 
 pub(super) const CREATE:&str="mutation FactoryCreatePull($input:CreatePullRequestInput!){createPullRequest(input:$input){pullRequest{id fullDatabaseId number title body url state isDraft maintainerCanModify createdAt updatedAt repository{id} author{__typename login ... on User{id}} baseRefName baseRefOid headRefName headRefOid baseRepository{id nameWithOwner owner{id login}} headRepository{id nameWithOwner owner{id login}} baseRef{id name prefix repository{id}} headRef{id name prefix repository{id}}}}}";
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PullBranchPin {
-    pub repository_node_id: String,
-    pub owner_node_id: String,
-    pub reference_node_id: String,
-    pub commit: String,
-}
+pub use crate::provider_contract::PullBranchPin;
+
 impl PullBranchPin {
-    fn valid(&self) -> bool {
-        node_id(&self.repository_node_id)
-            && node_id(&self.owner_node_id)
-            && node_id(&self.reference_node_id)
-            && commit(&self.commit)
-    }
+
     fn matches(&self, side: &Value) -> bool {
         side["repository"]["node_id"] == self.repository_node_id
             && side["repository"]["owner"]["node_id"] == self.owner_node_id
@@ -36,57 +24,9 @@ impl PullBranchPin {
             && side["branch"]["commit"] == self.commit
     }
 }
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PullCreate {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub controller_grant_id: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub source_connection: String,
-    pub repository: String,
-    pub head_repository: String,
-    pub base_branch: String,
-    pub head_branch: String,
-    pub base_pin: PullBranchPin,
-    pub head_pin: PullBranchPin,
-    pub title: String,
-    pub body: String,
-    pub allow_maintainer_edit: bool,
-}
-impl PullCreate {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.head_repository)
-            || !branch_name(&self.base_branch)
-            || !branch_name(&self.head_branch)
-            || self.repository == self.head_repository && self.base_branch == self.head_branch
-            || !self.base_pin.valid()
-            || !self.head_pin.valid()
-            || self.base_pin.reference_node_id == self.head_pin.reference_node_id
-            || (self.repository == self.head_repository)
-                != (self.base_pin.repository_node_id == self.head_pin.repository_node_id)
-            || self.repository == self.head_repository
-                && self.base_pin.owner_node_id != self.head_pin.owner_node_id
-            || self.title.is_empty()
-            || self.title.trim() != self.title
-            || self.title.len() > 255
-            || self.title.contains('\0')
-            || self.body.len() > 65536
-            || self.body.contains('\0')
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        // These literal branch names can be ambiguous with the provider's ref
-        // qualification rules. Never silently reinterpret a saved selector.
-        if self.base_branch.starts_with("refs/") || self.head_branch.starts_with("refs/") {
-            return Err(Failure::new(
-                409,
-                "github_pull_branch_qualification_unsupported",
-            ));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::PullCreate;
+
+
 impl Client {
     pub async fn create_pull(&self, token: Token, expected: &str, q: &PullCreate) -> CreateOutcome {
         self.pull_create_account(token.as_bytes(), expected, q, None)

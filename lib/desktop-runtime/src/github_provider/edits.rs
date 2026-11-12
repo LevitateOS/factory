@@ -7,56 +7,15 @@ use super::{
     Client, Failure, WriteOutcome,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Instant;
 
 pub(super) const EDIT_ISSUE: &str = "mutation FactoryEditIssue($input:UpdateIssueInput!){updateIssue(input:$input){issue{id fullDatabaseId number title body url updatedAt repository{id nameWithOwner}}}}";
 pub(super) const EDIT_PULL: &str = "mutation FactoryEditPull($input:UpdatePullRequestInput!){updatePullRequest(input:$input){pullRequest{id fullDatabaseId number title body url updatedAt repository{id nameWithOwner}}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiscussionEdit {
-    pub repository: String,
-    pub subject: String,
-    pub subject_id: String,
-    pub number: u64,
-    pub title: Option<String>,
-    pub body: Option<String>,
-    pub original_title: String,
-    pub original_body_sha256: String,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub require_unchanged: bool,
-}
-impl DiscussionEdit {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.subject_id)
-            || !matches!(self.subject.as_str(), "issue" | "pull")
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || self.title.is_none() && self.body.is_none()
-            || self
-                .title
-                .as_ref()
-                .is_some_and(|s| s.len() > 255 || s.trim().is_empty() || s.contains('\0'))
-            || self
-                .body
-                .as_ref()
-                .is_some_and(|s| s.len() > 65536 || s.contains('\0'))
-            || self.original_title.len() > 65536
-            || self.original_title.contains('\0')
-            || self.original_body_sha256.len() != 64
-            || !self
-                .original_body_sha256
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::DiscussionEdit;
+
+
 impl Client {
     pub async fn edit_discussion(
         &self,

@@ -4,37 +4,18 @@
 use super::{
     reads::Reader,
     records as r,
-    request::{branch_name, commit, node_id, remote_id},
+    request::{commit, node_id},
     Client, Failure, Read, Result,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 pub(super) const QUERY:&str="query FactoryPullBranches($base:ID!,$head:ID!,$baseRef:String!,$headRef:String!){base:node(id:$base){__typename ... on Repository{id nameWithOwner owner{id login} branch:ref(qualifiedName:$baseRef){id name prefix repository{id} target{__typename oid repository{id}}}}} head:node(id:$head){__typename ... on Repository{id nameWithOwner owner{id login} branch:ref(qualifiedName:$headRef){id name prefix repository{id} target{__typename oid repository{id}}}}}}";
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PullBranchRead {
-    pub repository: String,
-    pub head_repository: String,
-    pub base_branch: String,
-    pub head_branch: String,
-}
-impl PullBranchRead {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.head_repository)
-            || !branch_name(&self.base_branch)
-            || !branch_name(&self.head_branch)
-            || self.repository == self.head_repository && self.base_branch == self.head_branch
-        {
-            return Err(Failure::invalid());
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::PullBranchRead;
+
+
 impl Client {
     pub async fn observe_pull_branches(
         &self,

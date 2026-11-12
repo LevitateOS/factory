@@ -7,38 +7,14 @@ use super::{
     Client, Failure, Result,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashSet, time::Duration};
 
 const FIELDS:&str="id isResolved isOutdated viewerCanResolve viewerCanUnresolve path diffSide pullRequest{id fullDatabaseId number repository{id}} repository{id} root:comments(first:1){nodes{originalCommit{oid} originalLine path replyTo{id}}} comments(first:$limit,skip:$skip){totalCount pageInfo{hasNextPage endCursor} nodes{id fullDatabaseId body createdAt updatedAt author{login ... on User{databaseId} ... on Bot{databaseId}} pullRequestReview{fullDatabaseId} pullRequest{id} repository{id}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ThreadRead {
-    pub repository: String,
-    pub number: u64,
-    pub page: u32,
-    pub limit: u32,
-    pub thread_id: String,
-}
-impl ThreadRead {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository)
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || self.page == 0
-            || self.page > 1_000_000
-            || self.limit == 0
-            || self.limit > 20
-            || !self.thread_id.is_empty()
-                && (!node_id(&self.thread_id) || self.thread_id.bytes().all(|b| b.is_ascii_digit()))
-        {
-            return Err(Failure::invalid());
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::ThreadRead;
+
+
 // A finite native-only query selector; no caller-supplied GraphQL is accepted.
 pub(super) enum ThreadQuery {
     Catalogue {

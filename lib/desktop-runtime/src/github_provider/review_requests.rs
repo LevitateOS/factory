@@ -4,10 +4,9 @@ use super::{
     Client, Failure, Result,
     reads::Reader,
     records as r,
-    request::{node_id, remote_id},
+    request::{node_id},
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
@@ -15,61 +14,14 @@ const REQUESTS: &str = "query FactoryReviewRequests($pull:ID!,$after:String){nod
 const TEAM: &str = "query FactoryReviewTeam($target:ID!){node(id:$target){__typename ... on Team{id databaseId name slug organization{id login}}}}";
 const TEAM_NAME: &str = "query FactoryReviewTeamName($organization:String!,$slug:String!){organization(login:$organization){id team(slug:$slug){__typename id databaseId name slug organization{id login}}}}";
 
-pub(super) fn valid_lookup(kind: &str, name: &str) -> bool {
-    if kind == "user" {
-        !name.is_empty()
-            && name.len() <= 39
-            && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-    } else {
-        kind == "team"
-            && !name.is_empty()
-            && name.len() <= 100
-            && name
-                .chars()
-                .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.'))
-    }
-}
+pub(super) use crate::provider_contract::valid_reviewer_lookup as valid_lookup;
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum ReviewerTarget {
-    User { external_id: String },
-    Team { external_id: String },
-}
-impl ReviewerTarget {
-    pub(super) fn validate(&self) -> Result<()> {
-        let valid = match self {
-            Self::User { external_id } => remote_id(external_id),
-            Self::Team { external_id } => {
-                node_id(external_id)
-                    && external_id.len() <= 512
-                    && !external_id.bytes().all(|b| b.is_ascii_digit())
-            }
-        };
-        if !valid {
-            return Err(Failure::invalid());
-        }
-        Ok(())
-    }
-}
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ReviewerRead {
-    pub repository: String,
-    pub number: u64,
-    pub target: Option<ReviewerTarget>,
-}
-impl ReviewerRead {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository) || self.number == 0 || self.number > i64::MAX as u64 {
-            return Err(Failure::invalid());
-        }
-        if let Some(target) = &self.target {
-            target.validate()?;
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::ReviewerTarget;
+
+
+pub use crate::provider_contract::ReviewerRead;
+
+
 pub(super) enum ReviewerQuery {
     Requests { pull: String, after: Option<String> },
     Team { node: String },

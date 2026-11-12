@@ -1,45 +1,13 @@
 //! Current immutable diff selection and own pending-review facts. These are
 //! bounded observations, not publication permission or historical thread anchors.
-use super::{reads::Reader, records as r, request::commit, Failure, Result};
-use serde::{Deserialize, Serialize};
+use super::{reads::Reader, records as r, Failure, Result};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct InlineAnchor {
-    pub base: String,
-    pub head: String,
-    pub path: String,
-    pub side: String,
-    pub scope: String,
-    pub start_line: u64,
-    pub end_line: u64,
-}
-fn path(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 4096
-        && !value.contains('\0')
-        && !value.starts_with('/')
-        && value.split('/').all(|p| !matches!(p, "" | "." | ".."))
-}
-impl InlineAnchor {
-    pub fn validate(&self) -> Result<()> {
-        if !commit(&self.base)
-            || !commit(&self.head)
-            || !path(&self.path)
-            || !matches!(self.side.as_str(), "old" | "new")
-            || !(self.scope == "file" && self.start_line == 0 && self.end_line == 0
-                || self.scope == "lines"
-                    && self.start_line > 0
-                    && self.end_line >= self.start_line
-                    && self.end_line <= 9_007_199_254_740_991)
-        {
-            return Err(Failure::invalid());
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::InlineAnchor;
+
+use crate::provider_contract::inline_path as path;
+
 impl Reader<'_> {
     pub(super) async fn inline_preparation(
         &self,

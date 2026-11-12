@@ -273,11 +273,9 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	// Leave room to receive the native owner's bounded refusal. Paired CI reads
 	// have a longer native deadline than other operations.
 	timeout := 9 * time.Second
-	if read, ok := effect.(nativeReadEffect); ok {
-		switch read.Query.Kind {
-		case "pull_required_checks", "automation_checks", "merge_readiness":
-			timeout = 16 * time.Second
-		}
+	switch effect.(type) {
+	case nativeReadEffect, nativeInlinePreparationEffect:
+		timeout = 16 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

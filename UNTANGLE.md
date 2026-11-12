@@ -7,8 +7,9 @@ GraphQL, Git, OAuth, delegated host adapters, callers, UI, background work,
 polling/recovery, setup tunnels and auxiliary tooling/build jobs. Factory is at
 `9482c81aa452153e5f86ae49bcbd2559f484aac3`, on `main`.
 
-Phases 1–2 only (audit and redesign). No product code changes, provider requests, app launches, inference,
-builds, tests or quota waiting. The owner explicitly selected **neither** optional
+Phases1–2 recorded the audit/design; phase3 refactoring is now authorized.
+Use controlled local checks only: no live provider requests, inference or quota
+waiting. The owner explicitly selected **neither** optional
 comment nor test cleanup. Preserve credentials, profiles, receipts, journals,
 stashes and human text. No branch/worktree is created. Factory had no root log;
 Fountain's existing independent `UNTANGLE.md` is untouched.
@@ -788,3 +789,27 @@ builds, apps or provider requests in this design phase.
   Owner review: “No additional constraints.”
   Next phase: untangle-refactor, beginning F1/F2 or an explicitly independent
   ready fix; preserve original receipts and prove wire counts locally first.
+
+- Phase3 ACTIVE / F1 INCOMPLETE on main, starting55cbcce. Verified checkpoint:
+  shared native selector/command DTOs, validation and outcomes moved below both
+  providers; setup vocabulary unified; semantic read names derive from the
+  serialized selector; opted-in version1 read envelopes use one payload, with
+  frozen known-prior decoding. Captured mutation JSON/digests stay unchanged.
+  Unknown/mixed envelopes refuse; native unknown-version validation precedes
+  dispatch. Writes retain9s outer timeout; reads share16s without selector lists.
+  Baseline backend/harness builds, native Rust check and both realPG cases pass
+  in fresh pg3/pg4 profiles. F1 runtime/native-check compile, existing native
+  source-bundle-contract check, and affected realPG progress/external checks pass
+  (pg5/pg6). Independent review found workflow/diff field mismatches; corrected
+  mappings and catalogue projection are covered by the existing contract check;
+  final reviewer found no further checkpoint regression. Runtime has no new
+  warnings; the check binary's pre-existing unused local-field warning remains.
+  Evidence/builds: /home/vince/Projects/factory-provider-audit-20261112/refactor/
+  (baseline-*-socket.log, f1-rust-final.log, f1-native-contract.log,
+  f1-progress-pg.log, f1-external-pg.log). Earlier pg1/pg2 profiles retain the
+  sandbox-only socket failures; no original profile was changed.
+  F1 remaining: issue-receipt protocol binding (P17), provider-specific mutation
+  extension binding (P32), review envelope-limit ownership (P39). F2–F8 pending;
+  no fix is marked complete. No running checks, apps, uncertain remote effects
+  or inference. Next executable action: finish these F1 bindings under preserved
+  prior encodings, then qualify the defining fix and continue operation budgets.

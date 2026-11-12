@@ -3,49 +3,18 @@
 use super::{
     reads::Reader,
     records as r,
-    request::{commit, node_id, remote_id},
-    Client, CreateOutcome, Failure, InlineAnchor, Result,
+    request::{node_id, remote_id},
+    Client, CreateOutcome, Failure,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Instant;
 
 pub(super) const CREATE: &str = "mutation FactoryAppendPendingThread($input:AddPullRequestReviewThreadInput!){addPullRequestReviewThread(input:$input){thread{id path diffSide startDiffSide line startLine subjectType repository{id} pullRequest{id fullDatabaseId number repository{id}} comments(first:2){totalCount pageInfo{hasNextPage endCursor} nodes{id fullDatabaseId body state path line startLine subjectType author{__typename ... on User{id}} repository{id} pullRequest{id} pullRequestReview{id fullDatabaseId state body commit{oid repository{id}} submittedAt comments{totalCount}} commit{oid repository{id}} originalCommit{oid repository{id}} replyTo{id} createdAt updatedAt publishedAt}}}}}";
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct InlineDraft {
-    pub repository: String,
-    pub repository_node_id: String,
-    pub pull_id: String,
-    pub pull_node_id: String,
-    pub number: u64,
-    pub anchor: InlineAnchor,
-    pub review_node_id: String,
-    pub preparation_sha256: String,
-    pub body: String,
-}
+pub use crate::provider_contract::InlineDraft;
+
 impl InlineDraft {
-    pub fn validate(&self) -> Result<()> {
-        self.anchor.validate()?;
-        if !remote_id(&self.repository)
-            || !remote_id(&self.pull_id)
-            || !node_id(&self.repository_node_id)
-            || !node_id(&self.pull_node_id)
-            || !node_id(&self.review_node_id)
-            || self.number == 0
-            || self.number > u32::MAX as u64
-            || self.preparation_sha256.len() != 64
-            || !commit(&self.preparation_sha256)
-            || self.body.len() > 65536
-            || self.body.contains('\0')
-            || self.body.trim().is_empty()
-            || self.anchor.end_line > i32::MAX as u64
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
+
     pub(super) fn input(&self, path: &str) -> Value {
         let side = if self.anchor.side == "old" {
             "LEFT"

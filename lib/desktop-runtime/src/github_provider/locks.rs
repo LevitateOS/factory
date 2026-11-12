@@ -7,40 +7,18 @@ use super::{
     Client, Failure, WriteOutcome,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Instant;
 
 pub(super) const LOCK:&str="mutation FactoryLockDiscussion($input:LockLockableInput!){lockLockable(input:$input){actor{login ... on User{id} ... on Bot{id}} lockedRecord{__typename locked activeLockReason ... on Issue{id fullDatabaseId number url updatedAt repository{id nameWithOwner}} ... on PullRequest{id fullDatabaseId number url updatedAt repository{id nameWithOwner}}}}}";
 pub(super) const UNLOCK:&str="mutation FactoryUnlockDiscussion($input:UnlockLockableInput!){unlockLockable(input:$input){actor{login ... on User{id} ... on Bot{id}} unlockedRecord{__typename locked activeLockReason ... on Issue{id fullDatabaseId number url updatedAt repository{id nameWithOwner}} ... on PullRequest{id fullDatabaseId number url updatedAt repository{id nameWithOwner}}}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiscussionLock {
-    pub repository: String,
-    pub subject: String,
-    pub subject_id: String,
-    pub number: u64,
-    pub lock: bool,
-    pub reason: String,
-}
+pub use crate::provider_contract::DiscussionLock;
+
 impl DiscussionLock {
     // Generic human reasons remain intact through journal/native admission.
     // Provider-specific support is a known no-send outcome of the effect below.
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.subject_id)
-            || !matches!(self.subject.as_str(), "issue" | "pull")
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || self.reason.len() > 65536
-            || self.reason.contains('\0')
-            || !self.lock && !self.reason.is_empty()
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
+
     fn provider_reason(&self) -> Result<Option<&'static str>, Failure> {
         match self.reason.as_str() {
             "" => Ok(None),

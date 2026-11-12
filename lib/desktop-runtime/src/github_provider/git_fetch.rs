@@ -51,12 +51,7 @@ impl Reader<'_> {
         let mut files = serde_json::Map::new();
         let mut source_files = serde_json::Map::new();
         let paths:Vec<_>=q["paths"].as_array().into_iter().flatten().map(|path|path.as_str().ok_or_else(Failure::invalid)).collect::<Result<_>>()?;
-        let mut names:std::collections::BTreeSet<&str>=[
-            "setup.sh",
-            "check.sh",
-            "setup-network.json",
-            "setup-limits.json",
-        ].into_iter().collect();
+        let mut names:std::collections::BTreeSet<&str>=crate::provider_contract::SETUP_FILES.into_iter().collect();
         names.extend(paths.iter().copied());
         let mut total=0usize;
         let names: Vec<_> = names.into_iter().collect();
@@ -77,7 +72,7 @@ impl Reader<'_> {
                     if total>128*1024 {return Err(Failure::new(413,"github_setup_source_too_large"));}
                     source_files.insert(name.into(),encoded.clone());
                 }
-                if ["setup.sh","check.sh","setup-network.json","setup-limits.json"].contains(&name) { files.insert(name.into(),encoded); }
+                if crate::provider_contract::SETUP_FILES.contains(&name) { files.insert(name.into(),encoded); }
             }
         }
         self.source_tip(target, commit).await?;

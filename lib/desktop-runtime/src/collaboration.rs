@@ -606,6 +606,8 @@ enum BackgroundEffect {
     Current,
     Read {
         query: Read,
+        #[serde(default)]
+        version: u8,
     },
     CreateReview {
         command_id: String,
@@ -621,6 +623,7 @@ async fn background_read(
     started: Instant,
 ) -> std::result::Result<Value, Failure> {
     let call: BackgroundCall = serde_json::from_slice(body).map_err(|_| Failure::invalid())?;
+    if matches!(&call.call, BackgroundEffect::Read { version, .. } if *version > 1) { return Err(Failure::invalid()); }
     if !opaque_id(&call.connection) || !remote_id(&call.account) || !remote_id(&call.repository) {
         return Err(Failure::invalid());
     }
@@ -727,16 +730,16 @@ async fn background_read(
             operation: WriteOperation::CreateReview(review),
         }),
         BackgroundEffect::Current => Operation::Current,
-        BackgroundEffect::Read { query }
+        BackgroundEffect::Read { query, version }
             if matches!(
                 &query,
                 Read::PullFiles { base, head, page: 1, limit: 1..=10, .. }
                     if !base.is_empty() && !head.is_empty()
             ) =>
         {
-            Operation::Read(query)
+            Operation::Read(query, version)
         }
-        BackgroundEffect::Read { query }
+        BackgroundEffect::Read { query, version }
             if matches!(
                 query,
                 Read::Identity
@@ -768,7 +771,7 @@ async fn background_read(
                     | Read::PullPendingReviewSnapshot { .. }
             ) =>
         {
-            Operation::Read(query)
+            Operation::Read(query, version)
         }
         _ => return Err(Failure::new(403, "native_background_read_unavailable")),
     };
@@ -895,6 +898,8 @@ enum Effect {
     Current,
     Read {
         query: Read,
+        #[serde(default)]
+        version: u8,
     },
     CreateComment {
         command_id: String,
@@ -972,13 +977,13 @@ struct Command {
 enum Operation {
     Receipt(Descriptor),
     Current,
-    Read(Read),
+    Read(Read, u8),
     Mutation(Command),
 }
 impl Operation {
     fn timeout(&self) -> Duration {
         match self {
-            Self::Read(query) => query.timeout(),
+            Self::Read(query, _) => query.timeout(),
             _ => CALL_TIMEOUT,
         }
     }
@@ -988,7 +993,7 @@ impl From<Effect> for Operation {
         match effect {
             Effect::WriteOutcome {command_id,digest,not_after} => Self::Receipt(Descriptor {command_id,digest,not_after}),
             Effect::Current => Self::Current,
-            Effect::Read { query } => Self::Read(query),
+            Effect::Read { query, version } => Self::Read(query, version),
             Effect::SetIssueDependency {
                 command_id,
                 digest,
@@ -1388,7 +1393,7 @@ async fn dispatch(
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
     let effect = Operation::from(call.call);
     let descriptor_limit = match &effect {
-        Operation::Read(Read::InlinePreparation { .. }) => 64 * 1024,
+        Operation::Read(Read::InlinePreparation { .. }, _) => 64 * 1024,
         _ => 8192,
     };
     if !matches!(
@@ -1467,7 +1472,8 @@ async fn observe_scope(
     if let Operation::Receipt(descriptor) = effect {
         if !opaque_id(&descriptor.command_id) || descriptor.digest.len()!=64 || !descriptor.digest.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) || descriptor.not_after==0 {return Err(Failure::invalid());}
     }
-    if let Operation::Read(query) = effect {
+    if let Operation::Read(query, version) = effect {
+        if *version > 1 { return Err(Failure::invalid()); }
         query.validate()?;
         let value = query.value();
         let identity = matches!(query, Read::Identity);
@@ -1489,7 +1495,7 @@ async fn observe_scope(
             let repository = scope.repository.as_deref().ok_or_else(Failure::invalid)?;
             return match effect {
                 Operation::Current => client.product_current(repository).await.map(|_|Value::Null).map_err(|e|Failure::new(e.status,e.code)),
-                Operation::Read(query) => client.product_read(repository, query).await.map_err(|e|Failure::new(e.status,e.code)),
+                Operation::Read(query, _) => client.product_read(repository, query).await.map_err(|e|Failure::new(e.status,e.code)),
                 Operation::Receipt(descriptor) => {
                     let prior=receipts::lookup(state,&scope,descriptor)?.into_wire();
                     if !prior.is_null() && prior["state"]!="indeterminate" {return Ok(prior);}
@@ -1527,7 +1533,7 @@ async fn observe_scope(
         .credentials
         .with_token_operation_timeout(&scope.capability, effect.timeout(), async |token: &[u8]| match effect {
             Operation::Current => Ok(Value::Null),
-            Operation::Read(query) => {
+            Operation::Read(query, _) => {
                 state
                     .provider
                     .read_account(token, &scope.capability.account().account, query)
@@ -1547,6 +1553,10 @@ async fn observe_scope(
     if !scope.current() || !state.alive.load(Ordering::SeqCst) {
         return Err(Failure::new(401, "native_operation_retired"));
     }
+    let observation = match effect {
+        Operation::Read(query, version) => query.observation(observation, *version)?,
+        _ => observation,
+    };
     let account = scope.capability.account();
     Ok(
         json!({"connection":{"connection":account.connection,"provider":account.provider,"origin":account.origin,"account":account.account},"repository":scope.repository,"observation":observation}),

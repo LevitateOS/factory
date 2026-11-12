@@ -7,7 +7,6 @@ use super::{
     Client, Failure,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Instant;
 
@@ -16,28 +15,9 @@ const REOPEN_ISSUE: &str = "mutation FactoryReopenIssue($subject:ID!){reopenIssu
 const CLOSE_PULL: &str = "mutation FactoryClosePull($subject:ID!){closePullRequest(input:{pullRequestId:$subject}){pullRequest{id fullDatabaseId number state merged url updatedAt repository{id nameWithOwner}}}}";
 const REOPEN_PULL: &str = "mutation FactoryReopenPull($subject:ID!){reopenPullRequest(input:{pullRequestId:$subject}){pullRequest{id fullDatabaseId number state merged url updatedAt repository{id nameWithOwner}}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiscussionState {
-    pub repository: String,
-    pub subject: String,
-    pub subject_id: String,
-    pub number: u64,
-    pub close: bool,
-}
-impl DiscussionState {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.subject_id)
-            || !matches!(self.subject.as_str(), "issue" | "pull")
-            || self.number == 0
-            || self.number > i64::MAX as u64
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::DiscussionState;
+
+
 pub use super::writes::WriteOutcome as StateOutcome;
 
 // Private finite selector; the transport still accepts no arbitrary mutation.

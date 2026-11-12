@@ -73,40 +73,8 @@ pub use transport::{Client, Owner, TrafficSnapshot};
 pub const API_VERSION: &str = "2026-03-10";
 pub const OAUTH_CLIENT_ID: &str = "Ov23liI9YQMPuYjBL6nn";
 
-/// Safe provider outcome. Never retains an upstream error, URL, body or grant.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Failure {
-    pub status: u16,
-    pub code: &'static str,
-    pub retry_after: Option<u64>,
-    pub reset: Option<u64>,
-}
-impl Failure {
-    pub(crate) fn new(status: u16, code: &'static str) -> Self {
-        Self {
-            status,
-            code,
-            retry_after: None,
-            reset: None,
-        }
-    }
-    pub(crate) fn unavailable() -> Self {
-        Self::new(503, "github_unavailable")
-    }
-    pub(crate) fn invalid() -> Self {
-        Self::new(400, "invalid_native_read")
-    }
-    pub(crate) fn protocol() -> Self {
-        Self::new(502, "invalid_github_response")
-    }
-}
-impl std::fmt::Display for Failure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.code)
-    }
-}
-impl std::error::Error for Failure {}
-pub(crate) type Result<T> = std::result::Result<T, Failure>;
+pub use crate::provider_contract::Failure;
+pub(crate) use crate::provider_contract::Result;
 
 /// Provider-local identity. Canonical identity and connection binding stay in Go.
 #[derive(Serialize)]

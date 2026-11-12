@@ -4,66 +4,19 @@
 use super::{
     reads::Reader,
     records as r,
-    request::{commit, node_id, remote_id},
-    Client, Failure, Result, WriteOutcome,
+    request::{remote_id},
+    Client, Failure, WriteOutcome,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Instant;
 
 pub(super) const SUBMIT:&str="mutation FactorySubmitPendingReview($input:SubmitPullRequestReviewInput!){submitPullRequestReview(input:$input){pullRequestReview{id fullDatabaseId state body author{__typename login ... on User{id}} repository{id} pullRequest{id fullDatabaseId number headRefOid repository{id}} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
 const UPDATE:&str="mutation FactoryEditPendingReview($input:UpdatePullRequestReviewInput!){updatePullRequestReview(input:$input){pullRequestReview{id fullDatabaseId state body author{__typename login ... on User{id}} repository{id} pullRequest{id fullDatabaseId number headRefOid repository{id}} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PendingReviewSubmit {
-    pub repository: String,
-    pub repository_node_id: String,
-    pub pull_id: String,
-    pub pull_node_id: String,
-    pub number: u64,
-    pub head: String,
-    pub review_id: Option<String>,
-    pub review_node_id: String,
-    pub review_commit: String,
-    pub pending_sha256: String,
-    pub comments_sha256: String,
-    pub comments_count: u64,
-    pub event: String,
-    /// None preserves the pending summary; Some("") explicitly clears it.
-    pub body: Option<String>,
-}
+pub use crate::provider_contract::PendingReviewSubmit;
+
 impl PendingReviewSubmit {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository)
-            || !node_id(&self.repository_node_id)
-            || !remote_id(&self.pull_id)
-            || !node_id(&self.pull_node_id)
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || !commit(&self.head)
-            || !node_id(&self.review_node_id)
-            || self.review_id.as_ref().is_some_and(|id| !remote_id(id))
-            || !commit(&self.review_commit)
-            || self.pending_sha256.len() != 64
-            || !commit(&self.pending_sha256)
-            || self.comments_sha256.len() != 64
-            || !commit(&self.comments_sha256)
-            || self.comments_count > 1000
-            || !matches!(
-                self.event.as_str(),
-                "draft" | "comment" | "approve" | "request_changes"
-            )
-            || self.event == "draft" && self.body.is_none()
-            || self
-                .body
-                .as_ref()
-                .is_some_and(|b| b.len() > 65536 || b.contains('\0'))
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
+
     pub(super) fn wire_event(&self) -> &'static str {
         match self.event.as_str() {
             "comment" => "COMMENT",

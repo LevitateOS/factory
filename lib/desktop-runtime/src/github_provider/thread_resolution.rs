@@ -7,7 +7,6 @@ use super::{
     Client, Failure, ThreadRead, WriteOutcome,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Instant;
 
@@ -22,44 +21,11 @@ pub(super) fn mutation(resolved: bool) -> String {
 
 // Carries an exact caller-supplied original context, never reconstructed from
 // current PR refs. The present GitHub reader cannot prove this two-commit pair.
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct OriginalThreadAnchor {
-    pub base: String,
-    pub head: String,
-    pub path: String,
-    pub side: String,
-    pub scope: String,
-    pub start_line: i64,
-    pub end_line: i64,
-}
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ThreadResolution {
-    pub repository: String,
-    pub pull_id: String,
-    pub number: u64,
-    pub thread_id: String,
-    pub resolved: bool,
-    pub original_anchor: Option<OriginalThreadAnchor>,
-}
-impl ThreadResolution {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.pull_id)
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || !node_id(&self.thread_id)
-            || self.thread_id.bytes().all(|b| b.is_ascii_digit())
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        if self.original_anchor.is_some() {
-            return Err(Failure::new(409, "github_original_anchor_unobserved"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::OriginalThreadAnchor;
+
+pub use crate::provider_contract::ThreadResolution;
+
+
 impl Client {
     pub async fn set_thread_resolution(
         &self,

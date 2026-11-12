@@ -7,34 +7,14 @@ use super::{
     Client, Failure, ReviewerRead, ReviewerTarget, WriteOutcome,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, time::Instant};
 
 pub(super) const REQUEST:&str="mutation FactoryRequestReviewer($input:RequestReviewsInput!){requestReviews(input:$input){actor{login ... on User{id} ... on Bot{id}} pullRequest{id fullDatabaseId number url repository{id nameWithOwner}}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ReviewRequestChange {
-    pub repository: String,
-    pub pull_id: String,
-    pub number: u64,
-    pub target: ReviewerTarget,
-    pub requested: bool,
-}
-impl ReviewRequestChange {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.pull_id)
-            || self.number == 0
-            || self.number > i64::MAX as u64
-            || self.target.validate().is_err()
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::ReviewRequestChange;
+
+
 impl Client {
     pub async fn set_review_request(
         &self,

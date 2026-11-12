@@ -6,34 +6,14 @@ use super::{
     Client, CreateOutcome, Failure,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Instant;
 
 pub(super) const CREATE_ISSUE:&str="mutation FactoryCreateIssue($repository:ID!,$title:String!,$body:String!){createIssue(input:{repositoryId:$repository,title:$title,body:$body}){issue{id fullDatabaseId number title body url createdAt updatedAt repository{id nameWithOwner} author{login ... on User{id} ... on Bot{id}}}}}";
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct IssueCreate {
-    pub repository: String,
-    pub title: String,
-    pub body: String,
-}
-impl IssueCreate {
-    pub fn validate(&self) -> Result<(), Failure> {
-        if !remote_id(&self.repository)
-            || self.title.is_empty()
-            || self.title.trim() != self.title
-            || self.title.len() > 255
-            || self.title.contains('\0')
-            || self.body.len() > 65536
-            || self.body.contains('\0')
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::IssueCreate;
+
+
 impl Client {
     pub async fn create_issue(
         &self,

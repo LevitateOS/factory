@@ -55,8 +55,9 @@ type nativeRead struct {
 	RunPage              uint32                      `json:"run_page,omitempty"`
 }
 type nativeReadEffect struct {
-	Kind  string     `json:"kind"`
-	Query nativeRead `json:"query"`
+	Version uint8      `json:"version"`
+	Kind    string     `json:"kind"`
+	Query   nativeRead `json:"query"`
 }
 type nativeBranch struct {
 	Repository *collaboration.ObservedRepository `json:"repository"`
@@ -145,80 +146,58 @@ func (b *nativeProductAccount) read(ctx context.Context, query nativeRead, body 
 	}
 	return ctx.Err()
 }
+
+// decodeNativeRead accepts the versioned native contract and the frozen prior
+// envelope. Neither encoding is command authority or a retained send receipt.
+func decodeNativeRead(raw json.RawMessage, kind string, body any) (collaboration.ObservedActor, error) {
+	var account collaboration.ObservedActor
+	var fields map[string]json.RawMessage
+	if nativeDecode(raw, &fields) != nil {
+		return account, errNativeRead
+	}
+	var payload json.RawMessage
+	if _, versioned := fields["version"]; versioned {
+		var envelope struct {
+			Version uint8                       `json:"version"`
+			Kind    string                      `json:"kind"`
+			Account collaboration.ObservedActor `json:"account"`
+			Payload json.RawMessage             `json:"payload"`
+		}
+		if nativeDecode(raw, &envelope) != nil || envelope.Version != 1 || envelope.Kind != kind {
+			return account, errNativeRead
+		}
+		account, payload = envelope.Account, envelope.Payload
+	} else {
+		// Known prior kinds only: new operations use version1's single payload.
+		field := map[string]string{"source_bundle": "publication", "merge_completion": "publication", "publication_refs": "publication", "pull_required_checks": "required_checks", "automation_review": "automation_review", "delivery_opinions": "delivery_opinions", "automation_checks": "automation_checks", "automation_inputs": "inputs", "reviewer_lookup": "reviewer_lookup", "write_capabilities": "capabilities", "inline_preservation": "preservation", "inline_preparation": "preparation", "branch_creation": "preparation", "merge_preparation": "preparation", "pull_review_publication": "publication", "pull_pending_review_snapshot": "preparation", "pull_review_preparation": "preparation", "pull_branches": "branches", "issues": "issues", "issue": "issues", "pulls": "pulls", "pull": "pulls",
+			"issue_comments": "discussion", "pull_comments": "discussion", "pull_review_comment": "review_comments", "pull_review_comments": "review_comments", "pull_reviews": "reviews", "pull_review": "reviews", "pull_threads": "threads", "pull_review_requests": "review_requests", "pull_files": "files", "pull_commits": "commits", "pull_check_runs": "checks", "pull_commit_statuses": "statuses", "workflow_runs": "workflow_runs", "workflow_run_jobs": "jobs", "pull_workflow_jobs": "jobs", "pull_protection": "protection", "target_tip": "publication", "setup_source": "publication", "issue_creator_permission": "capabilities", "operation_grant": "capabilities", "external_pull_candidates": "external_pull_candidates", "merge_readiness": "merge_readiness"}[kind]
+		var observed string
+		if field == "" || len(fields) != 3 || nativeDecode(fields["kind"], &observed) != nil || observed != kind || nativeDecode(fields["account"], &account) != nil {
+			return account, errNativeRead
+		}
+		payload = fields[field]
+	}
+	if !nativeActor(account) || len(payload) == 0 || string(payload) == "null" || nativeDecode(payload, body) != nil {
+		return collaboration.ObservedActor{}, errNativeRead
+	}
+	return account, nil
+}
+
 func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body any) (NativeIdentity, error) {
-	var envelope struct {
-		MergeReadiness         json.RawMessage             `json:"merge_readiness"`
-		RequiredChecks         json.RawMessage             `json:"required_checks"`
-		DeliveryOpinions       json.RawMessage             `json:"delivery_opinions"`
-		AutomationReview       json.RawMessage             `json:"automation_review"`
-		ExternalPullCandidates json.RawMessage             `json:"external_pull_candidates"`
-		AutomationChecks       json.RawMessage             `json:"automation_checks"`
-		Inputs                 json.RawMessage             `json:"inputs"`
-		Capabilities           json.RawMessage             `json:"capabilities"`
-		Kind                   string                      `json:"kind"`
-		Account                collaboration.ObservedActor `json:"account"`
-		Issues                 json.RawMessage             `json:"issues"`
-		Pulls                  json.RawMessage             `json:"pulls"`
-		Discussion             json.RawMessage             `json:"discussion"`
-		ReviewComments         json.RawMessage             `json:"review_comments"`
-		Reviews                json.RawMessage             `json:"reviews"`
-		Threads                json.RawMessage             `json:"threads"`
-		Files                  json.RawMessage             `json:"files"`
-		Commits                json.RawMessage             `json:"commits"`
-		Checks                 json.RawMessage             `json:"checks"`
-		Statuses               json.RawMessage             `json:"statuses"`
-		Workflows              json.RawMessage             `json:"workflow_runs"`
-		Jobs                   json.RawMessage             `json:"jobs"`
-		Protection             json.RawMessage             `json:"protection"`
-		ReviewRequests         json.RawMessage             `json:"review_requests"`
-		ReviewerLookup         json.RawMessage             `json:"reviewer_lookup"`
-		Branches               json.RawMessage             `json:"branches"`
-		Preparation            json.RawMessage             `json:"preparation"`
-		Publication            json.RawMessage             `json:"publication"`
-		Preservation           json.RawMessage             `json:"preservation"`
-	}
-	var effect any = nativeReadEffect{Kind: "read", Query: query}
+	var raw json.RawMessage
+	var effect any = nativeReadEffect{Kind: "read", Version: 1, Query: query}
 	if query.Kind == "inline_preparation" && query.Anchor != nil {
-		effect = nativeInlinePreparationEffect{Kind: "read", Query: nativeInlinePreparationQuery{Kind: query.Kind, Repository: query.Repository, Number: query.Number, Anchor: *query.Anchor}}
+		effect = nativeInlinePreparationEffect{Kind: "read", Version: 1, Query: nativeInlinePreparationQuery{Kind: query.Kind, Repository: query.Repository, Number: query.Number, Anchor: *query.Anchor}}
 	}
-	scope, err := p.call(ctx, effect, &envelope)
+	scope, err := p.call(ctx, effect, &raw)
 	if err != nil {
 		return NativeIdentity{}, err
 	}
-	if envelope.Kind != query.Kind || !nativeActor(envelope.Account) || envelope.Account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
+	account, err := decodeNativeRead(raw, query.Kind, body)
+	if err != nil || account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
 		return NativeIdentity{}, errNativeRead
 	}
-	fields := []json.RawMessage{envelope.ExternalPullCandidates, envelope.DeliveryOpinions, envelope.RequiredChecks, envelope.AutomationReview, envelope.AutomationChecks, envelope.Inputs, envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Commits, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.ReviewerLookup, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
-	var selected json.RawMessage
-	count := 0
-	fields = append(fields, envelope.MergeReadiness)
-	for _, field := range fields {
-		if len(field) > 0 {
-			count++
-			selected = field
-		}
-	}
-	if count != 1 {
-		return NativeIdentity{}, errNativeRead
-	}
-	expected := map[string]json.RawMessage{"source_bundle": envelope.Publication, "merge_completion": envelope.Publication, "publication_refs": envelope.Publication, "pull_required_checks": envelope.RequiredChecks, "automation_review": envelope.AutomationReview, "delivery_opinions": envelope.DeliveryOpinions, "automation_checks": envelope.AutomationChecks, "automation_inputs": envelope.Inputs, "reviewer_lookup": envelope.ReviewerLookup, "write_capabilities": envelope.Capabilities, "inline_preservation": envelope.Preservation, "inline_preparation": envelope.Preparation, "branch_creation": envelope.Preparation, "merge_preparation": envelope.Preparation, "pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
-		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_review_comment": envelope.ReviewComments, "pull_review_comments": envelope.ReviewComments, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_commits": envelope.Commits, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
-	if query.Kind == "target_tip" || query.Kind == "setup_source" {
-		expected = envelope.Publication
-	}
-	if query.Kind == "issue_creator_permission" || query.Kind == "operation_grant" {
-		expected = envelope.Capabilities
-	}
-	if query.Kind == "external_pull_candidates" {
-		expected = envelope.ExternalPullCandidates
-	}
-	if query.Kind == "merge_readiness" {
-		expected = envelope.MergeReadiness
-	}
-	if len(expected) == 0 || nativeDecode(selected, body) != nil {
-		return NativeIdentity{}, errNativeRead
-	}
-	return NativeIdentity{Connection: scope.Connection, Account: envelope.Account, SelectedRepository: scope.Repository}, nil
+	return NativeIdentity{Connection: scope.Connection, Account: account, SelectedRepository: scope.Repository}, nil
 }
 func (b *nativeProductAccount) mapRead(ctx context.Context, remote, name string, actors []collaboration.ObservedActor, refs []collaboration.ObservedRepository) (collaboration.ConnectionObservationMapping, error) {
 	if b.repository == nil || remote != b.repository.ExternalID || !nativeObservedText(name, 512, false) {

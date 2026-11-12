@@ -1,7 +1,7 @@
 //! Read-only shared product observations from one explicitly enrolled repository.
 //! Enrollment supplies neither write permission nor native execution authority.
 use super::{invalid, Client, Result};
-use crate::github_provider::Read;
+use crate::provider_contract::Read;
 use base64::Engine;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -232,7 +232,7 @@ impl Client {
             }
             Read::SetupSource { repository: selected, commit, target_ref, paths } if selected == repository => {
                 if self.product_tip(target_ref).await? != *commit { return Err(invalid()); }
-                let setup = ["setup.sh", "check.sh", "setup-network.json", "setup-limits.json"];
+                let setup = crate::provider_contract::SETUP_FILES;
                 let mut names: BTreeSet<&str> = setup.into_iter().collect();
                 names.extend(paths.iter().map(String::as_str));
                 let mut files = serde_json::Map::new();

@@ -1,7 +1,7 @@
 //! Issue-only human collaboration over public OAuth/profile enrollment. The
 //! existing native send fence and host human-operation journal own effects.
 use super::{hex, invalid, unavailable, Client, Result};
-use crate::github_provider::{CreateOutcome, Failure, WriteOperation};
+use crate::provider_contract::{CreateOutcome, Failure, WriteOperation};
 use crate::private_fs::{private_dir, publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

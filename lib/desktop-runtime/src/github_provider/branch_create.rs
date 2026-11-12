@@ -3,38 +3,19 @@
 use super::{
     reads::Reader,
     records as r,
-    request::{branch_name, commit, node_id, remote_id},
+    request::{commit, node_id, remote_id},
     Client, CreateOutcome, Failure, Result,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Instant;
 
 pub(super) const QUERY:&str="query FactoryBranchCreation($repository:ID!,$name:String!,$oid:GitObjectID!){node(id:$repository){__typename ... on Repository{id nameWithOwner branch:ref(qualifiedName:$name){id name prefix repository{id} target{__typename oid repository{id}}} commit:object(oid:$oid){__typename oid repository{id}}}}}";
 pub(super) const CREATE:&str="mutation FactoryCreateBranch($input:CreateRefInput!){createRef(input:$input){ref{id name prefix repository{id} target{__typename oid repository{id}}}}}";
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct BranchCreate {
-    pub repository: String,
-    pub repository_node_id: String,
-    /// An unqualified literal branch name; the transport always supplies refs/heads/.
-    pub name: String,
-    pub commit: String,
-}
-impl BranchCreate {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository)
-            || !node_id(&self.repository_node_id)
-            || !branch_name(&self.name)
-            || !commit(&self.commit)
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::BranchCreate;
+
+
 impl Reader<'_> {
     async fn branch_create_repository(&self) -> Result<Value> {
         let raw = self.get("", &[]).await?.value;

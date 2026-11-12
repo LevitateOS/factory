@@ -22,35 +22,7 @@ impl Client {
         if !remote_id(expected) {
             return Err(Failure::invalid());
         }
-        self.count_semantic_read(match query {
-            Read::Identity => "identity",
-            Read::Repository { .. } | Read::FindRepository { .. } => "repository",
-            Read::Repositories { .. } => "repositories",
-            Read::Issue { .. } => "issue",
-            Read::Issues { .. } => "issues",
-            Read::IssueCreatorPermission { .. } => "issue_creator_permission",
-            Read::WriteCapabilities { .. } => "write_capabilities",
-            Read::AutomationInputs { .. } => "automation_inputs",
-            Read::AutomationChecks { .. } => "automation_checks",
-            Read::AutomationReview { .. } => "automation_review",
-            Read::ExternalPullCandidates { .. } => "external_pull_candidates",
-            Read::DeliveryOpinions { .. } => "delivery_opinions",
-            Read::PullRequiredChecks { .. } => "pull_required_checks",
-            Read::MergePreparation { .. } => "merge_preparation",
-            Read::MergeReadiness { .. } => "merge_readiness",
-            Read::MergeCompletion { .. } => "merge_completion",
-            Read::PullFiles { .. } => "pull_files",
-            Read::PullComments { .. } => "pull_comments",
-            Read::PullReviews { .. } => "pull_reviews",
-            Read::PullThreads { .. } => "pull_threads",
-            Read::PullReview { .. } => "pull_review",
-            Read::PullPendingReviewSnapshot { .. } => "pull_pending_review_snapshot",
-            Read::TargetTip { .. } => "target_tip",
-            Read::SourceBundle { .. } => "source_bundle",
-            Read::SetupSource { .. } => "setup_source",
-            Read::PublicationRefs { .. } => "publication_refs",
-            _ => "other",
-        });
+        self.count_semantic_read(query.kind());
         let q = query.value();
         let kind = r::text(&q, "kind")?;
         if matches!(

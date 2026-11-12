@@ -13796,6 +13796,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	var denyAt atomic.Int64
 	var denied atomic.Int64
 	var materialMode atomic.Bool
+	var materialVersion atomic.Int64
 	var materialReads atomic.Int64
 	var closingReadiness atomic.Int64
 	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -13803,8 +13804,9 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			Operation                       string
 			Connection, Account, Repository string
 			Call                            struct {
-				Kind  string
-				Query struct{ Kind, Repository string }
+				Kind    string
+				Version uint8
+				Query   struct{ Kind, Repository string }
 			}
 		}
 		if r.Header.Get("Authorization") != "Bearer "+hex.EncodeToString(config.IPCKey()) || !factory.ValidID(r.Header.Get("X-Soda-Native-Instance")) || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&command) != nil {
@@ -13867,7 +13869,20 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 				w.WriteHeader(503)
 				return
 			}
-			observation = map[string]any{"kind": kind, "account": account, field: payload}
+			if command.Call.Version != 1 {
+				w.WriteHeader(503)
+				return
+			}
+			switch materialVersion.Load() {
+			case 0:
+				observation = map[string]any{"kind": kind, "account": account, field: payload}
+			case 1:
+				observation = map[string]any{"version": 1, "kind": kind, "account": account, "payload": payload}
+			case 2:
+				observation = map[string]any{"version": 2, "kind": kind, "account": account, "payload": payload}
+			case 3:
+				observation = map[string]any{"version": 1, "kind": kind, "account": account, "payload": payload, field: payload}
+			}
 		default:
 			w.WriteHeader(503)
 			return
@@ -14016,10 +14031,22 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	defer materialMode.Store(false)
 	native := factoryruntime.NativeMerges{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}}
 	w := factory.MergeWork{Method: "merge", Repository: int64(repository), Issue: 12, PRNumber: 7, PRID: 700, IssueID: 1300, ActorID: actor, PRAuthorID: actor, ReviewerID: actor, ReviewEvent: "COMMENT", HeadRef: "refs/heads/topic", BaseRef: "refs/heads/main", HeadOID: strings.Repeat("a", 40), BaseOID: strings.Repeat("b", 40)}
-	material, err := native.ReadDeliveryMaterial(ctx, w)
-	if err == nil || !reflect.DeepEqual(material, factory.DeliveryNativeMaterial{}) || calls.Load() != 1 || identities.Load() != 0 || materialReads.Load() != 11 || closingReadiness.Load() != 1 {
-		return fmt.Errorf("material request count/refusal: repository=%d identity=%d discussion/input=%d closing=%d error=%v", calls.Load(), identities.Load(), materialReads.Load(), closingReadiness.Load(), err)
+	for _, version := range []int64{0, 1, 2, 3} {
+		materialVersion.Store(version)
+		calls.Store(0)
+		identities.Store(0)
+		materialReads.Store(0)
+		closingReadiness.Store(0)
+		material, readErr := native.ReadDeliveryMaterial(ctx, w)
+		wantReads, wantClosing := int64(11), int64(1)
+		if version >= 2 {
+			wantReads, wantClosing = 1, 0
+		}
+		if readErr == nil || !reflect.DeepEqual(material, factory.DeliveryNativeMaterial{}) || calls.Load() != 1 || identities.Load() != 0 || materialReads.Load() != wantReads || closingReadiness.Load() != wantClosing {
+			return fmt.Errorf("material envelope mode=%d calls=%d identities=%d reads=%d closing=%d: %v", version, calls.Load(), identities.Load(), materialReads.Load(), closingReadiness.Load(), readErr)
+		}
 	}
+	fmt.Println("PASS: real Go material reader accepts known-prior and version1 envelopes, rejects unknown versions/mixed payloads at the first read, and preserves closing withdrawal refusal with no provider/model/write.")
 	fmt.Println("PASS: production material reader completes both five-read discussion traversals and original input, then exactly one closing paired CI/protection read; closing permission withdrawal exposes no material. Exactly 13 declared native reads, no provider/model/write.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access and Work each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
 	return nil

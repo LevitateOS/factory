@@ -5,138 +5,13 @@ use super::transport::{advertised, packet, GitService};
 use super::{
     reads::Reader,
     records as r,
-    request::{branch_name, commit, remote_id},
     Client, Failure, Result, WriteOutcome,
 };
 use crate::credentials::Token;
-use base64::Engine;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sha2::{Digest, Sha256};
-use soda_execution_protocol::MAX_STAGE_BUNDLE;
 use std::time::Instant;
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct BranchCorrection {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub repository: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub fork_consent: String,
-    pub number: u32,
-    pub expected_author_id: i64,
-    pub expected_pr_id: i64,
-    pub expected_issue_id: i64,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct BranchPublish {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub controller_grant_id: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub source_connection: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pull_request: Option<BranchCorrection>,
-    pub repository: String,
-    pub branch: String,
-    pub expected_old: String,
-    pub candidate: String,
-    pub base: String,
-    pub comparison_branch: String,
-    pub comparison_oid: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub comparison_repository: String,
-    pub bundle_sha256: String,
-    pub bundle: String,
-}
-impl BranchPublish {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository)
-            || !branch_name(&self.branch)
-            || !branch_name(&self.comparison_branch)
-            || self.branch == self.comparison_branch
-            || !commit(&self.candidate)
-            || !commit(&self.base)
-            || !commit(&self.comparison_oid)
-            || !(self.expected_old.is_empty() || commit(&self.expected_old))
-            || self.expected_old == self.candidate
-            || self.pull_request.is_none() && !self.comparison_repository.is_empty()
-            || self.pull_request.as_ref().is_some_and(|c| {
-                self.expected_old.is_empty()
-                    || c.number == 0
-                    || c.expected_author_id <= 0
-                    || c.expected_pr_id <= 0
-                    || c.expected_issue_id <= 0
-                    || if self.controller_grant_id.is_empty() {
-                        !self.source_connection.is_empty()
-                            || !remote_id(&c.repository)
-                            || c.repository == self.repository
-                            || self.comparison_repository != c.repository
-                            || c.fork_consent.len() != 32
-                            || !c
-                                .fork_consent
-                                .bytes()
-                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                    } else {
-                        !c.repository.is_empty()
-                            || !c.fork_consent.is_empty()
-                            || !self.comparison_repository.is_empty()
-                    }
-            })
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        self.pack().map(|_| ())
-    }
-    pub(crate) fn pack(&self) -> Result<Vec<u8>> {
-        if self.bundle.is_empty() || self.bundle.len() > MAX_STAGE_BUNDLE.div_ceil(3) * 4 {
-            return Err(Failure::new(413, "github_candidate_too_large"));
-        }
-        let bundle = base64::engine::general_purpose::STANDARD
-            .decode(&self.bundle)
-            .map_err(|_| Failure::invalid())?;
-        if bundle.len() > MAX_STAGE_BUNDLE
-            || Sha256::digest(&bundle)
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<String>()
-                != self.bundle_sha256
-        {
-            return Err(Failure::new(400, "github_candidate_digest_differs"));
-        }
-        let end = bundle
-            .windows(2)
-            .position(|bytes| bytes == b"\n\n")
-            .ok_or_else(Failure::invalid)?;
-        let header = std::str::from_utf8(&bundle[..end]).map_err(|_| Failure::invalid())?;
-        let mut lines = header.lines();
-        if lines.next() != Some("# v2 git bundle") {
-            return Err(Failure::new(400, "github_candidate_bundle_unsupported"));
-        }
-        let mut target = false;
-        let mut prerequisite = false;
-        for line in lines {
-            if let Some(value) = line.strip_prefix('-') {
-                let (oid, _) = value.split_once(' ').ok_or_else(Failure::invalid)?;
-                if prerequisite || oid != self.base {
-                    return Err(Failure::invalid());
-                }
-                prerequisite = true;
-            } else {
-                if target || line != format!("{} HEAD", self.candidate) {
-                    return Err(Failure::invalid());
-                }
-                target = true;
-            }
-        }
-        let pack = &bundle[end + 2..];
-        if !target || pack.len() < 32 || &pack[..4] != b"PACK" {
-            return Err(Failure::invalid());
-        }
-        Ok(pack.to_vec())
-    }
-}
+pub use crate::provider_contract::BranchPublish;
 
 impl Reader<'_> {
     pub(super) async fn publication_refs(

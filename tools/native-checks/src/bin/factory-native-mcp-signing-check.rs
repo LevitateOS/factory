@@ -911,6 +911,25 @@ fn source_bundle_contract() -> Result<(), Box<dyn std::error::Error>> {
     if legacy.validate().is_err() || serde_json::to_value(legacy)?.get("expected_base").is_some() {
         return Err("legacy fork delta source changed its request contract".into());
     }
+    let read: Read = serde_json::from_value(full.clone())?;
+    let captured = serde_json::json!({"kind":"source_bundle","account":{"external_id":"123","login":"fixture"},"publication":{"repository":"123"}});
+    if read.kind() != "source_bundle" || read.payload_field() != Some("publication") || read.observation(captured.clone(),0)? != captured { return Err("known prior observation changed".into()); }
+    let versioned = read.observation(captured.clone(),1)?;
+    if versioned != serde_json::json!({"version":1,"kind":"source_bundle","account":{"external_id":"123","login":"fixture"},"payload":{"repository":"123"}}) || read.observation(captured.clone(),2).is_ok() { return Err("versioned payload or unknown-version refusal changed".into()); }
+    let mut mixed=captured.clone(); mixed["unexpected"]=serde_json::json!({});
+    let mut wrong=captured; wrong["kind"]=serde_json::json!("pull");
+    if read.observation(mixed,1).is_ok() || read.observation(wrong,1).is_ok() { return Err("native observation admitted mixed payload or mismatched kind".into()); }
+    for (query, field) in [
+        (serde_json::json!({"kind":"workflow_runs","repository":"123","page":1,"limit":10,"head":""}),"workflow_runs"),
+        (serde_json::json!({"kind":"pull_diff","repository":"123","number":7,"base":"a".repeat(40),"head":"b".repeat(40)}),"diff"),
+    ] {
+        let read: Read=serde_json::from_value(query)?; read.validate()?;
+        let capture=serde_json::json!({"kind":read.kind(),"account":{"external_id":"123","login":"fixture"},field:{"items":[]}});
+        if read.observation(capture,1)?["payload"] != serde_json::json!({"items":[]}) { return Err("provider's existing payload field lost in the versioned envelope".into()); }
+    }
+    let catalogue:Read=serde_json::from_value(serde_json::json!({"kind":"repositories","page":1,"limit":10}))?;
+    let catalogue=catalogue.observation(serde_json::json!({"kind":"repositories","account":{"external_id":"123","login":"fixture"},"items":[],"next_page":0}),1)?;
+    if catalogue["payload"] != serde_json::json!({"items":[],"next_page":0}) { return Err("catalogue paging envelope changed".into()); }
     let mut missing = full.clone();
     missing.as_object_mut().ok_or("source query missing")?.remove("expected_base");
     let mut malformed = full.clone();

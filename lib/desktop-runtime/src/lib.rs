@@ -34,3 +34,6 @@ mod product_request;
 pub use product_request::{product_request_body_limit, ProductRequest};
 #[cfg(target_os = "linux")]
 pub mod supervisor;
+
+#[cfg(target_os = "linux")]
+pub mod provider_contract;

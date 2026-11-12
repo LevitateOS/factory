@@ -8,31 +8,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use tokio::sync::MutexGuard;
 
-/// Causal result of one native creation attempt. Every error after dispatch
-/// starts remains uncertain; the Go command journal owns durable reconciliation.
-pub enum CreateOutcome {
-    NotSent(Failure),
-    Indeterminate(Failure),
-    Created(Value),
-}
-
-/// Causal result of a one-shot update, without claiming a timeline event or
-/// remote retry/deduplication guarantee. The Go journal retains its uncertainty.
-pub enum WriteOutcome {
-    NotSent(Failure),
-    Indeterminate(Failure),
-    Applied(Value),
-}
-
-impl From<CreateOutcome> for WriteOutcome {
-    fn from(outcome: CreateOutcome) -> Self {
-        match outcome {
-            CreateOutcome::Created(value) => Self::Applied(value),
-            CreateOutcome::NotSent(failure) => Self::NotSent(failure),
-            CreateOutcome::Indeterminate(failure) => Self::Indeterminate(failure),
-        }
-    }
-}
+pub use crate::provider_contract::{CreateOutcome, WriteOutcome};
 
 pub(super) struct Mutation {
     pub deadline: Instant,
@@ -155,95 +131,8 @@ pub(super) fn check_receipt(receipt: &Value) -> Result<()> {
     Ok(())
 }
 
-/// Fixed native write vocabulary, independent of callback wire encoding and custody.
-#[derive(serde::Serialize)]
-pub(crate) enum WriteOperation {
-    SetIssueDependency(super::IssueDependency),
-    CreateInline(super::InlineCreate),
-    MergePull(super::PullMerge),
-    AppendPendingThread(super::InlineDraft),
-    PublishBranch(super::BranchPublish),
-    CreateBranch(super::BranchCreate),
-    CreateComment(super::Comment),
-    CreateIssue(super::IssueCreate),
-    CreatePull(super::PullCreate),
-    CreateReview(super::ReviewCreate),
-    SubmitPendingReview(super::PendingReviewSubmit),
-    SetDiscussionState(super::DiscussionState),
-    EditDiscussion(super::DiscussionEdit),
-    SetDiscussionLock(super::DiscussionLock),
-    SetThreadResolution(super::ThreadResolution),
-    SetReviewRequest(super::ReviewRequestChange),
-}
+pub(crate) use crate::provider_contract::WriteOperation;
 impl WriteOperation {
-    pub(crate) fn validate(&self) -> Result<&str> {
-        match self {
-            Self::SetIssueDependency(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::CreateInline(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::MergePull(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::AppendPendingThread(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::PublishBranch(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::CreateBranch(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::CreateComment(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::CreateIssue(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::CreatePull(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::CreateReview(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::SubmitPendingReview(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::SetDiscussionState(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::EditDiscussion(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::SetDiscussionLock(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::SetThreadResolution(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-            Self::SetReviewRequest(value) => {
-                value.validate()?;
-                Ok(&value.repository)
-            }
-        }
-    }
     pub(crate) async fn apply(
         &self,
         provider: &Client,

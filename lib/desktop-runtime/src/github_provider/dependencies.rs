@@ -3,47 +3,15 @@
 use super::{
     reads::Reader,
     records as r,
-    request::{node_id, remote_id},
+    request::{node_id},
     Client, Failure, Result, WriteOutcome,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{collections::BTreeSet, time::Instant};
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct IssueDependency {
-    pub repository: String,
-    pub issue_id: String,
-    pub number: u32,
-    pub blocking_id: String,
-    pub blocking_number: u32,
-    pub expected: Vec<String>,
-    pub remove: bool,
-}
-impl IssueDependency {
-    pub fn validate(&self) -> Result<()> {
-        let set: BTreeSet<_> = self.expected.iter().collect();
-        if !remote_id(&self.repository)
-            || !remote_id(&self.issue_id)
-            || !remote_id(&self.blocking_id)
-            || self.issue_id == self.blocking_id
-            || self.number == 0
-            || self.blocking_number == 0
-            || self.number == self.blocking_number
-            || self.expected.len() > 50
-            || set.len() != self.expected.len()
-            || self
-                .expected
-                .iter()
-                .any(|id| !remote_id(id) || id == &self.issue_id)
-            || self.expected.contains(&self.blocking_id) != self.remove
-        {
-            return Err(Failure::new(400, "invalid_native_dependency"));
-        }
-        Ok(())
-    }
-}
+pub use crate::provider_contract::IssueDependency;
+
+
 impl Reader<'_> {
     async fn dependency_set(
         &self,

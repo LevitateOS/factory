@@ -5,59 +5,15 @@ use super::{
     Client, Failure, Result, WriteOutcome,
 };
 use crate::credentials::Token;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Instant;
 
 const MERGE: &str = "mutation FactoryMergePull($input:MergePullRequestInput!){mergePullRequest(input:$input){actor{__typename ... on User{id}} pullRequest{id fullDatabaseId number repository{id} headRefOid merged mergedAt mergeCommit{oid messageHeadline messageBody repository{id}}}}}";
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PullMerge {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub controller_grant_id:String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub source_connection:String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub head_ref:String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub base_ref:String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub host_revision:Option<i64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub checks:Vec<Value>,
-    pub repository: String,
-    pub repository_node_id: String,
-    pub pull_id: String,
-    pub pull_node_id: String,
-    pub number: u32,
-    pub head: String,
-    pub base: String,
-    pub method: String,
-    pub message: String,
-}
+pub use crate::provider_contract::PullMerge;
+
 impl PullMerge {
-    pub fn validate(&self) -> Result<()> {
-        if !remote_id(&self.repository)
-            || !remote_id(&self.pull_id)
-            || !node_id(&self.repository_node_id)
-            || !node_id(&self.pull_node_id)
-            || self.number == 0
-            || !commit(&self.head)
-            || !commit(&self.base)
-            || !matches!(self.method.as_str(), "merge" | "squash" | "rebase" | "fast-forward-only")
-            || self.message.len() > 65536
-            || self.message.contains('\0')
-            || if matches!(self.method.as_str(),"rebase"|"fast-forward-only") {
-                !self.message.is_empty()
-            } else {
-                self.message.trim().is_empty()
-            }
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        Ok(())
-    }
+
     fn message_parts(&self) -> (&str, &str) {
         match self.message.split_once('\n') {
             Some((headline, body)) => (headline, body.strip_prefix('\n').unwrap_or(body)),

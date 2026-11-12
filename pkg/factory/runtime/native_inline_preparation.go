@@ -18,8 +18,9 @@ type NativeInlinePreparationObservation struct {
 // The dedicated envelope admits JSON escaping of a maximal canonical path.
 // Other reads retain their ordinary small descriptor limit.
 type nativeInlinePreparationEffect struct {
-	Kind  string                       `json:"kind"`
-	Query nativeInlinePreparationQuery `json:"query"`
+	Version uint8                        `json:"version"`
+	Kind    string                       `json:"kind"`
+	Query   nativeInlinePreparationQuery `json:"query"`
 }
 type nativeInlinePreparationQuery struct {
 	Kind       string                     `json:"kind"`

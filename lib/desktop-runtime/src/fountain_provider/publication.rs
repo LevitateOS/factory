@@ -4,7 +4,7 @@ use super::{
     hex, invalid, unavailable, Client, EffectState, OperationGrant, OperationRecord,
     PublicationClass, Result,
 };
-use crate::github_provider::{BranchPublish, Failure as NativeFailure, PullCreate, ReviewCreate, PullMerge, WriteOutcome};
+use crate::provider_contract::{BranchPublish, Failure as NativeFailure, PullCreate, ReviewCreate, PullMerge, WriteOutcome};
 use crate::private_fs::{private_dir, publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
