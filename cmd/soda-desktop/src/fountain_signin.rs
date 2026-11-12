@@ -48,13 +48,9 @@ pub(super) async fn fountain_sign_in(
     window: WebviewWindow,
     app: tauri::AppHandle,
     origin: String,
-    control: Option<bool>,
-    issues_only: Option<bool>,
+    purpose: soda_desktop_runtime::fountain_oauth::ConsentPurpose,
 ) -> Result<View, String> {
     caller(&window)?;
-    if control.unwrap_or(false) && issues_only.unwrap_or(false) {
-        return Err("Choose issue collaboration or automation control access.".into());
-    }
     let desktop = app.state::<Desktop>();
     let store: Arc<Credentials> = desktop.credentials()?;
     let _saving = desktop.fountain_signin.saving.lock().await;
@@ -65,13 +61,7 @@ pub(super) async fn fountain_sign_in(
         .start(window.label(), move |attempt| {
             tauri::async_runtime::spawn(async move {
                 let result = async {
-                    let client = if issues_only.unwrap_or(false) {
-                        Client::configured_issues(&origin).await?
-                    } else if control.unwrap_or(false) {
-                        Client::configured_control(&origin).await?
-                    } else {
-                        Client::configured(&origin).await?
-                    };
+                    let client = Client::configured_for(&origin,purpose).await?;
                     let authorization = client.begin().await?;
                     let prompt = authorization.prompt();
                     update(
@@ -165,18 +155,8 @@ pub(super) async fn fountain_refresh(
                         .into_iter()
                         .find(|value| value.connection == cap.account().connection)
                         .ok_or(Error::Reauthorize)?;
-                    let client = match saved.grant.as_ref().map(|grant| grant.scope.as_str()) {
-                        Some("write:issue") => {
-                            Client::configured_issues(&cap.account().origin).await?
-                        }
-                        Some("read:repository" | "read:repository read:issue") => {
-                            Client::configured(&cap.account().origin).await?
-                        }
-                        Some("write:repository" | "write:repository write:issue") => {
-                            Client::configured_control(&cap.account().origin).await?
-                        }
-                        _ => return Err(Error::Reauthorize),
-                    };
+                    let purpose=saved.grant.as_ref().and_then(|grant|soda_desktop_runtime::fountain_oauth::ConsentPurpose::from_scope(&grant.scope)).ok_or(Error::Reauthorize)?;
+                    let client=Client::configured_for(&cap.account().origin,purpose).await?;
                     client.refresh(&store, &cap).await?;
                     update(&worker, attempt, epoch, Phase::Complete)
                 }

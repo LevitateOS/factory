@@ -18,6 +18,206 @@ use std::sync::{
 use std::time::Duration;
 use tokio::{runtime::Handle, sync::Notify};
 
+#[derive(Default)]
+pub struct GrantWatches(std::sync::Mutex<Vec<std::sync::Weak<GrantWatch>>>);
+struct WatchMember {
+    cancellation: AgentCancellation,
+    deadline: i64,
+    alive: Arc<AtomicBool>,
+}
+struct WatchState {
+    members: std::sync::Mutex<std::collections::BTreeMap<u64, WatchMember>>,
+    next: std::sync::atomic::AtomicU64,
+    changed: Notify,
+    stopped: AtomicBool,
+}
+struct GrantWatch {
+    client: Arc<Client>,
+    grant: OperationGrant,
+    state: Arc<WatchState>,
+    monitor: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+pub struct GrantWatchLease {
+    watch: Arc<GrantWatch>,
+    id: u64,
+}
+impl GrantWatches {
+    /// Observe liveness only. This never admits a claim, launch, send or funding.
+    pub fn observe_execution(
+        &self,
+        client: Arc<Client>,
+        grant: OperationGrant,
+        deadline: i64,
+        cancellation: AgentCancellation,
+        alive: Arc<AtomicBool>,
+    ) -> io::Result<GrantWatchLease> {
+        if !grant.allows_current("execution.launch")
+            || deadline <= time::OffsetDateTime::now_utc().unix_timestamp()
+            || deadline > grant.not_after
+            || cancellation.cancelled()
+            || !alive.load(Ordering::SeqCst)
+        {
+            return Err(unavailable());
+        }
+        self.attach(
+            client,
+            grant,
+            WatchMember {
+                deadline,
+                cancellation,
+                alive,
+            },
+        )
+    }
+    fn attach(
+        &self,
+        client: Arc<Client>,
+        grant: OperationGrant,
+        member: WatchMember,
+    ) -> io::Result<GrantWatchLease> {
+        let mut watches = self.0.lock().map_err(|_| unavailable())?;
+        watches.retain(|watch| watch.strong_count() > 0);
+        for weak in watches.iter() {
+            if let Some(watch) = weak.upgrade() {
+                if watch.client.same_custody(&client) && same_grant(&watch.grant, &grant) {
+                    let mut members = watch.state.members.lock().map_err(|_| unavailable())?;
+                    if !watch.state.stopped.load(Ordering::SeqCst) {
+                        let id = watch.state.next.fetch_add(1, Ordering::SeqCst);
+                        if id == 0 {
+                            return Err(unavailable());
+                        }
+                        members.insert(id, member);
+                        drop(members);
+                        watch.state.changed.notify_one();
+                        return Ok(GrantWatchLease { watch, id });
+                    }
+                }
+            }
+        }
+        let state = Arc::new(WatchState {
+            members: std::sync::Mutex::new([(1, member)].into()),
+            next: std::sync::atomic::AtomicU64::new(2),
+            changed: Notify::new(),
+            stopped: AtomicBool::new(false),
+        });
+        let watch = Arc::new(GrantWatch {
+            client: client.clone(),
+            grant: grant.clone(),
+            state: state.clone(),
+            monitor: std::sync::Mutex::new(None),
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let monitor = std::thread::Builder::new()
+            .name("factory-controller-watch".into())
+            .spawn(move || runtime.block_on(monitor_grant(client, grant, state)))?;
+        *watch.monitor.lock().map_err(|_| unavailable())? = Some(monitor);
+        watches.push(Arc::downgrade(&watch));
+        Ok(GrantWatchLease { watch, id: 1 })
+    }
+}
+impl WatchState {
+    fn remaining(&self) -> Option<Duration> {
+        let mut members = self.members.lock().unwrap_or_else(|e| e.into_inner());
+        let now = time::OffsetDateTime::now_utc();
+        members.retain(|_, member| {
+            let live = member.alive.load(Ordering::SeqCst)
+                && member.deadline > now.unix_timestamp()
+                && !member.cancellation.cancelled();
+            if !live {
+                member.cancellation.cancel();
+            }
+            live
+        });
+        if members.is_empty() || self.stopped.load(Ordering::SeqCst) {
+            self.stopped.store(true, Ordering::SeqCst);
+            return None;
+        }
+        members
+            .values()
+            .map(|m| {
+                Duration::from_millis(
+                    time::OffsetDateTime::from_unix_timestamp(m.deadline)
+                        .map(|expiry| (expiry - now).whole_milliseconds().max(0) as u64)
+                        .unwrap_or(0),
+                )
+            })
+            .min()
+    }
+    fn cancel_all(&self) {
+        let mut members = self.members.lock().unwrap_or_else(|e| e.into_inner());
+        self.stopped.store(true, Ordering::SeqCst);
+        for member in members.values() {
+            member.cancellation.cancel();
+        }
+        members.clear();
+    }
+}
+async fn monitor_grant(client: Arc<Client>, grant: OperationGrant, state: Arc<WatchState>) {
+    loop {
+        if state.remaining().is_none() {
+            return;
+        }
+        let read = client.operation_grant(&grant.id);
+        tokio::pin!(read);
+        let current = loop {
+            let Some(remaining) = state.remaining() else {
+                return;
+            };
+            tokio::select! {
+             value=&mut read=>break value,
+             _=state.changed.notified()=>{},
+             _=tokio::time::sleep(remaining)=>{},
+            }
+        };
+        if !current.is_ok_and(|current| {
+            current.allows_current("execution.launch") && same_grant(&current, &grant)
+        }) {
+            state.cancel_all();
+            return;
+        }
+        let pause = tokio::time::sleep(Duration::from_secs(1));
+        tokio::pin!(pause);
+        loop {
+            let Some(remaining) = state.remaining() else {
+                return;
+            };
+            tokio::select! {_= &mut pause=>break,_=state.changed.notified()=>{},_=tokio::time::sleep(remaining)=>{}}
+        }
+    }
+}
+impl Drop for GrantWatchLease {
+    fn drop(&mut self) {
+        let last = {
+            let mut members = self
+                .watch
+                .state
+                .members
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            members.remove(&self.id);
+            let last = members.is_empty();
+            if last {
+                self.watch.state.stopped.store(true, Ordering::SeqCst);
+            }
+            last
+        };
+        self.watch.state.changed.notify_one();
+        if last {
+            if let Some(monitor) = self
+                .watch
+                .monitor
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take()
+            {
+                let _ = monitor.join();
+            }
+        }
+    }
+}
+
 type RetireFn = fn(String, String) -> ExecutionRetirement;
 fn unavailable() -> io::Error {
     io::Error::other("captured Fountain execution claim unavailable")
@@ -76,7 +276,7 @@ enum Phase {
     Admitted,
     Entered {
         cancellation: AgentCancellation,
-        monitor: std::thread::JoinHandle<()>,
+        watch: GrantWatchLease,
     },
 }
 pub(super) struct Lease {
@@ -89,7 +289,6 @@ pub(super) struct Lease {
     no_start: PathBuf,
     no_start_receipt: Vec<u8>,
     alive: Arc<AtomicBool>,
-    stop: Arc<Notify>,
     phase: Phase,
     runtime: Handle,
     channel: NativeChannel,
@@ -141,7 +340,6 @@ impl Lease {
             no_start,
             no_start_receipt,
             alive,
-            stop: Arc::new(Notify::new()),
             phase: Phase::Admitted,
             runtime: Handle::current(),
             channel,
@@ -193,7 +391,6 @@ impl Lease {
             no_start: no_start_path(&profile, intent),
             no_start_receipt: no_start_bytes(intent)?,
             alive,
-            stop: Arc::new(Notify::new()),
             phase: Phase::Admitted,
             runtime: Handle::current(),
             channel,
@@ -269,39 +466,10 @@ impl Lease {
             return Err(unavailable());
         }
         let cancel_handle = cancellation.clone();
-        let (client, grant, deadline, alive, stop) = (
-            self.client.clone(),
-            self.grant.clone(),
-            self.request.not_after,
-            self.alive.clone(),
-            self.stop.clone(),
-        );
-        // The watcher has its own executor so native retirement can join it
-        // from either a blocking owner or an async desktop inspection caller.
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .inspect_err(|_| cancellation.cancel())?;
-        let monitor = std::thread::Builder::new().name("factory-controller-watch".into()).spawn(move || runtime.block_on(async move {
-            loop {
-                let remaining = time::OffsetDateTime::from_unix_timestamp(deadline)
-                    .map(|expires| (expires-time::OffsetDateTime::now_utc()).whole_milliseconds()).unwrap_or(0);
-                if remaining <= 0 { cancellation.cancel(); return; }
-                let current = tokio::select! {
-                    _ = stop.notified() => return,
-                    _ = tokio::time::sleep(Duration::from_millis(remaining as u64)) => { cancellation.cancel(); return; },
-                    value = client.operation_grant(&grant.id) => value,
-                };
-                if !alive.load(Ordering::SeqCst) || deadline <= time::OffsetDateTime::now_utc().unix_timestamp() || !current.is_ok_and(|current| current.allows_current("execution.launch") && same_grant(&current, &grant)) {
-                    cancellation.cancel();
-                    return;
-                }
-                tokio::select! { _ = stop.notified() => return, _ = tokio::time::sleep(Duration::from_secs(1)) => {} }
-            }
-        })).inspect_err(|_| cancel_handle.cancel())?;
+        let watch=self.channel.controller_watches.observe_execution(self.client.clone(),self.grant.clone(),self.request.not_after,cancellation,self.alive.clone()).inspect_err(|_|cancel_handle.cancel())?;
         self.phase = Phase::Entered {
             cancellation: cancel_handle,
-            monitor,
+            watch,
         };
         Ok(())
     }
@@ -407,13 +575,10 @@ impl Drop for Lease {
         match std::mem::replace(&mut self.phase, Phase::Admitted) {
             Phase::Entered {
                 cancellation,
-                monitor,
+                watch,
             } => {
                 cancellation.cancel();
-                self.stop.notify_one();
-                // The worker has joined before this lease. The watcher never
-                // depends on the caller's executor to acknowledge retirement.
-                let _ = monitor.join();
+                drop(watch);
             }
             Phase::Admitted => {
                 let _ = publish_bytes(&self.no_start, &self.no_start_receipt);

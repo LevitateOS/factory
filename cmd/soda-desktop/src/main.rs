@@ -445,12 +445,13 @@ fn runtime_retry(
 async fn credential_status(
     window: WebviewWindow,
     app: tauri::AppHandle,
-) -> Result<Vec<AccountStatus>, String> {
+) -> Result<Vec<soda_desktop_runtime::fountain_oauth::CredentialView>, String> {
     caller(&window)?;
     app.state::<Desktop>()
         .credentials()?
         .status()
         .await
+        .map(|accounts| accounts.into_iter().map(soda_desktop_runtime::fountain_oauth::CredentialView::new).collect())
         .map_err(|e| e.to_string())
 }
 #[tauri::command]

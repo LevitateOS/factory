@@ -6,6 +6,7 @@ mod broker;
 mod candidate;
 mod custody;
 mod controller;
+pub use controller::{GrantWatches, GrantWatchLease};
 mod executions;
 mod intent;
 pub(crate) mod judgment;

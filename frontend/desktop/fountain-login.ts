@@ -2,8 +2,8 @@ import {SodaFactoryRuntimeController} from "../factory/app/browser.js";
 import type {Core} from './transport.js';
 import type {Account} from './accounts.js';
 interface View {attempt:number;phase:'idle'|'requesting'|'waiting'|'verifying'|'saving'|'complete'|'failed'|'cancelled';prompt:{verification_uri:string;expires_at:number}|null;error:string|null}
-interface FountainAccount extends Account {grant?:{client_id?:string;scope:string;refresh_available:boolean}}
-const purpose=(account:FountainAccount)=>account.grant?.scope==='write:issue'?'issues only':['write:repository','write:repository write:issue'].includes(account.grant?.scope??'')?'control':['read:repository','read:repository read:issue'].includes(account.grant?.scope??'')?'read':'access unknown';
+interface FountainAccount extends Account {purpose?:'read'|'control'|'issues'|null;grant?:{client_id?:string;scope:string;refresh_available:boolean}}
+const purpose=(account:FountainAccount)=>account.purpose==='issues'?'issues only':account.purpose==='control'?'control':account.purpose==='read'?'read':'access unknown';
 interface Enrollment {active:boolean;runtime_bound:boolean;repository:{owner:string;name:string;permission:string}}
 /** Configured-host OAuth stays in Rust; the renderer receives public view state. */
 export function mountFountainLogin(core:Core){
@@ -60,7 +60,7 @@ export function mountFountainLogin(core:Core){
   }
   control.addEventListener('change',()=>{if(control.checked)issues.checked=false;});
   issues.addEventListener('change',()=>{if(issues.checked)control.checked=false;});
-  form.addEventListener('submit',event=>{event.preventDefault();void action(async live=>{const next=await core.invoke<View>('fountain_sign_in',{origin:origin.value.trim(),control:control.checked,issuesOnly:issues.checked});if(live())view=next;});});
+  form.addEventListener('submit',event=>{event.preventDefault();void action(async live=>{const next=await core.invoke<View>('fountain_sign_in',{origin:origin.value.trim(),purpose:issues.checked?'issues':control.checked?'control':'read'});if(live())view=next;});});
   open.addEventListener('click',()=>void action(()=>core.invoke('fountain_sign_in_open',{attempt:view.attempt})));
   cancel.addEventListener('click',()=>void action(async live=>{const next=await core.invoke<View>('fountain_sign_in_cancel',{attempt:view.attempt});if(live())view=next;}));
   const enrollmentAction=(command:'enroll'|'status'|'withdraw')=>action(async live=>{

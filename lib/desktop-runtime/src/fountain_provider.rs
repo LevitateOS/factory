@@ -110,6 +110,9 @@ pub struct Client {
     repository_id: Mutex<Option<String>>,
 }
 impl Client {
+    pub(crate) fn same_custody(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.credentials, &other.credentials) && self.capability.same_custody(&other.capability) && self.runtime == other.runtime && self.command == other.command
+    }
     pub(crate) fn origin(&self) -> &str {
         &self.capability.account().origin
     }
@@ -186,7 +189,7 @@ impl Client {
             repository.as_str(),
             "factory",
             "desktop",
-            if issues_only { "issue-grants" } else { "grants" },
+            (if issues_only { crate::fountain_oauth::ConsentPurpose::Issues } else { crate::fountain_oauth::ConsentPurpose::Read }).enrollment_family(),
         ]);
         let http = reqwest::Client::builder()
             .https_only(true)

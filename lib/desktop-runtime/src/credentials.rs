@@ -177,6 +177,9 @@ impl TokenCapability {
     pub fn account(&self) -> &AccountStatus {
         &self.account
     }
+    pub(crate) fn same_custody(&self, other: &Self) -> bool {
+        self.revision == other.revision && self.owner == other.owner && self.admits(&other.account, &other.revision)
+    }
     fn admits(&self, account: &AccountStatus, revision: &str) -> bool {
         revision == self.revision
             && account.provider == self.account.provider

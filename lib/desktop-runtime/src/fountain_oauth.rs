@@ -21,6 +21,46 @@ const COLLABORATION_SCOPE: &str = "read:repository read:issue";
 const COLLABORATION_CONTROL_SCOPE: &str = "write:repository write:issue";
 const ISSUES_SCOPE: &str = "write:issue";
 
+/// Consent purpose owns discovery, accepted scopes and enrollment family.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConsentPurpose { Read, Control, Issues }
+impl ConsentPurpose {
+    pub fn from_scope(scope: &str) -> Option<Self> {
+        match scope {
+            SCOPE | COLLABORATION_SCOPE => Some(Self::Read),
+            CONTROL_SCOPE | COLLABORATION_CONTROL_SCOPE => Some(Self::Control),
+            ISSUES_SCOPE => Some(Self::Issues),
+            _ => None,
+        }
+    }
+    fn discovery(self) -> &'static str {
+        match self {
+            Self::Read => "api/v1/factory/desktop/oauth",
+            Self::Control => "api/v1/factory/desktop/oauth/control",
+            Self::Issues => "api/v1/factory/desktop/oauth/issues",
+        }
+    }
+    pub fn enrollment_family(self) -> &'static str {
+        if self == Self::Issues { "issue-grants" } else { "grants" }
+    }
+}
+
+#[derive(Serialize)]
+pub struct CredentialView {
+    #[serde(flatten)] pub account: AccountStatus,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub purpose: Option<ConsentPurpose>,
+}
+impl CredentialView {
+    pub fn new(account: AccountStatus) -> Self {
+        let purpose = if account.provider == Provider::Fountain {
+            account.grant.as_ref().and_then(|grant| ConsentPurpose::from_scope(&grant.scope))
+        } else { None };
+        Self { account, purpose }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
     Invalid,
@@ -121,17 +161,17 @@ async fn json<T: serde::de::DeserializeOwned>(request: reqwest::RequestBuilder) 
 }
 impl Client {
     pub async fn configured(origin: &str) -> Result<Self> {
-        Self::configured_for(origin, false, false).await
+        Self::configured_for(origin, ConsentPurpose::Read).await
     }
     /// Only an explicit user choice requests privileged OAuth consent. It
     /// still creates no repository controller, operation grant or funding.
     pub async fn configured_control(origin: &str) -> Result<Self> {
-        Self::configured_for(origin, true, false).await
+        Self::configured_for(origin, ConsentPurpose::Control).await
     }
     pub async fn configured_issues(origin: &str) -> Result<Self> {
-        Self::configured_for(origin, false, true).await
+        Self::configured_for(origin, ConsentPurpose::Issues).await
     }
-    async fn configured_for(origin: &str, control: bool, issues_only: bool) -> Result<Self> {
+    pub async fn configured_for(origin: &str, purpose: ConsentPurpose) -> Result<Self> {
         Account::new(Provider::Fountain, origin, "origin-validation")
             .map_err(|_| Error::Invalid)?;
         let origin = url::Url::parse(origin).map_err(|_| Error::Invalid)?;
@@ -150,25 +190,13 @@ impl Client {
         let configured: Config = json(
             http.get(
                 origin
-                    .join(if issues_only {
-                        "api/v1/factory/desktop/oauth/issues"
-                    } else if control {
-                        "api/v1/factory/desktop/oauth/control"
-                    } else {
-                        "api/v1/factory/desktop/oauth"
-                    })
+                    .join(purpose.discovery())
                     .map_err(|_| Error::Invalid)?,
             ).header("X-Factory-Desktop-Protocol", "2"),
         )
         .await?;
-        let scope = match (issues_only,control,configured.scope.as_str()) {
-            (true,false,ISSUES_SCOPE)=>ISSUES_SCOPE,
-            (false,false,SCOPE)=>SCOPE,
-            (false,true,CONTROL_SCOPE)=>CONTROL_SCOPE,
-            (false,false,COLLABORATION_SCOPE)=>COLLABORATION_SCOPE,
-            (false,true,COLLABORATION_CONTROL_SCOPE)=>COLLABORATION_CONTROL_SCOPE,
-            _=>return Err(Error::Invalid),
-        };
+        if ConsentPurpose::from_scope(&configured.scope)!=Some(purpose){return Err(Error::Invalid);}
+        let scope=match configured.scope.as_str(){SCOPE=>SCOPE,CONTROL_SCOPE=>CONTROL_SCOPE,COLLABORATION_SCOPE=>COLLABORATION_SCOPE,COLLABORATION_CONTROL_SCOPE=>COLLABORATION_CONTROL_SCOPE,ISSUES_SCOPE=>ISSUES_SCOPE,_=>return Err(Error::Invalid)};
         if !client_id(&configured.client_id) {
             return Err(Error::Invalid);
         }

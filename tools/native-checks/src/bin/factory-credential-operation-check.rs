@@ -1167,6 +1167,42 @@ async fn run_rotation(profile: &Path) -> Result<()> {
     println!("PASS: retired owner refuses publication, actual eight-second deadline leaves durable uncertainty, and complete fixture withdrawal succeeds; no real provider refresh/login claimed");
     Ok(())
 }
+async fn fountain_watch_declared(client:Arc<soda_desktop_runtime::fountain_provider::Client>,enrolled:soda_desktop_runtime::fountain_provider::Enrollment,io:&Path)->Result<()> {
+ use soda_desktop_runtime::{factory_provider::{GrantWatches,AgentCancellation},fountain_provider::OperationGrant};
+ fs::create_dir_all(io)?;
+ let now=SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+ let grant=OperationGrant{id:"123456789abcdef0123456789abcdef2".into(),enrollment_id:enrolled.id,runtime_id:enrolled.runtime_id,installation_id:"fixture-installation".into(),generation:"1".into(),actor:enrolled.actor,repository:enrolled.repository,operations:vec!["execution.launch".into()],not_after:now+60,active:true};
+ fs::write(io.join("watch-grant.json"),serde_json::to_vec(&grant)?)?;fs::write(io.join("mode"),"watch")?;
+ let grant=client.operation_grant(&grant.id).await.map_err(|e|e.code)?;
+ let count=||->Result<u32>{Ok(fs::read_to_string(io.join("watch-sends"))?.parse()?)};
+ let watches=GrantWatches::default();let alive=Arc::new(AtomicBool::new(true));
+ let a=AgentCancellation::default();let b=AgentCancellation::default();let short=AgentCancellation::default();
+ let before=count()?;
+ let one=watches.observe_execution(client.clone(),grant.clone(),now+30,a.clone(),alive.clone())?;
+ let two=watches.observe_execution(client.clone(),grant.clone(),now+30,b.clone(),alive.clone())?;
+ let until=Instant::now()+Duration::from_secs(2);
+ while count()?==before {ensure(Instant::now()<until,"watch did not start")?;tokio::time::sleep(Duration::from_millis(10)).await;}
+ tokio::time::sleep(Duration::from_millis(1100)).await;
+ ensure(count()?==before+2,"matching leases multiplied grant streams")?;
+ let mut other=grant.clone();other.id="123456789abcdef0123456789abcdef3".into();
+ let c=AgentCancellation::default();let foreign=watches.observe_execution(client.clone(),other,now+30,c.clone(),alive.clone())?;
+ let until=Instant::now()+Duration::from_secs(2);
+ while count()?==before+2 {ensure(Instant::now()<until,"distinct grant did not start its own watch")?;tokio::time::sleep(Duration::from_millis(10)).await;}
+ drop(foreign);ensure(!a.cancelled()&&!b.cancelled(),"detaching different grant cancelled siblings")?;
+ let deadline=SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64+1;
+ let short_lease=watches.observe_execution(client.clone(),grant.clone(),deadline,short.clone(),alive.clone())?;
+ let until=Instant::now()+Duration::from_secs(2);
+ while !short.cancelled(){ensure(Instant::now()<until,"individual deadline did not cancel")?;tokio::time::sleep(Duration::from_millis(10)).await;}
+ ensure(!a.cancelled()&&!b.cancelled(),"short lease deadline cancelled survivors")?;drop(short_lease);
+ fs::write(io.join("mode"),"watch-withdraw")?;
+ let until=Instant::now()+Duration::from_secs(3);
+ while !a.cancelled()||!b.cancelled(){ensure(Instant::now()<until,"withdrawal did not cancel every member")?;tokio::time::sleep(Duration::from_millis(10)).await;}
+ drop(one);drop(two);let final_count=count()?;tokio::time::sleep(Duration::from_millis(1100)).await;ensure(count()?==final_count,"last detach left live grant traffic")?;
+ fs::write(io.join("mode"),"enrollment")?;
+ println!("PASS: two same-grant leases share exactly2 polls over1.1s; distinct grants separate, per-lease deadline preserves siblings, withdrawal cancels all and last detach joins traffic; no claims or launch");
+ Ok(())
+}
+
 async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) -> Result<()> {
     use soda_desktop_runtime::{fountain_provider::Client, mcp_signing::Signer};
     prepare(profile)?;
@@ -1184,6 +1220,9 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
         let client = Client::new(store.clone(), store.capability(&saved.connection).await?, &signer, runtime, application, "user2", "repo1", command).map_err(|e| e.code)?;
         let enrolled = client.enroll().await.map_err(|e| e.code)?;
         ensure(enrolled.active && enrolled.runtime_bound && enrolled.actor.username == "user2", "bound Fountain enrollment missing")?;
+        if std::env::var_os("FACTORY_DECLARED_FOUNTAIN_WATCH").is_some(){
+            return fountain_watch_declared(Arc::new(client),enrolled, &profile.parent().ok_or("fixture parent missing")?.join("io")).await;
+        }
         if std::env::var("FACTORY_DECLARED_FOUNTAIN_READS").as_deref() == Ok("1") {
             let io = profile.parent().ok_or("fixture parent missing")?.join("io");
             fs::create_dir(&io)?;
@@ -1240,7 +1279,9 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
     store.retire();
     result?;
     withdrawn?;
-    println!("Fountain native TLS enrollment/read/reopen/replay/withdrawal passed; owned fixture credential withdrawn");
+    if std::env::var_os("FACTORY_DECLARED_FOUNTAIN_WATCH").is_some() {
+        println!("Fountain native shared-watch check passed; owned fixture credential withdrawn");
+    } else { println!("Fountain native TLS enrollment/read/reopen/replay/withdrawal passed; owned fixture credential withdrawn"); }
     Ok(())
 }
 

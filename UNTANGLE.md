@@ -905,3 +905,27 @@ builds, apps or provider requests in this design phase.
   f5-harness-build.log and f5-sodaos-build.log. Source review caught the missing
   merge binding, second visibility listener teardown and aggregate reply-size
   risk; all corrected. Controlled checks qualify this refactor only. F6–F8 pending.
+
+- F6 COMPLETE: native consent purpose owns accepted OAuth scopes, configured
+  discovery and enrollment family. Renderer selects a purpose and displays native
+  facts; absent purpose is omitted so GitHub's exact metadata boundary remains.
+  Supervisor channels share one grant-watch registry, keyed by exact custody and
+  grant/runtime/enrollment/generation material. Each member keeps its original
+  deadline; withdrawal/failure cancels all, final detach stops and joins the task.
+  Attach notifications do not restart an in-flight read. New claim/entry still
+  reads current authority independently; watching supplies no dispatch authority.
+  SodaOS ports must receive the one ServiceBackground; observer fallback bootstrap
+  and late ShareBackground mutation are removed. Existing single-flight definite
+ 401 recovery remains unchanged, with no native uncertain-write retry.
+  Evidence in refactor scratch: f6-watch-local-final.log (real native HTTPS to
+  no-forwarding dummy peer: matching2 leases/2polls over1.1s, separate grants,
+  individual deadline, withdrawal and final detach); f6-background-scoped.log
+  (existing shared/bootstrap-waiter/concurrent401/revocation checks); native,
+  desktop and shared UI typecheck logs. Full forgejo test-package compilation
+  encounters existing SDK string/typed-state fixture errors in review_test.go;
+  selected production+background/observer/graph-fixture files compile and pass,
+  and the real web production package builds. Source review's lease rename and
+  absent-purpose serialization findings are corrected. First dummy watch peer
+  had a mutex recursion; its failed read is preserved in fc-ut-watch1 and the
+  peer was corrected before fresh fc-ut-watch2, without replaying any effect.
+  F5 exact commits: Factory a98cfa9, SodaOS deda94bf. F7/F8 and final audit remain.

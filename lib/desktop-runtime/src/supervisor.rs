@@ -36,6 +36,7 @@ enum Control {
 }
 #[derive(Clone)]
 pub(crate) struct NativeChannel {
+    pub controller_watches:Arc<crate::factory_provider::GrantWatches>,
     pub socket: PathBuf,
     pub key: zeroize::Zeroizing<String>,
     pub instance: String,
@@ -133,6 +134,7 @@ impl NativeSupervisor {
                     }
                 };
                 let channel = NativeChannel {
+                    controller_watches:children.controller_watches.clone(),
                     socket: children.profile.join("backend.sock"),
                     key: zeroize::Zeroizing::new(children.key.clone()),
                     instance: ready.instance,
@@ -608,6 +610,7 @@ fn run_owner(
             }
             Ok(Control::GithubChannel(reply)) => {
                 let result = children.health().map(|ready| NativeChannel {
+                    controller_watches:children.controller_watches.clone(),
                     socket: children.profile.join("backend.sock"),
                     key: zeroize::Zeroizing::new(children.key.clone()),
                     instance: ready.instance,
@@ -632,6 +635,7 @@ fn run_owner(
     }
 }
 struct Children {
+    controller_watches:Arc<crate::factory_provider::GrantWatches>,
     database: Option<NativePostgres>,
     backend: Option<Child>,
     profile: PathBuf,
@@ -713,6 +717,7 @@ impl Children {
             .spawn()
             .map_err(|_| "native backend could not start")?;
         let mut children = Self {
+            controller_watches:Arc::new(Default::default()),
             database: Some(database),
             backend: Some(child),
             profile,

@@ -60,7 +60,8 @@ pub async fn retained_client(
         status: 409,
         code: "fountain_sign_in_again",
     })?;
-    let issues_only = grant.scope == "write:issue";
+    let purpose=crate::fountain_oauth::ConsentPurpose::from_scope(&grant.scope).ok_or(Failure{status:409,code:"fountain_sign_in_again"})?;
+    let issues_only = purpose==crate::fountain_oauth::ConsentPurpose::Issues;
     let application = grant.client_id.ok_or(Failure {
         status: 409,
         code: "fountain_sign_in_again",
