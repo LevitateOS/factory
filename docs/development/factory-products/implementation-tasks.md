@@ -1741,13 +1741,30 @@ unknown reply cannot select another action or identity. Typecheck, Lit validatio
 production UI build and `request63-retained-ui.log` pass both-offer, exact-source/
 bounds, double-click and remount/same-command recovery. Actual61 sends no new
 command or inference; usage237. Details: `goal61-funding-offer-and-ui.json`.
-**Q17 remains INCOMPLETE:** exact-prior61-to62 UI-only install, then one fresh bounded
-fork correction using the preserved original Architect/Inspector and finding.
-Actual successful Fixer/judgment/reinspection/CI remains required. Installed56
+Installed62/sourceeb76b59 embeds the qualified UI in native66b61fac; backend
+a6cf837c stays unchanged. Actual normal UI presents both merge recovery and
+separate funding. Command2a2ae20a06be4623917f1204ec96f3c1 funds the same source
+15 minutes/run, two reviews/one correction, without old-budget transfer. Real
+Fixerfa8d345d/run3a1d845c reuses original Inspector9c79 and finding5a2cce1b,
+commits390aaf4110b7a087d8d56b2665a20f4be079455e with native final-check receipt,
+and succeeds sealed/retired/reconciled06:49:15Z. Exact usage237→244 is two run
+minutes plus five one-minute judgments. The completed correction journal remains;
+branch publication is held before any correction operation is allocated. No plan,
+initial Builder or Inspector was replayed. `goal62-real-fixer.json` and the
+original private terminal retain the actual facts. Normal Quit62 resolves its
+lost reply through joined app/backend/PG/Muse/socket retirement. Only verified
+duplicate public stages20/22/23 were reclaimed; complete host originals and all
+installed releases/private state remain (`goal62-public-space.log`).
+**Q17 remains INCOMPLETE:** recover the exact held correction publication, then
+real CI and paid delivery judgment/reinspection. A confirmed independent context
+defect reads the old preparation instead of the corrected candidate; its existing
+Go/native/broker owners are being corrected for the next matching release. Bounded correction
+wait logging832ca7d will expose the current pre-send hold. No role is running;
+never renew old send authority or repeat the successful Fixer. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.
-Normal Quit61 retires the selected app; verify process/socket retirement before
-package62 installation. Saved credentials remain. No role/check is running.
+Saved credentials remain. Owned context source edits and affected compile checks
+belong to the active context slice; exact inputs are retained outside Git.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

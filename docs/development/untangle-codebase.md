@@ -801,12 +801,27 @@ unknown sends and preserves the original action/identity. Typecheck, Lit,
 production shared UI build and request63-retained-ui.log pass both-offer funding,
 duplicate suppression and identical-command recovery across remount. Evidence:
 goal61-funding-offer-and-ui.json; no new command/inference/charge on61, usage237.
-**Next executable action:** install UI-only62 over61, reusing native59/backend61,
-then one fresh bounded fork continuation using original Architect/Inspector and
-finding. Actual successful Fixer/judgment/reinspection/CI stays unqualified.
-No role/check is running. Quit61 was sent normally; observe original process/
-socket retirement before package62 installation. Saved credentials, profile and
-original receipts stay.
+Installed62/sourceeb76b59 necessarily relinks native66b61fac to embed the qualified
+UI; backenda6cf837c stays exact. Normal UI exposes both merge and funding actions.
+Fresh command2a2ae20a06be4623917f1204ec96f3c1 grants the same source15/2/1 without
+carrying old budget. Actual Fixerfa8d345d/run3a1d845c answers original Inspector9c79
+and genuine finding5a2cce1b, commits390aaf4110b7a087d8d56b2665a20f4be079455e,
+passes its native final check and succeeds sealed/retired/reconciled06:49:15Z.
+Usage237→244 is exact: two Fixer minutes plus five one-minute judgments. No plan,
+initial Builder or Inspector replay occurs. Original terminal and causal facts:
+goal62-real-fixer.json / goal62-fixer-original-terminal.jsonl. Its correction
+journal is preserved; publication is held before allocating a correction intent.
+Normal Quit62's lost reply resolves through original app/backend/PG/Muse/socket
+retirement. Byte/link-verified public stages20/22/23 alone are reclaimed, retaining
+complete host originals, every installed release and all private state; guest
+free space rises above512MiB (goal62-public-space.log).
+**Next executable action:** finish the confirmed corrected-candidate context
+handoff in the existing Go/native/broker owners, with bounded
+correction wait logging832ca7d and recover this exact held publication. It must
+reuse the successful Fixer, candidate, original review and receipts; no send
+deadline is renewed. Native/context checks and owned source edits are the active
+context slice. Real branch publication/CI/paid judgment/reinspection remain
+unqualified; no role is running. Credentials/profile stay exact.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
 user-side GitHub revocation is pending. Earlier55 evidence remains preserved.
 The existing initial-intake fixture additionally passes creator withdrawal
