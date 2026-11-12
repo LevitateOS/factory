@@ -16650,6 +16650,21 @@ func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sq
 		return err
 	}
 	fmt.Println("PASS: realPG source effect journal grants one concurrent fresh send, defers recovery, preserves original receipt through human edits, CAS-resumes lookup-only legacy cursors, and never turns absence into send authority")
+	workPost, _, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: repository, Body: "Retained worker output", IdempotencyKey: "submitted-work-readback"}, "worker:"+strings.Repeat("c", 32), "Fixer", time.Now().Unix())
+	if err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_feed_posts SET data=data || '{"actor":"fixer","assignment":"cccccccccccccccccccccccccccccccc","work":{"state":"applied"}}'::jsonb WHERE id=$1`, workPost); err != nil {
+		return err
+	}
+	postView, err := (factoryservice.Posts{Store: db, Visibility: func(context.Context, collaboration.ActorID, int64) error { return nil }}).Read(ctx, 1, workPost)
+	if err != nil || postView["body"] != "Retained worker output" || postView["status"] != "applied" || postView["can_retry"] != false {
+		return fmt.Errorf("submitted work was treated as a human intake: %v", err)
+	}
+	if _, err = db.PostIntake(ctx, workPost); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("readback created human intake authority for worker work")
+	}
+	fmt.Println("PASS: retained worker work posts read their original body/status without a human intake row or new retry authority")
 	fmt.Println("PASS: real PG paged completion retains8-step prefix across coordinator restart, rejects changed confirming inventory, and seals only two whole equal20-issue observations; no provider/model/effects")
 	return nil
 }

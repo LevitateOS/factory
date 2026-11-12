@@ -81,7 +81,7 @@ func (s Posts) Read(ctx context.Context, actor collaboration.ActorID, id string)
 	if err != nil {
 		return nil, err
 	}
-	if detail.Contribution != nil || detail.Consultation != nil || (detail.Payload != nil && detail.Payload.Communication != nil) {
+	if detail.SubmittedWork || detail.Contribution != nil || detail.Consultation != nil || (detail.Payload != nil && detail.Payload.Communication != nil) {
 		return WorkerPostResponse(detail), nil
 	}
 	pipe, err := s.Store.PostIntake(ctx, detail.Record.ID)

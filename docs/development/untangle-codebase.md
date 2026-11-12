@@ -5574,3 +5574,28 @@ fixtures1–3 remain, with no live send or inference. package76-* records exact
 source/inventory/asset/install inputs. Installed live continuation is now starting
 once using guest child76.sh, with fresh logs and original profile/commands. Do not
 renew expired6dd5095c or predecessor31019ff6; new explicit current authority only.
+
+Installed76 reached the original refreshed sodaos account and fixture1451647791;
+GitHub refresh used2 calls and did not require device authentication. Normal
+navigation retained all drafts and original outcomes. Two closed-issue/PR views
+were inspected; the title-matched help issue is54, not original57 (retain the
+actual routes, not the action labels). Last sampled total170 wire attempts;
+no paid inference or repository write was started. Normal Quit's lost reply is
+resolved by complete app/socket/backend/PG retirement at20:26:12Z. No quota hold
+or waiting occurred. Original fixed fork candidate/paid judgment remain unchanged.
+
+A stopped database-only copy in fc-github-retained76 reproduces the Feed failure:
+three authenticated worker work-output posts have typed `work` metadata without
+human intake rows. Posts.Read wrongly required those intake rows, returning
+sql.ErrNoRows for the whole page. Explicit submitted-work read classification now
+uses the existing worker projection, with no text/receipt/intake mutation or new
+retry authority. Existing request77-progress-pg.log passes the regression and
+prior scope; request76-retained-read-fixed.log and request77-retained-parser.log
+read20 original Feed entries/33620bytes and parse the exact production payload.
+Both retained journey projections also read/parse locally. Current-acceptance or
+native authority I/O, rather than those stored journey DTOs, remains the next
+installed work-history diagnosis. The app is stopped; no original send/model is
+replayed. The private database archive/copy contains no account keyring and is
+not a release artifact. Next: install this backend-only correction, read the exact
+native acceptance failure once, then resume issue57/PR62 under fresh explicit
+merge authority; finish independent installed withdrawal/revocation gates.

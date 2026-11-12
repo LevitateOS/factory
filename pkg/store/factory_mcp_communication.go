@@ -178,6 +178,7 @@ func applyFeedCommunicationDetail(detail *FeedPostDetail, raw []byte) error {
 		}
 	}
 	if data.Work != nil {
+		detail.SubmittedWork = true
 		detail.Actor, detail.Assignment, detail.Status = data.Actor, data.Assignment, data.Work.State
 	}
 	if data.Communication != nil {

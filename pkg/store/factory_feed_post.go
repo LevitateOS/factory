@@ -28,6 +28,7 @@ import (
 type FeedPostDetail struct {
 	Consultation  *factory.FeedConsultation
 	Contribution  *factory.ContributionReview
+	SubmittedWork bool
 	Actor         string
 	Assignment    string
 	EventIdentity string
