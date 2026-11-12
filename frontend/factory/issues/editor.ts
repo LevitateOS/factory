@@ -129,10 +129,10 @@ export class SodaFactoryIssueEditor extends LitElement {
   private path(context: IssueEditorContext) {
     return `factory/collaboration/repositories/${context.repository}/${context.kind === 'pull' ? 'pulls' : 'issues'}/${context.issue}`;
   }
-  private async readCurrent(context: IssueEditorContext, signal: AbortSignal) {
+  private async readCurrent(context: IssueEditorContext, signal: AbortSignal, refresh = false) {
     this.allowed = false;
     await this.journal.identity(context, signal);
-    const display = context.kind === 'pull' && context.display ? await context.display(signal) : undefined;
+    const display = context.kind === 'pull' && context.display ? await context.display(signal, refresh) : undefined;
     const [value, capabilities] = display ? [display.pull, display.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
@@ -171,14 +171,14 @@ export class SodaFactoryIssueEditor extends LitElement {
       await this.journal.identity(context, signal);
       if (this.writing.pending && !this.saved.blocked) {
         try {
-          await this.readCurrent(context, signal);
+          await this.readCurrent(context, signal, true);
         } catch {
           this.allowed = false;
         }
         check(this.journal.live(context, signal));
         await this.deliver(context, signal, 'lookup');
       } else {
-        await this.readCurrent(context, signal);
+        await this.readCurrent(context, signal, true);
         if (!this.saved.blocked)
           this.message = !this.saved.durable
             ? `${this.subjectLabel()} edits are only saved in this window.`
@@ -301,7 +301,7 @@ export class SodaFactoryIssueEditor extends LitElement {
     try {
       const shown = this.writing.pending;
       if (action === 'submit') {
-        await this.readCurrent(context, signal);
+        await this.readCurrent(context, signal, true);
         check(this.allowed && (!shown || !shown.cancel));
         if (!shown && this.stale()) {
           this.message =

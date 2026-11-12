@@ -959,3 +959,20 @@ builds, apps or provider requests in this design phase.
   absence/human-text/source-change refusal); backend/adapter/harness builds pass.
   No live host, model or original retained state used. Final independent review
   and baseline comparison are active; this is not connected qualification.
+
+- Final review corrections: fresh independent native/Go/UI+adapter passes found
+  stale shared refresh facts, dropped tab navigation during reads, and public
+  comment URLs compared to internal transport. Pull refresh now forwards through
+  every child and rereads current content without replacing drafts; concurrent
+  opens still share one admission. Route changes cancel the obsolete read.
+  SodaOS receipt checks use the adopted public host, independently of loopback
+  transport. Existing web feedback peer now supplies the journal receipt contract
+  and an actual existing-work source. Evidence: final-ui-browser.log,
+  final-ui-typecheck.log, f8-feedback-public-pg.log (distinct public/internal URL).
+  Final Go suite passes all packages with real disposable PG (final-go-suite.log),
+  external-preparation baseline passes (final-external-pg.log), and production
+  dependency boundary check passes (final-boundaries.log). Existing native builds
+  and scoped wire/recovery checks above remain current; no Rust change followed
+  their passing run. SodaOS full web/API test compilation also exposes unrelated
+  preexisting journey enum/MCP fixture errors (f8-web-api-build.log); this pass
+  does not claim that suite passed or connected/installed qualification.

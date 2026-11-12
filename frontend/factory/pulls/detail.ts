@@ -105,6 +105,7 @@ export class SodaFactoryPull extends LitElement {
     this.lifetime.abort(); this.read.abort();
     this.lifetime = new AbortController(); this.read = new AbortController();
     this.displayRead = undefined;
+    this.displaySettled = false;
     this.serial++; this.current = undefined; this.binding = ''; this.cursor = ''; this.previous = [];
     this.tab = 'conversation'; this.checkKind = 'status'; this.view = empty();
   }
@@ -125,8 +126,12 @@ export class SodaFactoryPull extends LitElement {
     this.selectTab(tab);
   }
   selectTab(tab: PullTab) {
-    if (tab === this.tab || this.view.busy) return;
+    if (tab === this.tab) return;
     this.tab = tab; this.cursor = ''; this.previous = [];
+    if (this.view.busy) {
+      this.read.abort();
+      this.view = {...this.view, busy: false};
+    }
     void this.load();
   }
   private selectChecks(kind: 'status' | 'job') {
@@ -140,6 +145,7 @@ export class SodaFactoryPull extends LitElement {
     if (this.view.busy) return;
     this.read.abort(); this.read = new AbortController();
     this.displayRead = undefined;
+    this.displaySettled = false;
     const serial = ++this.serial, signal = AbortSignal.any([this.lifetime.signal, this.read.signal]);
     const cursor = this.cursor, tab = this.tab;
     const path = `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
@@ -158,6 +164,7 @@ export class SodaFactoryPull extends LitElement {
           pullActionAllowed(caps, context.repository, context.actor, pull.ref, candidate as string | null, 'pull.review.comment');
           selectedHead = candidate as string | null;
           this.displayRead = Promise.resolve({pull, capabilities: caps});
+          this.displaySettled = true;
         } catch {
           if (!this.live(context, serial)) return;
         }
@@ -219,13 +226,17 @@ export class SodaFactoryPull extends LitElement {
   private async display(signal: AbortSignal, refresh = false): Promise<PullDisplay> {
     const context = this.current, serial = this.serial, pull = this.view.pull;
     check(context && pull && !this.view.busy && this.live(context, serial));
-    if (refresh && this.displaySettled) this.displayRead = undefined;
+    const reread = refresh && this.displaySettled;
+    if (reread) this.displayRead = undefined;
     if (!this.displayRead) {
       this.displaySettled = false;
       const joined = AbortSignal.any([this.lifetime.signal, this.read.signal]);
-      this.displayRead = getJSON(context.transport,
-        `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}/capabilities`, joined)
-        .then(capabilities => { check(this.live(context, serial)); this.displaySettled = true; return {pull, capabilities}; })
+      const path = `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
+      this.displayRead = Promise.all([
+        reread ? getJSON(context.transport, path, joined).then(raw => pullItem(raw, context.host, context.repository, context.pull)) : Promise.resolve(pull),
+        getJSON(context.transport, path + '/capabilities', joined),
+      ])
+        .then(([current, capabilities]) => { check(this.live(context, serial) && current.ref.external_id === pull.ref.external_id); this.displaySettled = true; return {pull: current, capabilities}; })
         .catch(error => { if (this.live(context, serial)) this.displayRead = undefined; throw error; });
     }
     const observed = await this.displayRead;
@@ -387,13 +398,13 @@ export class SodaFactoryPull extends LitElement {
         ${context.commandScope && head ? html`<soda-factory-pull-review
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, head, commandScope: context.commandScope, display: (signal: AbortSignal) => this.display(signal)}}
+            parent: pull.ref, head, commandScope: context.commandScope, display: (signal: AbortSignal, refresh?: boolean) => this.display(signal, refresh)}}
           @pull-review-saved=${() => void this.refresh()}
         ></soda-factory-pull-review>` : ''}
         ${context.commandScope && head ? html`<soda-factory-pull-merge
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, head, commandScope: context.commandScope, display: (signal: AbortSignal) => this.display(signal)}}
+            parent: pull.ref, head, commandScope: context.commandScope, display: (signal: AbortSignal, refresh?: boolean) => this.display(signal, refresh)}}
           @pull-merge-saved=${() => void this.refresh()}
         ></soda-factory-pull-merge>` : ''}
       ` : ''}
