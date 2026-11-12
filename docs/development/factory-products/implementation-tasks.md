@@ -1927,6 +1927,20 @@ once, select the retained account/fixture once, recover fresh confirmed-no-send
 merge preparation through the normal Work UI, then measure one bounded journey.
 Use a new explicit command/generation; never renew original authority or repeat
 the paid ready decision. Source withdrawal/provider-side revocation remain open.
+The11:26Z resumed local inspection finds the next concrete recovery gap before
+provider reads: a withdrawn allocated no-send is excluded from the fresh-command
+offer, and its still-open inference allowance is rejected despite settled runs.
+The store now admits only complete, causally cancelled/not_committed, expired
+allocated generations through a new explicit merge-only command. Current standing
+authority and settled custody still apply; the exact predecessor is archived and
+the existing inference allowance stays byte-identical. `request71-external-pg.log`
+passes real PostgreSQL preparation/replay/history/allowance behavior and unknown/
+unexpired refusal with declared provider facts, no model or provider effects.
+Backend/harness build and UI typecheck/build pass. GitHub login is expired locally;
+the owner's fresh installed approval saves the same sodaos connection. Public
+verification code/expiry and account-state text now have status roles for local
+developer inspection without screenshots. Matching installed assets and the
+bounded connected fork journey remain next; no old send authority is renewed.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation

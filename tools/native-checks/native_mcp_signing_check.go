@@ -15124,7 +15124,7 @@ func externalPreparationFixture() error {
 	if err = write(`INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'','published',0,$4)`, directPublication, directID, direct.Repository, direct.Issue); err != nil {
 		return err
 	}
-	directAllowance := factory.AttemptAllowance{RootAssignment: directID, Repository: direct.Repository, Issue: direct.Issue, Limits: request.Limits, CheckpointUnix: time.Now().Unix(), Closed: true}
+	directAllowance := factory.AttemptAllowance{RootAssignment: directID, Repository: direct.Repository, Issue: direct.Issue, Limits: request.Limits, CheckpointUnix: time.Now().Unix()}
 	if err = write(`INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,$2,$3,0,$4)`, directAllowance, direct.Repository, direct.Issue, directID); err != nil {
 		return err
 	}
@@ -15137,7 +15137,35 @@ func externalPreparationFixture() error {
 	directMerge.Authorization = merge.Authorization
 	directMerge.Authorization.Generation.PublicationID, directMerge.Authorization.Generation.AttemptRoot = directID, directID
 	directMerge.Authorization.Generation.NativeOperationID, directMerge.Authorization.Generation.Head = factory.MergeGenerationOperationID(directID, 1), directMerge.HeadOID
-	if err = write(`UPDATE factory_merges SET data=$2 WHERE publication=$1`, directMerge, directID); err != nil {
+	intent := factory.MergeIntent{OperationID: factory.MergeOperationIDForGeneration(directID, 1), AuthRevision: "declared expired allocated generation", Repository: directMerge.Repository, ActorID: directMerge.ReviewerID, PRNumber: directMerge.PRNumber, PRID: directMerge.PRID, IssueID: directMerge.IssueID, PRAuthorID: directMerge.PRAuthorID, ReviewerID: directMerge.ReviewerID, HeadRef: directMerge.HeadRef, BaseRef: directMerge.BaseRef, HeadOID: directMerge.HeadOID, BaseOID: directMerge.BaseOID, ReviewEvent: "COMMENT", ReviewID: 1, NativeRev: revision, AssessmentRevision: 1, NotAfter: directMerge.Authorization.Generation.NotAfter}
+	directMerge.Operation = factory.MergeOperation{Kind: factory.OpMerge, Work: &intent, OperationID: intent.OperationID, Attempts: 1, InstallationID: "declared", ActorID: intent.ActorID, RepositoryID: intent.Repository, Effect: factory.OpEffectNotCommitted, Cancellation: factory.OpCancelCancelled, Completion: factory.OpCompletionComplete, Reason: "cancelled_before_dispatch", UpdatedUnix: time.Now().Unix()}
+	directMerge.WithdrawRequested = true
+	directMerge.Settle(factory.MergeWithdrawn, factory.MergeReasonWithdrawn, time.Now().Unix())
+	if err = directMerge.Validate(); err != nil {
+		return fmt.Errorf("declared expired allocated no-send invalid: %w", err)
+	}
+	for _, uncertainty := range []bool{true, false} {
+		negative := directMerge
+		if uncertainty {
+			negative.Stage, negative.Outcome, negative.Reason, negative.FinishedUnix = factory.MergeOpen, "", "", 0
+			negative.Operation.Effect, negative.Operation.Cancellation, negative.Operation.Completion, negative.Operation.Reason = factory.OpEffectIndeterminate, factory.OpCancelIndeterminate, factory.OpCompletionNeedsIntervention, "dispatch_reserved"
+		} else {
+			live := intent
+			live.NotAfter = time.Now().Add(time.Minute).Unix()
+			negative.Operation.Work = &live
+			negative.Authorization.Generation.NotAfter = live.NotAfter
+		}
+		if err = negative.Validate(); err != nil {
+			return fmt.Errorf("declared cancellation refusal invalid: %w", err)
+		}
+		if err = write(`UPDATE factory_merges SET stage=$2,data=$3 WHERE publication=$1`, negative, directID, negative.Stage); err != nil {
+			return err
+		}
+		if _, err = db.UnsentMergePreparation(ctx, directID); !errors.Is(err, store.ErrMergeConflict) {
+			return fmt.Errorf("unknown or unexpired cancellation offered replacement: uncertainty=%v error=%v", uncertainty, err)
+		}
+	}
+	if err = write(`UPDATE factory_merges SET stage=$2,data=$3 WHERE publication=$1`, directMerge, directID, directMerge.Stage); err != nil {
 		return err
 	}
 	directOffer, err := db.UnsentMergePreparation(ctx, directID)
@@ -15153,6 +15181,10 @@ func externalPreparationFixture() error {
 	if after, err := db.AttemptAllowance(ctx, direct.Repository, direct.Issue); err != nil || !reflect.DeepEqual(after, directAllowance) {
 		return errors.New("direct external merge preparation renewed inference allowance")
 	}
+	if after, err := db.MergeByPublication(ctx, directID); err != nil || len(after.History) != 1 || !reflect.DeepEqual(after.History[0].Authorization, directMerge.Authorization) || !reflect.DeepEqual(after.History[0].Operation, directMerge.Operation) || after.Operation.Attempts != 0 || after.WithdrawRequested {
+		return errors.New("fresh explicit no-send preparation changed its original cancelled generation")
+	}
+	fmt.Println("PASS: real PostgreSQL fresh explicit merge-only command recovers an expired allocated causal cancellation with its inference allowance still open; unknown or unexpired withdrawals refuse, original work/deadline/cancellation are archived exactly, allowance and external owner unchanged, no model/provider.")
 	// Separate declared history reproduces a completed fork Architect whose
 	// command-owned source is still ready. Never reopen the retired source above.
 	fork, err := db.ObserveCollaborationRepository(ctx, host.ID, "declared-external-fork", "fixture/external-fork")
@@ -15986,7 +16018,7 @@ func externalPreparationFixture() error {
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
 	fmt.Println("PASS: ordinary startup discovery skips a retained automatic PR/head command before fresh offer/authority reads, while a changed head reaches a fresh offer; original assignment and publication remain unchanged. Discovery facts declared; no provider, model or native send.")
 	fmt.Println("PASS: external Architect publication offers and admits an explicit five-minute merge-only command after a declared unallocated generation expires; original authorization/operation are retained, command replay is idempotent, and assignment/publication/source preparation/inference allowance remain unchanged. Expired merge/review binding declared; no inference or native send.")
-	fmt.Println("PASS: declared non-executing direct external publication reuses exact completed Architect provenance for finite merge-only preparation without a Builder run or changing its closed inference allowance. Original adoption/expired merge receipts declared; no inference or native send.")
+	fmt.Println("PASS: declared non-executing direct external publication reuses exact completed Architect provenance for finite merge-only preparation without a Builder run or changing its retained inference allowance. Original adoption/expired merge receipts declared; no inference or native send.")
 	fmt.Println("PASS: normal PublishPass retires the exact completed external fork Architect's private source once before first reviewer preparation admission; capacity remains enforced before handoff, and original source capture/deadline and reserved review allowance remain unchanged. Custody/retirement/provider history declared; no model or provider send.")
 	return nil
 }

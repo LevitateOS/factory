@@ -661,7 +661,8 @@ func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Pu
 	retry := mergeNoSendRecovery(m)
 	withdrawnOriginal := pristineWithdrawnMerge(m)
 	expiredUnallocated := retry && m.Stage == factory.MergeWithdrawn && pristineMergeOperation(m.Operation) && m.RetryCommand != "" && time.Now().Unix() >= m.RetryNotAfter
-	if m.Validate() != nil || m.WithdrawRequested && !expiredUnallocated && !withdrawnOriginal ||
+	expiredCancelled := expiredCancelledMerge(m)
+	if m.Validate() != nil || m.WithdrawRequested && !expiredUnallocated && !withdrawnOriginal && !expiredCancelled ||
 		m.AssignmentID != a.ID || m.PublicationID != p.ID || m.Repository != p.Repository || m.Issue != p.Issue || m.PRID != p.PRID || m.PRNumber != p.PRNumber || m.HeadOID != p.Candidate || m.BaseOID != p.PullTarget().BaseOID || m.BaseRef != g.policy.TargetBranch || m.ReviewerID != g.policy.Review.ActorID {
 		return ErrMergeConflict
 	}
@@ -683,11 +684,11 @@ func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Pu
 		if err != nil || !settled {
 			return ErrAttemptRunsPending
 		}
-		// A definitive native no-send uses the closed inference fence. An
-		// expired unallocated authorization can also leave an open, paused
-		// allowance. Settled run receipts prove custody ended in both cases;
-		// the merge-only command preserves this row byte for byte.
-		if !allowance.Closed && !(expiredUnallocatedMerge(m) || expiredUnallocated) {
+		// Expiry may leave the bounded inference allowance open. Settled run
+		// receipts and an unallocated authorization or causal cancellation
+		// prove the prior send is retired. The explicit merge-only command
+		// preserves that allowance byte for byte, including remaining rounds.
+		if !allowance.Closed && !(expiredUnallocatedMerge(m) || expiredUnallocated || expiredCancelled) {
 			return ErrMergeConflict
 		}
 	} else if allowance.Closed {
@@ -806,7 +807,7 @@ func retainedMergeAuthority(a factory.Assignment, g admissionGrants) factory.Aut
 }
 
 func mergeNoSendRecovery(m factory.Merge) bool {
-	if pristineWithdrawnMerge(m) || expiredUnallocatedMerge(m) {
+	if pristineWithdrawnMerge(m) || expiredUnallocatedMerge(m) || expiredCancelledMerge(m) {
 		return true
 	}
 	if m.Stage == factory.MergeFailed && m.Reason == factory.MergeReasonRefused && m.Authorization.Bound() && m.Operation.Work != nil && m.Operation.Attempts == 1 && m.Operation.Completion == factory.OpCompletionComplete && len(m.History)+1 < factory.MaxMergeGenerations {
@@ -817,6 +818,16 @@ func mergeNoSendRecovery(m factory.Merge) bool {
 	// expiry or policy withdrawal; it never extends the earlier command.
 	unallocated := m.RetryCommand != "" && len(m.History) > 0 && pristineMergeOperation(m.Operation)
 	return unallocated && (m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced || m.Stage == factory.MergeWithdrawn && time.Now().Unix() >= m.RetryNotAfter)
+}
+
+// Only the original cancellation owner's complete no-send outcome permits a
+// fresh explicit command after an allocated send window expires. A withdrawal
+// flag, elapsed deadline or absent lookup alone never grants replacement.
+func expiredCancelledMerge(m factory.Merge) bool {
+	return m.Validate() == nil && m.Stage == factory.MergeWithdrawn && m.WithdrawRequested && m.Reason == factory.MergeReasonWithdrawn &&
+		m.Authorization.Bound() && m.Operation.Work != nil && m.Operation.Attempts == 1 && time.Now().Unix() >= m.Operation.Work.NotAfter &&
+		m.Operation.Effect == factory.OpEffectNotCommitted && m.Operation.Cancellation == factory.OpCancelCancelled && m.Operation.Completion == factory.OpCompletionComplete &&
+		len(m.History)+1 < factory.MaxMergeGenerations
 }
 
 // The original withdrawal is definitive only before any authorization or

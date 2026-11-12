@@ -80,6 +80,8 @@ The session retains up to256 action IDs without eviction; exhaustion refuses
 new actions. IDs from an earlier session cannot acquire replacement authority.
 Quitting may lose its own action reply; observe process/endpoint retirement to
 confirm shutdown. Wait timeouts do not cancel runs or withdraw funding.
+GitHub account states, the public verification code and its expiry appear as
+status nodes in `ui tree`; use them to diagnose sign-in without screenshots.
 
 The local socket is `PROFILE/developer/control.sock`, restricted to its owning
 UID. Pre-send action fingerprints go to private `client-SESSION.jsonl` files

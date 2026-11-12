@@ -78,6 +78,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
           name = document.createElement('span'),
           refresh = document.createElement('button'),
           remove = document.createElement('button');
+        name.setAttribute('role', 'status');
         row.dataset.connection = account.connection;
         remove.type = 'button';
         refresh.type = 'button';

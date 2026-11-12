@@ -62,8 +62,8 @@
       <button id="github-sign-in" type="button" disabled>Sign in to GitHub</button>
       <div id="github-prompt" hidden>
         <p>Enter this code at <span>github.com/login/device</span>:</p>
-        <code id="github-user-code" tabindex="0" aria-label="GitHub verification code"></code>
-        <p id="github-expiry"></p>
+        <code id="github-user-code" role="status" tabindex="0" aria-label="GitHub verification code"></code>
+        <p id="github-expiry" role="status"></p>
         <p>GitHub will ask for repository and profile access.</p>
         <button id="github-open" type="button">Open GitHub</button>
       </div>

@@ -946,6 +946,17 @@ after11:02Z: one installed70 launch/account/fixture selection, fresh normal Work
 confirmed-no-send preparation and one bounded original-candidate journey. No old
 authority renewal or inference replay. Source withdrawal/provider-side revocation
 keep their independent remaining gates.
+The11:26Z local resume finds that fresh merge preparation excluded the expired
+allocated cancellation and demanded a closed inference allowance. The correction
+admits only its complete cancelled/not_committed expired predecessor through a
+new explicit command after current standing/custody checks, archiving the exact
+old generation and preserving the open allowance byte for byte. Real PG existing
+external-preparation checks pass original history/allowance preservation, command
+replay and unknown/unexpired refusal (`request71-external-pg.log`); backend and
+harness builds pass without provider/model effects. UI typecheck/build pass for
+status roles exposing the public GitHub code/expiry and account state locally.
+Owner reauthentication of the expired installed login confirms the same sodaos
+connection saved. Matching installed recovery/connected counts remain next.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
