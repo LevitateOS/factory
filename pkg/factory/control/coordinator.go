@@ -112,7 +112,8 @@ type Coordinator struct {
 	// The progress gate protects passive provider polling separately from
 	// local worker observation. Explicit commands still reconcile immediately.
 	nextPassiveProgress time.Time
-	progressRequested   atomic.Bool
+	// ownerMu protects command wakes; their durable rows stay in Store.
+	requestedMerges map[string]struct{}
 	// ownerMu also protects the bounded child-result recovery cursor.
 	publicationChildCursor string
 	// The progress gate protects the bounded recovery and verification cursors below.

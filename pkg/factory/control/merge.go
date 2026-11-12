@@ -106,6 +106,9 @@ func (c *Coordinator) MergePass(ctx context.Context) MergeReport {
 		return report
 	}
 	for _, m := range pending {
+		c.ownerMu.Lock()
+		delete(c.requestedMerges, m.PublicationID)
+		c.ownerMu.Unlock()
 		c.reconcileMerge(ctx, m, &report)
 	}
 	mergeable, err := c.Store.MergeablePublications(ctx, mergePassLimit)
@@ -259,7 +262,12 @@ func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal
 	// passive poll. Replaying a saved command above does not wake another pass.
 	defer func() {
 		if err == nil {
-			c.progressRequested.Store(true)
+			c.ownerMu.Lock()
+			if c.requestedMerges == nil {
+				c.requestedMerges = make(map[string]struct{})
+			}
+			c.requestedMerges[r.Publication] = struct{}{}
+			c.ownerMu.Unlock()
 		}
 	}()
 	offer, err := c.Store.UnsentMergePreparation(ctx, r.Publication)

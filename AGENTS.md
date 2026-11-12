@@ -6,6 +6,11 @@
   Treat tokens, tool calls, builds and the user's attention as costs. Never
   prolong work to use available context, tokens or runtime; activity and output
   volume are not progress.
+- GitHub request amplification is a product defect. Do not wait for rate limits
+  or local request ceilings to clear, rotate accounts, or reset request journals
+  to continue verification. Stop live attempts, fix the call path locally, and
+  prove bounded request counts with controlled provider responses before another
+  connected attempt. Preserve the original operations and request history.
 - Before adding investigation, scaffolding, checks or documentation, identify
   the concrete requirement, observed failure or unresolved risk it addresses.
   Omit work without that connection. Reuse established facts until a relevant

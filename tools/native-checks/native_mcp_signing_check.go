@@ -13795,15 +13795,25 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	var identities atomic.Int64
 	var denyAt atomic.Int64
 	var denied atomic.Int64
+	var materialMode atomic.Bool
+	var materialReads atomic.Int64
+	var closingReadiness atomic.Int64
 	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var command struct {
-			Operation string
-			Call      struct {
+			Operation                       string
+			Connection, Account, Repository string
+			Call                            struct {
 				Kind  string
 				Query struct{ Kind, Repository string }
 			}
 		}
-		if r.URL.Path != "/api/native/collaboration" || r.Header.Get("Authorization") != "Bearer "+hex.EncodeToString(config.IPCKey()) || !factory.ValidID(r.Header.Get("X-Soda-Native-Instance")) || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&command) != nil || command.Operation != operation {
+		if r.Header.Get("Authorization") != "Bearer "+hex.EncodeToString(config.IPCKey()) || !factory.ValidID(r.Header.Get("X-Soda-Native-Instance")) || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&command) != nil {
+			w.WriteHeader(503)
+			return
+		}
+		foreground := r.URL.Path == "/api/native/collaboration" && command.Operation == operation
+		background := materialMode.Load() && r.URL.Path == "/api/native/collaboration/background" && command.Connection == connection.Connection && command.Account == "321" && command.Repository == "123"
+		if !foreground && !background {
 			w.WriteHeader(503)
 			return
 		}
@@ -13822,6 +13832,42 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 				return
 			}
 			observation = map[string]any{"kind": "repository", "account": account, "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture", "private": true, "default_branch": "main", "push": true, "admin": true, "merge_methods": map[string]bool{"merge": true, "squash": true, "rebase": true}}}
+		case background && command.Call.Kind == "read" && command.Call.Query.Repository == "123":
+			kind := command.Call.Query.Kind
+			if kind == "merge_readiness" {
+				closingReadiness.Add(1)
+				w.WriteHeader(409)
+				json.NewEncoder(w).Encode(map[string]string{"error": "declared_closing_permission_withdrawn"})
+				return
+			}
+			materialReads.Add(1)
+			payload := map[string]any{"repository": "123", "name": "fixture/read-capture", "items": []any{}, "next_page": 0}
+			field := ""
+			pull := map[string]any{"kind": "pull", "external_id": "700", "number": 7}
+			switch kind {
+			case "automation_inputs":
+				field = "inputs"
+				payload = map[string]any{"issue": map[string]any{"id": "1300", "number": 12, "title": "Declared objective", "body": "Declared body", "version": 0, "title_occurrence": "original", "lifecycle_occurrence": "original", "author": account, "created_at": "2026-01-01T00:00:00Z", "closed": false, "locked": false}, "comments": []any{}, "dependencies": []any{}, "tip": strings.Repeat("b", 40), "tip_ref": "refs/heads/main"}
+			case "pull":
+				field = "pulls"
+				branch := func(name, commit string) any {
+					return map[string]any{"name": name, "commit": strings.Repeat(commit, 40), "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture"}}
+				}
+				payload["items"] = []any{map[string]any{"external_id": "700", "number": 7, "title": "Declared pull", "body": "Declared body", "state": "open", "author": account, "assignees": []any{}, "draft": false, "locked": false, "base": branch("main", "b"), "head": branch("topic", "a")}}
+			case "pull_comments":
+				field, payload["subject"] = "discussion", pull
+			case "pull_reviews":
+				field, payload["pull"] = "reviews", pull
+			case "pull_threads":
+				field, payload["pull"] = "threads", pull
+			case "delivery_opinions":
+				field = "delivery_opinions"
+				payload = map[string]any{"repository": "123", "pull_id": "700", "number": 7, "head": strings.Repeat("a", 40), "base": strings.Repeat("b", 40), "items": []any{}}
+			default:
+				w.WriteHeader(503)
+				return
+			}
+			observation = map[string]any{"kind": kind, "account": account, field: payload}
 		default:
 			w.WriteHeader(503)
 			return
@@ -13858,8 +13904,8 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	}, DisableKeepAlives: true}
 	defer transport.CloseIdleConnections()
 	instance := ""
-	read := func(path string) (int, map[string]any, error) {
-		request, err := http.NewRequestWithContext(ctx, "GET", "http://soda-native"+path, nil)
+	request := func(method, path string, payload []byte) (int, map[string]any, error) {
+		request, err := http.NewRequestWithContext(ctx, method, "http://soda-native"+path, bytes.NewReader(payload))
 		if err != nil {
 			return 0, nil, err
 		}
@@ -13875,6 +13921,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		err = json.NewDecoder(io.LimitReader(response.Body, 2<<20)).Decode(&body)
 		return response.StatusCode, body, err
 	}
+	read := func(path string) (int, map[string]any, error) { return request(http.MethodGet, path, nil) }
 	for instance == "" {
 		status, body, err := read("/healthz")
 		if err == nil && status == 200 {
@@ -13893,10 +13940,10 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			identities.Store(0)
 			denyAt.Store(0)
 			if withdrawn {
-				denyAt.Store(4)
+				denyAt.Store(2)
 			}
 			status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory%s", repository, suffix))
-			if err != nil || calls.Load() != 4 || identities.Load() != 0 || !withdrawn && status != 200 || withdrawn && status == 200 {
+			if err != nil || calls.Load() != 2 || identities.Load() != 0 || !withdrawn && status != 200 || withdrawn && status == 200 {
 				return fmt.Errorf("request-owned repository capture suffix=%q withdrawn=%t calls=%d status=%d: %w", suffix, withdrawn, calls.Load(), status, err)
 			}
 		}
@@ -13906,10 +13953,10 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		identities.Store(0)
 		denyAt.Store(0)
 		if withdrawn {
-			denyAt.Store(3)
+			denyAt.Store(2)
 		}
 		status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory/issues/12", repository))
-		if err != nil || calls.Load() != 3 || identities.Load() != 0 || !withdrawn && status != 200 || withdrawn && status == 200 {
+		if err != nil || calls.Load() != 2 || identities.Load() != 0 || !withdrawn && status != 200 || withdrawn && status == 200 {
 			return fmt.Errorf("request-owned Work capture withdrawn=%t calls=%d identities=%d status=%d: %w", withdrawn, calls.Load(), identities.Load(), status, err)
 		}
 	}
@@ -13933,8 +13980,48 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	if err != nil || status != 404 || calls.Load() != 1 {
 		return fmt.Errorf("read capture expanded canonical repository: status=%d calls=%d: %w", status, calls.Load(), err)
 	}
-	fmt.Println("PASS: actual Go native HTTP/PG status/access use four fresh repository reads, and empty Feed with explicit allowance_holds uses three including final visibility; inner callbacks add none, final withdrawal exposes no rows/advisory, and foreign actor/repository scope cannot use the capture. Native provider replies declared; no coordinator Start, provider, model or execution.")
-	fmt.Println("PASS: selected-repository native HTTP admission uses its authenticated account/repository observation without a separate identity read; Work inner read callbacks share that observation while final visibility still rejects withdrawal. Acceptance status declared; no provider/model.")
+	calls.Store(0)
+	denyAt.Store(2)
+	status, _, err = request(http.MethodPut, fmt.Sprintf("/api/repositories/%d/factory/operator-grant", repository), []byte(`{"expected_revision":0,"active":true}`))
+	if err != nil || status == 200 || calls.Load() != 2 {
+		return fmt.Errorf("writer reused read-only selection after withdrawal: status=%d calls=%d error=%v", status, calls.Load(), err)
+	}
+	if _, err = db.OperatorGrant(ctx, int64(repository)); !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("withdrawn writer recorded an operator grant: %v", err)
+	}
+	denyAt.Store(0)
+	// The real material reader must finish both complete traversals before
+	// requesting one closing paired CI/protection observation. Its declared
+	// closing permission refusal exposes no material and cannot call a model.
+	actor := int64(mapping.Binding.Actor.ID)
+	ref := func(kind string) factory.ActorBindingRef {
+		return factory.ActorBindingRef{Kind: kind, ActorID: actor, NativeProfile: config.Profile, NativeConnection: collaboration.ConnectionID(connection.Connection)}
+	}
+	policy := factory.RepositoryPolicy{Repository: int64(repository), Revision: 1, Publish: ref(factory.OpRefPublish), Merge: ref(factory.OpMerge)}
+	encoded, err := json.Marshal(policy)
+	if err != nil {
+		return err
+	}
+	raw, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	if _, err = raw.ExecContext(ctx, `INSERT INTO factory_policies(repository,revision,data) VALUES($1,1,$2)`, repository, string(encoded)); err != nil {
+		return err
+	}
+	calls.Store(0)
+	identities.Store(0)
+	materialMode.Store(true)
+	defer materialMode.Store(false)
+	native := factoryruntime.NativeMerges{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}}
+	w := factory.MergeWork{Method: "merge", Repository: int64(repository), Issue: 12, PRNumber: 7, PRID: 700, IssueID: 1300, ActorID: actor, PRAuthorID: actor, ReviewerID: actor, ReviewEvent: "COMMENT", HeadRef: "refs/heads/topic", BaseRef: "refs/heads/main", HeadOID: strings.Repeat("a", 40), BaseOID: strings.Repeat("b", 40)}
+	material, err := native.ReadDeliveryMaterial(ctx, w)
+	if err == nil || !reflect.DeepEqual(material, factory.DeliveryNativeMaterial{}) || calls.Load() != 1 || identities.Load() != 0 || materialReads.Load() != 11 || closingReadiness.Load() != 1 {
+		return fmt.Errorf("material request count/refusal: repository=%d identity=%d discussion/input=%d closing=%d error=%v", calls.Load(), identities.Load(), materialReads.Load(), closingReadiness.Load(), err)
+	}
+	fmt.Println("PASS: production material reader completes both five-read discussion traversals and original input, then exactly one closing paired CI/protection read; closing permission withdrawal exposes no material. Exactly 13 declared native reads, no provider/model/write.")
+	fmt.Println("PASS: actual Go native HTTP/PG status/access and Work each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
 	return nil
 }
 
@@ -15232,22 +15319,44 @@ func externalPreparationFixture() error {
 	if receipt, err := wakeCoordinator.PrepareUnsentMerge(ctx, factory.NewID(), "declared-direct-merge", directOffer); err != nil || receipt.NotAfter <= time.Now().Unix() {
 		return fmt.Errorf("direct external owner finite merge-only preparation failed: %v", err)
 	}
-	select {
-	case <-woken:
-	case <-ctx.Done():
-		return errors.New("fresh merge-only command waited behind passive provider polling")
+	// Declare withdrawal on only the newly admitted disposable row. Its next
+	// progress tick must settle that row without driving unrelated consumers.
+	requested, err := db.MergeByPublication(ctx, directID)
+	if err != nil {
+		return err
+	}
+	requested.WithdrawRequested = true
+	requested.Revision++
+	if err = db.UpdateMerge(ctx, requested); err != nil {
+		return err
+	}
+	for {
+		current, err := db.MergeByPublication(ctx, directID)
+		if err != nil {
+			return err
+		}
+		if current.Stage == factory.MergeWithdrawn {
+			break
+		}
+		select {
+		case <-woken:
+			return errors.New("merge-only command woke unrelated comment/intake polling")
+		case <-ctx.Done():
+			return errors.New("fresh merge-only command waited behind passive provider polling")
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 	if err = wakeCoordinator.Close(); err != nil {
 		return err
 	}
-	fmt.Println("PASS: fresh merge-only command wakes the running coordinator on its next ten-second tick despite its five-minute passive hold; declared callback and causal no-send lookup, no provider/model.")
+	fmt.Println("PASS: fresh merge-only command advances only its exact saved row on the next ten-second tick despite the five-minute passive hold; declared withdrawal settles without waking unrelated comment/intake polling, no provider/model.")
 	if after, err := db.Assignment(ctx, directID); err != nil || !reflect.DeepEqual(after, direct) || after.Run != "" || after.Connection != "" || after.Result != nil {
 		return errors.New("direct external merge preparation fabricated or changed an execution")
 	}
 	if after, err := db.AttemptAllowance(ctx, direct.Repository, direct.Issue); err != nil || !reflect.DeepEqual(after, directAllowance) {
 		return errors.New("direct external merge preparation renewed inference allowance")
 	}
-	if after, err := db.MergeByPublication(ctx, directID); err != nil || len(after.History) != 1 || !reflect.DeepEqual(after.History[0].Authorization, directMerge.Authorization) || !reflect.DeepEqual(after.History[0].Operation, directMerge.Operation) || after.Operation.Attempts != 0 || after.WithdrawRequested {
+	if after, err := db.MergeByPublication(ctx, directID); err != nil || len(after.History) != 1 || !reflect.DeepEqual(after.History[0].Authorization, directMerge.Authorization) || !reflect.DeepEqual(after.History[0].Operation, directMerge.Operation) || after.Operation.Attempts != 0 || !after.WithdrawRequested || after.Stage != factory.MergeWithdrawn {
 		return errors.New("fresh explicit no-send preparation changed its original cancelled generation")
 	}
 	fmt.Println("PASS: real PostgreSQL fresh explicit merge-only command recovers an expired allocated causal cancellation with its inference allowance still open; unknown or unexpired withdrawals refuse, original work/deadline/cancellation are archived exactly, allowance and external owner unchanged, no model/provider.")

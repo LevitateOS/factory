@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -62,6 +63,12 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	// every writer, setup command and background operation below.
 	view := *bound
 	view.readAdmission = readAdmission
+	scopeVisibility := bound.visible
+	if bound.binding.Host.Provider == collaboration.GitHub {
+		// Selection already authenticated this exact repository before routing.
+		// Read services below still recheck visibility after assembling results.
+		scopeVisibility = view.visible
+	}
 	posts := factoryservice.Posts{Store: application.Store, Visibility: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
 		return bound.visible(ctx, actor, collaboration.RepositoryID(repository))
 	}, WriteAccess: bound.writeAccess}
@@ -95,11 +102,11 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 				return holds, ctx.Err()
 			}}, Posts: posts, Visibility: bound.visibility},
 		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
-		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
-			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.visible,
+		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: scopeVisibility,
+			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.readVisibility(&view),
 				Viewer: view.repositoryViewer, Preparation: view.preparationStatus, Authority: view.recordedAuthority,
 				Connections: view.spendingConnections},
-			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
+			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.readVisibility(&view),
 				Bindings: view.policyBindings, PolicyOptions: view.policyOptions, SpendingSources: view.spendingSources, Preparation: view.preparationStatus, Authority: view.recordedAuthority,
 				Diagnostic: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (*control.DispatchObservation, error) {
 					if err := view.visible(ctx, actor, repository); err != nil {
@@ -246,8 +253,24 @@ type nativeProductAccount struct {
 	binding    collaboration.ConnectionBinding
 	repository *collaboration.RepositoryRef
 	controller *nativeControllerGrant
-	// Set only within read-only HTTP or bounded delivery-material traversals.
+	// Set only within read-only HTTP callbacks.
 	readAdmission *NativeRepository
+}
+
+// Read services bracket assembly with this callback. Their first check shares
+// the request's defining authenticated selection; the closing check goes back
+// to the provider. No observation is shared across requests or with writers.
+func (b *nativeProductAccount) readVisibility(view *nativeProductAccount) factoryservice.WorkVisibility {
+	if b.binding.Host.Provider != collaboration.GitHub || view.readAdmission == nil {
+		return b.visible
+	}
+	var started atomic.Bool
+	return func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+		if started.CompareAndSwap(false, true) {
+			return view.visible(ctx, actor, repository)
+		}
+		return b.visible(ctx, actor, repository)
+	}
 }
 
 func (b *nativeProductAccount) current(ctx context.Context) error {

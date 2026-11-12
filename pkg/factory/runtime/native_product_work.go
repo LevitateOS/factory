@@ -109,7 +109,7 @@ func (b *nativeProductAccount) bindWork(application service.Application, view *n
 		}
 		return c.Host.InspectRun(ctx, execution.RunAddress{Run: run.ID, Workspace: run.ProjectID})
 	}
-	issues := service.Issues{Store: b.store, Visibility: b.visible, ExecutionUnavailable: c.Host == nil, Authority: authority, Membership: membership,
+	issues := service.Issues{Store: b.store, Visibility: b.readVisibility(view), ExecutionUnavailable: c.Host == nil, Authority: authority, Membership: membership,
 		Recovery: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, _ string) (bool, error) {
 			_, err := destination(ctx, actor, repository)
 			return err == nil, ctx.Err()
@@ -121,6 +121,6 @@ func (b *nativeProductAccount) bindWork(application service.Application, view *n
 			return c.AcceptanceStatus(ctx, int64(repository), strconv.FormatInt(issue, 10))
 		}}
 	commands := service.Interventions{Store: b.store, Writer: c, WriteAccess: access, RunRepository: repository, RecoveryTarget: target}
-	return factoryhttp.Work{Reads: service.WorkReads{Store: b.store, Visibility: b.visible}, Issues: issues, VisibilityError: nativeProductResourceError},
+	return factoryhttp.Work{Reads: service.WorkReads{Store: b.store, Visibility: b.readVisibility(view)}, Issues: issues, VisibilityError: nativeProductResourceError},
 		factoryhttp.Runs{Store: b.store, Visibility: b.visible, Status: service.RunStatus{Store: b.store, WriteAccess: access, RunRepository: repository, Inspect: inspect, Availability: c}, Commands: commands, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError}
 }

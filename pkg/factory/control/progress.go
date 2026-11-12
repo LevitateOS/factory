@@ -258,8 +258,10 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	// Local retirement, checkpoints and withdrawal stay responsive. Passive
 	// provider discovery and delivery do not re-read unchanged repositories on
 	// every worker tick; a terminal or explicit command wakes them immediately.
-	requested := c.progressRequested.Swap(false)
-	if standingPreparationCursor != nil && !terminalObserved && !requested && time.Now().Before(c.nextPassiveProgress) {
+	if standingPreparationCursor != nil && !terminalObserved && time.Now().Before(c.nextPassiveProgress) {
+		// A merge-only command advances its exact saved row. It must not wake
+		// intake, unrelated merges, CI refresh or paid-delivery producers.
+		c.driveRequestedMerges(ctx)
 		c.observeProgressStage("retry_preparation")
 		_ = c.reconcileRetryPreparations(ctx)
 		return
@@ -304,5 +306,32 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	if ownsPass {
 		c.observeProgressStage("readiness")
 		_, _ = c.drainReadinessWork(ctx, "")
+	}
+}
+
+func (c *Coordinator) driveRequestedMerges(ctx context.Context) {
+	if c.Merges == nil {
+		return
+	}
+	c.ownerMu.Lock()
+	publications := make([]string, 0, min(len(c.requestedMerges), mergePassLimit))
+	for id := range c.requestedMerges {
+		publications = append(publications, id)
+		delete(c.requestedMerges, id)
+		if len(publications) == mergePassLimit {
+			break
+		}
+	}
+	c.ownerMu.Unlock()
+	for _, publication := range publications {
+		if ctx.Err() != nil {
+			return
+		}
+		m, err := c.Store.MergeByPublication(ctx, publication)
+		if err != nil {
+			continue // the durable row remains available to normal recovery
+		}
+		report := MergeReport{Merged: []MergeLink{}}
+		c.reconcileMerge(ctx, m, &report)
 	}
 }
