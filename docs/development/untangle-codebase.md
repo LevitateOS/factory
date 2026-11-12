@@ -767,11 +767,24 @@ Backend correction-task-server SHAa21c8ddce46f8fed8f480962e423d670de0c3027c66b85
 and existing request60-external-pg.log pass: task/workspace admission reaches a
 declared Inspect sentinel, fresh funding/refusal/accounting cases pass, clean PG
 shutdown joins. No native command, model or provider send is fabricated.
-**Next executable action:** install backend-only60 over59, reusing native59/UI,
+Installed60/source4cd9e89 reaches Ready; real original plan head9f2c4a7d remains
+generation0. Before any inference, its missing funding offer exposes one exact
+outcome mismatch: terminal `finish_incomplete` already recorded assignment
+NeedsHuman/NoReport, while the native run later became Failed. Fresh funding now
+admits that settled combination; known original charge, candidate, custody and
+send guards remain strict. Backend correction-outcome-server
+SHA3cb681ddc3867799a6b612ee17b78ff37aacb3fc3dbf045cc66797e00cdb78d3
+and request61-external-pg.log pass against the exact observed shape. No command,
+model or charge ran on60; usage237. Original Quit60 retires app/backend/PG/socket.
+Check-only019f595 aligns execution-retry's assertion with known readiness;
+request60-execution-retry-check.log typechecks the affected native-ui/native-check
+binary using pinned stable Rust. The first compiler-path/cache mismatch is kept
+in its separate failure log. No cache cleaning, native rebuild or UI rerun.
+**Next executable action:** install backend-only61 over60, reusing native59/UI,
 then one fresh bounded fork continuation using original Architect/Inspector and
 finding. Actual successful Fixer/judgment/reinspection/CI stays unqualified.
-Normal Quit59 confirms app/backend/PG/socket retirement; no role/check is running.
-Package60 installation is next; saved credentials/profile/original receipts stay.
+No role/check is running. Package61 installation is next; saved credentials,
+profile and original receipts stay.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
 user-side GitHub revocation is pending. Earlier55 evidence remains preserved.
 The existing initial-intake fixture additionally passes creator withdrawal

@@ -1714,13 +1714,23 @@ refuse. Spent corrections cannot transfer unused budget. Backend build and the
 existing real-PG `request60-external-pg.log` pass, including actual task/workspace
 admission to the declared observation boundary, fresh funding, refusal and
 unchanged original captures. This does not claim native task execution.
-**Q17 remains INCOMPLETE:** exact-prior59-to60 install, then one fresh bounded
+Installed60/source4cd9e89 reaches Ready with the genuine original Architect head
+9f2c4a7d unchanged at generation0. Its pre-inference funding offer correctly stays
+unavailable until the retained outcome mapping is fixed: `finish_incomplete`
+recorded NeedsHuman/NoReport before the native run became Failed. The fresh
+funding guard now accepts that exact no-report/failed combination; all other
+guards remain. Backend build and `request61-external-pg.log` pass with this actual
+shape in the existing fixture. No new command, model or charge ran on60; usage237.
+The separate execution-retry native-check assertion follows readiness and passes
+the affected pinned-compiler typecheck (`request60-execution-retry-check.log`);
+its UI scenario was not rerun and native59 stays unchanged.
+**Q17 remains INCOMPLETE:** exact-prior60-to61 install, then one fresh bounded
 fork correction using the preserved original Architect/Inspector and finding.
 Actual successful Fixer/judgment/reinspection/CI remains required. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.
-Normal Quit59 confirms all process/socket retirement; saved credentials remain.
-No role/check is running; package60 installation is the next owned work.
+Normal Quit60 confirms all process/socket retirement; saved credentials remain.
+No role/check is running; package61 installation is the next owned work.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

@@ -15287,14 +15287,14 @@ func externalPreparationFixture() error {
 	failedChild.ID, failedChild.Run = factory.NewID(), factory.NewID()
 	failedChild.AttemptRoot, failedChild.PublicationAssignment = nextCommand, nextCommand
 	failedChild.RunHistory = []string{failedChild.Run}
-	failedChild.Stage, failedChild.Outcome, failedChild.Reason, failedChild.FinishedUnix = factory.AssignmentFinished, factory.Failed, factory.AssignReasonRunFailed, time.Now().Unix()
+	failedChild.Stage, failedChild.Outcome, failedChild.Reason, failedChild.FinishedUnix = factory.AssignmentFinished, factory.NeedsHuman, factory.AssignReasonNoReport, time.Now().Unix()
 	failedCycle := correctionCycle
 	failedCycle.PublicationID, failedCycle.AttemptRoot, failedCycle.CorrectionAssignment = nextCommand, nextCommand, failedChild.ID
 	failedCycle.ID = factory.ReviewCycleID(nextCommand, nextCommand, failedCycle.Round, failedCycle.Phase)
 	failedContext := *corrector.ReviewContext
 	failedContext.External, failedContext.Publication, failedContext.Cycle = failedPublication.External, factory.CurrentPublicationContext{ID: nextCommand, AssignmentID: nextCommand}, failedCycle
 	failedChild.ReviewContext = &failedContext
-	failedChild.Result = &factory.AssignmentResult{AssignmentID: failedChild.ID, RunID: failedChild.Run, Phase: project.ExecutionCorrect, Status: "failed", Summary: "Declared missing native task binding", RecordedUnix: failedChild.FinishedUnix}
+	failedChild.Result = &factory.AssignmentResult{AssignmentID: failedChild.ID, RunID: failedChild.Run, Phase: project.ExecutionCorrect, Status: "blocked", Summary: "Declared missing native task binding", RecordedUnix: failedChild.FinishedUnix}
 	if err = failedChild.Validate(); err != nil {
 		return fmt.Errorf("declared failed Corrector: %w", err)
 	}
