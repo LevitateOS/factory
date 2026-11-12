@@ -441,6 +441,9 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 // of the retained run, report and exported candidate evidence.
 func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factory.Publication, owner factory.Assignment, role string) error {
 	if role == project.RoleReviewer && p.External != nil && p.Run == "" && owner.RetainedPublication == nil {
+		if owner.ExternalPlanning != nil && owner.NativeTool != nil {
+			return c.retirePublicationSource(ctx, p, owner, owner)
+		}
 		return nil
 	}
 	var prior factory.Assignment
@@ -504,13 +507,15 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 	return c.retireCandidatePreparation(ctx, prepared.Preparation)
 }
 
-// A private source checkout belongs to the investigation root and is shared
-// only with its implementation child. Its admission is not a publication
-// preparation; the completed Builder report, rather than a review child ID,
-// proves which checkout may be released before independent review setup.
-func (c *Coordinator) retirePublicationImplementation(ctx context.Context, p factory.Publication, owner, prior factory.Assignment) error {
+// A private source checkout belongs to the investigation root. A completed
+// implementation child or external-planning Architect proves which original
+// checkout may be released before independent review setup.
+func (c *Coordinator) retirePublicationSource(ctx context.Context, p factory.Publication, owner, prior factory.Assignment) error {
 	prepared, err := c.Store.CandidatePreparation(ctx, prior.Preparation)
 	if err != nil {
+		if owner.ExternalPlanning != nil {
+			return err
+		}
 		// Standing recipes remain available for other work. Only the private
 		// candidate admission above transfers custody to this issue root.
 		standing, readErr := c.Store.StandingProjectPreparations(ctx, prior.ProjectID)
@@ -524,16 +529,25 @@ func (c *Coordinator) retirePublicationImplementation(ctx context.Context, p fac
 		}
 		return err
 	}
-	if prior.Validate() != nil || !prior.Succeeded() || prior.Role != project.RoleCoder || prior.Run != p.Run ||
+	implementation := p.External == nil && prior.Phase == project.ExecutionImplement && prior.Run == p.Run && prior.ParentAssignment == owner.ID &&
+		prior.Result != nil && prior.Result.Candidate == p.Candidate
+	externalPlanning := p.External != nil && p.Run == "" && owner.ExternalPlanning != nil && prior.ID == owner.ID && prior.Phase == project.ExecutionInvestigate &&
+		owner.ExternalPlanning.Validate(owner.ID) == nil && reflect.DeepEqual(p.External, &owner.ExternalPlanning.Origin) &&
+		p.Candidate == owner.ExternalPlanning.Request.Target.HeadOID && p.BaseSHA == owner.SourceCommit
+	if prior.Validate() != nil || !prior.Succeeded() || prior.Role != project.RoleCoder || !implementation && !externalPlanning ||
 		owner.Phase != project.ExecutionInvestigate || !owner.Succeeded() || owner.ID != owner.AttemptRoot ||
 		owner.Repository != p.Repository || owner.Issue != p.Issue || owner.ProjectID != p.ProjectID || owner.Acceptance != p.Acceptance ||
 		prior.Repository != p.Repository || prior.Issue != p.Issue || prior.ProjectID != p.ProjectID || prior.Acceptance != p.Acceptance ||
-		prior.PublicationAssignment != owner.ID || prior.AttemptRoot != owner.AttemptRoot || prior.ParentAssignment != owner.ID ||
+		prior.PublicationAssignment != owner.ID || prior.AttemptRoot != owner.AttemptRoot ||
 		prior.Preparation != owner.Preparation || p.Preparation != prior.Preparation || prior.SourceCommit != owner.SourceCommit ||
-		prior.Result == nil || !prior.Result.Reported || prior.Result.Status != "completed" || prior.Result.Candidate != p.Candidate {
-		return errors.New("published implementation predecessor differs")
+		prior.Result == nil || !prior.Result.Reported || prior.Result.Status != "completed" {
+		return errors.New("published source predecessor differs")
 	}
 	meta, preparation := prepared.Admission, prepared.Preparation
+	if externalPlanning && (meta.ExternalPlanning == nil || meta.ExternalPlanning.CheckedUnix != 0 ||
+		!reflect.DeepEqual(meta.ExternalPlanning.Request, owner.ExternalPlanning.Request) || meta.ExternalPlanning.Origin != owner.ExternalPlanning.Origin || meta.ExternalPlanning.Principal != owner.ExternalPlanning.Principal) {
+		return errors.New("external planning source capture differs")
+	}
 	if preparation.Native == nil || preparation.Native.WorktreeID != prior.Preparation || preparation.Preparation.ID != prior.Preparation ||
 		preparation.Preparation.Project != owner.ProjectID || preparation.Preparation.Role != project.RoleCoder ||
 		preparation.Preparation.SourceCommit != prior.SourceCommit || meta.Repository != p.Repository || meta.Issue != p.Issue ||
@@ -666,17 +680,22 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 	if stop {
 		return
 	}
-	// Publication retained the exact Builder candidate and export receipt.
+	// Publication retained the exact Builder candidate or external Architect plan.
 	// Release its completed private checkout independently of whether the
 	// next role's current source, tool, checks or authority can admit work.
-	if owner.NativeTool != nil && p.External == nil && owner.RetainedPublication == nil && owner.ExternalPublication == nil {
-		prior, err := c.Store.AssignmentByRun(ctx, p.Run)
+	if owner.NativeTool != nil && owner.RetainedPublication == nil && owner.ExternalPublication == nil &&
+		(p.External == nil || p.Run == "" && owner.ExternalPlanning != nil) {
+		sourceRun := p.Run
+		if p.External != nil {
+			sourceRun = owner.Run
+		}
+		prior, err := c.Store.AssignmentByRun(ctx, sourceRun)
 		if err != nil {
 			publicationWait(report, p.ID, "publication_predecessor_unavailable")
 			return
 		}
-		if prior.NativeTool != nil && prior.Phase == project.ExecutionImplement {
-			if err := c.retirePublicationImplementation(ctx, p, owner, prior); err != nil {
+		if prior.NativeTool != nil && (prior.Phase == project.ExecutionImplement || prior.ID == owner.ID && prior.ExternalPlanning != nil) {
+			if err := c.retirePublicationSource(ctx, p, owner, prior); err != nil {
 				report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "candidate_preparation_retirement_pending", Detail: err.Error()})
 				return
 			}

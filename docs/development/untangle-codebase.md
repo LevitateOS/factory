@@ -561,8 +561,35 @@ retained in the real UI (Inspect disabled, Recover original adoption enabled).
 Normal recovery reuses preparationffe86d1a51d6409d8631c1c1d and first deadline
 1794448173; the original origin9480/1794447570/consent/source/limits are unchanged.
 It records exactly one Architect27e955b40cd9bd5e6f7c80ef2a896bac at01:40:19Z,
-with no initial Builder. The role is running, usage222; recover the original
-receipt and result before any further action. No replacement command or inference.
+with no initial Builder. Its delayed admission_read reply is recovered from that
+finished command; normal UI confirms the original receipt without replay.
+The role succeeds01:43:52Z with typed plan9f2c4a7d1e6840b3a5f19c2e7d4a6b31,
+paid completeness051f6798c9f7957cd66c065d41076dae126ee7ddd62742eeeac9c6982b371934,
+sealed/retired/reconciled native receipt and usage220→229 on the selected source.
+goal49-fork-original-recovery.json retains original admission and handoff facts.
+
+The first Inspector9c796952f217b6ede063c56f97bc806a is allocated but unlaunched.
+The exact local cause is the completed Architect's sole non-quiescent private
+sourceffe86d1a51d6409d8631c1c1d: a second candidate preparation correctly exceeds
+the repository slot. Standing Reviewer/current heads both match full revision35;
+there is no fork-specific permission failure or model failure. Private source
+retirement previously applied only to Builder publications. The defining shared
+retirePublicationSource now also accepts the exact completed external Architect,
+with original command/request/origin/candidate/source/prep/native-run bindings,
+confirmed process retirement, no unsettled/assigned consumer and no held admission.
+It preserves direct non-executing external owners, standing recipes, all capacity
+guards and original deadlines. Existing finite realPG external-source-handoff-pg-3.log
+passes: pre-handoff ErrRepositoryFull, normal PublishPass retires the source once
+across two passes, then reviewer preparation admits with unchanged allocation,
+capture and deadline. Two earlier fixture failures retained an old copied native
+intent and correctly refused custody; only the declared new run was corrected.
+One production backend build passes (external-source-handoff-server,
+SHA5efb36aab22306061f79dfbbe4b4920fb6c6855c5353e33315aad23ae6fdb777).
+Installed48 normally Quits with zero active/unsettled/held work; process/socket
+retirement resolves its original unknown Quit reply. Source native retirement
+56e7180c3c17f4d6cd8e219db15429c690d4dee726c495412b0da6b475e6d7cd is preserved.
+Next: backend-only49 exact-prior install and continue original publication6aac/
+review allocation9c79; do not replay the completed Architect or renew its setup.
 
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits

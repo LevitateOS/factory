@@ -1544,7 +1544,21 @@ identical-command recovery pass. Installed47 is normally Quit and all processes/
 developer socket retire; installed48 qualification is next. Original setup
 f6e2ea24c2eba700c2f4364e5 and first deadline1794447102 remain preserved; usage220.
 Sodaos has accepted fixture-fork write, with original read retained for restoration.
-No fork model execution yet; the original refused command is never renewed.
+The original refused command is never renewed. Installed48's corrected pending
+reply retains fresh command6aac8384eed84a6fb5616856e9fa6992; normal original-command
+recovery records one real Architect27e955b40cd9bd5e6f7c80ef2a896bac, then confirms
+its delayed receipt without replay. The Architect succeeds01:43:52Z, sealed/
+retired/reconciled, with typed plan9f2c4a7d1e6840b3a5f19c2e7d4a6b31 and selected-
+source completeness opinion051f6798; usage220→229. First Inspector9c796952 is
+allocated but unlaunched: the completed Architect's still-ready private source
+occupies the repository slot. The shared source-retirement correction preserves
+capacity and exact custody; external-source-handoff-pg-3.log proves normal
+PublishPass retires it once, then reviewer admission passes without changing
+original capture/deadline/allowance. One production backend build passes.
+The first two declared-fixture checks refused a copied old native intent; the
+fixture now has its own validated settled run. Those failed logs are retained.
+Installed48 normally Quits with zero active/unsettled/held work. Next: install49
+and continue this exact publication/review allocation; never replay the Architect.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

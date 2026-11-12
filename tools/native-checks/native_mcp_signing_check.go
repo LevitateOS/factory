@@ -14485,10 +14485,131 @@ func externalPreparationFixture() error {
 	if after, err := db.AttemptAllowance(ctx, direct.Repository, direct.Issue); err != nil || !reflect.DeepEqual(after, directAllowance) {
 		return errors.New("direct external merge preparation renewed inference allowance")
 	}
+	// Separate declared history reproduces a completed fork Architect whose
+	// command-owned source is still ready. Never reopen the retired source above.
+	fork, err := db.ObserveCollaborationRepository(ctx, host.ID, "declared-external-fork", "fixture/external-fork")
+	if err != nil {
+		return err
+	}
+	handoffOwner := stored
+	handoffOwner.ID, handoffOwner.Run, handoffOwner.Preparation = factory.NewID(), factory.NewID(), "f"+factory.NewID()[:24]
+	handoffOwner.AttemptRoot, handoffOwner.PublicationAssignment, handoffOwner.RunHistory = handoffOwner.ID, handoffOwner.ID, []string{handoffOwner.Run}
+	handoffPlanning := *stored.ExternalPlanning
+	handoffPlanning.Request.Automatic, handoffPlanning.Request.ForkConsent = false, true
+	handoffPlanning.Request.PRNumber, handoffPlanning.Request.PRID = 5, 15
+	handoffPlanning.Request.Target.HeadRepository, handoffPlanning.Request.Target.HeadOID = int64(fork.ID), strings.Repeat("e", 40)
+	handoffPlanning.Origin.CommandID, handoffPlanning.Origin.Automatic, handoffPlanning.Origin.ForkConsent = handoffOwner.ID, false, handoffOwner.ID
+	handoffPlanning.Origin.Target = handoffPlanning.Request.Target
+	handoffOwner.ExternalPlanning = &handoffPlanning
+	handoffPlan := plan
+	handoffPlan.AttemptRoot, handoffPlan.Preparation = handoffOwner.ID, handoffOwner.Preparation
+	handoffPlan.Digest, err = factory.PlanDigest(handoffPlan)
+	if err != nil {
+		return err
+	}
+	handoffOwner.Result = &factory.AssignmentResult{AssignmentID: handoffOwner.ID, RunID: handoffOwner.Run, Status: "completed", Summary: "Declared completed fork Architect", Reported: true, RecordedUnix: handoffOwner.FinishedUnix, Phase: project.ExecutionInvestigate, PhaseResult: &factory.PhaseResult{Version: factory.PhaseResultVersion, Phase: project.ExecutionInvestigate, Status: "completed", Summary: "Declared completed fork Architect", Output: &factory.PhaseOutput{Plan: &handoffPlan, PlanReview: strings.Repeat("d", 64)}}}
+	if err = handoffOwner.Validate(); err != nil {
+		return err
+	}
+	handoffSource := preparation
+	handoffSource.Preparation.ID, handoffSource.State.ID = handoffOwner.Preparation, handoffOwner.Preparation
+	handoffNative := *preparation.Native
+	handoffNative.WorktreeID = handoffOwner.Preparation
+	handoffSource.Native, handoffSource.State.Native = &handoffNative, &handoffNative
+	if _, _, err = db.AdmitPreparation(ctx, handoffSource); err != nil {
+		return err
+	}
+	var handoffMeta map[string]any
+	var sourceMeta []byte
+	if err = raw.QueryRowContext(ctx, `SELECT data->'factory_admission' FROM project_preparations WHERE id=$1`, preparation.Preparation.ID).Scan(&sourceMeta); err != nil {
+		return err
+	}
+	if err = json.Unmarshal(sourceMeta, &handoffMeta); err != nil {
+		return err
+	}
+	handoffMeta["owner_assignment"], handoffMeta["child_assignment"], handoffMeta["attempt_root"] = handoffOwner.ID, handoffOwner.ID, handoffOwner.ID
+	handoffCapture := handoffPlanning
+	handoffCapture.CheckedUnix = 0
+	handoffMeta["external_planning"], handoffMeta["not_after_unix"], handoffMeta["stopped"], handoffMeta["retirement"] = handoffCapture, time.Now().Add(time.Minute).Unix(), false, ""
+	if err = write(`UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission}',$2::jsonb) WHERE id=$1`, handoffMeta, handoffOwner.Preparation); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,'finished',0,$5)`, handoffOwner, handoffOwner.ID, handoffOwner.Repository, handoffOwner.Issue, handoffOwner.Run); err != nil {
+		return err
+	}
+	handoffRunNative := *finishedRun.Native
+	handoffRunNative.Provenance.WorktreeID = handoffOwner.Preparation
+	handoffRunNative.Intent, handoffRunNative.Provenance.BrokerRun = "", factory.NewID()
+	handoffRun := factory.Run{ID: handoffOwner.Run, ProjectID: handoffOwner.ProjectID, Role: handoffOwner.Role, InputSHA: handoffOwner.SourceCommit, Started: finishedRun.Started, Deadline: finishedRun.Deadline, Harness: handoffOwner.Harness, Model: handoffOwner.Model, Outcome: factory.Succeeded, Reconciled: true, Native: &handoffRunNative}
+	if err = handoffRun.Validate(); err != nil || !handoffRun.Native.Settled() {
+		return fmt.Errorf("declared external Architect retirement differs: %v", err)
+	}
+	if err = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, handoffRun, handoffRun.ID); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: handoffRun.ID, Repository: handoffOwner.Repository, Issue: handoffOwner.Issue, Attempt: handoffOwner.ID}); err != nil {
+		return err
+	}
+	handoffPublication := promoted
+	handoffPublication.ID, handoffPublication.AssignmentID, handoffPublication.Preparation, handoffPublication.External = handoffOwner.ID, handoffOwner.ID, handoffOwner.Preparation, &handoffPlanning.Origin
+	handoffPublication.PRNumber, handoffPublication.PRID, handoffPublication.Candidate = handoffPlanning.Request.PRNumber, handoffPlanning.Request.PRID, handoffPlanning.Request.Target.HeadOID
+	reviewerID := factory.NewID()
+	cycle := factory.ReviewCycle{PublicationID: handoffPublication.ID, AttemptRoot: handoffOwner.ID, Phase: "review", Round: 1, TriggerDecision: "initial-review", TriggerReason: "Declared first fork review", Head: handoffPublication.Candidate, BaseOID: base, FindingDigest: strings.Repeat("f", 64), ReviewerAssignment: reviewerID}
+	cycle.ID = factory.ReviewCycleID(cycle.PublicationID, cycle.AttemptRoot, cycle.Round, cycle.Phase)
+	handoffPublication.ReviewCycles = []factory.ReviewCycle{cycle}
+	if err = handoffPublication.Validate(); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'','published',0,$4)`, handoffPublication, handoffOwner.ID, handoffOwner.Repository, handoffOwner.Issue); err != nil {
+		return err
+	}
+	handoffAllowance := factory.AttemptAllowance{RootAssignment: handoffOwner.ID, Repository: handoffOwner.Repository, Issue: handoffOwner.Issue, Limits: request.Limits, CheckpointUnix: time.Now().Unix()}
+	if err = write(`INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,$2,$3,0,$4)`, handoffAllowance, handoffOwner.Repository, handoffOwner.Issue, handoffOwner.ID); err != nil {
+		return err
+	}
+	if _, exhausted, err := db.ChargeReviewDispatch(ctx, handoffOwner.Repository, handoffOwner.Issue, handoffOwner.ID, reviewerID, handoffPublication.Candidate, false); err != nil || exhausted {
+		return fmt.Errorf("declared review allocation failed: %v", err)
+	}
+	handoffAllowance, err = db.AttemptAllowance(ctx, handoffOwner.Repository, handoffOwner.Issue)
+	if err != nil {
+		return err
+	}
+	reviewerPrep := execution.PreparationRecord{Preparation: handoffSource.Preparation}
+	reviewerPrep.Preparation.ID, reviewerPrep.Preparation.Role, reviewerPrep.Preparation.SourceCommit = "f"+factory.NewID()[:24], project.RoleReviewer, handoffPublication.Candidate
+	reviewerNative := handoffNative
+	reviewerNative.WorktreeID = reviewerPrep.Preparation.ID
+	reviewerPrep.Native = &reviewerNative
+	reviewerRegistration := store.CandidatePreparationRegistration{Repository: handoffOwner.Repository, Issue: handoffOwner.Issue, ActorID: handoffOwner.ActorID, Project: handoffOwner.ProjectID, OwnerAssignment: handoffOwner.ID, ChildAssignment: reviewerID, AttemptRoot: handoffOwner.ID, PublicationID: handoffPublication.ID, Connection: handoffOwner.Connection, Authority: authority, GateRevision: gate, Control: controlRow, RequestedNotAfter: time.Now().Add(time.Minute).Unix(), SourcePull: handoffPublication.PullSource()}
+	if _, _, err = db.AdmitCandidatePreparation(ctx, reviewerPrep, reviewerRegistration); !errors.Is(err, store.ErrRepositoryFull) {
+		return fmt.Errorf("unretired Architect did not retain its repository slot: %v", err)
+	}
+	beforeHandoff, err := db.CandidatePreparation(ctx, handoffOwner.Preparation)
+	if err != nil {
+		return err
+	}
+	handoffHost := &builderRetirementHost{state: handoffSource.State}
+	handoffCoordinator := control.NewCoordinator(db, handoffHost, handoffHost)
+	handoffCoordinator.Publication = factoryruntime.NativePublication{}
+	handoffReport := handoffCoordinator.PublishPass(ctx)
+	handoffReplay := handoffCoordinator.PublishPass(ctx)
+	if err = handoffCoordinator.Close(); err != nil {
+		return err
+	}
+	retiredSource, err := db.CandidatePreparation(ctx, handoffOwner.Preparation)
+	if err != nil || handoffHost.stops != 1 || !retiredSource.Stopped || retiredSource.Retirement != "confirmed" || retiredSource.NotAfter != beforeHandoff.NotAfter || !reflect.DeepEqual(retiredSource.Admission, beforeHandoff.Admission) {
+		return fmt.Errorf("external Architect source did not retire once under original custody/deadline: stops=%d reports=%+v/%+v %v", handoffHost.stops, handoffReport, handoffReplay, err)
+	}
+	if _, created, err := db.AdmitCandidatePreparation(ctx, reviewerPrep, reviewerRegistration); err != nil || !created {
+		return fmt.Errorf("retired external Architect still blocked first reviewer admission: %v", err)
+	}
+	if after, err := db.AttemptAllowance(ctx, handoffOwner.Repository, handoffOwner.Issue); err != nil || !reflect.DeepEqual(after, handoffAllowance) {
+		return errors.New("external source retirement changed existing review allocation or allowance")
+	}
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
 	fmt.Println("PASS: ordinary startup discovery skips a retained automatic PR/head command before fresh offer/authority reads, while a changed head reaches a fresh offer; original assignment and publication remain unchanged. Discovery facts declared; no provider, model or native send.")
 	fmt.Println("PASS: external Architect publication offers and admits an explicit five-minute merge-only command after a declared unallocated generation expires; original authorization/operation are retained, command replay is idempotent, and assignment/publication/source preparation/inference allowance remain unchanged. Expired merge/review binding declared; no inference or native send.")
 	fmt.Println("PASS: declared non-executing direct external publication reuses exact completed Architect provenance for finite merge-only preparation without a Builder run or changing its closed inference allowance. Original adoption/expired merge receipts declared; no inference or native send.")
+	fmt.Println("PASS: normal PublishPass retires the exact completed external fork Architect's private source once before first reviewer preparation admission; capacity remains enforced before handoff, and original source capture/deadline and reserved review allowance remain unchanged. Custody/retirement/provider history declared; no model or provider send.")
 	return nil
 }
