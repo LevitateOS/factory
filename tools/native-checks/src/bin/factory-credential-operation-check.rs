@@ -1184,6 +1184,41 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
         let client = Client::new(store.clone(), store.capability(&saved.connection).await?, &signer, runtime, application, "user2", "repo1", command).map_err(|e| e.code)?;
         let enrolled = client.enroll().await.map_err(|e| e.code)?;
         ensure(enrolled.active && enrolled.runtime_bound && enrolled.actor.username == "user2", "bound Fountain enrollment missing")?;
+        if std::env::var("FACTORY_DECLARED_FOUNTAIN_READS").as_deref() == Ok("1") {
+            let io = profile.parent().ok_or("fixture parent missing")?.join("io");
+            fs::create_dir(&io)?;
+            use soda_desktop_runtime::provider_contract::Read;
+            for (mode, kind, count) in [
+                ("merge", "merge_preparation", 11), ("checks", "automation_checks", 9),
+                ("empty-runs", "pull_check_runs", 4), ("conflict", "merge_preparation", 15),
+                ("revision-change", "merge_preparation", 0), ("head-change", "merge_preparation", 0),
+                ("permission-change", "merge_preparation", 0), ("withdrawal", "merge_preparation", 0),
+                ("veto", "merge_preparation", 11), ("pending", "merge_preparation", 0),
+                ("retry-exhaustion", "merge_preparation", 0), ("slow-body", "merge_preparation", 0),
+            ] {
+                fs::write(io.join("mode"), mode)?;
+                let query = match kind {
+                    "automation_checks" => Read::AutomationChecks { repository: enrolled.repository.id.clone(), number: 7 },
+                    "pull_check_runs" => Read::PullCheckRuns { repository: enrolled.repository.id.clone(), number: 7, head: String::new(), page: 1, limit: 10 },
+                    _ => Read::MergePreparation { repository: enrolled.repository.id.clone(), number: 7 },
+                };
+                let started = std::time::Instant::now();
+                let result = client.product_read(&enrolled.repository.id, &query).await;
+                if mode == "slow-body" { ensure(result.is_err() && started.elapsed() < Duration::from_millis(8500), "Fountain body outlived operation deadline")?; }
+                let calls: u32 = fs::read_to_string(io.join("count"))?.parse()?;
+                if count == 0 {
+                    ensure(result.is_err(), "changed Fountain facts escaped paired observation")?;
+                    ensure(calls <= 11, "refusal exceeded complete read bound")?;
+                } else {
+                    let value = result.map_err(|error| error.code)?;
+                    ensure(calls == count, "Fountain compound read amplified wire calls")?;
+                    if mode == "veto" { ensure(value["preparation"]["provider_eligible"] == false, "human veto disappeared")?; }
+                    if mode == "merge" { ensure(value["preparation"]["provider_eligible"] == true && value["preparation"]["checks"][0]["state"] == "success", "merge union lost check/eligibility")?; }
+                }
+            }
+            println!("PASS: declared Fountain merge11/checks9/empty-runs4 sends, four conflicts add4; closing revision/head/permission/withdrawal, veto/pending and shared retry exhaustion checked");
+            fs::write(io.join("mode"), "enrollment")?;
+        }
         let repository = client.repository().await.map_err(|e| e.code)?;
         ensure(repository.id == enrolled.repository.id, "Fountain repository changed")?;
         drop(client);

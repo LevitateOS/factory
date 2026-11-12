@@ -250,7 +250,8 @@ impl NativeSupervisor {
             } else {
                 None
             };
-            let result = client
+            let operation = crate::provider_contract::operation::Operation::new(query.wire_limit(), query.timeout());
+            let result = operation.owned_scope(client
                 .scope(async {
                     credentials
                         .with_token_operation(capability, async |token| {
@@ -280,8 +281,7 @@ impl NativeSupervisor {
                         .await
                         .map_err(Error::Credential)?
                 })
-                .await
-                .map_err(provider_error)??;
+                ).await.map_err(provider_error)??;
             Ok(result)
         }
     }

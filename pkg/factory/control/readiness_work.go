@@ -30,6 +30,7 @@ type readinessPass struct {
 	outerDeadline time.Time
 	evidence      atomic.Int32
 	nativeRPC     atomic.Int32
+	providerSends atomic.Int32
 	reserved      atomic.Int32
 	pages         atomic.Int32
 	assessments   atomic.Int32
@@ -487,4 +488,33 @@ func (c *Coordinator) admitReadinessCreation(ctx context.Context, work store.Rea
 		return nil
 	}
 	return err
+}
+
+// ReserveProviderSends allocates a finite part of this pass to one native call.
+// Settle only returns unused slots after a validated native attempt count;
+// timeout, lost replies and old peers retain the entire allocation.
+func ReserveProviderSends(ctx context.Context, maximum int) (int, func(int)) {
+	budget := readinessBudgetFrom(ctx)
+	if maximum < 1 {
+		return 0, func(int) {}
+	}
+	if budget == nil {
+		return maximum, func(int) {}
+	}
+	for {
+		current := budget.providerSends.Load()
+		limit := min(maximum, readinessMaxNativeRPC-int(current))
+		if limit < 1 {
+			return 0, func(int) {}
+		}
+		if budget.providerSends.CompareAndSwap(current, current+int32(limit)) {
+			var settled atomic.Bool
+			return limit, func(used int) {
+				if used < 0 || used > limit || !settled.CompareAndSwap(false, true) {
+					return
+				}
+				budget.providerSends.Add(-int32(limit - used))
+			}
+		}
+	}
 }

@@ -10,7 +10,18 @@ impl Client {
     /// select a product actor, or accept arbitrary URLs. Canonical selectors are
     /// resolved by the Go registry consumer before entering this provider port.
     pub async fn observe(&self, token: Token, expected: &str, query: &Read) -> Result<Value> {
-        self.read_account(token.as_bytes(), expected, query).await
+        self.observe_bounded(token, expected, query, query.wire_limit()).await
+    }
+    pub async fn observe_bounded(&self, token: Token, expected: &str, query: &Read, limit: u32) -> Result<Value> {
+        let inherited = crate::provider_contract::operation::Operation::current();
+        let work = inherited.clone().unwrap_or_else(||
+            crate::provider_contract::operation::Operation::new(limit.min(query.wire_limit()), query.timeout()));
+        work.restrict(limit.min(query.wire_limit()), std::time::Instant::now() + query.timeout());
+        let read = Box::pin(self.read_account(token.as_bytes(), expected, query));
+        match inherited {
+            Some(_) => work.scope(read).await,
+            None => work.owned_scope(read).await,
+        }
     }
     pub(crate) async fn read_account(
         &self,
@@ -18,7 +29,13 @@ impl Client {
         expected: &str,
         query: &Read,
     ) -> Result<Value> {
-        self.read_account_with_identity(token, expected, query, None).await
+        let read = Box::pin(self.read_account_with_identity(token, expected, query, None));
+        if crate::provider_contract::operation::Operation::current().is_some() {
+            read.await
+        } else {
+            let work = crate::provider_contract::operation::Operation::new(query.wire_limit(), query.timeout());
+            work.owned_scope(read).await
+        }
     }
     pub(crate) async fn read_account_with_identity(
         &self,
@@ -40,7 +57,9 @@ impl Client {
         ) {
             return Err(Failure::invalid());
         }
-        tokio::time::timeout(query.timeout(), async {
+        let deadline = crate::provider_contract::operation::Operation::current()
+            .and_then(|work| work.deadline()).unwrap_or_else(|| std::time::Instant::now() + query.timeout());
+        tokio::time::timeout_at(deadline.into(), async {
             let identity = match identity {
                 Some(identity) => identity,
                 None => self.identity(token).await?,

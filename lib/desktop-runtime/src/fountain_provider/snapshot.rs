@@ -90,11 +90,10 @@ impl Client {
     }
 
     pub(super) async fn automation_checks(&self,repository:&str,number:u32)->Result<Value> {
-        let before=self.review_facts(repository,number,false).await?;
-        let head=before["head_tip"].as_str().ok_or_else(invalid)?.to_owned();
-        let observed=self.current_checks(&head).await?;
-        if self.review_facts(repository,number,false).await?!=before {return Err(invalid());}
-        let mut result=before;
+        let facts = self.pull_facts(repository, number, false, true, false).await?;
+        let mut result = facts.review;
+        let head = result["head_tip"].as_str().ok_or_else(invalid)?.to_owned();
+        let observed = project_checks(&head, &facts.snapshot)?;
         result.as_object_mut().ok_or_else(invalid)?.remove("author");
         result["evaluation_commit"]=json!(head);result["checks"]=observed["checks"].clone();result["sources"]=observed["sources"].clone();
         Ok(result)
@@ -103,49 +102,23 @@ impl Client {
     pub(super) async fn current_checks(&self,head:&str)->Result<Value> {
         let selection=json!({"families":["checks"],"sha":head,"limit":50});
         let (revision,snapshot)=self.snapshot(selection.clone()).await?;
-        let set=&snapshot["checks"];
-        if set["sha"]!=head || set["complete"]!=true {return Err(invalid());}
-        let rows=match &set["items"] {Value::Null=>&[][..],Value::Array(items) if items.len()<=50=>items.as_slice(),_=>return Err(invalid())};
-        if set["total"].as_u64()!=Some(rows.len() as u64){return Err(invalid());}
-        let mut latest=std::collections::BTreeMap::<String,(i64,&Value)>::new();
-        let mut identities=BTreeSet::new();
-        for row in rows {
-            let id=remote(&row["id"])?;
-            let creator=if row["creator_id"]=="-2" {"-2"} else {remote(&row["creator_id"])?};
-            let name=text(row,"context",256)?;
-            let state=text(row,"state",64)?;
-            let index=row["index"].as_i64().filter(|v|*v>0).ok_or_else(invalid)?;
-            if row["sha"]!=head || row["visible"]!=true || row["complete"]!=true || name.trim().is_empty() || name.chars().any(char::is_control)
-                || state.chars().any(char::is_control) || creator.is_empty() || !identities.insert(id) {return Err(invalid());}
-            match latest.get(name) {
-                Some((prior,_)) if *prior==index=>return Err(invalid()),
-                Some((prior,_)) if *prior>index=>(),
-                _=>{latest.insert(name.into(),(index,row));}
-            }
-        }
-        let mut checks=Vec::new();let mut sources=Vec::new();
-        for (context,(_,row)) in latest {
-            let creator=row["creator_id"].as_str().ok_or_else(invalid)?;
-            let bound=if creator=="-2" {format!("actions:{context}")} else {format!("actor:{creator}:{context}")};
-            if bound.len()>256 {return Err(invalid());}
-            checks.push(json!({"context":bound,"state":row["state"]}));
-            sources.push(json!({"kind":"fountain_commit_status","id":row["id"],"index":row["index"],"creator":row["creator_id"],"commit":head,"context":context,"state":row["state"]}));
-        }
+        let result = project_checks(head, &snapshot)?;
         let (after_revision,after)=self.snapshot(selection).await?;
         if revision!=after_revision || snapshot!=after {return Err(invalid());}
-        Ok(json!({"checks":checks,"sources":sources}))
+        Ok(result)
     }
 
     pub(super) async fn merge_facts(&self,repository:&str,number:u32)->Result<Value> {
-        let before=self.review_facts(repository,number,true).await?;
+        let facts = self.pull_facts(repository, number, true, true, true).await?;
+        let before = facts.review;
+        let revision = facts.revision;
+        let snapshot = facts.snapshot;
         let head=before["pull"]["head"].as_str().ok_or_else(invalid)?;
         let base=before["base_tip"].as_str().ok_or_else(invalid)?;
-        let selection=json!({"families":["merge_eligibility","ancestry","reviews","refs"],"pull_number":number.to_string(),"refs":[before["head_ref"],before["base_ref"]],"ancestry":{"ancestor_oid":base,"descendant_oid":head},"limit":50});
-        let (revision,snapshot)=self.snapshot(selection.clone()).await?;
         let gate=&snapshot["merge_eligibility"];let ancestry=&snapshot["ancestry"];
         if gate["visible"]!=true || gate["complete"]!=true || gate["pull_number"]!=number.to_string() || gate["head_tip"]!=head || gate["base_tip"]!=base
             || ancestry["ancestor_oid"]!=base || ancestry["descendant_oid"]!=head || !ancestry["reachable"].is_boolean() || !gate["eligible"].is_boolean(){return Err(invalid());}
-        let (repo,_):(Value,_)=self.request_url(reqwest::Method::GET,self.product_url(&[])?,None,512*1024).await?;
+        let repo = facts.repository;
         if super::product::id(&repo["id"])?!=repository {return Err(invalid());}
         let enabled=repo["allow_fast_forward_only_merge"].as_bool().ok_or_else(invalid)?;
         let push=repo["permissions"]["push"].as_bool().ok_or_else(invalid)?;
@@ -156,9 +129,7 @@ impl Client {
             if row["visible"]!=true || row["complete"]!=true {return Err(invalid());}
             veto|=row["type"]=="REQUEST_CHANGES" && row["dismissed"]!=true && row["stale"]!=true;
         }
-        let checks=self.automation_checks(repository,number).await?;
-        let (after_revision,after)=self.snapshot(selection).await?;
-        if revision!=after_revision || snapshot!=after || self.review_facts(repository,number,true).await?!=before {return Err(invalid());}
+        let checks = project_checks(head, &snapshot)?;
         let available=enabled&&ancestry["reachable"]==true;
         let eligible=available&&push&&!archived&&!veto&&gate["eligible"]==true;
         Ok(json!({"repository":repository,"name":before["name"],"repository_node_id":before["repository_node_id"],"pull_id":before["pull"]["external_id"],"pull_node_id":before["pull"]["node_id"],
@@ -168,61 +139,44 @@ impl Client {
     }
 
     pub(super) async fn review_facts(&self, repository: &str, number: u32, prepare: bool) -> Result<Value> {
-        let before=self.product_pull(number,repository).await?;
-        let head=text(&before["head"],"name",512)?;
-        let base=text(&before["base"],"name",512)?;
-        if before["state"]!="open" || before["draft"]!=false || before["locked"]!=false
-            || before["head"]["repository"]["external_id"]!=repository || head==base {
-            return Err(invalid());
-        }
-        let head_ref=format!("refs/heads/{head}");
-        let base_ref=format!("refs/heads/{base}");
-        let selection=json!({"families":["pull","refs","reviews"],"pull_number":number.to_string(),"refs":[head_ref,base_ref],"limit":50});
-        let (revision,snapshot)=self.snapshot(selection.clone()).await?;
-        let pull=&snapshot["pull"];
-        if pull["visible"]!=true || pull["complete"]!=true || pull["number"]!=number.to_string()
-            || pull["head_repo_id"]!=repository || pull["head_branch"]!=head || pull["base_branch"]!=base
-            || pull["head_tip"]!=before["head"]["commit"] || pull["has_merged"].as_bool().unwrap_or(false)
-            || !super::hex(text(pull,"merge_base",40)?,40) {
-            return Err(invalid());
-        }
-        let refs=snapshot["refs"].as_array().ok_or_else(invalid)?;
-        let tip=|name:&str|->Result<&str>{
-            let matches:Vec<_>=refs.iter().filter(|v|v["ref"]==name).collect();
-            if matches.len()!=1 || matches[0]["visible"]!=true || matches[0]["complete"]!=true || matches[0]["exists"]!=true {return Err(invalid());}
-            text(matches[0],"oid",40)
-        };
-        if tip(&head_ref)?!=before["head"]["commit"].as_str().ok_or_else(invalid)?
-            || tip(&base_ref)?!=before["base"]["commit"].as_str().ok_or_else(invalid)? {return Err(invalid());}
-        let issue=remote(&pull["issue_id"])?;
-        let reviews=items(&snapshot["reviews"],issue)?;
-        let current=self.status().await?;
-        let mut pending=0;
-        for review in reviews {
-            remote(&review["id"])?;
-            if review["visible"]!=true || review["complete"]!=true || review["issue_id"]!=issue {return Err(invalid());}
-            if review["type"]=="PENDING" && review["reviewer_id"]==current.actor.id {pending+=1;}
-        }
-        if pending!=0 {return Err(super::Failure{status:409,code:"fountain_pending_review_requires_submission"});}
-        let (after_revision,after)=self.snapshot(selection).await?;
-        if revision!=after_revision || snapshot!=after || self.product_pull(number,repository).await?!=before {return Err(invalid());}
-        let pull_id=remote(&pull["id"])?;
-        let author=&before["author"];
-        remote(&author["external_id"])?;
-        if !prepare {
-            return Ok(json!({"repository":repository,"number":number,"pull_id":pull_id,"issue_id":issue,"author":author,
-                "head_ref":head_ref,"base_ref":base_ref,"head_tip":tip(&head_ref)?,"base_tip":tip(&base_ref)?}));
-        }
-        let (repo,_):(Value,_)=self.request_url(reqwest::Method::GET,self.product_url(&[])?,None,512*1024).await?;
-        if super::product::id(&repo["id"])?!=repository || repo["archived"]!=false {return Err(invalid());}
-        Ok(json!({"repository":repository,"name":format!("{}/{}",self.owner,self.repository),"repository_node_id":format!("fountain:repository:{repository}"),
-            "actor_node_id":format!("fountain:actor:{}",current.actor.id),"archived":false,"disabled":false,"visible_pending_count":0,"pending":null,
-            "viewer_is_author":author["external_id"]==current.actor.id,"author_id":author["external_id"],"head_ref":head_ref,"base_ref":base_ref,"base_tip":tip(&base_ref)?,
-            "pull":{"external_id":pull_id,"node_id":format!("fountain:pull:{repository}:{pull_id}"),"number":number,"state":"open","locked":false,"draft":false,"merged":false,"head":tip(&head_ref)?}}))
+        Ok(self.pull_facts(repository, number, prepare, false, false).await?.review)
     }
 
-    pub(super) async fn snapshot(&self, mut selection: Value) -> Result<(i64, Value)> {
+    async fn pull_facts(&self, repository: &str, number: u32, prepare: bool, checks: bool, merge: bool) -> Result<PullFacts> {
+        let before = self.product_pull(number, repository).await?;
+        let head = text(&before["head"], "name", 512)?;
+        let base = text(&before["base"], "name", 512)?;
+        if before["state"] != "open" || before["draft"] != false || before["locked"] != false
+            || before["head"]["repository"]["external_id"] != repository || head == base { return Err(invalid()); }
+        let current = self.status().await?;
+        if !current.active || current.repository.id != repository { return Err(invalid()); }
+        let mut families = vec!["pull", "refs", "reviews"];
+        if checks { families.push("checks"); }
+        if merge { families.extend(["merge_eligibility", "ancestry"]); }
+        let mut selection = json!({"families":families,"pull_number":number.to_string(),
+            "refs":[format!("refs/heads/{head}"),format!("refs/heads/{base}")],"limit":50});
+        if checks { selection["sha"] = before["head"]["commit"].clone(); }
+        if merge { selection["ancestry"] = json!({"ancestor_oid":before["base"]["commit"],"descendant_oid":before["head"]["commit"]}); }
+        let (revision, snapshot) = self.snapshot_enrolled(selection.clone(), &current).await?;
+        let repo = if prepare {
+            let (repo, _):(Value, _) = self.request_url(reqwest::Method::GET, self.product_url(&[])?, None, 512*1024).await?;
+            repo
+        } else { Value::Null };
+        let review = project_review(repository, number, prepare, &before, &snapshot, &current, &repo, &self.owner, &self.repository)?;
+        let (after_revision, after) = self.snapshot_enrolled(selection, &current).await?;
+        if revision != after_revision || snapshot != after || self.product_pull(number, repository).await? != before { return Err(invalid()); }
+        if prepare {
+            let (after_repo, _):(Value, _) = self.request_url(reqwest::Method::GET, self.product_url(&[])?, None, 512*1024).await?;
+            if after_repo != repo { return Err(invalid()); }
+        }
+        Ok(PullFacts { review, revision, snapshot, repository: repo })
+    }
+
+    pub(super) async fn snapshot(&self, selection: Value) -> Result<(i64, Value)> {
         let enrollment = self.status().await?;
+        self.snapshot_enrolled(selection, &enrollment).await
+    }
+    async fn snapshot_enrolled(&self, mut selection: Value, enrollment: &super::Enrollment) -> Result<(i64, Value)> {
         if !enrollment.active {
             return Err(invalid());
         }
@@ -232,10 +186,11 @@ impl Client {
         // Snapshot POSTs are read-only. An ordinary CI writer can briefly hold
         // their revision bracket; retry that read, never a privileged send.
         let mut attempt=0;
+        let operation = crate::provider_contract::operation::Operation::current();
         let response:Value=loop {
             match self.request_bounded(reqwest::Method::POST,&[&self.command,"snapshot"],Some(body.clone()),2*1024*1024).await {
                 Ok(response)=>break response,
-                Err(error) if error.status==409 && attempt<4=>{
+                Err(error) if error.status==409 && attempt<4 && operation.as_ref().is_none_or(|work| work.retry_conflict())=>{
                     attempt+=1;
                     tokio::time::sleep(std::time::Duration::from_millis(attempt*50)).await;
                 }
@@ -418,3 +373,87 @@ impl Client {
         )
     }
 }
+
+
+fn project_checks(head: &str, snapshot: &Value) -> Result<Value> {
+        let set=&snapshot["checks"];
+        if set["sha"]!=head || set["complete"]!=true {return Err(invalid());}
+        let rows=match &set["items"] {Value::Null=>&[][..],Value::Array(items) if items.len()<=50=>items.as_slice(),_=>return Err(invalid())};
+        if set["total"].as_u64()!=Some(rows.len() as u64){return Err(invalid());}
+        let mut latest=std::collections::BTreeMap::<String,(i64,&Value)>::new();
+        let mut identities=BTreeSet::new();
+        for row in rows {
+            let id=remote(&row["id"])?;
+            let creator=if row["creator_id"]=="-2" {"-2"} else {remote(&row["creator_id"])?};
+            let name=text(row,"context",256)?;
+            let state=text(row,"state",64)?;
+            let index=row["index"].as_i64().filter(|v|*v>0).ok_or_else(invalid)?;
+            if row["sha"]!=head || row["visible"]!=true || row["complete"]!=true || name.trim().is_empty() || name.chars().any(char::is_control)
+                || state.chars().any(char::is_control) || creator.is_empty() || !identities.insert(id) {return Err(invalid());}
+            match latest.get(name) {
+                Some((prior,_)) if *prior==index=>return Err(invalid()),
+                Some((prior,_)) if *prior>index=>(),
+                _=>{latest.insert(name.into(),(index,row));}
+            }
+        }
+        let mut checks=Vec::new();let mut sources=Vec::new();
+        for (context,(_,row)) in latest {
+            let creator=row["creator_id"].as_str().ok_or_else(invalid)?;
+            let bound=if creator=="-2" {format!("actions:{context}")} else {format!("actor:{creator}:{context}")};
+            if bound.len()>256 {return Err(invalid());}
+            checks.push(json!({"context":bound,"state":row["state"]}));
+            sources.push(json!({"kind":"fountain_commit_status","id":row["id"],"index":row["index"],"creator":row["creator_id"],"commit":head,"context":context,"state":row["state"]}));
+        }
+        Ok(json!({"checks":checks,"sources":sources}))
+}
+
+struct PullFacts {
+    review: Value,
+    revision: i64,
+    snapshot: Value,
+    repository: Value,
+}
+
+fn project_review(repository: &str, number: u32, prepare: bool, before: &Value,
+    snapshot: &Value, current: &super::Enrollment, repo: &Value, owner: &str, repository_name: &str) -> Result<Value> {
+    let head=text(&before["head"],"name",512)?;
+    let base=text(&before["base"],"name",512)?;
+    let head_ref=format!("refs/heads/{head}");
+    let base_ref=format!("refs/heads/{base}");
+        let pull=&snapshot["pull"];
+        if pull["visible"]!=true || pull["complete"]!=true || pull["number"]!=number.to_string()
+            || pull["head_repo_id"]!=repository || pull["head_branch"]!=head || pull["base_branch"]!=base
+            || pull["head_tip"]!=before["head"]["commit"] || pull["has_merged"].as_bool().unwrap_or(false)
+            || !super::hex(text(pull,"merge_base",40)?,40) {
+            return Err(invalid());
+        }
+        let refs=snapshot["refs"].as_array().ok_or_else(invalid)?;
+        let tip=|name:&str|->Result<&str>{
+            let matches:Vec<_>=refs.iter().filter(|v|v["ref"]==name).collect();
+            if matches.len()!=1 || matches[0]["visible"]!=true || matches[0]["complete"]!=true || matches[0]["exists"]!=true {return Err(invalid());}
+            text(matches[0],"oid",40)
+        };
+        if tip(&head_ref)?!=before["head"]["commit"].as_str().ok_or_else(invalid)?
+            || tip(&base_ref)?!=before["base"]["commit"].as_str().ok_or_else(invalid)? {return Err(invalid());}
+        let issue=remote(&pull["issue_id"])?;
+        let reviews=items(&snapshot["reviews"],issue)?;
+        let mut pending=0;
+        for review in reviews {
+            remote(&review["id"])?;
+            if review["visible"]!=true || review["complete"]!=true || review["issue_id"]!=issue {return Err(invalid());}
+            if review["type"]=="PENDING" && review["reviewer_id"]==current.actor.id {pending+=1;}
+        }
+        if pending!=0 {return Err(super::Failure{status:409,code:"fountain_pending_review_requires_submission"});}
+        let pull_id=remote(&pull["id"])?;
+        let author=&before["author"];
+        remote(&author["external_id"])?;
+        if !prepare {
+            return Ok(json!({"repository":repository,"number":number,"pull_id":pull_id,"issue_id":issue,"author":author,
+                "head_ref":head_ref,"base_ref":base_ref,"head_tip":tip(&head_ref)?,"base_tip":tip(&base_ref)?}));
+        }
+        if super::product::id(&repo["id"])?!=repository || repo["archived"]!=false {return Err(invalid());}
+        Ok(json!({"repository":repository,"name":format!("{owner}/{repository_name}"),"repository_node_id":format!("fountain:repository:{repository}"),
+            "actor_node_id":format!("fountain:actor:{}",current.actor.id),"archived":false,"disabled":false,"visible_pending_count":0,"pending":null,
+            "viewer_is_author":author["external_id"]==current.actor.id,"author_id":author["external_id"],"head_ref":head_ref,"base_ref":base_ref,"base_tip":tip(&base_ref)?,
+            "pull":{"external_id":pull_id,"node_id":format!("fountain:pull:{repository}:{pull_id}"),"number":number,"state":"open","locked":false,"draft":false,"merged":false,"head":tip(&head_ref)?}}))
+    }

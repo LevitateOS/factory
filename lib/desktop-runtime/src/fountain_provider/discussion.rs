@@ -64,7 +64,7 @@ impl Client {
     pub(super) async fn visible_checks(&self, repository: &str, number: u32, index: u32, limit: u32, head: &str, runs: bool) -> Result<Value> {
         let pull = self.product_pull(number, repository).await?;
         let exact = pull["head"]["commit"].as_str().ok_or_else(invalid)?;
-        let observed = self.current_checks(exact).await?;
+        let observed = if runs { json!({"sources":[]}) } else { self.current_checks(exact).await? };
         if (!head.is_empty() && head != exact) || pull["head"]["commit"] != exact { return Err(invalid()); }
         let mut items = Vec::new();
         // Fountain Actions publish native commit statuses. There is no distinct

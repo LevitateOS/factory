@@ -809,15 +809,29 @@ builds, apps or provider requests in this design phase.
   Plan refinement: retain P17/P32 as required legacy receipt/provider boundaries;
   removing those mappings/fences would change captured write semantics for no
   request reduction. 40 entries remain assigned to fixes,13 retained with reasons.
-  F2 IN PROGRESS: same-repository pull branches share opening/closing repository
-  facts; canonical issue mapping carries its already verified identity. GitHub
-  permission interpretation and branch path encoding each have one owner.
-  f2-helper-build.log passes. f2-branches-local.log passes60 declared cases,
-  12 invalid selectors and retirement using the retained no-forwarding peer:
-  exact successful wire attempts6 same-repository (previously9),9 fork.
-  Closing metadata/node/tip changes refuse. The simulated rate hold runs last on
-  its own fixture owner and proves subsequent work sends nothing; no budget is
-  cleared. Canonical carry is source-reviewed, not a connected qualification.
-  F3–F8 pending. No live provider/model effects; original profiles and uncertain
-  outcomes untouched. No running checks. Next: F2 per-operation wire allowance
-  and flattened Fountain observations; then dependent collection/inventory work.
+  F2 COMPLETE (binding slice dfbd48e plus the operation-budget/compound-read
+  commit). One inherited allowance/deadline reaches both HTTP sinks; native
+  cancellation closes admission before usage publication. Go refunds only
+  validated actual usage and retains lost/invalid replies' whole allocation.
+  Native limits64 ordinary/80 setup/384 inline are clamped by the pass remainder;
+  no caller can increase them. Existing provider ceiling/holds and conservative
+  mutation classification remain. Actions run facts share one observation phase.
+  Fountain review/check/merge projections consume one supported family union
+  with equal closing revision/material/enrollment, plus paired repository facts.
+  Evidence under the existing refactor directory: f2-budget-local.log (60 branch
+  cases,12 invalid descriptors,retirement and exact0/1/5/8-send refusal),
+  f2-fountain-final-local.log (merge11/checks9/empty-runs4, four conflicts+4,
+  operation-wide retry exhaustion, delayed-body deadline, changed revision/head/
+  permission/enrollment, human veto/pending), f2-host-contract.log (canonical SDK
+  validates union offline), f2-usage-progress-pg.log (actual-use/double-refund/
+  uncertain-allocation assertions plus existing realPG progress gates),
+  f2-native-final-build.log. Fresh review's finalization, inherited ownership,
+  setup allowance and direct Fountain body-deadline findings were corrected.
+  Native async reads are boxed at the connector boundary to avoid multiplying
+  the already large selector future on the stack; local branch check passes.
+  These controlled checks qualify this refactor, not connected/installed gates.
+  F3–F8 pending. F3 must replace whole diff brackets per file page and preflight
+  complete pending-body walks against remaining allowance; oversized collections
+  currently refuse without producing a preparation seal. No live/model effects,
+  original profiles or uncertain outcomes changed. No checks running.
+  Next: F3 additive file catalogue, selected threads and shared capture contract.

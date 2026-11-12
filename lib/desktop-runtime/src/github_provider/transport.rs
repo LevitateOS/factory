@@ -1,3 +1,4 @@
+use crate::provider_contract::operation::Operation;
 use super::traffic_budget::{Budget, Snapshot as BudgetSnapshot};
 use super::{Failure, Result, API_VERSION};
 use reqwest::{header, redirect, Client as Http};
@@ -152,6 +153,7 @@ struct Completion {
 }
 struct Job {
     request: Request,
+    operation: Option<Arc<Operation>>,
     reply: oneshot::Sender<Completion>,
     cancelled: watch::Receiver<bool>,
     permit: OwnedSemaphorePermit,
@@ -477,6 +479,7 @@ impl Client {
             self.requests
                 .try_send(Job {
                     request,
+                    operation: Operation::current(),
                     reply,
                     cancelled: observe,
                     permit,
@@ -635,7 +638,7 @@ async fn run(
         tokio::select! {
             biased;
             _ = job.cancelled.changed() => Err(Failure::unavailable()),
-            value = wire(&http, job.request, &budget, &traffic) => value,
+            value = wire(&http, job.request, &budget, &traffic, job.operation.as_deref()) => value,
         }
     };
     let result = if alive.load(Ordering::SeqCst) {
@@ -654,7 +657,7 @@ fn epoch() -> Result<u64> {
         .map(|value| value.as_secs())
         .map_err(|_| Failure::unavailable())
 }
-async fn wire(http: &Http, request: Request, budget: &Budget, traffic: &Traffic) -> Result<Wire> {
+async fn wire(http: &Http, request: Request, budget: &Budget, traffic: &Traffic, operation: Option<&Operation>) -> Result<Wire> {
     let (request, limit) = match request {
         Request::Provider(build) => build(http)?,
         Request::Api { path, query, token } => {
@@ -688,12 +691,19 @@ async fn wire(http: &Http, request: Request, budget: &Budget, traffic: &Traffic)
     // The profile ceiling covers every actual wire attempt, including failed
     // transport, OAuth and mutations. Debit durably before execute; a refusal
     // sends nothing and does not classify any earlier operation's outcome.
+    if operation.and_then(Operation::deadline).is_some_and(|deadline| Instant::now() >= deadline) {
+        return Err(Failure::new(504, "github_deadline"));
+    }
     let authenticated = request.headers().contains_key(header::AUTHORIZATION);
     let now = epoch()?;
-    if let Some(hold) = budget
-        .admit(now, authenticated)
-        .map_err(|_| Failure::unavailable())?
-    {
+    if operation.is_some_and(|work| !work.debit()) {
+        return Err(Failure::new(429, "native_operation_budget"));
+    }
+    let admission = budget.admit(now, authenticated);
+    if !matches!(&admission, Ok(None)) {
+        if let Some(work) = operation { work.unsent(); }
+    }
+    if let Some(hold) = admission.map_err(|_| Failure::unavailable())? {
         count_traffic(traffic, category, TrafficEvent::RateHold);
         return Err(Failure {
             status: 429,
@@ -707,7 +717,11 @@ async fn wire(http: &Http, request: Request, budget: &Budget, traffic: &Traffic)
         });
     }
     count_traffic(traffic, category, TrafficEvent::Attempt);
-    let mut response = http.execute(request).await.map_err(network_failure)?;
+    let mut response = match operation.and_then(Operation::deadline) {
+        Some(deadline) => tokio::time::timeout_at(deadline.into(), http.execute(request)).await
+            .map_err(|_| Failure::new(504, "github_deadline"))?.map_err(network_failure)?,
+        None => http.execute(request).await.map_err(network_failure)?,
+    };
     // A response means HTTP headers arrived, even if a later body read fails.
     count_traffic(traffic, category, TrafficEvent::Response);
     capture_rate_limit(traffic, response.headers());

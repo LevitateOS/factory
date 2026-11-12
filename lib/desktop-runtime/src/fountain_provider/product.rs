@@ -139,6 +139,20 @@ impl Client {
     /// Read a bounded semantic product observation from this exact enrollment.
     /// These observations carry neither operation nor execution authority.
     pub async fn product_read(&self, repository: &str, query: &Read) -> Result<Value> {
+        let inherited = crate::provider_contract::operation::Operation::current();
+        let work = inherited.clone().unwrap_or_else(|| crate::provider_contract::operation::Operation::new(query.wire_limit(), query.timeout()));
+        work.restrict(query.wire_limit(), std::time::Instant::now() + query.timeout());
+        let deadline = work.deadline().ok_or_else(super::unavailable)?;
+        let read = Box::pin(async {
+            tokio::time::timeout_at(deadline.into(), self.product_read_inner(repository, query)).await
+                .map_err(|_| super::unavailable())?
+        });
+        match inherited {
+            Some(_) => work.scope(read).await,
+            None => work.owned_scope(read).await,
+        }
+    }
+    async fn product_read_inner(&self, repository: &str, query: &Read) -> Result<Value> {
         query.validate().map_err(|_| invalid())?;
         let current = self.status().await?;
         if !current.active || current.repository.id != repository {

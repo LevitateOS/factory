@@ -1236,9 +1236,15 @@ async fn serve(
     request: Request<Incoming>,
     state: Arc<State>,
 ) -> std::result::Result<Response<Full<Bytes>>, Infallible> {
-    let response = tokio::time::timeout(CONNECTION_TIMEOUT, dispatch(request, &state))
+    let allowance = match one(&request, "x-factory-wire-allowance") {
+        Some(value) => value.parse::<u32>().ok().filter(|limit| *limit <= 384),
+        None => Some(384),
+    };
+    let work = crate::provider_contract::operation::Operation::new(allowance.unwrap_or(0), CONNECTION_TIMEOUT);
+    let response = tokio::time::timeout(CONNECTION_TIMEOUT, work.owned_scope(dispatch(request, &state)))
         .await
         .unwrap_or_else(|_| Err(Failure::new(504, "native_collaboration_deadline")));
+    let attempts = work.close();
     // Recheck immediately before serialization; a retired owner never returns
     // a formerly successful provider observation.
     let response = if state.alive.load(Ordering::SeqCst) {
@@ -1267,6 +1273,7 @@ async fn serve(
     response
         .headers_mut()
         .insert("cache-control", "no-store".parse().unwrap());
+    response.headers_mut().insert("x-factory-wire-attempts", attempts.to_string().parse().unwrap());
     Ok(response)
 }
 async fn dispatch(
@@ -1487,6 +1494,10 @@ async fn observe_scope(
         {
             return Err(Failure::new(403, "native_repository_scope"));
         }
+    }
+    if let Some(work) = crate::provider_contract::operation::Operation::current() {
+        let limit = match effect { Operation::Read(query, _) => query.wire_limit(), _ => 64 };
+        work.restrict(limit, scope.deadline.min(Instant::now() + effect.timeout()));
     }
     let mut cancelled = scope.cancelled.subscribe();
     let mut retired = state.retired.subscribe();

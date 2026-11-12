@@ -132,7 +132,7 @@ impl Reader<'_> {
             json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,"issue_id":r::id(&issue["id"])?,"author":r::actor(&pull["user"])?,"head_repository":{"external_id":head_repository,"name":head_reader.name},"head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),"head_tip":head_tip,"base_tip":base_tip}),
         )
     }
-    pub(super) async fn latest_check_sources(&self, head: &str) -> Result<Vec<Value>> {
+    async fn latest_check_sources(&self, head: &str, runs: &mut BTreeMap<String, bool>) -> Result<Vec<Value>> {
         let checks_path = format!("/commits/{head}/check-runs");
         let statuses_path = format!("/commits/{head}/statuses");
         let check_query = [
@@ -160,7 +160,6 @@ impl Reader<'_> {
         }
         let mut sources = Vec::new();
         let mut ids = BTreeSet::new();
-        let mut runs = BTreeMap::new();
         for item in check_items {
             let id = r::id(&item["id"])?;
             let context = r::nonempty(item, "name")?;
@@ -265,12 +264,13 @@ impl Reader<'_> {
     }
 
     pub(super) async fn evaluation_sources(&self, binding: &Value) -> Result<(String, Vec<Value>)> {
+        let mut runs = BTreeMap::new();
         if let Some(merge) = binding["test_merge"].as_str() {
-            let sources = self.latest_check_sources(merge).await?;
+            let sources = self.latest_check_sources(merge, &mut runs).await?;
             if !sources.is_empty() { return Ok((merge.into(), sources)); }
         }
         let head = r::text(binding,"head")?;
-        Ok((head.into(), self.latest_check_sources(head).await?))
+        Ok((head.into(), self.latest_check_sources(head, &mut runs).await?))
     }
 
     pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {

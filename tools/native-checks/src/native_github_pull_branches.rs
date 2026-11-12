@@ -1028,6 +1028,19 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
             "invalid branch selector reached provider",
         )?;
     }
+    mode("fork-pair")?;
+    let budget_query = soda_desktop_runtime::github_provider::Read::PullBranches {
+        repository: "123".into(), head_repository: "124".into(),
+        base_branch: "main".into(), head_branch: "topic".into(),
+    };
+    let attempts = |client: &soda_desktop_runtime::github_provider::Client| -> Result<u64> {
+        Ok(serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].as_u64().ok_or("attempts absent")?)
+    };
+    for limit in [0, 1, 5, 8] {
+        let before = attempts(&client)?;
+        let failure = client.observe_bounded(token()?, "321", &budget_query, limit).await.err().ok_or("partial observation escaped budget")?;
+        ensure(failure.code == "native_operation_budget" && attempts(&client)? - before == u64::from(limit), "allowance did not bound actual sends")?;
+    }
     mode("retirement")?;
     let q = request();
     let t = token()?;

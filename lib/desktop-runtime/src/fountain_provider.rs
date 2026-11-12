@@ -299,7 +299,15 @@ impl Client {
                         .header("Content-Type", content_type)
                         .body(body);
                 }
-                let mut response = request.send().await.map_err(|_| unavailable())?;
+                let operation = crate::provider_contract::operation::Operation::current();
+                if operation.as_ref().is_some_and(|work| !work.debit()) {
+                    return Err(Failure { status: 429, code: "native_operation_budget" });
+                }
+                let mut response = match operation.and_then(|work| work.deadline()) {
+                    Some(deadline) => tokio::time::timeout_at(deadline.into(), request.send()).await
+                        .map_err(|_| unavailable())?.map_err(|_| unavailable())?,
+                    None => request.send().await.map_err(|_| unavailable())?,
+                };
                 if !matches!(response.status().as_u16(), 200 | 201) {
                     return Err(Failure {
                         status: response.status().as_u16(),

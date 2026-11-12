@@ -14114,6 +14114,27 @@ func progressGateFixture() error {
 		if nested := c.PublishPass(pass); !nested.Unavailable || len(nested.Errors) != 0 {
 			return factory.ObservedChecks{}, errors.New("nested pass lost admission")
 		}
+		first, settle := control.ReserveProviderSends(pass, 64)
+		if first != 64 {
+			return factory.ObservedChecks{}, errors.New("first native allowance unavailable")
+		}
+		settle(5)
+		settle(0) // Repeated settlement cannot refund the five attempted sends.
+		second, settleSecond := control.ReserveProviderSends(pass, 64)
+		if second != 64 {
+			return factory.ObservedChecks{}, errors.New("actual native usage did not return unused allocation")
+		}
+		settleSecond(7)
+		lost, settleLost := control.ReserveProviderSends(pass, 64)
+		if lost != 64 {
+			return factory.ObservedChecks{}, errors.New("lost native call allocation unavailable")
+		}
+		settleLost(-1) // Missing/invalid usage keeps the entire uncertain allocation.
+		remaining, _ := control.ReserveProviderSends(pass, 384)
+		exhausted, _ := control.ReserveProviderSends(pass, 1)
+		if remaining != 80 || exhausted != 0 {
+			return factory.ObservedChecks{}, errors.New("native pass allowance exceeded after actual and uncertain usage")
+		}
 		entered <- context.WithoutCancel(pass)
 		select {
 		case <-release:

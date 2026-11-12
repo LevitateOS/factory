@@ -328,6 +328,13 @@ pub(crate) fn branch_name(value: &str) -> bool {
             .all(|p| !p.is_empty() && !p.starts_with('.') && !p.ends_with(".lock"))
 }
 impl Read {
+    pub fn wire_limit(&self) -> u32 {
+        match self {
+            Self::InlinePreparation { .. } => 384,
+            Self::SetupSource { .. } => 80,
+            _ => 64,
+        }
+    }
     pub fn request_limit(&self) -> usize {
         match self {
             Self::InlinePreparation { .. } => 64 * 1024,

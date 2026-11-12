@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory/control"
 )
 
 type nativeOperationKey struct{}
@@ -256,6 +257,18 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		}
 		route += "/background"
 	}
+	maximum := 64
+	switch read := effect.(type) {
+	case nativeInlinePreparationEffect:
+		maximum = 384
+	case nativeReadEffect:
+		switch read.Query.Kind {
+		case "inline_preparation":
+			maximum = 384
+		case "setup_source":
+			maximum = 80
+		}
+	}
 	body, err := json.Marshal(payload)
 	limit, responseLimit := 8192, 2<<20
 	switch read := effect.(type) {
@@ -292,14 +305,25 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	if err != nil {
 		return zero, errors.New("native operation unavailable")
 	}
+	allowance, settle := control.ReserveProviderSends(ctx, maximum)
+	if allowance == 0 {
+		return zero, control.ErrReadinessPassPending
+	}
 	request.Header.Set("Authorization", "Bearer "+hex.EncodeToString(p.operation.config.IPCKey()))
 	request.Header.Set("X-Soda-Native-Instance", p.operation.instance)
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Factory-Wire-Allowance", strconv.Itoa(allowance))
 	response, err := client.Do(request)
 	if err != nil {
 		return zero, errors.New("native operation unavailable")
 	}
 	defer response.Body.Close()
+	used := -1
+	if values := response.Header.Values("X-Factory-Wire-Attempts"); len(values) == 1 {
+		if count, err := strconv.Atoi(values[0]); err == nil && count >= 0 && count <= allowance {
+			used = count
+		}
+	}
 	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(responseLimit)+1))
 	if err != nil || len(raw) > responseLimit || ctx.Err() != nil {
 		return zero, errors.New("native observation unavailable")
@@ -313,6 +337,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		if nativeDecode(raw, &failure) != nil || !nativeErrorCode(failure.Code) {
 			return zero, errors.New("invalid native operation outcome")
 		}
+		settle(used)
 		return zero, &NativePortError{Status: response.StatusCode, Code: failure.Code, RetryAfter: failure.RetryAfter, Reset: failure.Reset}
 	}
 	var envelope struct {
@@ -336,6 +361,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		return zero, errors.New("native account scope changed")
 	}
 	p.scope = &scope
+	settle(used)
 	return scope, nil
 }
 func nativeErrorCode(code string) bool {
