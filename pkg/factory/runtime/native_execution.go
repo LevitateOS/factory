@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"time"
 
@@ -72,6 +73,9 @@ func (p NativeExecution) RetireRun(ctx context.Context, address execution.RunAdd
 func (p NativeExecution) ReadCustody(ctx context.Context, address execution.RunAddress) (execution.CustodyObservation, error) {
 	observed, err := p.InspectRun(ctx, address)
 	if err != nil {
+		if errors.Is(err, execution.ErrRunNotObserved) {
+			return execution.CustodyObservation{}, execution.ErrCustodyNotObserved
+		}
 		return execution.CustodyObservation{}, err
 	}
 	run, err := p.Store.FactoryRun(ctx, address.Run)

@@ -67,8 +67,8 @@ func (c *Coordinator) verifyCommentMergeReview(ctx context.Context, p factory.Pu
 	if c.Reviews == nil || !c.currentMergeReview(ctx, p, m) {
 		return &factory.PublicationWait{Reason: "agent_review_pending"}
 	}
-	op, found := currentReviewOperation(p)
-	if !found || op.Work.ActorID != work.ReviewerID || op.Work.Event != "COMMENT" || observation.ReviewEvent != op.Work.Event {
+	op, err := MergeReviewOperation(ctx, c.Store, p, m)
+	if err != nil || op.Work.ActorID != work.ReviewerID || op.Work.Event != "COMMENT" || observation.ReviewEvent != op.Work.Event {
 		return &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
 	receipt, err := c.Reviews.AdoptReview(ctx, op.Work, op.Outcome)
@@ -76,7 +76,7 @@ func (c *Coordinator) verifyCommentMergeReview(ctx context.Context, p factory.Pu
 		return err
 	}
 	if receipt.ReviewID <= 0 || receipt.ReviewID != observation.ReviewID || receipt.ReviewerID != work.ReviewerID ||
-		receipt.Event != op.Work.Event || receipt.HeadOID != work.HeadOID || receipt.BaseOID != work.BaseOID {
+		receipt.Event != op.Work.Event || receipt.HeadOID != op.Work.HeadOID || receipt.BaseOID != work.BaseOID {
 		return &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
 	return nil

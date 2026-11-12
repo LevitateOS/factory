@@ -64,16 +64,22 @@ func checkConcurrencyLimits(ctx context.Context, deps DispatchDeps, occupancy *p
 	if occupancy.heldTotal()+occupancy.unattributed >= capacity.MaxConcurrentRuns {
 		return waitFor(WaitCapacity, "appliance runs at its limit"), nil
 	}
-	unsettled, err := deps.Store.ProjectUnsettledRuns(ctx, plan.projectID, 1)
+	return checkRepositorySessionLimits(ctx, deps.Store, occupancy, repository, plan.projectID)
+}
+
+// Local occupancy can refuse a new session before provider reads. The final
+// dispatch plan rechecks the same invariant before transactional admission.
+func checkRepositorySessionLimits(ctx context.Context, db *store.Store, occupancy *passOccupancy, repository int64, projectID string) (*planWait, *planWait) {
+	// One session per repository is a product invariant.
+	if occupancy.heldRepo(repository)+occupancy.byProject[projectID] >= 1 {
+		return waitFor(WaitRepository, "repository runs at its limit"), nil
+	}
+	unsettled, err := db.ProjectUnsettledRuns(ctx, projectID, 1)
 	if err != nil {
 		return nil, waitFor(DispatchErrStore, "repository run state unreadable")
 	}
 	if len(unsettled) != 0 {
 		return waitFor(WaitRepository, "repository has an unsettled factory session"), nil
-	}
-	// One session per repository is a product invariant.
-	if occupancy.heldRepo(repository)+occupancy.byProject[plan.projectID] >= 1 {
-		return waitFor(WaitRepository, "repository runs at its limit"), nil
 	}
 	return nil, nil
 }

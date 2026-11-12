@@ -195,6 +195,15 @@ func (c *Coordinator) resolvePublicationChildReview(ctx context.Context, p facto
 	if reviewPending {
 		return in, true
 	}
+	proposedFix := !hasReview && proposedDeliveryDue(p)
+	if proposedFix {
+		basis, err := c.deliveryReviewEvidence(ctx, p)
+		if err != nil {
+			publicationWait(report, p.ID, "delivery_judgment_unavailable")
+			return in, true
+		}
+		review, hasReview = basis.review, true
+	}
 	in.review, in.hasReview, in.role = review, hasReview, project.RoleReviewer
 	if hasReview {
 		assessment, ok := c.currentChildCheckAssessment(ctx, p)
@@ -219,7 +228,7 @@ func (c *Coordinator) resolvePublicationChildReview(ctx context.Context, p facto
 	// advice never forces a correction. The policy-required cause is
 	// detected below for first inspections with passing checks.
 	if in.role == project.RoleCoder && hasReview && review.Verdict == "request-changes" {
-		if routeDeliveryFeedback(publicationDeliveryFeedback(p, review, in.checks)) == routeJev {
+		if proposedFix || routeDeliveryFeedback(publicationDeliveryFeedback(p, review, in.checks)) == routeJev {
 			decision, decisionID, err := c.advisePublicationDelivery(ctx, p, review)
 			if err != nil {
 				publicationWait(report, p.ID, "delivery_judgment_unavailable")
@@ -391,6 +400,13 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		return nil, "", execution.PreparationRecord{}, true
 	}
 	*occupancy = occupancySnapshot
+	if wait, failed := checkRepositorySessionLimits(ctx, deps.Store, occupancy, p.Repository, p.ProjectID); failed != nil {
+		publicationWait(report, p.ID, failed.Reason)
+		return nil, "", execution.PreparationRecord{}, true
+	} else if wait != nil {
+		publicationWait(report, p.ID, wait.Reason)
+		return nil, "", execution.PreparationRecord{}, true
+	}
 	nativeChild := (role == project.RoleReviewer && lineage.phase == project.ExecutionReview && lineage.parent == owner.ID ||
 		role == project.RoleCoder && lineage.phase == project.ExecutionCorrect && lineage.parent != "") &&
 		owner.NativeTool != nil && owner.Validate() == nil && owner.PublicationAssignment == owner.ID &&

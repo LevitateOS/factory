@@ -70,8 +70,7 @@ struct RecordedRun {
     role: String,
     source_commit: String,
     deadline: String,
-    #[serde(rename = "context_pending")]
-    _context_pending: bool,
+    context_pending: bool,
     reconciled: bool,
     #[serde(rename = "outcome")]
     _outcome: String,
@@ -245,6 +244,61 @@ impl NativeRecovery {
     pub fn read_evidence(&self) -> io::Result<NativeRecoveryEvidence> {
         self.context.current()?;
         let scope = self.scope()?;
+        if self.run.context_pending && !self.run.native.intent.is_empty() {
+            // Go clears this durable marker before making any host call. It
+            // can prove no send only while every native owner agrees that no
+            // receipt, partial intent, acquisition or process exists.
+            let native = &self.run.native;
+            let provenance = &native.provenance;
+            let custody = &provenance.custody;
+            let captured = LaunchIntent::from_go(&native.intent)?;
+            if self.run.reconciled
+                || !self.run._outcome.is_empty()
+                || native.retirement != "not_started"
+                || native.sealed
+                || provenance.process.is_some()
+                || provenance.isolation.is_some()
+                || provenance.connector.is_some()
+                || custody.state != CustodyState::NotAcquired.as_str()
+                || !custody.acquisition_id.is_empty()
+                || !custody.connection.is_empty()
+                || custody.generation != "0"
+                || !captured.matches_record(
+                    &self.run.id,
+                    &self.run.workspace,
+                    &provenance.instance_id,
+                    &provenance.worktree_id,
+                    &self.run.deadline,
+                    self.run.launch.as_ref(),
+                )
+                || captured.scope()?.fingerprint() != scope.fingerprint()
+            {
+                return Err(refused(
+                    "pending native context conflicts with execution evidence",
+                ));
+            }
+            if super::Broker::next_profile_run(&self.context.profile)?.is_some() {
+                return Err(refused("pending native context has a broker root"));
+            }
+            super::intent::require_absent(&self.context.directory, &scope)?;
+            if read_retained(&self.context.directory, &scope)?.is_some()
+                || read_custody(&self.context.directory, &scope, captured.connection())?.is_some()
+            {
+                return Err(refused(
+                    "pending native context has retained execution evidence",
+                ));
+            }
+            if captured.muse_login() {
+                super::muse_receipt::require_absent(&self.context.directory, &captured)?;
+            }
+            self.context.current()?;
+            return Ok(NativeRecoveryEvidence {
+                intent: None,
+                receipt: None,
+                custody: None,
+                muse: None,
+            });
+        }
         let intent = read_intent(&self.context.directory, &scope)?;
         match (&intent, self.run.native.intent.is_empty()) {
             (None, true) => (), // Historical absence is still unknown.
@@ -395,6 +449,10 @@ impl NativeRecovery {
     /// evidence is repaired by assuming the old owner is gone.
     async fn recover_root(&self) -> io::Result<()> {
         let evidence = self.read_evidence()?;
+        if self.run.context_pending && evidence.intent.is_none() {
+            let captured = LaunchIntent::from_go(&self.run.native.intent)?;
+            return self.record_root(&captured, "", "", true).await;
+        }
         let intent = evidence
             .intent
             .ok_or_else(|| refused("native recovery intent missing"))?;
@@ -433,7 +491,7 @@ impl NativeRecovery {
             }
             super::muse_receipt::mark_retired(&self.context.directory, &intent, &result.process)?;
             return self
-                .record_root(&intent, &result.process.invocation, "")
+                .record_root(&intent, &result.process.invocation, "", false)
                 .await;
         }
         let receipt = evidence
@@ -476,6 +534,7 @@ impl NativeRecovery {
             &intent,
             &receipt.process.invocation,
             &custody.acquisition_id,
+            false,
         )
         .await
     }
@@ -484,9 +543,10 @@ impl NativeRecovery {
         intent: &LaunchIntent,
         invocation: &str,
         acquisition: &str,
+        context_pending: bool,
     ) -> io::Result<()> {
         let body = serde_json::to_vec(
-            &serde_json::json!({"intent":intent.raw(),"invocation":invocation,"acquisition_id":acquisition}),
+            &serde_json::json!({"intent":intent.raw(),"invocation":invocation,"acquisition_id":acquisition,"context_pending":context_pending}),
         )?;
         let response = self
             .products
@@ -602,6 +662,10 @@ pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Re
             state,
             ProfileRunState::Staged | ProfileRunState::RetiringUnlaunched
         ) {
+            let recovered = NativeRecovery::read(products.clone(), &run).await?;
+            if recovered.run.context_pending {
+                return Err(refused("pending native context has broker staging"));
+            }
             // A launched or unproven retirement keeps Go recovery below.
             if !super::Broker::retire_unlaunched(&run, profile, &source)? {
                 return Err(refused("native staging recovery did not advance"));

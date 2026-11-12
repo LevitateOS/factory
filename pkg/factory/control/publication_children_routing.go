@@ -203,7 +203,7 @@ func policyReviewRecorded(p factory.Publication, head string, reviewerActor int6
 }
 
 // newestCurrentHeadDispositions returns the dispositions of the newest
-// correction journal whose cycle inspected the publication's current
+// correction journal whose cycle inspected or produced the current
 // head, or nil when no correction has answered this head yet. Journals
 // are append-only, so the last match wins; journals on superseded heads
 // never route the current one.
@@ -216,7 +216,7 @@ func newestCurrentHeadDispositions(p factory.Publication) []string {
 	answered := false
 	for _, journal := range p.CorrectionJournals {
 		cycle, ok := byID[journal.CycleID]
-		if !ok || cycle.Head != p.Candidate {
+		if !ok || cycle.BaseOID != p.PullTarget().BaseOID || (cycle.Head != p.Candidate && journal.Report.NewCandidate != p.Candidate) {
 			continue
 		}
 		newest = newest[:0]
@@ -229,6 +229,39 @@ func newestCurrentHeadDispositions(p factory.Publication) []string {
 		return nil
 	}
 	return newest
+}
+
+// A completed proposed correction reaches delivery judgment before another
+// discretionary inspection. An already admitted ordinary inspection keeps its
+// original recovery path; a Jev-requested inspection reuses that same decision.
+func proposedDeliveryDue(p factory.Publication) bool {
+	if len(p.Corrections) == 0 {
+		return false
+	}
+	op := p.Corrections[len(p.Corrections)-1]
+	if op.Work == nil || op.Work.Candidate != p.Candidate || op.Effect != factory.OpEffectCommitted || op.Completion != factory.OpCompletionComplete {
+		return false
+	}
+	for _, journal := range p.CorrectionJournals {
+		if journal.RunID != op.RunID {
+			continue
+		}
+		for _, disposition := range journal.Report.Dispositions {
+			if disposition.Disposition != factory.DispositionFixed && disposition.Disposition != factory.DispositionDeclinedOptional {
+				return false
+			}
+		}
+		cycle, ok := findReviewCycle(p, journal.CycleID)
+		if !ok {
+			return true
+		}
+		for _, later := range p.ReviewCycles {
+			if later.Round > cycle.Round && later.Head == p.Candidate && later.CorrectionAssignment == "" && later.TriggerDecision != "funded-review-again" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // policyCauseOwed combines the three policy-required preconditions with

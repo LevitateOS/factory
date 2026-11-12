@@ -707,12 +707,41 @@ The backend build and existing request56-external-pg.log pass complete staged
 Fixer context without inserting a synthetic Architect head. Old rows, deadlines
 and charges stay exact. Normal Quit55 resolves its lost reply through observed
 app/backend/PG/socket retirement. Original first run deadline04:47:17Z stays.
-**Next executable action:** exact-prior56 install, inspect original run/allowance
-retirement, then issue one fresh bounded continuation under standing permission
-if needed. Never replay the old Architect/Inspector or renew old authority.
-Actual fork Fixer/reinspection/CI remains unqualified. Original causal evidence:
+Installed56/source8218fb8 exposes the retained no-start recovery contradiction:
+e814 is still ContextPending/staged/unsettled and has no native intent/process,
+but Rust discarded the marker cleared before any host launch. Native recovery
+now verifies positive unsent binding plus absence of every scoped native
+artifact, then the existing private retirement acknowledgement atomically
+records cancelled/reconciled retirement, consumed reservation and zero-minute
+original-source usage. Original intent, admission, manifest and deadline stay
+exact; partial/conflicting evidence refuses. Idempotent acknowledgement finishes
+interrupted capability retirement. Only this proved-unused correction admits a
+fresh explicit finite funding command; its old spent identity/count remains.
+The shared repository-occupancy invariant now denies new child planning before
+provider reads; the final concurrency and fresh authority checks remain.
+
+Complete proposed fixes also lacked canonical D08's direct funded decision:
+exact-current-head review selection otherwise bought another inspection. One
+delivery owner now joins original Inspector receipt/head to committed Fixer,
+current candidate/checks and complete findings. Material, Jev acceptance,
+resolution and merge/native observation use that causal union without relabeling
+the old COMMENT or providing a human approval. CLEAR still bypasses this paid
+route. Native57 SHA42e212ef5fa48ae6292cd3d223567d3567c1c10aceb76d2f35b7a9d46e902615
+and recovery-delivery-server SHAb887fcd2b27afa67e3b8b9de9b8682783d36d3822b0eb8bda106acb7bb31a41d
+compile. Existing real-PG request57-external2-pg.log and progress-pg.log pass;
+delivery-full3-pg.log passes all controlled roles, causal corrected-tuple funded
+acceptance/refusals, clean restart and abrupt WAL recovery. Failed logs preserve
+fixture type, missing declared reconciliation and attempted regression mistakes;
+production guards stayed strict. No new inference or provider write occurred.
+**Next executable action:** exact-prior57 install and actual e814 no-start
+adoption/zero accounting, then one fresh bounded fork continuation under standing
+permission, reusing the original Architect/Inspector. Never renew old authority.
+Actual fork Fixer/judgment/reinspection/CI remains unqualified. Original evidence:
 goal55-external-continuation.json, goal55-current-context-result.log and
-goal55-original-native-observation.log. No owned process/check remains running.
+goal55-original-native-observation.log. Installed56 authenticated reads pass in
+goal56-installed-revocation-positive.json; user-side GitHub revocation is pending.
+Normal Quit56 confirms app/backend/PG/socket retirement. No owned process/check
+remains running; credentials/profile/original unsettled row are preserved.
 The existing initial-intake fixture additionally passes creator withdrawal
 inside evidence I/O with no retained admission and fresh authorized recovery
 (request55-intake-creator-io-pg.log); provider facts are declared. Existing policy

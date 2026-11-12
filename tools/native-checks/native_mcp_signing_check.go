@@ -29,6 +29,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/access"
 	"github.com/levitateos/factory/pkg/factory/control"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
@@ -2217,7 +2218,7 @@ func offlineRoleHandoffs() error {
 	if err = f.post(ctx, clear, cap, factory.MCPToolFinishReview, map[string]any{"conclusion": "clear", "evidence_refs": []string{"controlled"}}, map[string]any{"conclusion": "clear", "carried_assessments": []factory.FindingAssessment{assessment}, "evidence_refs": []string{"controlled:corrected-output"}}, ""); err != nil {
 		return err
 	}
-	if err = offlineRetainedIncompleteClearRecovery(ctx, db, rawDB, architect, reviewed, clear); err != nil {
+	if err = offlineRetainedIncompleteClearRecovery(ctx, db, rawDB, architect, reviewed, fixed, clear); err != nil {
 		return fmt.Errorf("retained incomplete clear: %w", err)
 	}
 	if err = f.remainingProfiles(ctx); err != nil {
@@ -2244,7 +2245,7 @@ func (r *offlineHistoryReview) ObserveReview(context.Context, factory.ReviewWork
 // The legacy result and funding lineage are declared historical inputs. The
 // production history reader, run joins and verdict binding must carry its key
 // without allowing that result to verify it or reach a provider operation.
-func offlineRetainedIncompleteClearRecovery(ctx context.Context, db *store.Store, raw *sql.DB, origin, reviewed, clear factory.Assignment) error {
+func offlineRetainedIncompleteClearRecovery(ctx context.Context, db *store.Store, raw *sql.DB, origin, reviewed, fixed, clear factory.Assignment) error {
 	clone := func(a factory.Assignment) factory.Assignment {
 		encoded, _ := json.Marshal(a)
 		var result factory.Assignment
@@ -2431,7 +2432,7 @@ func offlineRetainedIncompleteClearRecovery(ctx context.Context, db *store.Store
 	if err != nil || !reflect.DeepEqual(storedPublication, p) {
 		return errors.New("historical recovery changed original cycles or native operations")
 	}
-	if err = offlineFundedCommentMerge(ctx, db, raw, p, first); err != nil {
+	if err = offlineFundedCommentMerge(ctx, db, raw, p, first, fixed); err != nil {
 		return fmt.Errorf("funded findings COMMENT merge: %w", err)
 	}
 	fmt.Println("PASS: funded historical unsubmitted assessment-free clear carries its actionable finding without verification; current result, attributed history, tuple/coverage/content drift, partial assessments, broken run joins and absent funding provenance refuse before provider observation; original result/cycles unchanged; lineage and provider declared, no inference or send")
@@ -2441,7 +2442,7 @@ func offlineRetainedIncompleteClearRecovery(ctx context.Context, db *store.Store
 // Exercise the shared coordinator/native eligibility gate using the existing
 // retired Inspector and real PostgreSQL journal. Its ready answer and native
 // receipt are declared inputs; no model, provider or merge send runs here.
-func offlineFundedCommentMerge(ctx context.Context, db *store.Store, raw *sql.DB, original factory.Publication, reviewer factory.Assignment) error {
+func offlineFundedCommentMerge(ctx context.Context, db *store.Store, raw *sql.DB, original factory.Publication, reviewer, fixed factory.Assignment) error {
 	policy, err := db.RepositoryPolicy(ctx, original.Repository)
 	if err != nil {
 		return err
@@ -2534,11 +2535,139 @@ func offlineFundedCommentMerge(ctx context.Context, db *store.Store, raw *sql.DB
 	if err = db.RecordDeliveryJudgment(ctx, receipt); err != nil {
 		return err
 	}
+	// Reuse the existing typed controlled Fixer, checkpoint and run joins.
+	// Only its declared publication context is rebound for this isolated gate;
+	// the original typed Inspector receipt remains on its original head.
+	// Terminal tool settlement alone does not reconcile a supervised run. As
+	// with the declared Inspector above, supply that monotonic controlled
+	// observation only after proving the unreconciled run cannot merge.
+	fixedRun, err := db.FactoryRun(ctx, fixed.Run)
+	if err != nil {
+		return err
+	}
+	priorFixed, _ := json.Marshal(fixed)
+	defer func() {
+		_, _ = raw.ExecContext(ctx, `UPDATE factory_assignments SET data=$2 WHERE id=$1`, fixed.ID, string(priorFixed))
+	}()
+	cycle := reviewer.ReviewContext.Cycle
+	cycle.Round, cycle.Phase, cycle.CorrectionAssignment = 2, "correct", fixed.ID
+	cycle.ID = factory.ReviewCycleID(p.ID, fixed.AttemptRoot, cycle.Round, cycle.Phase)
+	cycle.ReviewerAssignment = factory.NewID()
+	cycle.FindingDigest = fixed.Result.PhaseResult.Output.Correction.SetDigest
+	fixed.ParentAssignment = reviewer.ID
+	fixed.ReviewContext = &factory.CurrentReviewContext{Publication: factory.CurrentPublicationContext{ID: p.ID, AssignmentID: p.AssignmentID}, AdmittedTuple: *p.Tuple, Cycle: cycle, CarriedFindings: reviewer.Result.PhaseResult.Output.Review.NewFindings}
+	if err = fixed.Validate(); err != nil {
+		return fmt.Errorf("controlled corrected context: %w", err)
+	}
+	encoded, _ = json.Marshal(fixed)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_assignments SET data=$2 WHERE id=$1`, fixed.ID, string(encoded)); err != nil {
+		return err
+	}
+	corrected := p
+	corrected.Candidate, corrected.Run = fixed.Result.Candidate, fixed.Run
+	corrected.Tuple = &factory.CandidateTuple{Head: corrected.Candidate, Base: p.BaseSHA, DiffBase: p.BaseSHA, Revision: 2}
+	corrected.ReviewCycles = append(append([]factory.ReviewCycle(nil), p.ReviewCycles...), cycle)
+	journal := factory.CorrectionJournal{CycleID: cycle.ID, RunID: fixed.Run, Report: *fixed.Result.PhaseResult.Output.Correction}
+	corrected.CorrectionJournals = []factory.CorrectionJournal{journal}
+	intent := factory.PublicationIntent{OperationID: factory.PublicationOperationID(p.ID, factory.OpRefPublish, 2), AuthRevision: factory.AuthRevisionFor(p.AssignmentID, p.ID, p.Revision), TargetBranch: p.TargetBranch, Candidate: corrected.Candidate, ExpectedOld: p.Candidate, ComparisonRef: p.TargetBranch, ComparisonOID: p.BaseSHA, PRTitle: "Controlled corrected proposal", Repository: p.Repository, ActorID: fixed.ActorID, NativeRev: 1, NotAfter: w.NotAfter, CorrectionNumber: p.PRNumber, CorrectionAuthor: p.PullTarget().AuthorID}
+	corrected.Corrections = factory.CorrectionOps{{Work: &intent, RunID: fixed.Run, OperationID: intent.OperationID, Kind: factory.OpRefPublish, Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, Attempts: 1, UpdatedUnix: time.Now().Unix(), Receipt: "declared controlled correction receipt"}}
+	target := factory.CheckTarget{Repository: p.Repository, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: corrected.Candidate, BaseOID: p.BaseSHA}
+	observed := factory.ObservedChecks{NativeRev: 1, HeadTip: target.HeadOID, BaseTip: target.BaseOID, Complete: true, ObservedContexts: len(policy.Checks)}
+	for _, name := range policy.Checks {
+		observed.Checks = append(observed.Checks, factory.ObservedCheck{Context: name, State: factory.CheckStateSuccess})
+	}
+	assessment, err := factory.VerifyChecks(target, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, observed, time.Now().Unix())
+	if err != nil || assessment.Verdict != factory.CheckPass {
+		return fmt.Errorf("controlled corrected CI: %s: %w", assessment.Verdict, err)
+	}
+	if _, err = db.RecordCheckAssessment(ctx, assessment); err != nil {
+		return err
+	}
+	correctedInput := input
+	correctedInput.Round, correctedInput.Head = cycle.Round, corrected.Candidate
+	correctedFingerprint, err := factory.DeliveryFingerprint(correctedInput)
+	if err != nil {
+		return err
+	}
+	correctedAnswer := answer
+	correctedAnswer.Fingerprint = correctedFingerprint
+	correctedReceipt := factory.NewDeliveryReceipt(correctedInput, correctedFingerprint, correctedAnswer, true, 1)
+	encodedID, _ = json.Marshal("soda-funded-delivery-v1:" + correctedFingerprint)
+	corrected, correctedAcceptance, err := control.AdmitJevAcceptance(control.JevAdmissionInput{Publication: corrected, Cycle: cycle, Carried: journal.Report.Findings, FingerprintInput: correctedInput, Fingerprint: correctedFingerprint, Decision: correctedReceipt.Decision, DecisionID: factory.MCPInputDigest(encodedID)[:32], ScopeDigest: digest, PolicyRevision: strconv.FormatInt(policy.Revision, 10), CheckDigest: factory.ChecksDigest(policy.Checks), DiffBase: p.BaseSHA, Correction: &journal, OriginReceipt: reviewer.ID})
+	if err != nil {
+		return fmt.Errorf("controlled proposed-fix acceptance: %w", err)
+	}
+	if err = corrected.Validate(); err != nil {
+		return fmt.Errorf("controlled corrected publication: %w", err)
+	}
+	if err = db.RecordDeliveryJudgment(ctx, correctedReceipt); err != nil {
+		return err
+	}
+	encoded, _ = json.Marshal(corrected)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_publications SET data=$2 WHERE assignment=$1`, corrected.AssignmentID, string(encoded)); err != nil {
+		return err
+	}
+	correctedMerge := m
+	correctedMerge.HeadOID = corrected.Candidate
+	correctedMerge.Authorization = factory.MergeAuthorization{Generation: factory.MergeGeneration{Authority: p.Authority, PublicationID: p.ID, Generation: 1, NativeOperationID: factory.MergeGenerationOperationID(p.ID, 1), DecisionID: correctedAcceptance.DecisionID, Fingerprint: correctedFingerprint, Head: corrected.Candidate, Base: p.BaseSHA, DiffBase: p.BaseSHA, ReviewRound: cycle.Round, AssessmentRevision: 1, ChecksDigest: correctedAcceptance.CheckDigest, ObservedNativeRev: 1, NotAfter: w.NotAfter, AcceptanceID: correctedAcceptance.ID, AcceptanceKind: correctedAcceptance.Kind, AttemptRoot: correctedAcceptance.AttemptRoot, OriginReceipt: reviewer.ID}, Decision: correctedReceipt.Decision, ResolutionsConfirmed: true}
+	if fixedRun.Reconciled {
+		return errors.New("controlled Fixer unexpectedly reconciled before its outcome observation")
+	}
+	if _, err = control.MergeReviewOperation(ctx, db, corrected, correctedMerge); err == nil {
+		return errors.New("corrected funded merge accepted an unreconciled Fixer run")
+	}
+	fixedRun.Reconciled, fixedRun.Outcome = true, factory.Succeeded
+	if err = fixedRun.Validate(); err != nil {
+		return fmt.Errorf("controlled Fixer run reconciliation: %w", err)
+	}
+	encoded, _ = json.Marshal(fixedRun)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET active=FALSE,settled=TRUE,data=$2 WHERE id=$1`, fixed.Run, string(encoded)); err != nil {
+		return err
+	}
+	selected, err := control.MergeReviewOperation(ctx, db, corrected, correctedMerge)
+	if err != nil || !reflect.DeepEqual(selected, op) || selected.Work.HeadOID == corrected.Candidate {
+		return fmt.Errorf("causal funded merge lost original Inspector receipt: %w", err)
+	}
+	for _, change := range []struct {
+		name string
+		edit func(*factory.Publication, *factory.Merge)
+	}{
+		{"missing correction receipt", func(p *factory.Publication, _ *factory.Merge) { p.Corrections = nil }},
+		{"pending correction receipt", func(p *factory.Publication, _ *factory.Merge) {
+			ops := append(factory.CorrectionOps(nil), p.Corrections...)
+			ops[0].Completion = factory.OpCompletionPending
+			p.Corrections = ops
+		}},
+		{"changed candidate", func(p *factory.Publication, _ *factory.Merge) { p.Candidate = strings.Repeat("8", 40) }},
+		{"changed base", func(_ *factory.Publication, m *factory.Merge) { m.BaseOID = strings.Repeat("8", 40) }},
+		{"wrong Inspector", func(_ *factory.Publication, m *factory.Merge) { m.Authorization.Generation.OriginReceipt = fixed.ID }},
+		{"pending new-head review", func(p *factory.Publication, _ *factory.Merge) {
+			next := op
+			next.Work.HeadOID = p.Candidate
+			next.Outcome.Effect = factory.OpEffectPending
+			next.Outcome.Completion = factory.OpCompletionPending
+			p.ReviewOperations = append(append([]factory.ReviewOperation(nil), p.ReviewOperations...), next)
+		}},
+	} {
+		changedP, changedM := corrected, correctedMerge
+		change.edit(&changedP, &changedM)
+		if _, err = control.MergeReviewOperation(ctx, db, changedP, changedM); err == nil {
+			return fmt.Errorf("corrected funded merge accepted %s", change.name)
+		}
+	}
+	if selected.Work.Event != "COMMENT" || selected.Work.HeadOID != reviewer.SourceCommit || selected.Work.NotAfter != w.NotAfter || correctedAcceptance.Tuple.Head != fixed.Result.Candidate || correctedAcceptance.OriginReceipt != reviewer.ID {
+		return errors.New("proposed-fix acceptance relabeled historical review or deadline")
+	}
+	encoded, _ = json.Marshal(p)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_publications SET data=$2 WHERE assignment=$1`, p.AssignmentID, string(encoded)); err != nil {
+		return err
+	}
 	stored, err := db.Assignment(ctx, reviewer.ID)
 	if err != nil || !reflect.DeepEqual(stored, reviewer) || op.Work.AgentVerdict != "REQUEST_CHANGES" {
 		return errors.New("funded acceptance changed the original Inspector verdict")
 	}
 	fmt.Println("PASS: shared coordinator/native gate admits the exact recorded funded findings COMMENT without changing its verdict/deadline; absent acceptance/cycle/receipt, changed fingerprint/diff base, native vote, uncertain review and unconfirmed resolutions refuse; actual PostgreSQL joins, declared judgment/native receipt, no inference/provider/merge send")
+	fmt.Println("PASS: genuine controlled Inspector→settled Fixer/current CI reaches proposed-fix Jev acceptance and merge on the corrected tuple using the original-head COMMENT; absent/pending causal correction, stale tuple, wrong Inspector and pending current-head review refuse; no replay or provider approval fabricated")
 	return nil
 }
 
@@ -14930,7 +15059,7 @@ func externalPreparationFixture() error {
 	if err = db.ObservePreparation(ctx, correctorPrep); err != nil {
 		return err
 	}
-	correctorRun := factory.Run{ID: corrector.Run, ProjectID: corrector.ProjectID, Role: corrector.Role, InputSHA: corrector.SourceCommit, Started: time.Now(), Deadline: time.Now().Add(30 * time.Second), Harness: corrector.Harness, Model: corrector.Model, Native: &execution.NativeRecord{Tool: tool, BundleSHA256: correctorPrep.State.SourceBundleSHA256, PromptSHA256: corrector.PromptSHA, Retirement: execution.NotStarted, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: profile.ID, InstanceID: correctorNative.InstanceID, WorktreeID: correctorNative.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+	correctorRun := factory.Run{ID: corrector.Run, ProjectID: corrector.ProjectID, Role: corrector.Role, InputSHA: corrector.SourceCommit, Started: time.Now(), Deadline: time.Now().Add(30 * time.Second), Harness: corrector.Harness, Model: corrector.Model, ContextPending: true, Native: &execution.NativeRecord{Tool: tool, BundleSHA256: correctorPrep.State.SourceBundleSHA256, PromptSHA256: corrector.PromptSHA, Retirement: execution.NotStarted, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: profile.ID, InstanceID: correctorNative.InstanceID, WorktreeID: correctorNative.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
 
 	// Unlike the Architect, this correct phase requires the same singleton
 	// manifest envelope used by the existing controlled Fixer fixture.
@@ -14994,6 +15123,140 @@ func externalPreparationFixture() error {
 	if after, err := db.UsageTotal(ctx, handoffOwner.Repository, handoffOwner.Connection); err != nil || after != usageBefore {
 		return errors.New("fresh correction changed original settled exact-source charges")
 	}
+	// A positive prelaunch marker permits only an explicit startup no-start
+	// acknowledgement, never inference or a second send of the recorded intent.
+	pendingRun, err := db.FactoryRun(ctx, corrector.Run)
+	if err != nil || !pendingRun.ContextPending || pendingRun.Native == nil || pendingRun.Native.Intent == "" {
+		return errors.New("declared pending correction lacks its captured intent")
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(data,'{context_pending}','false') WHERE id=$1`, pendingRun.ID); err != nil {
+		return err
+	}
+	if err = db.RecordNativeContextNoStart(ctx, profile.ID, pendingRun.Native.Intent); err == nil {
+		return errors.New("cleared prelaunch marker authorized no-start settlement")
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(data,'{context_pending}','true') WHERE id=$1`, pendingRun.ID); err != nil {
+		return err
+	}
+	changedIntent := strings.Replace(pendingRun.Native.Intent, pendingRun.ID, factory.NewID(), 1)
+	if err = db.RecordNativeContextNoStart(ctx, profile.ID, changedIntent); err == nil {
+		return errors.New("changed native intent authorized no-start settlement")
+	}
+	for _, probeKind := range []string{"acquired", "missing-zero-usage"} {
+		probe := pendingRun
+		probe.ID = factory.NewID()
+		probeNative := *pendingRun.Native
+		probe.Native = &probeNative
+		probeIntent, e := execution.ParseNativeIntent(pendingRun.Native.Intent)
+		if e != nil {
+			return e
+		}
+		probeIntent.Run, probeIntent.Native.BrokerRun = probe.ID, factory.NewID()
+		probe.Native.Provenance.BrokerRun = probeIntent.Native.BrokerRun
+		probeManifest, e := project.ParseExecutionManifest(pendingRun.ExecutionManifest)
+		if e != nil {
+			return e
+		}
+		probeManifest.Run, probeManifest.Invocation = probe.ID, probeIntent.Native.BrokerRun
+		probe.ExecutionManifest, e = project.MarshalExecutionManifest(probeManifest)
+		if e != nil {
+			return e
+		}
+		probeIntent.ManifestDigest = project.ExecutionManifestDigest(probe.ExecutionManifest)
+		probe.Native.Intent, e = probeIntent.Encode()
+		if e != nil {
+			return e
+		}
+		probeAdmission := *pendingRun.Admission
+		probeAdmission.Native = &probeIntent.Native
+		probe.Admission = &probeAdmission
+		if probeKind == "acquired" {
+			probe.Native.Provenance.Custody = execution.NativeCustody{State: execution.Held, AcquisitionID: factory.NewID(), Connection: access.ProviderConnectionID(corrector.Connection), Generation: 1}
+		} else {
+			probe.Native.Retirement, probe.Native.Sealed, probe.Outcome, probe.Reconciled = execution.Retired, true, factory.Cancelled, true
+		}
+		if e = probe.Validate(); e != nil {
+			return fmt.Errorf("declared no-start %s refusal probe: %w", probeKind, e)
+		}
+		if e = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, probe, probe.ID); e != nil {
+			return e
+		}
+		if e = db.RecordNativeContextNoStart(ctx, profile.ID, probe.Native.Intent); e == nil {
+			return fmt.Errorf("%s evidence authorized no-start settlement", probeKind)
+		}
+	}
+	if err = db.RecordNativeContextNoStart(ctx, profile.ID, pendingRun.Native.Intent); err != nil {
+		return fmt.Errorf("explicit pending-context no-start acknowledgement: %w", err)
+	}
+	retiredPending, err := db.FactoryRun(ctx, pendingRun.ID)
+	if err != nil || !retiredPending.Native.Settled() || retiredPending.HasExecutionIdentity() || retiredPending.Outcome != factory.Cancelled || !retiredPending.Reconciled || !retiredPending.ContextPending ||
+		retiredPending.Native.Intent != pendingRun.Native.Intent || !retiredPending.Deadline.Equal(pendingRun.Deadline) || !reflect.DeepEqual(retiredPending.Admission, pendingRun.Admission) || !bytes.Equal(retiredPending.ExecutionManifest, pendingRun.ExecutionManifest) {
+		return fmt.Errorf("no-start acknowledgement changed its original authority: %v", err)
+	}
+	unusedUsage, err := db.RunUsage(ctx, pendingRun.ID)
+	if err != nil || unusedUsage.Minutes != 0 || !unusedUsage.StartedAt.Equal(pendingRun.Started) || !unusedUsage.EndedAt.Equal(pendingRun.Started) {
+		return errors.New("never-started correction acquired an inference charge")
+	}
+	// Declare the postcommit capability-retirement interruption, then replay
+	// the same acknowledgement. Its terminal run and zero charge stay exact.
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_mcp_capabilities SET state='staged' WHERE id=$1`, pendingRun.ID); err != nil {
+		return err
+	}
+	if err = db.RecordNativeContextNoStart(ctx, profile.ID, pendingRun.Native.Intent); err != nil {
+		return err
+	}
+	if cap, err := db.GetMCPCapability(ctx, pendingRun.ID); err != nil || cap.State != factory.MCPCapabilityRevoked {
+		return errors.New("no-start replay did not finish original capability retirement")
+	}
+	if _, finished := control.AccountSettledRun(ctx, db, retiredPending, time.Now()); !finished {
+		return errors.New("no-start correction did not finish through normal accounting")
+	}
+	if err = db.RecordCandidatePreparationStop(ctx, correctorPrep.Preparation.ID, execution.PreparationState{ID: correctorPrep.Preparation.ID, Project: grant.Project, Native: correctorPrep.Native, Stopped: true, Retirement: "confirmed"}); err != nil {
+		return err
+	}
+	spentBefore, err := db.AttemptAllowance(ctx, corrector.Repository, corrector.Issue)
+	if err != nil || len(spentBefore.Corrections) != 1 || spentBefore.Corrections[0] != corrector.ID {
+		return errors.New("no-start settlement erased the admitted correction identity")
+	}
+	nextFunding, err := db.RetainedCandidateFundingOffer(ctx, freshPublication.ID)
+	if err != nil || nextFunding.CarryUnused || nextFunding.PreviousRoot != freshOwner.ID {
+		return fmt.Errorf("definitive no-start correction did not offer fresh bounded funding: %w", err)
+	}
+	nextCommand := factory.NewID()
+	nextOrigin := *freshPublication.External
+	nextOrigin.CommandID, nextOrigin.ForkConsent, nextOrigin.ObservedUnix = nextCommand, nextCommand, time.Now().Unix()
+	if _, err = db.FundRetainedCandidateObserved(ctx, nextCommand, "declared-no-start-continuation", nextFunding, &nextOrigin, time.Now()); err != nil {
+		return fmt.Errorf("fresh bounded command after definitive no-start: %w", err)
+	}
+	var priorAllowanceBytes []byte
+	if err = raw.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, freshOwner.ID).Scan(&priorAllowanceBytes); err != nil {
+		return err
+	}
+	var spentAfter factory.AttemptAllowance
+	if json.Unmarshal(priorAllowanceBytes, &spentAfter) != nil || !spentAfter.Closed || !reflect.DeepEqual(spentBefore.Corrections, spentAfter.Corrections) || spentAfter.Limits != spentBefore.Limits {
+		return errors.New("new funding renewed the old spent correction authority")
+	}
+	if after, err := db.FactoryRun(ctx, pendingRun.ID); err != nil || !reflect.DeepEqual(after, retiredPending) {
+		return errors.New("fresh funding rewrote the original no-start run")
+	}
+	if err = db.Close(); err != nil {
+		return err
+	}
+	reopened, err := store.OpenContext(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer reopened.Close()
+	if err = reopened.RecordNativeContextNoStart(ctx, profile.ID, pendingRun.Native.Intent); err != nil {
+		return fmt.Errorf("retained no-start acknowledgement after reopen: %w", err)
+	}
+	if after, err := reopened.FactoryRun(ctx, pendingRun.ID); err != nil || !reflect.DeepEqual(after, retiredPending) {
+		return errors.New("reopen renewed the original no-start authority")
+	}
+	if after, err := reopened.UsageTotal(ctx, handoffOwner.Repository, handoffOwner.Connection); err != nil || after != usageBefore {
+		return errors.New("no-start recovery/reopen changed settled exact-source charges")
+	}
+	fmt.Println("PASS: exact pending-context no-start acknowledgement preserves intent/deadline/manifest/source, retires with zero charge and resumes interrupted capability retirement; cleared marker/acquisition/changed intent/missing zero usage refuse, while a fresh explicit bounded funding command preserves the spent correction identity without model replay. Native absence acknowledgement declared; actual Store/accounting transactions.")
 	fmt.Println("PASS: closed external Architect/committed Inspector history with a retired expired unlaunched correction admits one explicit same-source bounded continuation and fresh Corrector using the original Inspector; spent reviews/charges and old rows/deadlines/receipts remain exact, replay never renews authority, and changed source/head/base or unrelated historical parent refuse. Role/native/provider facts declared; no inference or host send.")
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")

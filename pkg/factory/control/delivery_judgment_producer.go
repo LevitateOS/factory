@@ -64,7 +64,13 @@ func (c *Coordinator) plannedDeliveryResolutions(ctx context.Context, p factory.
 		}
 	}
 	roots := map[int64]string{}
-	for _, operation := range p.ReviewOperations {
+	operations := append(append([]factory.ReviewOperation(nil), p.ReviewOperations...), material.basis.operation)
+	seen := map[string]bool{}
+	for _, operation := range operations {
+		if seen[operation.Work.OperationID] {
+			continue
+		}
+		seen[operation.Work.OperationID] = true
 		if operation.Outcome.Effect != factory.OpEffectCommitted || operation.Outcome.Completion != factory.OpCompletionComplete {
 			continue
 		}
@@ -141,7 +147,7 @@ func (c *Coordinator) advisePublicationDelivery(ctx context.Context, p factory.P
 	for _, operation := range planned {
 		intents = append(intents, operation.Work.OperationID)
 	}
-	updated, acceptance, err := AdmitJevAcceptance(JevAdmissionInput{Publication: p, Cycle: cycle, Carried: material.Findings, FingerprintInput: material.Input, Fingerprint: fingerprint, Decision: decision, DecisionID: requestID, ScopeDigest: material.Plan.ScopeDigest, PolicyRevision: strconv.FormatInt(policy.Revision, 10), CheckDigest: factory.ChecksDigest(policy.Checks), DiffBase: p.CurrentDiffBase(), ResolutionIntents: intents})
+	updated, acceptance, err := AdmitJevAcceptance(JevAdmissionInput{Publication: p, Cycle: cycle, Carried: material.Findings, FingerprintInput: material.Input, Fingerprint: fingerprint, Decision: decision, DecisionID: requestID, ScopeDigest: material.Plan.ScopeDigest, PolicyRevision: strconv.FormatInt(policy.Revision, 10), CheckDigest: factory.ChecksDigest(policy.Checks), DiffBase: p.CurrentDiffBase(), ResolutionIntents: intents, Correction: material.basis.correction, OriginReceipt: material.basis.reviewer.ID})
 	if err != nil {
 		return factory.DeliveryDecision{}, requestID, err
 	}
@@ -247,8 +253,8 @@ func (c *Coordinator) reconcileDeliveryResolution(ctx context.Context, p *factor
 // merge admission. Expected resolution effects may advance native revision;
 // any other change prevents reuse without another valid decision.
 func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication) (*factory.DeliveryAcceptance, factory.DeliveryDecision, error) {
-	review, ready, pending, refused := c.currentReviewReport(ctx, p)
-	if !ready || pending || refused || review.Review == nil || c.Planning == nil {
+	basis, err := c.deliveryReviewEvidence(ctx, p)
+	if err != nil || c.Planning == nil {
 		return nil, factory.DeliveryDecision{}, nil
 	}
 	if !hasFundedDeliveryAcceptance(p) {
@@ -258,7 +264,7 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
-	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel())
+	material, cycle, policy, err := c.deliveryMaterial(ctx, p, basis.review, chooser.DeliveryModel())
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, err
 	}

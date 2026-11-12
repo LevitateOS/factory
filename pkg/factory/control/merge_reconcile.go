@@ -137,7 +137,7 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		return
 	}
 	work := c.mergeWork(m, policy)
-	if review, found := currentReviewOperation(p); found {
+	if review, err := MergeReviewOperation(ctx, c.Store, p, m); err == nil {
 		work.ReviewEvent = review.Work.Event
 	}
 	if op.Work == nil {

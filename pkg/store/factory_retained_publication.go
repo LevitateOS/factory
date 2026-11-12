@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -537,8 +538,8 @@ func (s *Store) FundRetainedCandidateObserved(ctx context.Context, command, prin
 			return empty, ErrRetainedPublicationIneligible
 		}
 		if !prior.Closed {
-			// A changed setup may replace only a proved unlaunched retained
-			// continuation. Retire its old grant in this same admission; never
+			// A changed setup or acknowledged no-start may replace only its
+			// proved unused continuation. Retire its old grant here; never
 			// rewrite its setup capture, spent rounds or command receipt.
 			if err = transitionLockedAttemptRootTx(ctx, tx, prior, true, now); err != nil {
 				return empty, err
@@ -586,22 +587,25 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	if err != nil {
 		return err
 	}
+	changedSetup := a.RetainedPublication != nil && !prior.Closed && prior.Active &&
+		(a.Authority.RequirementsID != p.Authority.RequirementsID || a.Authority.ApprovalID != p.Authority.ApprovalID) &&
+		len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0
 	if !prior.Closed || prior.Active {
-		if prior.Closed || !prior.Active || a.RetainedPublication == nil ||
-			(a.Authority.RequirementsID == p.Authority.RequirementsID && a.Authority.ApprovalID == p.Authority.ApprovalID) ||
-			len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) != 0 {
+		if !changedSetup && (prior.Closed || a.ExternalPublication == nil || a.ExternalPublication.AdoptedFrom == "") {
 			return ErrRetainedPublicationIneligible
 		}
 		// Dispatch records its assignment/run atomically before starting a
 		// model; preparation admission precedes native I/O. Absence of both
 		// proves this owner never launched either effect, rather than relying
 		// on a missing provider lookup or a terminal label.
-		launched, err := retainedReviewHasAdmittedWork(ctx, tx, a.ID)
-		if err != nil {
-			return err
-		}
-		if launched {
-			return ErrAttemptRunsPending
+		if changedSetup {
+			launched, err := retainedReviewHasAdmittedWork(ctx, tx, a.ID)
+			if err != nil {
+				return err
+			}
+			if launched {
+				return ErrAttemptRunsPending
+			}
 		}
 	}
 	if !p.HasPullTarget() || p.External == nil &&
@@ -629,15 +633,18 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	if err != nil || !settled {
 		return ErrAttemptRunsPending
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT data FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1 ORDER BY seq LIMIT 513`, a.ID)
+	rows, err := tx.QueryContext(ctx, `SELECT a.data,COALESCE(r.data,'null'::jsonb),COALESCE(u.data,'null'::jsonb)
+ FROM factory_assignments a LEFT JOIN factory_runs r ON r.id=a.run LEFT JOIN factory_usage u ON u.run=a.run
+ WHERE a.data->>'attempt_root'=$1 AND a.id<>$1 ORDER BY a.seq LIMIT 513`, a.ID)
 	if err != nil {
 		return err
 	}
 	children := 0
+	unusedCorrection := false
 	for rows.Next() {
-		var raw []byte
+		var raw, runData, usageData []byte
 		var child factory.Assignment
-		if err = rows.Scan(&raw); err != nil {
+		if err = rows.Scan(&raw, &runData, &usageData); err != nil {
 			rows.Close()
 			return err
 		}
@@ -660,6 +667,10 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 				return ErrRetainedPublicationIneligible
 			}
 		case project.ExecutionCorrect:
+			if retainedUnusedCorrection(child, runData, usageData) {
+				unusedCorrection = true
+				continue
+			}
 			bound := false
 			for _, op := range p.Corrections {
 				if op.RunID == child.Run && op.Work != nil && op.Work.Candidate == child.Result.Candidate {
@@ -685,6 +696,9 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	if err != nil {
 		return err
 	}
+	if (!prior.Closed || prior.Active) && !changedSetup && !unusedCorrection {
+		return ErrRetainedPublicationIneligible
+	}
 	var pending bool
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_merges WHERE publication=$1 AND COALESCE((data#>>'{operation,attempts}')::int,1)>0)`, p.ID).Scan(&pending); err != nil {
 		return err
@@ -693,6 +707,23 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 		return ErrRetainedPublicationIneligible
 	}
 	return nil
+}
+
+// Only the existing definitive-unused native shape and its original zero
+// charge qualify. A failed model result or missing receipt cannot fund replay.
+func retainedUnusedCorrection(child factory.Assignment, runData, usageData []byte) bool {
+	if child.Outcome != factory.Cancelled || child.Reason != factory.AssignReasonCancelled || child.Result.Reported || child.Result.Status != "cancelled" ||
+		child.Result.Candidate != "" || child.Result.Review != nil || len(child.Result.Findings) != 0 || child.Result.PhaseResult == nil || child.Result.PhaseResult.Output != nil {
+		return false
+	}
+	var run factory.Run
+	var usage factory.Usage
+	return json.Unmarshal(runData, &run) == nil && run.Validate() == nil && run.ID == child.Run && run.ProjectID == child.ProjectID &&
+		run.Role == child.Role && run.InputSHA == child.SourceCommit && run.ContextPending && run.Reconciled && run.Outcome == factory.Cancelled && !run.HasExecutionIdentity() &&
+		run.Native != nil && run.Native.Settled() && run.Native.Provenance.Process == nil && run.Native.Provenance.Isolation == nil && run.Native.Provenance.Connector == nil &&
+		run.Native.Provenance.Custody == (execution.NativeCustody{State: execution.NotAcquired}) &&
+		json.Unmarshal(usageData, &usage) == nil && usage.Validate() == nil && usage.RunID == run.ID && usage.Repository == child.Repository && usage.Connection == child.Connection &&
+		usage.Minutes == 0 && usage.StartedAt.Equal(run.Started) && usage.EndedAt.Equal(run.Started)
 }
 
 func retainedUnusedReviewBudgetTx(ctx context.Context, tx *sql.Tx, p factory.Publication, prior factory.AttemptAllowance, bounds factory.AttemptLimits) (bool, error) {

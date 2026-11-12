@@ -253,6 +253,10 @@ type JevAdmissionInput struct {
 	CheckDigest       string
 	DiffBase          string
 	ResolutionIntents []string
+	// A proposed fix keeps its original Inspector identity while its recorded
+	// correction cycle and causal branch receipt bind the judged current head.
+	Correction    *factory.CorrectionJournal
+	OriginReceipt string
 }
 
 // AdmitJevAcceptance admits one funded ready_to_merge delivery decision
@@ -284,10 +288,14 @@ func AdmitJevAcceptance(in JevAdmissionInput) (factory.Publication, factory.Deli
 	if err := in.Cycle.Validate(); err != nil {
 		return published, empty, err
 	}
-	if !recordedClearCycle(published, in.Cycle) || in.Cycle.PublicationID != published.ID {
+	if !recordedClearCycleMatches(published, in.Cycle) || in.Cycle.PublicationID != published.ID {
 		return published, empty, errors.New("funded decision consumes an unrecorded cycle")
 	}
-	if in.Cycle.Head != published.Candidate || in.Cycle.BaseOID != published.PullTarget().BaseOID {
+	head, origin, err := jevAdmissionTuple(in)
+	if err != nil {
+		return published, empty, err
+	}
+	if in.Cycle.BaseOID != published.PullTarget().BaseOID {
 		return published, empty, errors.New("funded decision answers a superseded tuple")
 	}
 	if err := checkJevFingerprint(published, in); err != nil {
@@ -300,14 +308,14 @@ func AdmitJevAcceptance(in JevAdmissionInput) (factory.Publication, factory.Deli
 	if err != nil {
 		return published, empty, err
 	}
-	coverage, err := factory.ClearCoverageDigest(in.Cycle.Head, in.Cycle.BaseOID, content)
+	coverage, err := factory.ClearCoverageDigest(head, in.Cycle.BaseOID, content)
 	if err != nil {
 		return published, empty, err
 	}
 	if !factory.ValidDigest(in.ScopeDigest) || !factory.ValidDigest(in.CheckDigest) {
 		return published, empty, errors.New("funded acceptance lacks its bound evidence digests")
 	}
-	tuple, err := deliveryAcceptanceTuple(published, in.Cycle.Head, in.Cycle.BaseOID, in.DiffBase)
+	tuple, err := deliveryAcceptanceTuple(published, head, in.Cycle.BaseOID, in.DiffBase)
 	if err != nil {
 		return published, empty, err
 	}
@@ -315,7 +323,7 @@ func AdmitJevAcceptance(in JevAdmissionInput) (factory.Publication, factory.Deli
 		Tuple: tuple, ID: factory.DeliveryAcceptanceID(published.ID, in.Cycle.AttemptRoot, in.Cycle.Round, factory.AcceptanceJevAcceptance),
 		PublicationID: published.ID, AttemptRoot: in.Cycle.AttemptRoot,
 		ScopeDigest: in.ScopeDigest, FindingDigest: content, CoverageDigest: coverage, CheckDigest: in.CheckDigest,
-		PolicyRevision: in.PolicyRevision, DecisionID: in.DecisionID, OriginReceipt: in.Cycle.ReviewerAssignment,
+		PolicyRevision: in.PolicyRevision, DecisionID: in.DecisionID, OriginReceipt: origin,
 		ResolutionIntents: in.ResolutionIntents,
 		Kind:              factory.AcceptanceJevAcceptance, Round: in.Cycle.Round,
 	}
@@ -326,6 +334,42 @@ func AdmitJevAcceptance(in JevAdmissionInput) (factory.Publication, factory.Deli
 		return published, empty, err
 	}
 	return published, acceptance, nil
+}
+
+func jevAdmissionTuple(in JevAdmissionInput) (string, string, error) {
+	p := in.Publication
+	if in.Correction == nil {
+		if in.Cycle.Head == p.Candidate && (in.OriginReceipt == "" || in.OriginReceipt == in.Cycle.ReviewerAssignment) {
+			return in.Cycle.Head, in.Cycle.ReviewerAssignment, nil
+		}
+		return "", "", errors.New("funded decision answers a superseded tuple")
+	}
+	j := *in.Correction
+	if j.Validate() != nil || j.CycleID != in.Cycle.ID || j.Report.SetDigest != in.Cycle.FindingDigest || j.Report.NewCandidate != p.Candidate ||
+		in.Cycle.CorrectionAssignment == "" || !factory.ValidID(in.OriginReceipt) || in.OriginReceipt == in.Cycle.CorrectionAssignment ||
+		len(in.FingerprintInput.Reviews) != 1 || in.FingerprintInput.Reviews[0] != in.OriginReceipt || factory.CheckSubmittedFindings(in.Carried, j.Report.Findings) != nil || len(p.Corrections) == 0 {
+		return "", "", errors.New("funded proposed fix lacks its original review and complete correction")
+	}
+	op := p.Corrections[len(p.Corrections)-1]
+	if op.RunID != j.RunID || op.Work == nil || op.Work.ExpectedOld != in.Cycle.Head || op.Work.Candidate != p.Candidate || op.Work.ComparisonOID != in.Cycle.BaseOID || op.Effect != factory.OpEffectCommitted || op.Completion != factory.OpCompletionComplete {
+		return "", "", errors.New("funded proposed fix lacks its causal committed branch receipt")
+	}
+	if _, err := AdmitCorrectionReportCanonical(in.Cycle, j.RunID, p.Candidate, in.Carried, j.Report, j.Report.Evidence, nil); err != nil {
+		return "", "", err
+	}
+	found := false
+	for _, recorded := range p.CorrectionJournals {
+		found = found || reflect.DeepEqual(recorded, j)
+	}
+	for _, disposition := range j.Report.Dispositions {
+		if disposition.Disposition != factory.DispositionFixed && disposition.Disposition != factory.DispositionDeclinedOptional {
+			found = false
+		}
+	}
+	if !found {
+		return "", "", errors.New("funded proposed fix is unrecorded or unresolved")
+	}
+	return p.Candidate, in.OriginReceipt, nil
 }
 
 // checkJevFingerprint binds the funded decision's fingerprint to its
@@ -341,8 +385,12 @@ func checkJevFingerprint(published factory.Publication, in JevAdmissionInput) er
 	if !factory.ValidDigest(in.Fingerprint) || bound != in.Fingerprint {
 		return errors.New("funded decision evidence differs from its fingerprint")
 	}
+	head, _, err := jevAdmissionTuple(in)
+	if err != nil {
+		return err
+	}
 	if in.FingerprintInput.PublicationID != published.ID || in.FingerprintInput.AttemptRoot != in.Cycle.AttemptRoot ||
-		in.FingerprintInput.Round != in.Cycle.Round || in.FingerprintInput.Head != in.Cycle.Head ||
+		in.FingerprintInput.Round != in.Cycle.Round || in.FingerprintInput.Head != head ||
 		in.FingerprintInput.Base != in.Cycle.BaseOID {
 		return errors.New("funded decision judged another round")
 	}

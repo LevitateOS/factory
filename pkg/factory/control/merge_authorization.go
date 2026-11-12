@@ -96,20 +96,18 @@ func CheckFundedMergeReview(ctx context.Context, db *store.Store, p factory.Publ
 		return wait
 	}
 	c := Coordinator{Store: db}
-	review, ready, pending, refused := c.currentReviewReport(ctx, p)
-	current, found := currentReviewOperation(p)
-	if !ready || pending || refused || review.Review == nil || !found || !reflect.DeepEqual(current, op) {
+	basis, err := c.deliveryReviewEvidence(ctx, p)
+	if err != nil || !reflect.DeepEqual(basis.operation, op) {
 		return wait
 	}
 	generation := m.Authorization.Generation
 	acceptance, found := journaledAcceptance(p, generation.AcceptanceID)
-	cycle, recorded := findReviewCycle(p, review.Review.CycleID)
-	reviewer, err := db.AssignmentByRun(ctx, op.RunID)
-	if err != nil || !found || !recorded || cycle.Validate() != nil ||
+	cycle, reviewer := basis.cycle, basis.reviewer
+	if !found || cycle.Validate() != nil ||
 		cycle.AttemptRoot != generation.AttemptRoot || cycle.Round != generation.ReviewRound ||
-		cycle.Head != generation.Head || cycle.BaseOID != generation.Base ||
-		cycle.ReviewerAssignment != acceptance.OriginReceipt || reviewer.ID != acceptance.OriginReceipt ||
-		p.CurrentDiffBase() != generation.DiffBase || c.checkPriorRunJoins(ctx, p, reviewer) != nil {
+		p.Candidate != generation.Head || cycle.BaseOID != generation.Base ||
+		reviewer.ID != acceptance.OriginReceipt ||
+		p.CurrentDiffBase() != generation.DiffBase || c.checkPriorRunJoins(ctx, basis.source, reviewer) != nil {
 		return wait
 	}
 	policy, err := db.RepositoryPolicy(ctx, p.Repository)
@@ -132,15 +130,46 @@ func CheckFundedMergeReview(ctx context.Context, db *store.Store, p factory.Publ
 		!deliveryResolutionsConfirmed(p, acceptance) {
 		return wait
 	}
+	if basis.correction != nil {
+		carried, err := c.reviewCarriedFindings(ctx, p, cycle)
+		if err != nil {
+			return wait
+		}
+		_, reconstructed, err := AdmitJevAcceptance(JevAdmissionInput{Publication: p, Cycle: cycle, Carried: carried, FingerprintInput: receipt.Input, Fingerprint: fingerprint, Decision: receipt.Decision, DecisionID: acceptance.DecisionID, ScopeDigest: acceptance.ScopeDigest, PolicyRevision: acceptance.PolicyRevision, CheckDigest: acceptance.CheckDigest, DiffBase: p.CurrentDiffBase(), ResolutionIntents: acceptance.ResolutionIntents, Correction: basis.correction, OriginReceipt: reviewer.ID})
+		if err != nil || !reflect.DeepEqual(reconstructed, acceptance) {
+			return wait
+		}
+	} else if cycle.Head != generation.Head || cycle.ReviewerAssignment != reviewer.ID {
+		return wait
+	}
 	return nil
 }
 
-func (c *Coordinator) currentMergeReview(ctx context.Context, p factory.Publication, m factory.Merge) bool {
-	if c.currentPublicationApproved(ctx, p) {
-		return true
+// MergeReviewOperation preserves the original Inspector receipt. A review of
+// the prior head is eligible only through the exact funded proposed-fix union;
+// it never becomes a provider approval on the new candidate.
+func MergeReviewOperation(ctx context.Context, db *store.Store, p factory.Publication, m factory.Merge) (factory.ReviewOperation, error) {
+	wait := &factory.PublicationWait{Reason: "agent_review_pending"}
+	if db == nil {
+		return factory.ReviewOperation{}, wait
 	}
-	op, found := currentReviewOperation(p)
-	return found && CheckFundedMergeReview(ctx, c.Store, p, m, op) == nil
+	c := Coordinator{Store: db}
+	if op, found := currentReviewOperation(p); found {
+		if c.currentPublicationApproved(ctx, p) || CheckFundedMergeReview(ctx, db, p, m, op) == nil {
+			return op, nil
+		}
+		return factory.ReviewOperation{}, wait
+	}
+	basis, err := c.deliveryReviewEvidence(ctx, p)
+	if err != nil || basis.correction == nil || CheckFundedMergeReview(ctx, db, p, m, basis.operation) != nil {
+		return factory.ReviewOperation{}, wait
+	}
+	return basis.operation, nil
+}
+
+func (c *Coordinator) currentMergeReview(ctx context.Context, p factory.Publication, m factory.Merge) bool {
+	_, err := MergeReviewOperation(ctx, c.Store, p, m)
+	return err == nil
 }
 
 // mergeAuthorizationGate enforces the common union gate before any new

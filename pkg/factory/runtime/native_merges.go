@@ -172,33 +172,28 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	if err != nil {
 		return fail("publication", err)
 	}
-	var review factory.ReviewOutcome
-	for i := len(publication.ReviewOperations) - 1; i >= 0; i-- {
-		op := publication.ReviewOperations[i]
-		if op.Work.HeadOID != w.HeadOID {
-			continue
+	merge, err := p.Store.MergeByPublication(ctx, publication.ID)
+	if err != nil {
+		return fail("merge", err)
+	}
+	op, err := control.MergeReviewOperation(ctx, p.Store, publication, merge)
+	if err != nil {
+		return fail("review_operation", err)
+	}
+	if op.Work.ActorID != w.ReviewerID || op.Work.PRID != w.PRID || op.Work.BaseOID != w.BaseOID {
+		return empty, &factory.PublicationWait{Reason: "agent_review_pending"}
+	}
+	if op.Work.HeadOID == w.HeadOID {
+		if _, err = (NativeReviews{p.NativeInputSource}).ObserveReview(ctx, op.Work); err != nil {
+			return fail("review_target", err)
 		}
-		if op.Work.ActorID == w.ReviewerID && op.Work.PRID == w.PRID && op.Work.BaseOID == w.BaseOID {
-			if op.Work.Disposition() != "APPROVED" {
-				merge, readErr := p.Store.MergeByPublication(ctx, publication.ID)
-				if readErr != nil {
-					return fail("funded_review", readErr)
-				}
-				if err = control.CheckFundedMergeReview(ctx, p.Store, publication, merge, op); err != nil {
-					return fail("funded_review", err)
-				}
-			}
-			if _, err = (NativeReviews{p.NativeInputSource}).ObserveReview(ctx, op.Work); err != nil {
-				return fail("review_target", err)
-			}
-			review, err = (NativeReviews{p.NativeInputSource}).AdoptReview(ctx, op.Work, op.Outcome)
-			if err != nil {
-				return fail("review_receipt", err)
-			}
-		}
-		// A newer current-head report supersedes earlier approvals, including
-		// when its actor/base differs. Never fall back to a historical report.
-		break
+	}
+	// The resolver permits an older review head only through its funded,
+	// committed correction union. Adopt that original receipt unchanged;
+	// fresh provider merge observation below still binds the current tuple.
+	review, err := (NativeReviews{p.NativeInputSource}).AdoptReview(ctx, op.Work, op.Outcome)
+	if err != nil {
+		return fail("review_receipt", err)
 	}
 	if review.ReviewID <= 0 || review.Event != w.ReviewEvent || w.ReviewID != 0 && w.ReviewID != review.ReviewID {
 		return empty, &factory.PublicationWait{Reason: "agent_review_pending"}
@@ -211,7 +206,7 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	if w.ReviewEvent == "COMMENT" {
 		expectedState = "commented"
 	}
-	if len(reviews.Items) != 1 || reviews.Items[0].Pull.ExternalID != strconv.FormatInt(w.PRID, 10) || int64(reviews.Items[0].Author.ID) != w.ReviewerID || reviews.Items[0].Commit != collaboration.CommitID(w.HeadOID) || reviews.Items[0].State != expectedState {
+	if len(reviews.Items) != 1 || reviews.Items[0].Pull.ExternalID != strconv.FormatInt(w.PRID, 10) || int64(reviews.Items[0].Author.ID) != w.ReviewerID || reviews.Items[0].Commit != collaboration.CommitID(op.Work.HeadOID) || reviews.Items[0].State != expectedState {
 		return empty, &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
 	observed, err := p.observeProviderMerge(ctx, w, account)

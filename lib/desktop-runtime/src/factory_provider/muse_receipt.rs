@@ -182,6 +182,30 @@ pub(super) fn retained(profile: &Path, intent: &LaunchIntent) -> io::Result<Opti
     result(profile, intent, header.process, output).map(Some)
 }
 
+// A positive prelaunch hold cannot override even incomplete native evidence.
+// This read never imports a process result or creates a receipt.
+pub(super) fn require_absent(profile: &Path, intent: &LaunchIntent) -> io::Result<()> {
+    for suffix in ["receipt", "receipt.pending", "retired", "retired.pending"] {
+        match path(profile, intent, suffix)?.symlink_metadata() {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => (),
+            Err(e) => return Err(e),
+            Ok(_) => return Err(denied()),
+        }
+    }
+    if retained_process(
+        profile,
+        intent.run(),
+        intent.tool_sha256(),
+        intent.scope()?.prompt_sha256(),
+        MAX_OUTPUT,
+    )?
+    .is_some()
+    {
+        return Err(denied());
+    }
+    Ok(())
+}
+
 // A live process need not have a terminal result yet. Controller retirement
 // recovery must not turn that absence into failed live observation.
 pub(super) fn retired(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> {

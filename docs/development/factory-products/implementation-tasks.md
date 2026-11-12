@@ -1657,12 +1657,38 @@ created. Backend build and existing external-preparation PostgreSQL check pass
 (`request56-external-pg.log`), including complete staged Fixer context and no
 synthetic head. Normal Quit55 retires app/backend/PostgreSQL and the developer
 socket; the lost Quit reply is resolved by that original retirement observation.
-**Q17 remains INCOMPLETE:** install56, inspect original run/allowance retirement,
-then use one explicit fresh bounded continuation if needed. Preserve the first
-run deadline04:47:17Z, original results, commands and spent counts; do not replay
-the Architect or Inspector. Evidence: `goal55-{external-continuation.json,
-current-context-result.log,original-native-observation.log}`. Actual fork
-correction/reinspection/check progression is still required.
+Installed56/source8218fb8 reaches browsing readiness but execution is held by
+`native recovery intent unconfirmed or differs`: original e814 remains
+ContextPending/staged/unsettled, no native intent or process, usage235. Native
+recovery discarded the durable marker cleared before any launch. The existing
+private retirement acknowledgement now verifies that marker and absence of
+intent/pending/manifest/process/custody/Muse evidence, then atomically records
+the exact cancelled no-start run, zero original-source charge and consumed
+reservation. A conflicting capture still refuses. Replay finishes interrupted
+capability retirement. Only that proved-unused correction can support a new
+explicit finite funding command; its old identity/count/deadline stay spent.
+Local repository occupancy also refuses fresh child planning before provider
+reads, using the same final concurrency invariant without positive caching.
+
+Canonical D07/D08 also requires complete proposed fixes to reach funded delivery
+judgment before buying another review. The delivery owner now joins the genuine
+original Inspector to its causal committed correction and current tuple/CI;
+material, acceptance, resolution and native merge gates retain the original
+review head/COMMENT/deadline while judging the corrected candidate. CLEAR keeps
+the clean path; missing proof, current pending review, stale inputs and native
+human blockers remain unavailable. Native57 and the backend compile. Existing
+real-PG checks pass: `request57-external2-pg.log` (no-start, zero accounting,
+reopen, fresh funding and refusal cases), `request57-progress-pg.log`, and
+`request57-delivery-full3-pg.log` (controlled roles, causal funded acceptance,
+refusals, restart/WAL recovery). Earlier logs retain fixture type/observation/
+monotonicity mistakes; no production guard was weakened and no model replayed.
+**Q17 remains INCOMPLETE:** install57 and observe actual original no-start
+recovery, then continue the fork under one explicit fresh bounded command.
+Preserve e814's first deadline04:47:17Z and all original results/receipts. Actual
+fork Fixer/judgment/reinspection/CI remains required. Installed56 authenticated
+browsing passed before remote revocation (`goal56-installed-revocation-positive.json`);
+the user account interaction is pending. Normal Quit56 confirms process/socket
+retirement; saved credentials remain. No role/check is running.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 
