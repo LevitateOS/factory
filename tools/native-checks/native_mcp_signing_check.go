@@ -4841,10 +4841,29 @@ COMMIT`); err != nil {
 	return nil
 }
 
-type initialIntakeSource struct{ view control.AcceptanceIssueView }
+type initialIntakeSource struct {
+	view          control.AcceptanceIssueView
+	creatorWrite  bool
+	duringRead    func()
+	reads, checks int
+}
 
 func (s *initialIntakeSource) ReadAcceptanceEvidence(context.Context, string, string, []string) (control.AcceptanceEvidence, error) {
+	s.reads++
+	if s.duringRead != nil {
+		change := s.duringRead
+		s.duringRead = nil
+		change()
+	}
 	return control.AcceptanceEvidence{Revision: 1, Issue: s.view}, nil
+}
+
+func (s *initialIntakeSource) CheckInitialCreator(context.Context, control.IntakeHint) error {
+	s.checks++
+	if !s.creatorWrite {
+		return store.ErrAdmissionChanged
+	}
+	return nil
 }
 
 type repositoryPriorityChooser struct {
@@ -5480,7 +5499,7 @@ func initialIntakeFixture() error {
 		return err
 	}
 	defer cleanup()
-	policy := factory.RepositoryPolicy{Repository: 42, GrantedBy: 7, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"fixture/build"},
+	policy := factory.RepositoryPolicy{Repository: 42, GrantedBy: 7, Enabled: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"fixture/build"},
 		Roles:   map[string]factory.RoleSelection{project.RoleCoder: {Account: "chosen", Harness: project.FactoryHarnessMuse, Model: "declared"}, project.RoleReviewer: {Account: "chosen", Harness: project.FactoryHarnessMuse, Model: "declared"}},
 		Publish: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpRefPublish}, Create: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpPRCreate},
 		Review: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpReviewSubmit}, Merge: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpMerge},
@@ -5488,7 +5507,7 @@ func initialIntakeFixture() error {
 	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
 		return err
 	}
-	source := &initialIntakeSource{view: control.AcceptanceIssueView{ID: "101", Index: "1", PosterID: "7", CreatedUnix: 100,
+	source := &initialIntakeSource{creatorWrite: true, view: control.AcceptanceIssueView{ID: "101", Index: "1", PosterID: "7", CreatedUnix: 100,
 		TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), LifecycleOccurrence: factory.OriginalOccurrence, Visible: true, Verified: true}}
 	c := control.Coordinator{Store: db, AcceptanceReads: source}
 	hint := control.IntakeHint{Delivery: "initial-intake-fixture", Repository: 42, Issue: 1, Creator: 7, Created: true, CreatorWrite: true, CreationVerified: true, NativeIssueID: 101, CreatedUnix: 100, TitleDigest: source.view.TitleDigest, ContentDigest: source.view.ContentDigest}
@@ -5577,6 +5596,29 @@ func initialIntakeFixture() error {
 	if generated, pending, err := db.AutomaticIssueOrigin(ctx, 42, 4); err != nil || !generated || pending {
 		return fmt.Errorf("Issue Maker result/refused root origin: %t %t %v", generated, pending, err)
 	}
+	// The original creation hint was writable. Change current permission while
+	// its evidence read is in flight, before the final creator-authority check.
+	source.view.ID, source.view.Index = "105", "5"
+	hint.NativeIssueID, hint.Issue = 105, 5
+	beforeReads, beforeChecks := source.reads, source.checks
+	source.duringRead = func() { source.creatorWrite = false }
+	if _, err := c.AdmitInitialAcceptance(ctx, hint); !errors.Is(err, store.ErrAdmissionChanged) {
+		return fmt.Errorf("creator revoked during evidence I/O admitted original work: %v", err)
+	}
+	if source.reads != beforeReads+1 || source.checks != beforeChecks+1 {
+		return errors.New("creator withdrawal did not cross the evidence/final-authority boundary")
+	}
+	if _, err := db.AcceptanceHead(ctx, 42, hint.Issue); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("in-flight creator withdrawal retained an acceptance head")
+	}
+	if _, err := db.AcceptanceDecision(ctx, factory.InitialAcceptanceID(42, "105")); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("in-flight creator withdrawal retained a decision")
+	}
+	source.creatorWrite = true
+	if recovered, err := c.AdmitInitialAcceptance(ctx, hint); err != nil || recovered.ID != factory.InitialAcceptanceID(42, "105") {
+		return fmt.Errorf("fresh creator authority did not recover unconsumed original work: %v", err)
+	}
+	fmt.Println("PASS: creator permission revoked during controlled evidence I/O refuses initial acceptance without a decision/head; a fresh authorized read recovers the same original issue (provider permission declared; actual coordinator/PostgreSQL)")
 	fmt.Println("PASS: same-account human intake, replay, unknown-result hold, retained origin after edit, recursion refusal and unrelated issue admission (declared provider facts; actual coordinator/PostgreSQL)")
 	return nil
 }
@@ -14861,6 +14903,7 @@ func externalPreparationFixture() error {
 	corrector.Repository, corrector.Issue, corrector.ProjectID, corrector.ActorID = handoffOwner.Repository, handoffOwner.Issue, handoffOwner.ProjectID, handoffOwner.ActorID
 	corrector.Subject, corrector.Acceptance, corrector.Connection, corrector.Authority = handoffOwner.Subject, handoffOwner.Acceptance, handoffOwner.Connection, freshOwner.Authority
 	corrector.Preparation, corrector.Harness, corrector.HarnessVers, corrector.Model, corrector.NativeTool = factory.NativeCorrectionPreparationID(corrector.ID), handoffOwner.Harness, handoffOwner.HarnessVers, handoffOwner.Model, &tool
+	corrector.AcceptedContext = factory.CaptureAcceptedContext(factory.PromptInputs{Repository: corrector.Repository, Issue: corrector.Issue, NativeRev: corrector.NativeRev, AcceptanceID: corrector.Acceptance, SourceCommit: corrector.SourceCommit, Preparation: corrector.Preparation, Title: "Declared external correction", Body: finding.RequiredOutcome})
 	correctionCycle := oldCorrectionCycle
 	correctionCycle.PublicationID, correctionCycle.AttemptRoot, correctionCycle.CorrectionAssignment = freshPublication.ID, freshOwner.ID, corrector.ID
 	correctionCycle.ID = factory.ReviewCycleID(freshPublication.ID, freshOwner.ID, 1, "correct")
@@ -14923,6 +14966,21 @@ func externalPreparationFixture() error {
 	}
 	if admittedCorrector, err := db.Assignment(ctx, corrector.ID); err != nil || admittedCorrector.ParentAssignment != inspector.ID || admittedCorrector.AttemptRoot != freshCommand || admittedCorrector.Preparation == oldCorrectionPrep.Preparation.ID {
 		return errors.New("fresh Corrector replaced its original Inspector or reused retired preparation")
+	}
+	correctorCapability, err := control.BuildMCPCapability(corrector, correctorRun, correctorPrep)
+	if err != nil {
+		return err
+	}
+	if err = db.StageMCPCapability(ctx, correctorCapability); err != nil {
+		return err
+	}
+	currentCorrector, err := db.FactoryCurrentContext(ctx, correctorCapability, time.Now())
+	if err != nil || currentCorrector.Evidence.Availability != "complete" || currentCorrector.Role.Plan == nil || currentCorrector.Role.Plan.CurrentPlanHead == nil || currentCorrector.Role.Plan.CurrentPlanHead.PlanID != correctionPlan.ID || currentCorrector.Role.Review == nil || currentCorrector.Role.Review.External == nil {
+		return fmt.Errorf("fresh Corrector required current context incomplete: %+v %v", currentCorrector.Evidence, err)
+	}
+	var syntheticPlanHead bool
+	if err = raw.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_plan_heads WHERE attempt_root=$1)`, freshOwner.ID).Scan(&syntheticPlanHead); err != nil || syntheticPlanHead {
+		return errors.New("correction context fabricated an Architect plan head")
 	}
 	for _, row := range originalRows {
 		var after string

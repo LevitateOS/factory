@@ -1250,6 +1250,13 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q16 — GitHub automatic own-issue intake
 
+The existing initial-intake PostgreSQL harness now also revokes current creator
+permission during the evidence read. The final authority check refuses admission
+without retaining a decision/head, and a fresh authorized read recovers that same
+issue (`request55-intake-creator-io-pg.log`, clean shutdown). Provider permission
+is declared; this supplements the retained policy-I/O race and connected Q12
+source-withdrawal evidence, without replaying either connected journey.
+
 **Current installed evidence (2026-11-11), INCOMPLETE.** Original issue57 creation
 7422f81917ae4f2893a0490d4e2e3331 and initial acceptance d8a29fb7a80198bb86a422c1b
 survive Quit/upgrade/reconnect. Sourcea5bf3a6's stage23 isolates complete repository
@@ -1635,6 +1642,27 @@ production guards were preserved. Native54/UI/provider assets are unchanged.
 Next: exact-prior55 installation and one fresh bounded continuation under
 standing permission; actual connected correction remains unqualified.
 Never renew f473's deadline or replay completed planning/review.
+Installed55 reaches Ready from source2008d95. Explicit command
+`c72a78b2655146f7af808a237c967eff` carries the spent original Inspector and unused
+budget; fresh Corrector `e6f159a53de4b0df2f1a81f96748f016`, run
+`e8144122aa89d607ccb8f336c7b0ea40`, binds that Inspector, exact fork head/base
+and a new SourcePull preparation. This is admission, **not model execution**:
+the original native owner reports no observed run and has no launch intent or
+Muse process; usage remains235. The exported current-context reader identifies
+only `current_plan_head_unavailable`. Fixer context incorrectly demanded a new
+Architect head although this continuation reuses the old Architect. It now
+projects its atomically bound correction manifest; Builder projection still
+requires its durable Architect head. No synthetic plan row or old authority is
+created. Backend build and existing external-preparation PostgreSQL check pass
+(`request56-external-pg.log`), including complete staged Fixer context and no
+synthetic head. Normal Quit55 retires app/backend/PostgreSQL and the developer
+socket; the lost Quit reply is resolved by that original retirement observation.
+**Q17 remains INCOMPLETE:** install56, inspect original run/allowance retirement,
+then use one explicit fresh bounded continuation if needed. Preserve the first
+run deadline04:47:17Z, original results, commands and spent counts; do not replay
+the Architect or Inspector. Evidence: `goal55-{external-continuation.json,
+current-context-result.log,original-native-observation.log}`. Actual fork
+correction/reinspection/check progression is still required.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 
@@ -3810,6 +3838,11 @@ to verified1.4.15; cached reopen/manual recheck passed, both hashes preserved,
 zero roles/assignments/product commands and normal joined Quit. The existing
 active recovery ledger records source/build/profile/receipt scope. This does not
 qualify reference-complete older-bundle retirement or whole Q28.
+The actual retained Muse inputs are only previous1.4.14 and current1.4.15, as
+required by freshness.md. No excess older unreferenced CLI bundle is established.
+Q28 requires preserving captured app payloads; deleting old app releases is not
+a prerequisite. General unknown-profile cleanup remains unavailable and must
+not become a speculative registry or an invented installed qualification gate.
 
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** Format104
 adds the missing database payload contract for Q15's captured review submission

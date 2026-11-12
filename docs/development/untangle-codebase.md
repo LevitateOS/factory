@@ -694,11 +694,33 @@ and existing realPG request55-external-pg3.log pass. This proves controlled fres
 Corrector admission, replay/no-renewal, source/head/base/unrelated-parent refusal
 and byte-identical old records/charges. Two earlier logs retain fixture errors
 (historical seed ordering and absent correct-phase manifest); no guard weakened.
-Native54/UI/provider inputs stay exact. No model/effect is running. Next: commit,
-exact-prior55 install and one explicit bounded continuation under standing
-permission. Preserve old f473/allowance/Architect/Inspector and every receipt;
-no old deadline or authority may be renewed. Remaining ordinary gates above stay
-open, including missing reference-complete payload retirement/profile coverage.
+Native54/UI/provider inputs stay exact. Installed55/source2008d95 admits explicit
+continuation c72a78b2655146f7af808a237c967eff with original Inspector9c79 and new
+correct-phase assignment e6f159a53de4b0df2f1a81f96748f016/run e8144122aa89d607ccb8f336c7b0ea40.
+Its SourcePull preparation is Ready, but required current context holds before
+any native launch: exported read reports only current_plan_head_unavailable,
+and the original native owner confirms no observed run. No Muse process/intent
+exists; usage235. This orchestration defect demanded a new Architect head on a
+root deliberately reusing the old plan. Fixer context now projects its exact
+atomic correction manifest; Builder still requires its durable Architect head.
+The backend build and existing request56-external-pg.log pass complete staged
+Fixer context without inserting a synthetic Architect head. Old rows, deadlines
+and charges stay exact. Normal Quit55 resolves its lost reply through observed
+app/backend/PG/socket retirement. Original first run deadline04:47:17Z stays.
+**Next executable action:** exact-prior56 install, inspect original run/allowance
+retirement, then issue one fresh bounded continuation under standing permission
+if needed. Never replay the old Architect/Inspector or renew old authority.
+Actual fork Fixer/reinspection/CI remains unqualified. Original causal evidence:
+goal55-external-continuation.json, goal55-current-context-result.log and
+goal55-original-native-observation.log. No owned process/check remains running.
+The existing initial-intake fixture additionally passes creator withdrawal
+inside evidence I/O with no retained admission and fresh authorized recovery
+(request55-intake-creator-io-pg.log); provider facts are declared. Existing policy
+and connected source-withdrawal proof is reused. Remaining ordinary gates above
+stay open. Source review removes an invented old-app-release deletion gate:
+Q28 preserves those captures, and the only observed Muse cache contains current
+and previous releases as freshness requires. Unknown-profile CLI cleanup stays
+unavailable; no speculative registry or historical-payload deletion is added.
 
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits

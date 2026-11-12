@@ -252,14 +252,20 @@ func currentPlanTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, run fa
 			projected.VerifiedIntegrationCommit = &checkpoint.Candidate
 		}
 	}
-	var head factory.CurrentPlanHead
-	err = tx.QueryRowContext(ctx, `SELECT plan_id,generation FROM factory_plan_heads WHERE attempt_root=$1`, plan.AttemptRoot).Scan(&head.PlanID, &head.Generation)
-	if err == nil {
-		projected.CurrentPlanHead = &head
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return err
+	if a.Phase == project.ExecutionCorrect {
+		// The atomic correction packet binds this controller-derived singleton,
+		// independently of the original Architect's mutable investigation head.
+		projected.CurrentPlanHead = &factory.CurrentPlanHead{PlanID: plan.ID, Generation: int64(plan.Generation)}
 	} else {
-		out.Evidence.MissingReasons = append(out.Evidence.MissingReasons, "current_plan_head_unavailable")
+		var head factory.CurrentPlanHead
+		err = tx.QueryRowContext(ctx, `SELECT plan_id,generation FROM factory_plan_heads WHERE attempt_root=$1`, plan.AttemptRoot).Scan(&head.PlanID, &head.Generation)
+		if err == nil {
+			projected.CurrentPlanHead = &head
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		} else {
+			out.Evidence.MissingReasons = append(out.Evidence.MissingReasons, "current_plan_head_unavailable")
+		}
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT data FROM factory_plan_tasks WHERE attempt_root=$1 AND plan_id=$2 ORDER BY task_id LIMIT $3`, plan.AttemptRoot, plan.ID, factory.MaxPlanTasks+1)
 	if err != nil {
