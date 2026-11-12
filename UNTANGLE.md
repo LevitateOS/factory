@@ -7,7 +7,7 @@ GraphQL, Git, OAuth, delegated host adapters, callers, UI, background work,
 polling/recovery, setup tunnels and auxiliary tooling/build jobs. Factory is at
 `9482c81aa452153e5f86ae49bcbd2559f484aac3`, on `main`.
 
-Phase 1 only. No product code changes, provider requests, app launches, inference,
+Phases 1–2 only (audit and redesign). No product code changes, provider requests, app launches, inference,
 builds, tests or quota waiting. The owner explicitly selected **neither** optional
 comment nor test cleanup. Preserve credentials, profiles, receipts, journals,
 stashes and human text. No branch/worktree is created. Factory had no root log;
@@ -342,71 +342,430 @@ nominal Go RPC accounting is not a wire-volume bound.
 
 ## Problems
 
-Counts: **20 hidden links, 7 needless links, 2 surplus pieces, 24 special cases**
-(53 entries; special cases include necessary safety requirements). Entries describe existing
-change-together relationships; no redesign is prescribed. A `[special]` records
-a requirement/exception to understand, **not automatically a bug to remove**.
+Audit baseline: **20 hidden links, 7 needless links, 2 surplus pieces and
+24 special cases** (53 entries). Stable IDs P01–P53 follow the original audit
+order. Each original entry appears exactly once below:42 under F1–F8 and11 under
+Leave as is. Their locations describe the audited source, not completed changes.
 
-- [hidden] `gp/reads.rs:25` and `gp/transport.rs:363` manually share semantic diagnostic names; additions can fall into `other` without exposing the new read kind.
-- [hidden] `gp/reads.rs:414` and `gp/external_pulls.rs:202` duplicate collaborator/permission interpretation, so actor-authority changes need coordinated edits.
-- [hidden] `gp/automation_checks.rs:61`, `gp/evidence.rs:285`, `gp/merges.rs:138` separately encode branch naming/endpoints for the same facts.
-- [hidden] `gp/request.rs:331`, `gp/writes.rs:124`, `gp/transport.rs:490` compose independent deadlines across nested work; aggregate request cost is outside the deadline owner's vocabulary.
-- [hidden] `gp/inline_preparation.rs:59` accepts a 3,000-file catalogue using page10/full diff brackets, potentially 1,500 attempts before pending-review work, while `gp/traffic_budget.rs:14` permits600/hour.
-- [hidden] `gp/review_preparation.rs:56,187` and `gp/review_submit.rs:128` share pending-comment digest/dispatch conventions outside a single contract owner.
-- [hidden] `gp/inline_preparation.rs:149`, `gp/inline_draft.rs:103`, `gp/inline_create.rs:79` share selection/catalogue/pending hashes through independently maintained JSON shapes.
-- [hidden] `rt/native_product_observations.go:148,204`, semantic emitters and Rust read enum manually share operation-kind vocabulary across IPC dispatch.
-- [hidden] `ctl/completion_observations.go:12` charges a fixed bracket while `rt/native_completion.go:65` performs two full inventory/input traversals; nominal pass accounting changes independently from real provider fan-out.
-- [hidden] `ctl/creation_recovery.go:69` charges a page unit while `rt/native_creation_discovery.go:104,168` reads complete membership twice plus candidate facts; retained page size does not bound wire reads.
-- [hidden] `ctl/readiness_work.go:122` mirrors a Forgejo page cap while native creation/completion use their own limits; shared budget comments name a different implementation owner.
-- [hidden] `ui/pulls/detail.ts:359`, `ui/pulls/review.ts:76`, `ui/pulls/merge.ts:85` compose eager controls with separate authority reads; opening one view implicitly creates several independent observations.
-- [hidden] `ui/issues/detail.ts:142` and `ui/issues/screen.ts:88` refresh/rebind child actions, so observation cost depends on component lifecycle as well as explicit navigation.
-- [hidden] `frontend/desktop/connections.ts:339,407` ties visibility retirement/reconnect to product-view remount and repeated admission.
-- [hidden] `frontend/desktop/fountain-login.ts:6`, `cmd/soda-desktop/src/fountain_signin.rs:168`, `fp/enrollment.rs:68`, `fountain_oauth.rs:164` separately classify identical scope literals into consent/config/enrollment behavior.
-- [hidden] `gp/git_fetch.rs:54,75,80` and `fp/product.rs:235,244,249` independently own four fixed setup filenames and their union with up to64 selected paths (`gp/request.rs:386`), so setup vocabulary changes alter both provider network plans.
-- [hidden] `fp/issues.rs:33,197` and `rt/native_fountain_issues.go:35,61` independently encode issue-operation receipt/protocol assumptions across callback boundary.
-- [hidden] `fp/snapshot.rs:92,139,170` nests independently bracketed helpers into merge preparation's53–101 requests, while deadline selection remains in `gp/request.rs:331`.
-- [hidden] `fp/discussion.rs:91,126,164,169` couples requested thread/page selection to full collection, every review's comments and replay of all captures.
-- [hidden] SodaOS `internal/forgejo/background.go:11` and `internal/web/server.go:131,137` require one shared admission instance because another bootstrap revokes the first; construction identity is part of correctness beyond port types.
-- [needless] `gp/review_threads.rs:156,239` rereads the whole≤1,000-thread catalogue and only then slices the requested local page, tying one page's cost to all threads.
-- [needless] `gp/inline_preparation.rs:59,141` composes a full diff bracket per file page and another final header; catalogue paging repeats already observed common facts.
-- [needless] `gp/pull_branches.rs:60,62,102` constructs/rechecks a second Reader even for the identical repository; same-repository observation pays the fork path's cost.
-- [needless] `github.rs:358,397` reads identity before canonical mapping then invokes `gp/reads.rs:65`, which reads it again.
-- [needless] `ui/pulls/review.ts:74` and `ui/pulls/merge.ts:83` independently implement the same identity→pull/capabilities admission sequence.
-- [needless] `ui/work/progress.ts:307,330` fetches one detail and one plan per issue; page observation cost grows with every displayed member.
-- [needless] `fp/product.rs:4`, `fp/publication.rs:7`, `fp/issues.rs:4` import shared semantic types/outcomes from GitHub implementation namespace, binding providers that change for different reasons.
-- [surplus] `ctl/readiness_work.go:137,155` exposes completion page-accounting helpers with no production callers found; their comments imply bounds that native completion does not use.
-- [surplus] `fountain_provider.rs:378` and `fp/operation.rs:241,323` expose repository-resource/completion-note APIs with no production consumers found, retaining additional network/capture behavior to maintain.
-- [special] `gp/review_request_effect.rs:133,136` must add reviewers through GraphQL and remove through REST with distinct actor payloads.
-- [special] `gp/merges.rs:91` and `gp/mod.rs:76` bind result verification to an API-version-dependent GraphQL merged-commit convention.
-- [special] `gp/merges.rs:278` and `gp/git_publish.rs:236` reject Fountain-only fields in shared operation structures; provider vocabulary leaks into peer validation.
-- [special] `gp/evidence.rs:208` and `gp/protection.rs:43` preserve403/404 as unknown protection evidence rather than absence; authority concealment must remain fail-closed.
-- [special] `gp/automation_checks.rs:183` parses GitHub Actions details URLs to retrieve app-bound run facts, adding data-dependent HTTP cost.
-- [special] `gp/writes.rs:82` and `gp/transport.rs:693` can retain a dispatched mutation before transport-budget refusal, producing indeterminate outcome even for suppressed wire dispatch; lookup absence still must not authorize resend.
-- [special] `gp/oauth.rs:163` polls authorization pending/slow-down, unlike other transport requests; OAuth cadence and ceiling share the same wire budget.
-- [special] `gp/writes.rs:82` spaces writes1s; `fp/snapshot.rs:224` retries409 with four sleeps; `fp/publication.rs:551` has bounded revision attempts. These are separate pacing/currentness requirements, not a common retry policy.
-- [special] `rt/native_collaboration.go:275` selects16s IPC budgets for three read kinds versus9s ordinarily; deadline names must track native selectors.
-- [special] `rt/native_collaboration.go:305` gives source bundles separate size handling; inline-preparation has its own bounded envelope at `:262`.
-- [special] `ctl/merge.go:256`, `ctl/progress.go:261,318` distinguish a fresh exact wake from replay, using transient wake hints plus durable authority.
-- [special] `ctl/review_cycle.go:116,134` and `ctl/progress.go:70,109` retain1min negative/closed caches with explicit-command bypass rules.
-- [special] `ctl/progress.go:269` and `ctl/creation_recovery.go:63` compose5min outer reconciliation with60s inner eligibility; the effective cadence is not the inner timer alone.
-- [special] `ui/pulls/detail.ts:145,151` swallows capability fallback failure and disables head-bound controls; unavailable evidence is not permission.
-- [special] `ui/work/progress.ts:316,323` falls back when plans cannot be decoded; Feed allowance aggregation drops failed reads (`ui/feed/feed.ts:534,544`), hiding per-item failures behind aggregate rendering.
-- [special] `rt/native_merges.go:171,220`, `rt/native_product_pending_reviews.go:239`, `rt/native_product_inlines.go:271` require repeated accepted-input/review/preservation proof; counts must preserve these safety obligations.
-- [special] `fp/discussion.rs:67,72` runs the complete status bracket even for check-run projection returning no items, duplicating native evidence work across the two shared check families.
-- [special] `factory_provider/controller.rs:285` reads grants then sleeps1s per lease, independently of product reconciliation and snapshot status checks.
-- [special] SodaOS `internal/forgejo/issue_feedback.go:45,60` scans arbitrary50-comment pages for idempotence markers before posting; history length controls lookup cost.
-- [special] SodaOS `background_transport.go:43` permits one shared bootstrap/retry after401; native Fountain transport has no equivalent automatic retry.
-- [special] SodaOS `publish/operation_push.go:66` permits one rebound push for a retained pending host operation, unlike native receive-pack's no-resend rule; recovery semantics differ by owner.
-- [special] `scripts/desktop-distribution.ts:49,71` makes exact legal-file acquisition conditional on package contents/provenance, creating build-only GitHub calls outside app budget.
-- [special] `tools/native-checks/native_mcp_signing_check.go:8340,8346` contains deliberate download repetition/curl retries; check-tool traffic must stay distinct from product cadence.
-- [special] `factory_provider/setup_network.rs:90,160` bounds encrypted public HTTPS tunnels by connections/bytes, while GitHub request accounting sees no individual tunneled requests.
+### Requirements revealed by all24 special cases
+
+| Entry | Requirement the design must preserve or make explicit | Placement |
+|---|---|---|
+| P30 | Reviewer addition/removal use the provider's distinct supported APIs and actor payloads | Leave as is |
+| P31 | Verify the resulting merge commit separately from the reviewed candidate under the captured API contract | Leave as is |
+| P32 | Provider-specific command authority/fields must not become accepted peer-provider input | F1 |
+| P33 | Concealed protection is unknown, never proof of no required policy | Leave as is |
+| P34 | CI must prove the actual app/run and evaluated test-merge commit, with bounded distinct-run resolution | F2 |
+| P35 | Conservative uncertain-send classification and original causal identity survive transport refusal | Leave as is |
+| P36 | Device consent polls pending/slow-down with provider interval and device expiry | Leave as is |
+| P37 | Write pacing, read-conflict recovery and native-revision attempts have different purposes; all fit an overall bound | F2 |
+| P38 | IPC must allow the native bounded result/refusal to arrive without a second drifting selector/deadline list | F1 |
+| P39 | Source bundles and inline captures need explicit bounded request/response classes | F1 |
+| P40 | A fresh exact command wake must not replay the entire queue or grant authority to transient hints | Leave as is |
+| P41 | Negative/closed observations may suppress passive work while explicit newly authorized commands remain distinct | Leave as is |
+| P42 | The effective polling eligibility belongs to one scheduler calculation, not multiplication of nested timers | F4 |
+| P43 | Missing capability/head facts disable actions and remain explainable to the user | F5 |
+| P44 | Per-item plan/allowance failures must stay unavailable/unknown rather than disappear into aggregate success | F5 |
+| P45 | Accepted inputs, human blockers/reviews and completed human writing require current proof and preservation | F2 |
+| P46 | Shared check/status projections need one consistent source set, including honest empty projections | F2 |
+| P47 | Execution grant withdrawal/expiry must cancel every admitted consumer within the existing observation bound | F6 |
+| P48 | Feedback recovery needs exact provenance and no duplicate comment, without unbounded history scans | F8 |
+| P49 | Appliance admission may rebootstrap once after definite401 without duplicating owners or uncertain writes | F6 |
+| P50 | Host-defined pending-operation rebound and native never-resend publication remain different contracts | Leave as is |
+| P51 | Distribution carries exact legal/provenance inputs, with build traffic distinguished from app traffic | Leave as is |
+| P52 | Deliberate network stress fixtures remain explicitly scoped check tools | Leave as is |
+| P53 | Approved dependency HTTPS retains credential isolation and honest connection/byte bounds; encrypted request counts are unknown | Leave as is |
 
 ## Fixes
 
-Not started. The next phase is **untangle-redesign**. Currentness, captured
-identity/source, human-text preservation, causal journals, no-uncertain-replay,
-withdrawal and provider-specific authority remain requirements, even where
-observation composition duplicates work.
+Phase 2 design, **not implemented or runtime-verified**. The owner reviewed the
+proposed fixes and replied “No additional constraints.” This is the agreed
+design handoff; implementation and verification remain the next phase. No optional comment/test cleanup is included. Source baseline remains
+9482c81; 6076304 added the audit only, so the existing skeleton/import/history
+views were reused and checked against the current defining modules.
+
+The missing concept is the **bounded observation for one operation**: the
+operation owns the required before/after evidence, selected collection, deadline
+and actual send allowance. Its helpers return facts; they do not each reopen
+an entire authority/consistency cycle. This is a small refactor of the existing
+connectors and journals, not another workflow engine or generic request planner.
+
+Order below respects the actual dependencies. F5–F8 are independent ready work;
+they need not wait for Fountain installation or connected GitHub qualification.
+
+| Fix | One-line outcome | Entries | Depends on |
+|---|---|---:|---|
+| F1 | Put shared connector contracts below both providers | 8 | None |
+| F2 | Make one operation own observation boundaries and actual send cost | 10 | F1 |
+| F3 | Page selected collections without repeating whole preparations | 6 | F2 |
+| F4 | Resume inventory work within an honest provider budget | 5 | F2 |
+| F5 | Let the mounted view own display reads and action admission | 7 | None |
+| F6 | Let the Fountain connection own consent, admission and grant watching | 4 | None |
+| F7 | Remove native Fountain egress with no consumers | 1 | None |
+| F8 | Journal feedback delivery and bound legacy receipt searches | 1 | None |
+| Leave as is | Preserve necessary protocol, recovery and auxiliary boundaries | 11 | — |
+
+### F1 — Put shared connector contracts below both providers
+
+Move only genuinely shared selector, observation and outcome definitions to a
+small provider-neutral module in the existing native runtime. Keep provider
+clients, credentials, GraphQL, Fountain grants and provider-specific mutation
+payloads in their current provider owners. `Read` supplies exhaustive diagnostic
+names, validation and native operation limits; supported variants cannot become
+`other` through an unrelated manual match. Put the four setup filenames and
+path-union rules beside the shared setup-source contract; each provider still
+owns fetching and batching.
+
+Use an explicitly versioned IPC envelope with one tagged payload rather than
+parallel optional result fields plus a second string-routing catalogue. Go owns
+its typed product projections and strict decoder. Keep the wire binding explicit
+and cover both language bindings in the existing native integration harness;
+no new code generator, metadata server or generic operation registry is needed.
+The enclosing Go IPC timeout covers the permitted native deadline, and the
+same contract declares bounded source/inline payload classes. Neither a larger
+envelope nor a descriptor grants execution or provider permissions.
+
+Do not reserialize captured commands or change their digest interpretation.
+Preserve exact old encodings through the existing known-version decoder; unknown
+versions remain unavailable. Current schema or target state never gives a
+historical command new authority. Shared DTOs exclude provider-only fields rather
+than making GitHub reject Fountain extensions after accepting a generic shape.
+
+**Done when:** Fountain no longer imports semantic contracts from the GitHub
+implementation; adding a shared read has one native metadata owner and one
+explicit Go binding; mismatched kind/version/payload fails closed; setup unions
+agree; retained hashes/receipts and known-prior decoding remain unchanged.
+**Depends on:** none.
+
+- [hidden] **P01** `gp/reads.rs:25` and `gp/transport.rs:363` manually share semantic diagnostic names; additions can fall into `other` without exposing the new read kind.
+- [hidden] **P08** `rt/native_product_observations.go:148,204`, semantic emitters and Rust read enum manually share operation-kind vocabulary across IPC dispatch.
+- [hidden] **P16** `gp/git_fetch.rs:54,75,80` and `fp/product.rs:235,244,249` independently own four fixed setup filenames and their union with up to64 selected paths (`gp/request.rs:386`), so setup vocabulary changes alter both provider network plans.
+- [hidden] **P17** `fp/issues.rs:33,197` and `rt/native_fountain_issues.go:35,61` independently encode issue-operation receipt/protocol assumptions across callback boundary.
+- [needless] **P27** `fp/product.rs:4`, `fp/publication.rs:7`, `fp/issues.rs:4` import shared semantic types/outcomes from GitHub implementation namespace, binding providers that change for different reasons.
+- [special] **P32** `gp/merges.rs:278` and `gp/git_publish.rs:236` reject Fountain-only fields in shared operation structures; provider vocabulary leaks into peer validation.
+- [special] **P38** `rt/native_collaboration.go:275` selects16s IPC budgets for three read kinds versus9s ordinarily; deadline names must track native selectors.
+- [special] **P39** `rt/native_collaboration.go:305` gives source bundles separate size handling; inline-preparation has its own bounded envelope at `:262`.
+
+### F2 — Make one operation own observation boundaries and actual send cost
+
+Keep one operation-scoped reader inside the existing Rust connector. It owns
+captured credential/profile generation, host, actor, repository, exact head/base
+and required current permission/enrollment/placement facts. Split composing
+helpers into fact acquisition and pure projection. Canonical mapping reuses the
+identity already obtained with the same credential generation. Same-repository
+branch work uses one repository reader; fork work keeps its distinct repository
+and permission proofs. Branch lookup and collaborator-permission interpretation
+have one defining helper inside GitHub, not a cross-provider utility.
+
+Reuse a fact only within the same operation **and same observation phase**.
+Immutable commit-bound data can be shared; an opening mutable observation can
+never satisfy its closing check. Distinct permissions, policy, head/base,
+review/veto state and app-bound/test-merge CI sources still receive the required
+fresh closing evidence. A write starts its own current admission and exact
+conditional send. Read-only reuse never becomes a durable execution grant.
+
+For Fountain, collect the supported family union for the selected pull and
+project review/check/merge results from it instead of nesting `review_facts`
+inside `automation_checks` inside `merge_facts`. The configured host already
+checks enrollment and equal snapshots/revision inside each POST
+(`forgejo-ext/routers/api/v1/repo/desktop_source.go:80`). Keep the necessary
+outer REST/enrollment and before/after material comparisons. Check/status
+projections consume one acquired evidence set; an empty projection does not
+start another status collection. Unsupported family combinations remain
+unavailable; do not invent a stronger host consistency guarantee.
+
+Pass one absolute deadline and finite remaining-send allowance through the
+existing call path to the actual native HTTP sink. Every attempted request,
+including failed transport, pagination and conflict retries, debits it before
+send. The current durable GitHub ceiling/provider holds stay in force. Across
+Go calls, the existing pass budget allocates bounded sub-allowances and charges
+returned actual usage; an IPC timeout charges its outstanding allocation
+conservatively. The browser cannot enlarge native limits. Keep typed refusal,
+wire attempts and local IPC counts distinct in existing diagnostics.
+
+The operation owns one conflict retry allowance, not a fresh allowance in each
+nested helper. Device OAuth and mutation spacing retain their own protocol
+rules. Budget exhaustion returns a bounded hold; it does not sleep for quota,
+reset history, rotate identity or retry a mutation.
+
+**Done when:** controlled responses prove additive page/source cost rather than
+recursive full brackets, no duplicate canonical identity/equal-repository reads,
+actual attempted-wire accounting through refusal/cancellation, and refusal on
+changed authority/material. Proposed Fountain target for complete, one-page,
+same-repository merge facts: at most11 native HTTPS requests without conflict,
+plus at most4 operation-wide409 retries, excluding outer Go selection. This is
+a design acceptance target, not a measured result; any extra required proof must
+be explained rather than silently removed. GitHub Actions run lookups are once
+per distinct run per observation phase, still freshly checked in the closing
+phase. No old mutation outcome is reclassified from new traffic information.
+**Depends on:** F1 for the explicit shared operation/usage contract.
+
+- [hidden] **P02** `gp/reads.rs:414` and `gp/external_pulls.rs:202` duplicate collaborator/permission interpretation, so actor-authority changes need coordinated edits.
+- [hidden] **P03** `gp/automation_checks.rs:61`, `gp/evidence.rs:285`, `gp/merges.rs:138` separately encode branch naming/endpoints for the same facts.
+- [hidden] **P04** `gp/request.rs:331`, `gp/writes.rs:124`, `gp/transport.rs:490` compose independent deadlines across nested work; aggregate request cost is outside the deadline owner's vocabulary.
+- [hidden] **P18** `fp/snapshot.rs:92,139,170` nests independently bracketed helpers into merge preparation's53–101 requests, while deadline selection remains in `gp/request.rs:331`.
+- [needless] **P23** `gp/pull_branches.rs:60,62,102` constructs/rechecks a second Reader even for the identical repository; same-repository observation pays the fork path's cost.
+- [needless] **P24** `github.rs:358,397` reads identity before canonical mapping then invokes `gp/reads.rs:65`, which reads it again.
+- [special] **P34** `gp/automation_checks.rs:183` parses GitHub Actions details URLs to retrieve app-bound run facts, adding data-dependent HTTP cost.
+- [special] **P37** `gp/writes.rs:82` spaces writes1s; `fp/snapshot.rs:224` retries409 with four sleeps; `fp/publication.rs:551` has bounded revision attempts. These are separate pacing/currentness requirements, not a common retry policy.
+- [special] **P45** `rt/native_merges.go:171,220`, `rt/native_product_pending_reviews.go:239`, `rt/native_product_inlines.go:271` require repeated accepted-input/review/preservation proof; counts must preserve these safety obligations.
+- [special] **P46** `fp/discussion.rs:67,72` runs the complete status bracket even for check-run projection returning no items, duplicating native evidence work across the two shared check families.
+
+### F3 — Page selected collections without repeating whole preparations
+
+Make thread browsing, immutable file-catalogue acquisition and pending-review
+preparation distinct collection operations inside their existing provider
+modules. Ordinary thread reads request the selected page/detail using the
+existing cursor infrastructure; bind cursors to scope, repository, pull and
+observed head/base. In Fountain, fetch bodies only for reviews referenced by
+selected native threads. Where the host can only supply a complete bounded
+catalogue, acquire it once for this operation and project locally; repeated
+helper calls must not recollect it. Any reuse across requests needs a fresh
+matching host revision and current enrollment; it remains display evidence.
+
+Inline preparation owns one opening bracket, one complete immutable file walk
+and one closing bracket. Each file page is just a file page; it does not repeat
+pull/repository/comparison reads. Use supported larger pages only if existing
+response/byte bounds permit them. At the current page10 size, 3,000 files then
+require300 file pages plus fixed checks, rather than1,500 file-related requests.
+Completion of the whole catalogue is still required before a seal is usable.
+
+Keep the review's own capture/seal type next to its acquisition, hashing and
+submission validation; inline selection uses that capture rather than copying
+its JSON/digest recipe. Preserve the original byte encodings and pending human
+comments. A retained seal is evidence to compare under fresh authority, not
+permission to send after expiry. No page-level partial result means a complete
+pending review. Do not increase pending-comment page sizes blindly: the current
+two-comment page exists to bound large bodies/JSON responses. Cost admission
+must refuse an over-budget complete preparation before a bulk walk, or resume
+non-authorizing collection through the existing preparation journal. A resumed
+collection needs its complete closing checks before fresh preparation authority.
+
+**Done when:** thread page cost follows selected pages/reviews rather than all
+history; inline file-page cost has coefficient1 with a constant-size common
+bracket; typed capture creation and verification share one implementation;
+worst-case bytes/pages/attempts have enforced bounds, with explicit incomplete
+or too-costly results; page/head/base/withdrawal races preserve all human work
+and refuse stale submission. Numeric legacy cursors remain safely decodable or
+explicitly require a new read, without renewing a historical command.
+**Depends on:** F2's fact readers and operation budget.
+
+- [hidden] **P05** `gp/inline_preparation.rs:59` accepts a 3,000-file catalogue using page10/full diff brackets, potentially 1,500 attempts before pending-review work, while `gp/traffic_budget.rs:14` permits600/hour.
+- [hidden] **P06** `gp/review_preparation.rs:56,187` and `gp/review_submit.rs:128` share pending-comment digest/dispatch conventions outside a single contract owner.
+- [hidden] **P07** `gp/inline_preparation.rs:149`, `gp/inline_draft.rs:103`, `gp/inline_create.rs:79` share selection/catalogue/pending hashes through independently maintained JSON shapes.
+- [hidden] **P19** `fp/discussion.rs:91,126,164,169` couples requested thread/page selection to full collection, every review's comments and replay of all captures.
+- [needless] **P21** `gp/review_threads.rs:156,239` rereads the whole≤1,000-thread catalogue and only then slices the requested local page, tying one page's cost to all threads.
+- [needless] **P22** `gp/inline_preparation.rs:59,141` composes a full diff bracket per file page and another final header; catalogue paging repeats already observed common facts.
+
+### F4 — Resume inventory work within an honest provider budget
+
+Use the existing Go inventory collector, cursor and readiness-work records as
+the owner of each finite scan. Replace the native `ReadIssues` path that returns
+a whole repository with bounded provider page/evidence steps behind the
+existing completion enumerator. Native receipts report actual sends consumed;
+remove the obsolete completion accounting exports once all real adapters are
+wired to the defining budget. Control does not mirror a Forgejo page constant.
+
+Creation discovery advances its retained source cursor; it does not fetch two
+whole memberships again for every16 candidates. Share facts already acquired
+in the same scan/phase. Where the provider supports it, acquire the necessary
+selected-issue fields in one bounded query rather than N individually bracketed
+calls. Do not substitute list summaries for missing original/unedited creation,
+creator permission, dependency or input evidence. Remaining proof steps consume
+the same pass allowance, including their closing checks.
+
+Preserve completion's two independent complete inventories and local/target
+captures. Store partial observations and hashes through the existing collector;
+a restart continues observation work only. It does not assert a provider-wide
+clock or mark a partial scan complete. Changed generation, local material or
+observed membership invalidates the relevant collection; dispatch still reads
+current authority. If a provider cannot prove required equality within bounded
+work, completion remains pending with its exact reason, rather than spinning
+inside one RPC or silently weakening the proof.
+
+Unify the existing next-eligible/due calculation so the outer5min scheduler and
+inner60s guards express one actual cadence. Budget deferral resumes a known
+remaining step; an explicit action wakes only its exact retained target.
+
+**Done when:** small controlled send allowances bound total native attempts
+across pages and candidate counts; repeated creation pages do not repeat prior
+full traversals; a large inventory progresses through retained page steps;
+interruption/withdrawal preserves cursors without duplicate effects; completion
+seals only two complete equal observations. No API ceiling is used as a normal
+scheduling strategy and no unused accounting function claims coverage.
+**Depends on:** F2 for native wire usage/refusal, not F3's UI collections.
+
+- [hidden] **P09** `ctl/completion_observations.go:12` charges a fixed bracket while `rt/native_completion.go:65` performs two full inventory/input traversals; nominal pass accounting changes independently from real provider fan-out.
+- [hidden] **P10** `ctl/creation_recovery.go:69` charges a page unit while `rt/native_creation_discovery.go:104,168` reads complete membership twice plus candidate facts; retained page size does not bound wire reads.
+- [hidden] **P11** `ctl/readiness_work.go:122` mirrors a Forgejo page cap while native creation/completion use their own limits; shared budget comments name a different implementation owner.
+- [surplus] **P28** `ctl/readiness_work.go:137,155` exposes completion page-accounting helpers with no production callers found; their comments imply bounds that native completion does not use.
+- [special] **P42** `ctl/progress.go:269` and `ctl/creation_recovery.go:63` compose5min outer reconciliation with60s inner eligibility; the effective cadence is not the inner timer alone.
+
+### F5 — Let the mounted view own display reads and action admission
+
+Keep one selected-repository/pull view model in the existing Lit parent. It
+owns the pull, display capabilities, selected tab, request cancellation and
+in-flight deduplication for that scope/generation. Child review/merge controls
+consume those display facts and fetch action-specific preparation only when
+opened or used. Opening conversation must not automatically run both complete
+review and merge admission sequences. Command submission still goes through
+fresh backend/native authority; passing display facts grants nothing.
+
+Retain drafts and journal identities across ordinary refresh/hide/show. Hiding
+aborts I/O and retires live authority while preserving inert presentation and
+writing; resume first verifies the selected generation/account locally, then
+refreshes visible stale material once. Keep command contexts retired on actual
+scope/account/generation change. Do not use mount/remount as a refresh protocol.
+
+Project the work progress list's recorded plan/detail data together in the
+existing Go read API, with bounded pagination. SQL/local workflow display
+should not cause one provider-bound request per displayed member. Render
+per-item unavailable/unknown states, including failed allowance reads, rather
+than treating missing evidence as empty/success. Preserve the existing denied
+state when capability fallback fails and existing permission-aware disclosure.
+
+**Done when:** one conversation navigation does its pull+selected-content reads
+without eager child admission; each opened action consumes shared display facts
+and only its own preparation; repeated render/resume has no duplicate active
+fetch; work-page requests are bounded by pages rather than2N; drafts/original
+command lookups survive hide/reconnect; failures stay visible without enabling
+an action. Use the existing semantic developer controls/harness in refactoring,
+not screenshots or live API polling to infer request counts.
+**Depends on:** none; existing backend preflight remains authoritative. F2/F3
+improve the called operations but are not prerequisites for removing UI fan-out.
+
+- [hidden] **P12** `ui/pulls/detail.ts:359`, `ui/pulls/review.ts:76`, `ui/pulls/merge.ts:85` compose eager controls with separate authority reads; opening one view implicitly creates several independent observations.
+- [hidden] **P13** `ui/issues/detail.ts:142` and `ui/issues/screen.ts:88` refresh/rebind child actions, so observation cost depends on component lifecycle as well as explicit navigation.
+- [hidden] **P14** `frontend/desktop/connections.ts:339,407` ties visibility retirement/reconnect to product-view remount and repeated admission.
+- [needless] **P25** `ui/pulls/review.ts:74` and `ui/pulls/merge.ts:83` independently implement the same identity→pull/capabilities admission sequence.
+- [needless] **P26** `ui/work/progress.ts:307,330` fetches one detail and one plan per issue; page observation cost grows with every displayed member.
+- [special] **P43** `ui/pulls/detail.ts:145,151` swallows capability fallback failure and disables head-bound controls; unavailable evidence is not permission.
+- [special] **P44** `ui/work/progress.ts:316,323` falls back when plans cannot be decoded; Feed allowance aggregation drops failed reads (`ui/feed/feed.ts:534,544`), hiding per-item failures behind aggregate rendering.
+
+### F6 — Let the Fountain connection own consent, admission and grant watching
+
+Inside Fountain's current native owner, define consent purpose once and derive
+scopes, discovery endpoint and enrollment family from it. The UI selects a
+purpose and displays native-supplied consent facts; it does not parse scope
+literals to recreate policy. Issue-only read authority stays distinct from code,
+execution and publication authority.
+
+One supervisor-owned watch per exact host/account/enrollment/grant/runtime/
+generation shares the existing liveness result among attached leases. Keep the
+current one-second-after-response polling cadence initially; reduce duplicate
+watchers without slowing withdrawal detection. Claim/admission and sends still
+perform current checks. Each lease keeps its own hard deadline/retirement; a
+failed, withdrawn or changed watch cancels all attached leases. Last-detach
+stops its task. A matching cached watch is not authority for a new claim.
+
+In SodaOS, construct one admitted background owner and pass that owner into all
+ports; make independent bootstrapping inaccessible to those ports. Keep the
+existing at-most-one rebootstrap after a definite401, with single-flight
+coordination and original operation lookup rules. Do not introduce that replay
+policy into native HTTPS or uncertain mutation handling. No SSE service or new
+long-lived authority channel is required for this change.
+
+**Done when:** consent purpose cannot select mismatched scopes/routes; L leases
+sharing one exact grant cause one watcher stream, not L; differing grants remain
+separate; expiry/failure/withdrawal cancels each consumer on the existing bound;
+one cold appliance admission is shared by all ports and simultaneous401 replies
+cause at most one rebootstrap. No retired lease, grant or command is renewed.
+**Depends on:** none; host SDK/composition changes stay in canonical owners and
+do not add a Fountain-server dependency to the standalone engine.
+
+- [hidden] **P15** `frontend/desktop/fountain-login.ts:6`, `cmd/soda-desktop/src/fountain_signin.rs:168`, `fp/enrollment.rs:68`, `fountain_oauth.rs:164` separately classify identical scope literals into consent/config/enrollment behavior.
+- [hidden] **P20** SodaOS `internal/forgejo/background.go:11` and `internal/web/server.go:131,137` require one shared admission instance because another bootstrap revokes the first; construction identity is part of correctness beyond port types.
+- [special] **P47** `factory_provider/controller.rs:285` reads grants then sleeps1s per lease, independently of product reconciliation and snapshot status checks.
+- [special] **P49** SodaOS `background_transport.go:43` permits one shared bootstrap/retry after401; native Fountain transport has no equivalent automatic retry.
+
+### F7 — Remove native Fountain egress with no consumers
+
+Reconfirm callers across Factory, SodaOS and canonical Fountain before deleting
+unused native repository-resource and completion-note APIs/capture plumbing.
+Keep the real repository product read, execution claim/retirement and publication
+submission/lookup paths. Do not remove public Fountain server endpoints merely
+because the desktop adapter has no caller. A discovered external consumer is a
+reason to revise this decision, not to delete its interface silently.
+
+**Done when:** the unused native functions/protocol branches and their dead
+exports are gone; all actual consumers still build and use their original
+journals; no compatibility stub introduces new traffic. Historical captures
+remain preserved and known versions refuse/recover under their original rules.
+**Depends on:** none; caller confirmation precedes deletion.
+
+- [surplus] **P29** `fountain_provider.rs:378` and `fp/operation.rs:241,323` expose repository-resource/completion-note APIs with no production consumers found, retaining additional network/capture behavior to maintain.
+
+### F8 — Journal feedback delivery and bound legacy receipt searches
+
+Put feedback dispatch identity/state in the existing Go post-effect/command
+journal, keyed by source post/revision, exact actor/host/repository/issue and
+body digest. The SodaOS adapter returns a native comment receipt for that
+identity; a fresh admitted intent can dispatch once, and uncertain dispatch
+becomes lookup-only. It must not call the request-bound human SDK under an
+agent identity or infer authority from read enrollment.
+
+Carry a bounded comment-search cursor through existing recovery work for old
+marker-based sends. Matching requires the exact known provenance/marker and
+captured content, while preserving human edits and reporting mismatches for
+attention. A completed search with no match does not authorize another old POST.
+New commands with a retained receipt do direct receipt lookup instead of
+walking history. No host API addition or synthetic receipt is assumed.
+
+**Done when:** new feedback has at most one POST per original identity; lost
+reply/restart recovers the original comment or remains uncertain; a large old
+comment history is scanned in bounded resumable batches; no marker absence,
+expired authorization or edited human text causes another send or rewrite.
+**Depends on:** none. This extends the existing Go effect journal/adapter, not
+a second durable state machine or F6's watch service.
+
+- [special] **P48** SodaOS `internal/forgejo/issue_feedback.go:45,60` scans arbitrary50-comment pages for idempotence markers before posting; history length controls lookup cost.
+
+### Leave as is
+
+These11 entries are real requirements or deliberately separate traffic owners.
+They remain visible acceptance constraints for the refactor; leaving them does
+not mean the product is verified. No broad retry policy or generic transport
+will erase the distinctions.
+
+- [special] **P30** `gp/review_request_effect.rs:133,136` must add reviewers through GraphQL and remove through REST with distinct actor payloads. **Reason:** GitHub's supported add/remove reviewer APIs genuinely differ; hide the difference inside its connector, with no transport unification.
+- [special] **P31** `gp/merges.rs:91` and `gp/mod.rs:76` bind result verification to an API-version-dependent GraphQL merged-commit convention. **Reason:** Keep exact reviewed-candidate versus resulting-commit verification under the configured API version; no evidence supports removing it.
+- [special] **P33** `gp/evidence.rs:208` and `gp/protection.rs:43` preserve403/404 as unknown protection evidence rather than absence; authority concealment must remain fail-closed. **Reason:** Concealed/unknown protection must stay unknown and block unsupported merge behavior.
+- [special] **P35** `gp/writes.rs:82` and `gp/transport.rs:693` can retain a dispatched mutation before transport-budget refusal, producing indeterminate outcome even for suppressed wire dispatch; lookup absence still must not authorize resend. **Reason:** Preserve the conservative original dispatch classification. A new local budget observation cannot retroactively prove an old effect was not sent.
+- [special] **P36** `gp/oauth.rs:163` polls authorization pending/slow-down, unlike other transport requests; OAuth cadence and ceiling share the same wire budget. **Reason:** Device authorization needs its provider-defined pending/slow-down polling; it remains bounded by device expiry and the original traffic budget.
+- [special] **P40** `ctl/merge.go:256`, `ctl/progress.go:261,318` distinguish a fresh exact wake from replay, using transient wake hints plus durable authority. **Reason:** Exact explicit wakes and durable journal authority prevent queue replay and stay intact under the new read scheduling.
+- [special] **P41** `ctl/review_cycle.go:116,134` and `ctl/progress.go:70,109` retain1min negative/closed caches with explicit-command bypass rules. **Reason:** Negative/closed caches and explicit fresh-command bypass have different purposes; retain their present semantics while eliminating duplicate reads.
+- [special] **P50** SodaOS `publish/operation_push.go:66` permits one rebound push for a retained pending host operation, unlike native receive-pack's no-resend rule; recovery semantics differ by owner. **Reason:** Retained pending appliance operations have a host-defined rebound contract; do not extend it to native publication or infer it from lookup absence.
+- [special] **P51** `scripts/desktop-distribution.ts:49,71` makes exact legal-file acquisition conditional on package contents/provenance, creating build-only GitHub calls outside app budget. **Reason:** Exact dependency legal/provenance acquisition is required build traffic; existing exact inputs and local packaged files are already preferred. No unrelated download framework is justified.
+- [special] **P52** `tools/native-checks/native_mcp_signing_check.go:8340,8346` contains deliberate download repetition/curl retries; check-tool traffic must stay distinct from product cadence. **Reason:** Deliberate fixture stress/retry traffic is opt-in check behavior, not product polling. Preserve it and keep counters/results scoped separately.
+- [special] **P53** `factory_provider/setup_network.rs:90,160` bounds encrypted public HTTPS tunnels by connections/bytes, while GitHub request accounting sees no individual tunneled requests. **Reason:** Encrypted public setup tunnels have connection/byte/lifetime bounds, not visible HTTP counts. Keep credential isolation and declare that limitation; do not intercept TLS or claim the app's authenticated request counter covers tunnels/builds.
+
+### Dependency and acceptance review
+
+After these changes, UI depends on product read/command contracts; Go workflows
+and adapters depend on native protocol bindings; both Rust providers depend on
+neutral semantic types and their own transport/fact owners. Fountain host SDK
+and authority stay outside the standalone engine. Stable contracts import no
+provider clients. No new provider-neutral policy engine, global mutable cache,
+parallel workflow journal, webhook/SSE service or generated binding framework
+is part of this design.
+
+Pieces that change together now share their real owner: contract and metadata
+(F1), operation facts/boundaries/cost (F2), collection and seals (F3), scan progress
+and accounting (F4), view lifetime and reads (F5), Fountain connection/grant
+lifetime (F6), dead APIs (F7), original feedback effect and receipt (F8). Facts
+from different providers, human actions, funding and native execution retain
+their distinct authority owners. F2/F3 reuse observations only where their
+proof boundary permits it; no savings target permits skipping fresh evidence.
+
+Refactor verification must first use controlled responses and existing native /
+Go integration entry points: count actual attempts for normal, maximum-page,
+changed-policy/head/base/permission, withdrawal, refusal and interrupted-recovery
+paths. A refusal must stop sends and preserve partial observations/effects.
+Retained unknown outcomes are never resent; paid inference is unnecessary for
+these contracts. Reuse the existing developer API for UI facts and counters.
+Only an affected connected journey can subsequently qualify product behavior;
+source/build/component success alone cannot do that. There are no new tests,
+builds, apps or provider requests in this design phase.
 
 ## Progress
 
@@ -420,3 +779,12 @@ observation composition duplicates work.
 - Source audit complete within the stated boundary. Runtime volume remains
   unmeasured; this is not connected/installed verification. Next executable
   phase: untangle-redesign using this inventory, without replaying effects.
+
+- 2026-11-12: phase2 redesign completed at6076304 plus this document change;
+  all53 findings assigned exactly once, all24 special cases translated into
+  requirements. Eight fixes address42 entries;11 necessary cases remain.
+  Existing source maps were reused because the intervening commit changed only
+  the audit document. No builds, tests, provider requests or product changes.
+  Owner review: “No additional constraints.”
+  Next phase: untangle-refactor, beginning F1/F2 or an explicitly independent
+  ready fix; preserve original receipts and prove wire counts locally first.
