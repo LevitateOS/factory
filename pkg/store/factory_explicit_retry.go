@@ -260,7 +260,7 @@ func loadRetryPriorAssignmentTx(ctx context.Context, tx *sql.Tx, priorRun string
 		return empty, ErrExplicitRetryIneligible
 	}
 	if priorAssignment.Run != priorRun || priorAssignment.Acceptance != acceptance || !priorAssignment.Finished() ||
-		!project.ValidFactoryRole(priorAssignment.Role) || !retryAssignmentOutcomeMatches(priorAssignment, priorOutcome) || !retryableRunOutcome(priorOutcome) ||
+		!project.ValidFactoryRole(priorAssignment.Role) || !assignmentRunOutcomeMatches(priorAssignment, priorOutcome) || !retryableRunOutcome(priorOutcome) ||
 		priorAssignment.Repository != repository || priorAssignment.Issue != issue {
 		return empty, ErrExplicitRetryIneligible
 	}
@@ -387,15 +387,18 @@ func retryableRunOutcome(outcome string) bool {
 	return outcome == string(factory.Succeeded) || outcome == string(factory.Failed) || outcome == string(factory.Cancelled)
 }
 
-// A successful native process can produce an invalid report. Preserve native
-// success and the synthesized needs-human result independently: an explicit
-// owner Retry may recover it only after the ordinary closed-root, retirement,
-// accounting, current-acceptance and authority checks below have all passed.
-func retryAssignmentOutcomeMatches(a factory.Assignment, nativeOutcome string) bool {
-	if string(a.Outcome) == nativeOutcome {
+// Terminal role results and process exits are retained independently. A missing
+// report can fence work before the process subsequently fails. Compatibility
+// grants no retry authority; callers retain their scope, accounting and effect
+// gates before admitting a fresh command.
+func assignmentRunOutcomeMatches(a factory.Assignment, runOutcome string) bool {
+	if !retryableRunOutcome(runOutcome) {
+		return false
+	}
+	if string(a.Outcome) == runOutcome {
 		return true
 	}
-	return nativeOutcome == string(factory.Succeeded) && a.Outcome == factory.NeedsHuman &&
+	return (runOutcome == string(factory.Succeeded) || runOutcome == string(factory.Failed)) && a.Outcome == factory.NeedsHuman &&
 		a.Reason == factory.AssignReasonNoReport && a.Result != nil && !a.Result.Reported && a.Result.Status == "blocked"
 }
 

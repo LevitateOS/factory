@@ -749,14 +749,10 @@ func retainedFailedCorrection(child factory.Assignment, runData, usageData []byt
 	if result.Reported || result.Candidate != "" || result.Review != nil || len(result.Findings) != 0 || result.PhaseResult != nil && result.PhaseResult.Output != nil {
 		return false
 	}
-	var outcome factory.Outcome
 	switch {
 	case child.Outcome == factory.Failed && child.Reason == factory.AssignReasonRunFailed:
-		outcome = factory.Failed
 	case child.Outcome == factory.Cancelled && child.Reason == factory.AssignReasonCancelled:
-		outcome = factory.Cancelled
 	case child.Outcome == factory.NeedsHuman && child.Reason == factory.AssignReasonNoReport:
-		outcome = factory.Succeeded
 	default:
 		return false
 	}
@@ -765,9 +761,7 @@ func retainedFailedCorrection(child factory.Assignment, runData, usageData []byt
 	if json.Unmarshal(runData, &run) != nil || run.Validate() != nil || run.ID != child.Run || run.ProjectID != child.ProjectID || run.Role != child.Role || run.InputSHA != child.SourceCommit || !run.Reconciled || run.Native == nil || !run.Native.Settled() || run.FinalCheckpoint != nil && run.FinalCheckpoint.Status == "committed" {
 		return false
 	}
-	// A terminal tool can fence incomplete work before the native process
-	// subsequently fails. Its no-report result and failed exit both persist.
-	if run.Outcome != outcome && !(child.Outcome == factory.NeedsHuman && child.Reason == factory.AssignReasonNoReport && run.Outcome == factory.Failed) {
+	if !retryableRunOutcome(string(run.Outcome)) || !assignmentRunOutcomeMatches(child, string(run.Outcome)) {
 		return false
 	}
 	end := run.Started

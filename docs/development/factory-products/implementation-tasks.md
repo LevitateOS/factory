@@ -1721,6 +1721,14 @@ recorded NeedsHuman/NoReport before the native run became Failed. The fresh
 funding guard now accepts that exact no-report/failed combination; all other
 guards remain. Backend build and `request61-external-pg.log` pass with this actual
 shape in the existing fixture. No new command, model or charge ran on60; usage237.
+The same blocked/no-report compatibility now has one store implementation shared
+by ordinary Builder Retry, delivery Retry and retained funding. Final backend
+`correction-retry-server` and `request62-external-pg2.log` pass, including ordinary
+Builder Retry/replay and unchanged retained outcomes/deadlines. The first62 log
+keeps a fixture-only comparison of constructed clock metadata to stored JSON;
+the rerun compares full stored before/after records. Product guards stay strict.
+Backend61's earlier compiled artifact is preserved but not installed; package61
+uses this final common-helper backend with native59/UI unchanged.
 The separate execution-retry native-check assertion follows readiness and passes
 the affected pinned-compiler typecheck (`request60-execution-retry-check.log`);
 its UI scenario was not rerun and native59 stays unchanged.

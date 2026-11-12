@@ -132,7 +132,7 @@ func deliveryRetryPriorTx(ctx context.Context, tx *sql.Tx, repository int64, pri
 	failedReport := prior.Result != nil && prior.Result.Reported && prior.Result.PhaseResult != nil && prior.Result.PhaseResult.Output != nil && prior.Result.PhaseResult.Output.Verification != nil && prior.Result.PhaseResult.Output.Verification.Outcome == factory.AppVerificationFailed
 	if prior.Repository != repository || prior.Run != priorRun || prior.Issue != 0 || prior.Phase != project.ExecutionVerify || prior.Role != project.RoleReviewer ||
 		prior.Subject.Kind != factory.SubjectDelivery || prior.Subject.Delivery == nil || prior.Stage != factory.AssignmentFinished || prior.AttemptRoot != prior.ID || prior.ParentAssignment != "" || prior.PublicationAssignment != "" ||
-		(prior.Outcome == factory.Succeeded && !failedReport) || !retryableRunOutcome(priorOutcome) || !retryAssignmentOutcomeMatches(prior, priorOutcome) {
+		(prior.Outcome == factory.Succeeded && !failedReport) || !retryableRunOutcome(priorOutcome) || !assignmentRunOutcomeMatches(prior, priorOutcome) {
 		return prior, ErrExplicitRetryIneligible
 	}
 	var head string

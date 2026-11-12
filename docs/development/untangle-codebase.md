@@ -776,6 +776,17 @@ send guards remain strict. Backend correction-outcome-server
 SHA3cb681ddc3867799a6b612ee17b78ff37aacb3fc3dbf045cc66797e00cdb78d3
 and request61-external-pg.log pass against the exact observed shape. No command,
 model or charge ran on60; usage237. Original Quit60 retires app/backend/PG/socket.
+The exact no-report compatibility also affected ordinary Builder/delivery Retry.
+One existing store matcher now serves all three callers, retaining terminal
+outcome and each caller's candidate/retirement/accounting/effect guards.
+Final correction-retry-server SHAa6cf837c0b464163ba2266ce5dadbe280c9d039bcba34a959808677a71e231f1
+and request62-external-pg2.log pass: ordinary Builder Retry admission/replay,
+Fixer fresh funding, refusals and full stored before/after preservation. The
+first62 check failed only because its expected seed retained process-local clock
+metadata absent from JSON; baseline capture now uses the actual stored record,
+without relaxing comparison or production guards. Failed profile shutdown joins.
+Earlier61 binary/check evidence stays preserved, uninstalled. Package61 uses the
+common-helper backend; native59/UI stay exact. No additional inference occurred.
 Check-only019f595 aligns execution-retry's assertion with known readiness;
 request60-execution-retry-check.log typechecks the affected native-ui/native-check
 binary using pinned stable Rust. The first compiler-path/cache mismatch is kept

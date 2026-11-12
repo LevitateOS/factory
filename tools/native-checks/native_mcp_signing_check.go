@@ -15411,6 +15411,71 @@ func externalPreparationFixture() error {
 	if after, err := db.RunUsage(ctx, failedRun.ID); err != nil || !reflect.DeepEqual(after, failedUsage) {
 		return errors.New("failed-Corrector funding changed its original charge")
 	}
+	// Keep this ordinary Builder Retry on a separate issue control, after the
+	// external journey. The role can record a blocked missing report before
+	// its independently observed native process fails.
+	retryAcceptance := acceptance
+	retryAcceptance.ID, retryAcceptance.IssueIndex = "d"+factory.NewID()[:24], "2"
+	if err = db.AdmitAcceptanceDecision(ctx, retryAcceptance); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: int64(repo.ID), Issue: 2, Acceptance: retryAcceptance.ID, NativeRev: 1, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("1", 64), Authority: strings.Repeat("2", 64)}, time.Now()); err != nil {
+		return err
+	}
+	retryOwner := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, base)
+	retryOwner.Repository, retryOwner.Issue, retryOwner.ProjectID, retryOwner.ActorID = int64(repo.ID), 2, grant.Project, int64(actor.ID)
+	retryOwner.Acceptance, retryOwner.Subject.Issue.Acceptance, retryOwner.Subject.Issue.Issue = retryAcceptance.ID, retryAcceptance.ID, 2
+	retryOwner.Connection, retryOwner.Authority = string(account.ID), authority
+	retryOwner.Stage, retryOwner.Outcome, retryOwner.Reason, retryOwner.FinishedUnix = factory.AssignmentFinished, factory.NeedsHuman, factory.AssignReasonNoReport, time.Now().Unix()
+	retryOwner.Result = &factory.AssignmentResult{AssignmentID: retryOwner.ID, RunID: retryOwner.Run, Status: "blocked", Summary: "Declared missing Builder report before native failure", RecordedUnix: retryOwner.FinishedUnix}
+	if err = retryOwner.Validate(); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,2,$3,'finished',0,$4)`, retryOwner, retryOwner.ID, repo.ID, retryOwner.Run); err != nil {
+		return err
+	}
+	retryAllowance := oldAllowance
+	retryAllowance.RootAssignment, retryAllowance.Issue = retryOwner.ID, 2
+	if err = write(`INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,2,$2,0,$3)`, retryAllowance, repo.ID, retryOwner.ID); err != nil {
+		return err
+	}
+	retryRun := oldRun
+	retryRun.ID = retryOwner.Run
+	if err = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, retryRun, retryRun.ID); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: retryRun.ID, Repository: retryOwner.Repository, Issue: 2, Attempt: retryOwner.ID}); err != nil {
+		return err
+	}
+	retryReservation := factory.Reservation{AssignmentID: retryOwner.ID, Repository: retryOwner.Repository, Connection: retryOwner.Connection, State: factory.ReservationReleased, PlannedMinutes: 1}
+	if err = write(`INSERT INTO factory_reservations(assignment,repository,connection,state,data) VALUES($1,$2,$3,'released',$4)`, retryReservation, retryOwner.ID, retryOwner.Repository, retryOwner.Connection); err != nil {
+		return err
+	}
+	// Compare the retained baseline, not time.Now's process-local monotonic
+	// clock/location metadata, which is intentionally absent from JSONB.
+	retryRun, err = db.FactoryRun(ctx, retryRun.ID)
+	if err != nil {
+		return err
+	}
+	retryPayload, _ := json.Marshal(map[string]string{"prior_run": retryRun.ID, "prior_outcome": string(retryRun.Outcome)})
+	missingReportRetry := factory.Command{ID: factory.NewID(), Type: factory.CommandRetry, Target: "run/" + retryRun.ID, Principal: "declared-owner", Payload: string(retryPayload)}
+	missingReportRetry.Digest = factory.SettingsDigest(missingReportRetry.Type, missingReportRetry.Target, missingReportRetry.Payload)
+	missingReportDecision, err := missingReportRetry.RetryDecision()
+	if err != nil {
+		return err
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		storedRetry, created, err := db.RecordExplicitRetryCommand(ctx, missingReportRetry, missingReportDecision, retryOwner.Repository, retryOwner.Issue, retryOwner.Acceptance, time.Now())
+		if err != nil || created != (attempt == 0) || storedRetry.ID != missingReportRetry.ID || storedRetry.Finished == "" {
+			return fmt.Errorf("missing-report Builder/native-failed Retry admission/replay: %v", err)
+		}
+	}
+	if after, err := db.Assignment(ctx, retryOwner.ID); err != nil || !reflect.DeepEqual(after, retryOwner) {
+		return errors.New("explicit Builder Retry changed the original role result")
+	}
+	if after, err := db.FactoryRun(ctx, retryRun.ID); err != nil || !reflect.DeepEqual(after, retryRun) {
+		return errors.New("explicit Builder Retry changed the original native outcome/deadline")
+	}
 	if err = db.Close(); err != nil {
 		return err
 	}
@@ -15430,6 +15495,7 @@ func externalPreparationFixture() error {
 	}
 	fmt.Println("PASS: exact pending-context no-start acknowledgement preserves intent/deadline/manifest/source, retires with zero charge and resumes interrupted capability retirement; cleared marker/acquisition/changed intent/missing zero usage refuse, while a fresh explicit bounded funding command preserves the spent correction identity without model replay. Native absence acknowledgement declared; actual Store/accounting transactions.")
 	fmt.Println("PASS: task/workspace admission follows the authentic original Architect head and current-root retained correction singleton; a settled nonreported failed Corrector with an exact retained charge permits a fresh explicit finite command without unused-budget transfer, while unsettled execution or uncertain publication refuse. Activation/process facts declared; native task calls stop at the observation boundary, no inference or send.")
+	fmt.Println("PASS: an ordinary Builder's blocked/nonreported needs-human result and independently failed retired native run admit one explicit Retry command and exact replay, preserving the original result/outcome/deadline; confirmed-unused reservation declared, no inference or dispatch.")
 	fmt.Println("PASS: closed external Architect/committed Inspector history with a retired expired unlaunched correction admits one explicit same-source bounded continuation and fresh Corrector using the original Inspector; spent reviews/charges and old rows/deadlines/receipts remain exact, replay never renews authority, and changed source/head/base or unrelated historical parent refuse. Role/native/provider facts declared; no inference or host send.")
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
