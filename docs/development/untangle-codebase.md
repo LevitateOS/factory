@@ -651,6 +651,23 @@ clean shutdown. Exact-prior52 and the actual retained Fixer are next. No paid
 inference, command, deadline or receipt is replaced; all other remaining gates
 above stay open.
 
+Installed52 narrows the original6aac fork hold to invalid_github_response with
+one read-only exported admission call, no new preparation/model/charge (235).
+The real fork receive-pack advertisement contains repeated .have object hints;
+the parser incorrectly rejected those as duplicate refs. Only validated
+receive-pack .have hints are now ignored. Duplicate real refs, malformed OIDs
+and upload-pack behavior retain their checks (goal52-fork-advertised-check.log).
+Native53 production build passes, appSHA902125e1596293ec6ba46b3e0de711bc3da7c48f1f3332e71f06c266e7330f29.
+Backend fork-admission-server SHAde8bc927aabbcbdb50cbd422a9fb3dd932d439f15b4cd0bcaa2e4dfe038a8fce
+and existing realPG progress-gate pass (request53-progress-pg2.log); the earlier
+sandbox startup failed before its socket/check. Negative fork-source retries
+now wait one minute for the same tuple/policy/authority/round, before input I/O;
+positive evidence is never cached. Work exposes the fixed fork/phase hold codes.
+Normal Quit52 retires all processes/socket. Next executable action: exact-prior53
+install, continue original correction eeaeff3a and re-inspection, preserving the
+completed Architect/Inspector and every prior command/deadline/receipt. The
+ordinary remaining gates above are still open; no connected Fixer pass claimed.
+
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits
 complete independent CLEAR to create clean_review without an extra paid opinion.

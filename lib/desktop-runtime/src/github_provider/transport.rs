@@ -321,8 +321,15 @@ pub(super) fn advertised(
         if !super::request::commit(oid)
             || name.is_empty()
             || name.chars().any(char::is_control)
-            || refs.insert(name.into(), oid.into()).is_some()
         {
+            return Err(Failure::protocol());
+        }
+        // Receive-pack advertises shared/hidden objects as repeated .have
+        // lines. They are object hints, never branch names or update targets.
+        if service == GitService::ReceivePack && name == ".have" {
+            continue;
+        }
+        if refs.insert(name.into(), oid.into()).is_some() {
             return Err(Failure::protocol());
         }
     }

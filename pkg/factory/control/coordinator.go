@@ -116,6 +116,7 @@ type Coordinator struct {
 	creationIdlePolls        map[int64]creationIdlePoll
 	externalPullPolls        map[int64]externalPullPoll
 	checkFailures            map[string]passiveCheckFailure
+	forkSourceFailures       map[string]forkSourceFailure
 	intentGenerationCursor   string
 	deliveryIntentCursor     string
 	deliveryRepairCursor     string

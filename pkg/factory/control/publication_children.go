@@ -18,6 +18,21 @@ import (
 
 const publicationChildLimit = 256
 
+type forkSourceRetryInput struct {
+	target     factory.PublicationPullTarget
+	origin     factory.ExternalPublicationOrigin
+	authority  factory.AuthorityRef
+	acceptance string
+	child      string
+	policy     int64
+	dispatch   int64
+}
+
+type forkSourceFailure struct {
+	input     forkSourceRetryInput
+	notBefore int64
+}
+
 // producePublishedChildren creates at most one reviewer or coder correction
 // for each active publication head. First occurrences bind the publication,
 // exact head and role (stable head-derived IDs); same-head repeats use durable D07
@@ -32,6 +47,15 @@ func (c *Coordinator) producePublishedChildren(ctx context.Context, report *Publ
 	if err != nil {
 		publicationError(report, "", "child_producer_listing_unavailable")
 		return
+	}
+	active := make(map[string]bool, len(publications))
+	for _, p := range publications {
+		active[p.ID] = true
+	}
+	for id, failure := range c.forkSourceFailures {
+		if !active[id] || failure.notBefore <= time.Now().Unix() {
+			delete(c.forkSourceFailures, id)
+		}
 	}
 	logNew := func(waits, failures int) {
 		for _, wait := range report.Waits[waits:] {
@@ -422,6 +446,19 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		publicationWait(report, p.ID, wait.Reason)
 		return nil, "", execution.PreparationRecord{}, true
 	}
+	open, gate, _, err := deps.Store.DispatchState(ctx, p.Repository)
+	if err != nil {
+		publicationError(report, p.ID, "store_unavailable")
+		return nil, "", execution.PreparationRecord{}, true
+	}
+	if !open {
+		publicationWait(report, p.ID, WaitDispatchClosed)
+		return nil, "", execution.PreparationRecord{}, true
+	}
+	plan.gateRev = gate
+	if c.forkSourceRetryHeld(p, role, plan, childID, report) {
+		return nil, "", execution.PreparationRecord{}, true
+	}
 	if c.publicationChildPreparationHeld(ctx, p, owner, plan, expectedPrepID, childID, report) {
 		return nil, "", execution.PreparationRecord{}, true
 	}
@@ -462,7 +499,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 				return nil, "", execution.PreparationRecord{}, true
 			}
 		}
-		if c.refuseUnavailableForkCorrection(ctx, p, role, report) {
+		if c.refuseUnavailableForkCorrection(ctx, p, role, plan, childID, report) {
 			return nil, "", execution.PreparationRecord{}, true
 		}
 		prep, ready, prepErr := c.prepareReviewCandidate(ctx, p, owner, plan, report, expectedPrepID, childID)
@@ -751,17 +788,47 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 	return correctionPlan, false
 }
 
-func (c *Coordinator) refuseUnavailableForkCorrection(ctx context.Context, p factory.Publication, role string, report *PublishReport) bool {
+func forkSourceRetryScope(p factory.Publication, plan *attemptPlan, child string) forkSourceRetryInput {
+	return forkSourceRetryInput{target: p.PullTarget(), origin: *p.External, authority: plan.effective.Authority,
+		acceptance: p.Acceptance, child: child, policy: plan.policy.Revision, dispatch: plan.gateRev}
+}
+
+// Only a prior denial can delay passive retries. Local admission has already
+// checked withdrawal and current grants; this record can never authorize work.
+func (c *Coordinator) forkSourceRetryHeld(p factory.Publication, role string, plan *attemptPlan, child string, report *PublishReport) bool {
+	failure, found := c.forkSourceFailures[p.ID]
+	if !found {
+		return false
+	}
+	now := time.Now().Unix()
+	if role != project.RoleCoder || p.External == nil || p.PullTarget().HeadRepository == p.Repository ||
+		failure.input != forkSourceRetryScope(p, plan, child) || failure.notBefore <= now || failure.notBefore > now+int64(passiveCheckInterval/time.Second) {
+		delete(c.forkSourceFailures, p.ID)
+		return false
+	}
+	publicationWait(report, p.ID, "fork_correction_unavailable")
+	return true
+}
+
+func (c *Coordinator) refuseUnavailableForkCorrection(ctx context.Context, p factory.Publication, role string, plan *attemptPlan, child string, report *PublishReport) bool {
 	if role != project.RoleCoder || p.External == nil || p.PullTarget().HeadRepository == p.Repository {
 		return false
+	}
+	if c.forkSourceRetryHeld(p, role, plan, child, report) {
+		return true
 	}
 	source, ok := c.Publication.(interface {
 		AdmitCorrectionSource(context.Context, factory.Publication) error
 	})
 	if !ok || source.AdmitCorrectionSource(ctx, p) != nil {
+		if c.forkSourceFailures == nil {
+			c.forkSourceFailures = make(map[string]forkSourceFailure)
+		}
+		c.forkSourceFailures[p.ID] = forkSourceFailure{input: forkSourceRetryScope(p, plan, child), notBefore: time.Now().Add(passiveCheckInterval).Unix()}
 		publicationWait(report, p.ID, "fork_correction_unavailable")
 		return true
 	}
+	delete(c.forkSourceFailures, p.ID)
 	return false
 }
 
@@ -868,7 +935,7 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 		publicationWait(report, p.ID, wait.Reason)
 		return
 	}
-	if c.refuseUnavailableForkCorrection(ctx, p, role, report) {
+	if c.refuseUnavailableForkCorrection(ctx, p, role, plan, childID, report) {
 		return
 	}
 	c.executePublicationChild(ctx, deps, &occupancy, plan, p, owner, childID, preparationID, role, correctionPlan, report)

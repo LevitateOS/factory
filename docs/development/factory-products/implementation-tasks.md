@@ -1592,6 +1592,20 @@ child holds now log only validated IDs/whitelisted reasons without extra reads.
 The backend build and affected existing progress-gate check pass
 (request52-progress-pg.log). Next: exact-prior52 installation, then inspect its
 original correction hold/receipt before any further effect; no role is replayed.
+Installed52 remains Ready but the original fork admission refuses before any
+Fixer/preparation or charge (235 unchanged). One exported read-only admission
+call captures native invalid_github_response. An authenticated fixture Git read
+identifies valid repeated receive-pack .have object hints; the parser wrongly
+treated them as duplicate refs. It now ignores only those validated hints,
+preserving duplicate real-ref and malformed-OID refusal. The focused extracted
+production parser check passes (goal52-fork-advertised-check.log), as do one
+native53 production build and the existing realPG progress-gate check
+(request53-progress-pg2.log). The first PG startup was sandbox socket-denied;
+no check ran there. Failed fork admission now has an exact-input, negative-only
+one-minute passive retry bound; success still requires fresh native admission.
+Normal Quit52 confirms process/socket retirement. Next: exact-prior53 install
+and resume correction eeaeff3a under original root6aac and review finding5a2;
+connected correction remains unqualified. No model, receipt or deadline replay.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 
