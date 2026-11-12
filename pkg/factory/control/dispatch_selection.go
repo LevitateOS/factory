@@ -78,9 +78,9 @@ func checkConcurrencyLimits(ctx context.Context, deps DispatchDeps, occupancy *p
 	return nil, nil
 }
 
-// selectPreparationFor binds current approved setup. Fresh issue and publication
-// review preparations can use a retired native recipe; an exact ID preserves
-// child work and always requires its live ready preparation.
+// selectPreparationFor binds current approved setup. Fresh issue/review setup
+// and a correction's exact source can use a retired native recipe. A correction
+// still admits its own current candidate preparation before execution.
 func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role, exactID string) (*planWait, *planWait) {
 	if plan.nativeEnvironment == nil {
 		g, err := deps.Store.EnvironmentGrant(ctx, plan.policy.Repository)
@@ -118,9 +118,10 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 	if err != nil {
 		return nil, waitFor(DispatchErrStore, "preparations unreadable")
 	}
-	retiredRecipeAllowed := exactID == "" && plan.subject.Kind == factory.SubjectIssue &&
-		(role == project.RoleCoder && plan.phase == project.ExecutionInvestigate ||
-			role == project.RoleReviewer && plan.phase == project.ExecutionReview && plan.parent != "")
+	retiredRecipeAllowed := plan.subject.Kind == factory.SubjectIssue &&
+		(exactID == "" && (role == project.RoleCoder && plan.phase == project.ExecutionInvestigate ||
+			role == project.RoleReviewer && plan.phase == project.ExecutionReview && plan.parent != "") ||
+			exactID != "" && role == project.RoleCoder && plan.phase == project.ExecutionCorrect && plan.parent != "")
 	for _, prep := range preparations {
 		if plan.nativeEnvironment == nil && prep.Native != nil || plan.nativeEnvironment != nil &&
 			(prep.Native == nil || prep.Native.Profile != plan.nativeEnvironment.Profile || prep.State.SourceBundleSHA256 == "") {

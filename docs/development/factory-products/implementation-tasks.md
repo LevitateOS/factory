@@ -1559,6 +1559,16 @@ The first two declared-fixture checks refused a copied old native intent; the
 fixture now has its own validated settled run. Those failed logs are retained.
 Installed48 normally Quits with zero active/unsettled/held work. Next: install49
 and continue this exact publication/review allocation; never replay the Architect.
+Installed49 resumes that allocation without reapproving setup or new planning.
+Real Inspector66617d4e076d59c63a0ff4533ecea900 finds the bare --uppercase defect,
+seals/retires/reconciles and posts causal COMMENT5867939794 at02:11:28Z on the
+captured fork head. Usage229→235 on the same Muse source. Correction source
+selection still demands a live owner checkout despite the required prior
+retirement. The three-predicate correction permits only that exact approved
+retired recipe for phase correct under its committed-review parent, then admits
+a fresh exact-SourcePull workspace; native entry/callback retain current grants,
+source equality and new bounded deadline. One backend build passes; its actual
+Fixer execution is still unqualified and is next. No model or review is replayed.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

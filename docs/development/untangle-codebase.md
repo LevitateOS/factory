@@ -590,6 +590,33 @@ retirement resolves its original unknown Quit reply. Source native retirement
 56e7180c3c17f4d6cd8e219db15429c690d4dee726c495412b0da6b475e6d7cd is preserved.
 Next: backend-only49 exact-prior install and continue original publication6aac/
 review allocation9c79; do not replay the completed Architect or renew its setup.
+Exact-prior installed49 inventoryf9812989c59d0771937157ca2bae5a59039ba2c8051ba05f0f1abc3ed5156c0b
+reaches Ready in instance05cfb29422547fb9fe7b1abf139e5e54/session76cab98d4a880d9a71f7375fbe8c80a5,
+with backend5efb36aa and unchanged native/UI. Existing GitHub login refresh and
+normal repository reconnect pass. Both the setup and completed Architect are
+reused without new approval, plan or command. First Inspector assignment9c796952
+/run66617d4e076d59c63a0ff4533ecea900 actually fetches/prepares fork head31fe14a in
+fresh preparationf729c6d81ec1b090f633335d5 using the retained approved Reviewer
+recipe. It succeeds sealed/retired/reconciled and independently reports genuine
+actionable finding5a2cce1bdef34639ca6a0a15d7babab0: bare --uppercase wrongly
+prints as a plain note. Causal COMMENT5867939794 commits02:11:28Z on the exact
+head/base; its typed REQUEST_CHANGES is an agent verdict, never human veto.
+Usage229→235; goal50-real-fork-review.json retains original review/receipt facts.
+
+The now-required Fixer revealed the remaining recipe handoff contradiction:
+selectPreparationFor required the exact owner source to remain live, while the
+previous handoff properly retired it. Native SourcePull correction also omitted
+recipe refresh at entry/callback. The minimal correction permits a retired exact
+native recipe only for issue Coder/phase correct with a nonempty committed-review
+parent; current profile/bundle/requirement/approval and native inspection remain.
+SourcePull then uses the same existing recipe-refresh predicate as SourceRun and
+SourceMerge in both entry/callback. Store's exact current publication, committed
+review/corrector identity, grants, source equality and new preparation deadline
+still gate execution; no expired checkout or old send is renewed. Production
+backend build passes (correction-retired-recipe-server,
+SHA96338b2a94545ec5bd83c61e9f8ff576904afe0e7d8dd2f394917a33b6398633).
+No new fixture is invented for three predicates; retained SourcePull admission
+evidence is reused and the actual connected Fixer remains the required next check.
 
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits

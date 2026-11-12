@@ -66,7 +66,7 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 		return empty, err
 	}
 	base := source.Preparation
-	refreshRecipe := request.Input.SourceRun != nil || request.Input.SourceMerge != nil || wanted.Role == project.RoleReviewer && stored.Admission.PublicationID != ""
+	refreshRecipe := request.Input.SourceRun != nil || request.Input.SourceMerge != nil || request.Input.SourcePull != nil || wanted.Role == project.RoleReviewer && stored.Admission.PublicationID != ""
 	if !p.candidateRecipeMatches(source, wanted, refreshRecipe) {
 		return empty, execution.ErrPreparation
 	}
@@ -363,7 +363,7 @@ func nativePreparationAdmission(p NativeExecution) http.Handler {
 				break
 			}
 			source, sourceErr := p.Store.Preparation(r.Context(), request.Input.SourcePreparation)
-			if sourceErr != nil || !p.candidateRecipeMatches(source, wanted, request.Input.SourceRun != nil || request.Input.SourceMerge != nil || wanted.Role == project.RoleReviewer && stored.Admission.PublicationID != "") {
+			if sourceErr != nil || !p.candidateRecipeMatches(source, wanted, request.Input.SourceRun != nil || request.Input.SourceMerge != nil || request.Input.SourcePull != nil || wanted.Role == project.RoleReviewer && stored.Admission.PublicationID != "") {
 				err = execution.ErrPreparation
 				break
 			}
