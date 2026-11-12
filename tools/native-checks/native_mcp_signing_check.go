@@ -13971,6 +13971,31 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		return fmt.Errorf("read-capture canonical fixture: %w", err)
 	}
 	repository, operation := mapping.Repositories[0].ID, strings.Repeat("b", 32)
+	// Declared retired history exercises the real run-status HTTP composition;
+	// no worker, credential acquisition or run observation is fabricated as live.
+	workspace, runID := "p"+factory.NewID()[:24], factory.NewID()
+	if err = db.PutCollaborationRuntime(ctx, collaboration.RuntimeRef{ID: collaboration.RuntimeID(config.Profile), Profile: config.Profile, Kind: collaboration.Native, Name: "Declared read capture"}); err != nil {
+		return err
+	}
+	seed, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer seed.Close()
+	if _, err = seed.ExecContext(ctx, `INSERT INTO factory_native_workspaces(id,repository,runtime,profile) VALUES($1,$2,$3,$4)`, workspace, repository, string(config.Profile), string(config.Profile)); err != nil {
+		return err
+	}
+	run := factory.Run{ID: runID, ProjectID: workspace, Role: project.RoleCoder, InputSHA: strings.Repeat("c", 40), Started: time.Now().Add(-time.Minute), Deadline: time.Now().Add(time.Minute), Harness: "muse-fixture-1", Model: "controlled-no-model", Outcome: factory.Succeeded, Reconciled: true, Native: &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/muse"}, Retirement: execution.Retired, Sealed: true, Provenance: execution.NativeProvenance{TrustMode: "same_user_trusted_host", Profile: config.Profile, InstanceID: factory.NewID(), WorktreeID: workspace, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+	if err = run.Validate(); err != nil {
+		return err
+	}
+	encodedRun, err := json.Marshal(run)
+	if err != nil {
+		return err
+	}
+	if _, err = seed.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, runID, string(encodedRun)); err != nil {
+		return err
+	}
 	listener, err := net.Listen("unix", filepath.Join(config.Directory, "host.sock"))
 	if err != nil {
 		return err
@@ -14263,6 +14288,18 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	}
 	for _, withdrawn := range []bool{false, true} {
 		calls.Store(0)
+		identities.Store(0)
+		denyAt.Store(0)
+		if withdrawn {
+			denyAt.Store(2)
+		}
+		status, body, e := read("/api/factory/runs/" + runID)
+		if e != nil || calls.Load() != 2 || identities.Load() != 0 || (!withdrawn && status != 200) || (withdrawn && status == 200) {
+			return fmt.Errorf("request-owned run capture withdrawn=%t calls=%d status=%d body=%v: %w", withdrawn, calls.Load(), status, body, e)
+		}
+	}
+	for _, withdrawn := range []bool{false, true} {
+		calls.Store(0)
 		denied.Store(0)
 		denyAt.Store(0)
 		if withdrawn {
@@ -14349,7 +14386,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	inventoryMode.Store(false)
 	fmt.Println("PASS: real Go material reader accepts version1 compound pages, refuses a compound kind absent from the frozen prior contract, rejects unknown versions/mixed payloads at the first input read, and preserves closing withdrawal refusal with no provider/model/write.")
 	fmt.Println("PASS: production material reader projects complete native-paired discussion pages through existing decoders, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Three declared native reads, no provider/model/write.")
-	fmt.Println("PASS: actual Go native HTTP/PG status/access and Work each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
+	fmt.Println("PASS: actual Go native HTTP/PG status/access, Work and retired run status each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
 	return nil
 }
 

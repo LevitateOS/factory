@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -74,24 +75,46 @@ func (b *nativeProductAccount) bindWork(application service.Application, view *n
 		}
 		return true, nil
 	}
-	repository := func(ctx context.Context, actor collaboration.ActorID, run factory.Run) (collaboration.RepositoryID, error) {
+	repository := func(account *nativeProductAccount, ctx context.Context, actor collaboration.ActorID, run factory.Run) (collaboration.RepositoryID, error) {
 		if c.Host == nil {
 			return 0, errors.Join(service.ErrInterventionUnavailable, service.ErrRunStatusUnavailable)
 		}
-		if b.repository == nil || run.Native == nil || run.Native.Provenance.Profile != b.binding.Profile.ID {
+		if account.repository == nil || run.Native == nil || run.Native.Provenance.Profile != account.binding.Profile.ID {
 			return 0, service.ErrRunStatusScope
 		}
 		recorded, err := b.store.RecordedWorkspaceRepository(ctx, run.ProjectID, true)
 		if err != nil {
 			return 0, err
 		}
-		if recorded != b.repository.ID {
+		if recorded != account.repository.ID {
 			return 0, service.ErrRunStatusScope
 		}
-		if err := b.visible(ctx, actor, recorded); err != nil {
+		if err := account.visible(ctx, actor, recorded); err != nil {
 			return 0, err
 		}
 		return recorded, nil
+	}
+	readAccount := b
+	if b.binding.Host.Provider == collaboration.GitHub && view.readAdmission != nil {
+		readAccount = view
+	}
+	readRepository := func(ctx context.Context, actor collaboration.ActorID, run factory.Run) (collaboration.RepositoryID, error) {
+		return repository(readAccount, ctx, actor, run)
+	}
+	writeRepository := func(ctx context.Context, actor collaboration.ActorID, run factory.Run) (collaboration.RepositoryID, error) {
+		return repository(b, ctx, actor, run)
+	}
+	var readAccessUsed atomic.Bool
+	readAccess := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+		// RunStatus brackets its read with this callback. Share selection and
+		// inner run checks, then use the original writer for the closing check.
+		if readAccount == b || !readAccessUsed.CompareAndSwap(false, true) {
+			return access(ctx, actor, repository)
+		}
+		if err := view.localOwnerAccess(ctx, actor); err != nil {
+			return err
+		}
+		return view.writeAccess(ctx, actor, int64(repository))
 	}
 	target := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, run factory.Run) (execution.RecoveryTarget, error) {
 		workspace, native, err := b.store.ExecutionWorkspace(ctx, repository)
@@ -104,7 +127,7 @@ func (b *nativeProductAccount) bindWork(application service.Application, view *n
 		if c.Host == nil {
 			return execution.RunObservation{}, service.ErrRunStatusUnavailable
 		}
-		if _, err := repository(ctx, actor, run); err != nil {
+		if _, err := readRepository(ctx, actor, run); err != nil {
 			return execution.RunObservation{}, err
 		}
 		return c.Host.InspectRun(ctx, execution.RunAddress{Run: run.ID, Workspace: run.ProjectID})
@@ -120,7 +143,7 @@ func (b *nativeProductAccount) bindWork(application service.Application, view *n
 			}
 			return c.AcceptanceStatus(ctx, int64(repository), strconv.FormatInt(issue, 10))
 		}}
-	commands := service.Interventions{Store: b.store, Writer: c, WriteAccess: access, RunRepository: repository, RecoveryTarget: target}
+	commands := service.Interventions{Store: b.store, Writer: c, WriteAccess: access, RunRepository: writeRepository, RecoveryTarget: target}
 	return factoryhttp.Work{Reads: service.WorkReads{Store: b.store, Visibility: b.readVisibility(view)}, Issues: issues, VisibilityError: nativeProductResourceError},
-		factoryhttp.Runs{Store: b.store, Visibility: b.visible, Status: service.RunStatus{Store: b.store, WriteAccess: access, RunRepository: repository, Inspect: inspect, Availability: c}, Commands: commands, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError}
+		factoryhttp.Runs{Store: b.store, Visibility: b.visible, Status: service.RunStatus{Store: b.store, WriteAccess: readAccess, RunRepository: readRepository, Inspect: inspect, Availability: c}, Commands: commands, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError}
 }

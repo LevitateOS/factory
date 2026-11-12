@@ -5714,3 +5714,27 @@ finish the retained PR62 merge through a fresh finite explicit command only
 with enough measured request capacity, then required installed
 withdrawal/revocation/update composition. Never renew261f…; whole GitHub/Muse
 qualification remains INCOMPLETE.
+
+### Installed GitHub volume qualification (2026-11-13, active)
+
+Installed105 reopens exact97 over the original profile. Original261f… remains
+withdrawn with complete cancelled_before_dispatch, source245/active0, and no new
+merge/inference. Startup makes0 calls; fixture Feed navigation32; Work-page
+navigation reaches72. Funded idle for322.445s adds24 calls at the normal passive
+cycle, with0 between cycles (goal105-funded-idle.json and goal76-*105.json under
+the existing private evidence root). No quota wait/reset/rotation. Normal Quit
+joins socket/PostgreSQL before integration. The unstarted fixture guard has no
+remote effect.
+
+The Work page exposed repeated repository admission within each run-status GET.
+Its read-only callbacks now reuse the existing exact request capture, retaining
+the original fresh closing code-write/local-owner check. Command/recovery
+callbacks and Fountain retain their existing fresh checks. The existing native
+HTTP/real-PG harness now covers a declared retired run: exactly2 repository reads
+(selection/closing), successful status and closing-withdrawal refusal,0 separate
+identity reads. request107-progress-pg.log passes all affected existing gates;
+the first fixture attempt's mismatched harness/tool label is preserved in
+request106-progress-pg.log. No model/live provider effect ran in those checks.
+Next: install this backend-only correction over97, measure the same Work page,
+then retry the retained candidate through a fresh finite merge command and
+capture its complete live traffic/causal receipt. Whole volume scope remains open.
