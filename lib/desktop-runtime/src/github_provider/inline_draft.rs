@@ -57,22 +57,12 @@ impl Client {
             let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
-            let before = reader
+            let captured = reader
                 .inline_preparation(q.number, &q.anchor, actor, expected)
                 .await?;
-            if before["comments_snapshot"]["count"]
-                .as_u64()
-                .is_none_or(|n| n >= 1000)
-            {
-                return Err(Failure::new(413, "github_inline_pending_capacity"));
-            }
-            if before["repository_node_id"] != q.repository_node_id
-                || before["pull"]["external_id"] != q.pull_id
-                || before["pull"]["node_id"] != q.pull_node_id
-                || before["sha256"] != q.preparation_sha256
-            {
-                return Err(Failure::new(409, "github_inline_preparation_changed"));
-            }
+            captured.verify(&q.repository_node_id,&q.pull_id,&q.pull_node_id,&q.preparation_sha256)?;
+            let before = captured.value();
+            if before["comments_snapshot"]["count"].as_u64().is_none_or(|n| n >= 1000) { return Err(Failure::new(413,"github_inline_pending_capacity")); }
             if before["pending"]["node_id"] != q.review_node_id
                 || before["pending"]["commit"] != q.anchor.head
                 || before["pending"]["state"] != "pending"
@@ -98,6 +88,7 @@ impl Client {
             } else {
                 r::text(file, "new_path")?
             };
+            let expected_pending = super::review_preparation::PendingCapture::new(before)?.receipt()?;
             let proof = permit.dispatch("github_inline_creation_expired")?;
             let response = self.post_inline_draft(&proof, q, path, token).await?;
             let thread = &response.value["data"]["addPullRequestReviewThread"]["thread"];
@@ -217,7 +208,7 @@ impl Client {
                 return Err(Failure::protocol());
             }
             let dates = json!({"created":c["createdAt"],"updated":c["updatedAt"],"published":c["publishedAt"],"submitted":review["submittedAt"]});
-            let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.anchor.head,"preparation_sha256":q.preparation_sha256,"selection_sha256":super::transport::sha256(&serde_json::to_vec(&q.anchor).map_err(|_|Failure::protocol())?),"selection_condition":"bounded_preflight_and_causal_reply","thread_node_id":thread["id"],"comment":{"node_id":c["id"],"external_id":numeric,"body_sha256":super::transport::sha256(q.body.as_bytes()),"state":comment_state.to_ascii_lowercase(),"created_at":r::date(&dates,"created")?,"updated_at":r::date(&dates,"updated")?,"published_at":r::date(&dates,"published")?},"review":{"node_id":q.review_node_id,"external_id":review_numeric,"state":review_state.to_ascii_lowercase(),"commit":q.anchor.head,"body_sha256":super::transport::sha256(r::text(review,"body")?.as_bytes()),"comments_count":review["comments"]["totalCount"].as_u64().ok_or_else(Failure::protocol)?,"submitted_at":r::date(&dates,"submitted")?},"expected_pending":{"sha256":before["pending_sha256"],"body_sha256":super::transport::sha256(r::text(&before["pending"],"body")?.as_bytes()),"comments_count":before["comments_snapshot"]["count"],"comments_sha256":before["comments_snapshot"]["identity_writing_sha256"]},"preservation_verification":"required","provider_response":{"protocol":"github_graphql_append_pending_thread","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
+            let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.anchor.head,"preparation_sha256":q.preparation_sha256,"selection_sha256":super::transport::sha256(&serde_json::to_vec(&q.anchor).map_err(|_|Failure::protocol())?),"selection_condition":"bounded_preflight_and_causal_reply","thread_node_id":thread["id"],"comment":{"node_id":c["id"],"external_id":numeric,"body_sha256":super::transport::sha256(q.body.as_bytes()),"state":comment_state.to_ascii_lowercase(),"created_at":r::date(&dates,"created")?,"updated_at":r::date(&dates,"updated")?,"published_at":r::date(&dates,"published")?},"review":{"node_id":q.review_node_id,"external_id":review_numeric,"state":review_state.to_ascii_lowercase(),"commit":q.anchor.head,"body_sha256":super::transport::sha256(r::text(review,"body")?.as_bytes()),"comments_count":review["comments"]["totalCount"].as_u64().ok_or_else(Failure::protocol)?,"submitted_at":r::date(&dates,"submitted")?},"expected_pending":expected_pending,"preservation_verification":"required","provider_response":{"protocol":"github_graphql_append_pending_thread","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
             super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)

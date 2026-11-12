@@ -8,6 +8,23 @@ pub use crate::provider_contract::InlineAnchor;
 
 use crate::provider_contract::inline_path as path;
 
+pub(super) struct InlineCapture(Value);
+impl InlineCapture {
+    fn seal(mut value: Value) -> Result<Self> {
+        value["sha256"] = json!(sha(&value)?);
+        Ok(Self(value))
+    }
+    pub(super) fn value(&self) -> &Value { &self.0 }
+    pub(super) fn into_value(self) -> Value { self.0 }
+    pub(super) fn verify(&self, repository: &str, pull: &str, node: &str, digest: &str) -> Result<()> {
+        if self.0["repository_node_id"] != repository || self.0["pull"]["external_id"] != pull
+            || self.0["pull"]["node_id"] != node || self.0["sha256"] != digest {
+            return Err(Failure::new(409,"github_inline_preparation_changed"));
+        }
+        Ok(())
+    }
+}
+
 impl Reader<'_> {
     pub(super) async fn inline_preparation(
         &self,
@@ -15,7 +32,7 @@ impl Reader<'_> {
         anchor: &InlineAnchor,
         actor: &str,
         account: &str,
-    ) -> Result<Value> {
+    ) -> Result<InlineCapture> {
         anchor.validate()?;
         let mut page = 1u32;
         let captured = self.open_diff(&json!({"kind":"pull_files","number":number,"base":anchor.base,"head":anchor.head})).await?;
@@ -106,8 +123,7 @@ impl Reader<'_> {
         before["selection_sha256"] = json!(super::transport::sha256(
             &serde_json::to_vec(anchor).map_err(|_| Failure::protocol())?
         ));
-        before["sha256"] = json!(sha(&before)?);
-        Ok(before)
+        InlineCapture::seal(before)
     }
 }
 fn sha(value: &Value) -> Result<String> {

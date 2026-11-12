@@ -73,17 +73,7 @@ impl Client {
             {
                 return Err(Failure::new(409, "github_review_inputs_changed"));
             }
-            if before["pending"].is_null()
-                || before["pending"]["node_id"] != q.review_node_id
-                || before["pending"]["external_id"].as_str() != q.review_id.as_deref()
-                || before["pending"]["commit"] != q.review_commit
-                || before["pending_sha256"] != q.pending_sha256
-                || before["comments_snapshot"]["identity_writing_sha256"] != q.comments_sha256
-                || before["comments_snapshot"]["count"].as_u64() != Some(q.comments_count)
-                || before["comments_snapshot"]["complete"] != true
-            {
-                return Err(Failure::new(409, "github_pending_review_changed"));
-            }
+            super::review_preparation::PendingCapture::new(&before)?.verify(q)?;
             if before["archived"].as_bool() != Some(false)
                 || before["disabled"].as_bool() != Some(false)
                 || before["pull"]["state"] != "open"

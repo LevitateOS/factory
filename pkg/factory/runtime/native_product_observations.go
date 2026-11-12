@@ -298,16 +298,18 @@ func nativePullFacts(raw nativePull) ([]collaboration.ObservedActor, []collabora
 // Opaque pagination carries its original resource, filter, pin and page size.
 // It is never an authority receipt and is re-admitted on every request.
 type nativeCursor struct {
-	Kind       string `json:"kind"`
-	Repository string `json:"repository"`
-	Number     int64  `json:"number,omitempty"`
-	Root       string `json:"root,omitempty"`
-	State      string `json:"state,omitempty"`
-	Base       string `json:"base,omitempty"`
-	Branch     string `json:"branch,omitempty"`
-	Head       string `json:"head,omitempty"`
-	Page       int    `json:"page"`
-	Limit      int    `json:"limit"`
+	ProviderCursor string `json:"provider_cursor,omitempty"`
+	Connection     string `json:"connection,omitempty"`
+	Kind           string `json:"kind"`
+	Repository     string `json:"repository"`
+	Number         int64  `json:"number,omitempty"`
+	Root           string `json:"root,omitempty"`
+	State          string `json:"state,omitempty"`
+	Base           string `json:"base,omitempty"`
+	Branch         string `json:"branch,omitempty"`
+	Head           string `json:"head,omitempty"`
+	Page           int    `json:"page"`
+	Limit          int    `json:"limit"`
 }
 
 func cursorEncode(c nativeCursor, next int) string {
@@ -338,11 +340,14 @@ func cursorDecode(raw string, expected nativeCursor) (nativeCursor, error) {
 	want.Page = c.Page
 	// Thread catalogue previews use ten comments; continuation keeps that size
 	// even when the detail reader asks for a larger upper bound.
-	if c.Kind == "pull_review_threads_v1" && c.Root != "" && c.Limit <= want.Limit {
+	if (c.Kind == "pull_review_threads_v1" || c.Kind == "pull_review_threads_v2") && c.Root != "" && c.Limit <= want.Limit {
 		want.Limit = c.Limit
 	}
 	if c.Kind == "pull_commits" && len(c.Root) > 0 && len(c.Root) <= 1024 {
 		want.Root = c.Root
+	}
+	if c.Kind == "pull_review_threads_v2" && c.ProviderCursor != "" && len(c.ProviderCursor) <= 2048 {
+		want.ProviderCursor = c.ProviderCursor
 	}
 	if c != want {
 		return c, errNativeRead

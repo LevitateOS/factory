@@ -14,12 +14,12 @@ const FIELDS:&str="id isResolved isOutdated viewerCanResolve viewerCanUnresolve 
 
 pub use crate::provider_contract::ThreadRead;
 
-
 // A finite native-only query selector; no caller-supplied GraphQL is accepted.
 pub(super) enum ThreadQuery {
     Catalogue {
         pull: String,
         after: Option<String>,
+        limit: u32,
     },
     Detail {
         thread: String,
@@ -30,9 +30,9 @@ pub(super) enum ThreadQuery {
 impl ThreadQuery {
     pub(super) fn wire(&self) -> (String, Value) {
         match self {
-            Self::Catalogue { pull, after } => (
-                "query FactoryReviewThreads($pull:ID!,$after:String,$limit:Int!,$skip:Int!){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewThreads(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{FIELDS}}}}}".replace("FIELDS", FIELDS),
-                json!({"pull":pull,"after":after,"limit":10,"skip":0}),
+            Self::Catalogue { pull, after, limit } => (
+                "query FactoryReviewThreads($pull:ID!,$after:String,$limit:Int!,$skip:Int!,$threads:Int!){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewThreads(first:$threads,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{FIELDS}}}}}".replace("FIELDS", FIELDS),
+                json!({"pull":pull,"after":after,"limit":10,"skip":0,"threads":limit}),
             ),
             Self::Detail { thread, skip, limit } => (
                 "query FactoryReviewThread($thread:ID!,$limit:Int!,$skip:Int!){node(id:$thread){__typename ... on PullRequestReviewThread{FIELDS}}}".replace("FIELDS", FIELDS),
@@ -54,25 +54,42 @@ impl Client {
         if !remote_id(expected) {
             return Err(Failure::invalid());
         }
-        self.scope(async {
+        let inherited = crate::provider_contract::operation::Operation::current();
+        let budget = inherited.clone().unwrap_or_else(|| {
+            crate::provider_contract::operation::Operation::new(64, Duration::from_secs(8))
+        });
+        let read = Box::pin(self.scope(async {
             tokio::time::timeout(Duration::from_secs(8), async {
                 let identity = self.identity(token.as_bytes()).await?;
                 if identity.external_id != expected {
                     return Err(Failure::new(409, "github_account_changed"));
                 }
                 let reader = Reader::new(self, token.as_bytes(), &q.repository).await?;
-                let observed = reader.graph_threads(q).await?;
+                let observed = reader
+                    .graph_threads_page(q, "", &identity.external_id)
+                    .await?;
                 self.current()?;
                 Ok(json!({"kind":"pull_review_threads","account":identity,"threads":observed}))
             })
             .await
             .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-        })
-        .await?
+        }));
+        match inherited {
+            Some(_) => budget.scope(read).await?,
+            None => budget.owned_scope(read).await?,
+        }
     }
 }
 impl Reader<'_> {
     pub(super) async fn graph_threads(&self, q: &ThreadRead) -> Result<Value> {
+        self.graph_threads_page(q, "", "").await
+    }
+    pub(super) async fn graph_threads_page(
+        &self,
+        q: &ThreadRead,
+        cursor: &str,
+        account: &str,
+    ) -> Result<Value> {
         let pull = self.raw_subject(true, q.number).await?;
         let pull_id = r::id(&pull["id"])?;
         let pull_node = r::text(&pull, "node_id")?;
@@ -87,9 +104,34 @@ impl Reader<'_> {
         if !node_id(repository_node) {
             return Err(Failure::protocol());
         }
+        use crate::provider_contract::thread_cursor;
+        let binding = |pull: &Value| -> Result<Value> {
+            if !r::text(&pull["head"], "sha").is_ok_and(commit)
+                || !r::text(&pull["base"], "sha").is_ok_and(commit)
+                || r::id(&pull["base"]["repo"]["id"])? != self.repository
+            {
+                return Err(Failure::protocol());
+            }
+            Ok(
+                json!({"head":pull["head"]["sha"],"base":pull["base"]["sha"],"head_ref":r::text(&pull["head"],"ref")?,
+                "base_ref":r::text(&pull["base"],"ref")?,"head_repository":if pull["head"]["repo"].is_null(){Value::Null}else{json!(r::id(&pull["head"]["repo"]["id"])?) }}),
+            )
+        };
+        let captured = binding(&pull)?;
+        let scope = |root: &str, limit: u32| {
+            thread_cursor::scope(&json!({"host":"https://github.com","account":account,
+            "repository":q.repository,"pull":pull_node,"binding":captured,"root":root,"limit":limit}))
+        };
+        let bound = scope(&q.thread_id, q.limit)?;
+        let continuation = thread_cursor::decode(cursor, &bound, q.page)?;
+        let after = continuation.after;
         let mut projected = Vec::new();
         let next;
+        let next_cursor;
         if !q.thread_id.is_empty() {
+            if !after.is_empty() {
+                return Err(Failure::invalid());
+            }
             let skip = (q.page - 1)
                 .checked_mul(q.limit)
                 .ok_or_else(Failure::invalid)?;
@@ -121,114 +163,111 @@ impl Reader<'_> {
                 q.limit,
             )?);
             next = 0;
+            next_cursor = String::new();
         } else {
-            let mut after = None;
-            let mut cursors = HashSet::new();
-            let mut ids = HashSet::new();
-            let mut all = Vec::new();
-            let mut total = None;
-            let mut bytes = 0;
-            let mut comments = 0;
-            loop {
-                let value = self
-                    .client
-                    .thread_query(
-                        ThreadQuery::Catalogue {
-                            pull: pull_node.into(),
-                            after: after.clone(),
+            let value = self
+                .client
+                .thread_query(
+                    ThreadQuery::Catalogue {
+                        pull: pull_node.into(),
+                        after: if after.is_empty() {
+                            None
+                        } else {
+                            Some(after.clone())
                         },
-                        self.token,
-                    )
-                    .await?;
-                let observed = &value["data"]["node"];
-                if observed.is_null() {
-                    return Err(Failure::new(404, "github_not_visible"));
+                        limit: q.limit,
+                    },
+                    self.token,
+                )
+                .await?;
+            let observed = &value["data"]["node"];
+            if observed.is_null() {
+                return Err(Failure::new(404, "github_not_visible"));
+            }
+            if observed["__typename"] != "PullRequest"
+                || observed["id"] != pull_node
+                || r::big_id(&observed["fullDatabaseId"])? != pull_id
+                || observed["number"].as_u64() != Some(q.number)
+                || observed["repository"]["id"] != repository_node
+            {
+                return Err(Failure::new(409, "github_threads_changed"));
+            }
+            let connection = &observed["reviewThreads"];
+            let total = connection["totalCount"]
+                .as_u64()
+                .ok_or_else(Failure::protocol)?;
+            if continuation.total.is_some_and(|previous| previous != total) {
+                return Err(Failure::new(409, "github_threads_changed"));
+            }
+            if total > 1000 {
+                return Err(Failure::new(413, "github_threads_too_large"));
+            }
+            let nodes = connection["nodes"]
+                .as_array()
+                .ok_or_else(Failure::protocol)?;
+            let start = continuation.offset;
+            let end = start.checked_add(nodes.len() as u64).ok_or_else(Failure::protocol)?;
+            if nodes.len() > q.limit as usize || end > total {
+                return Err(Failure::protocol());
+            }
+            let following = r::graphql_continuation(connection)?;
+            if following.is_some() != (end < total)
+                || following.as_deref() == Some(after.as_str())
+                || following.is_some() && nodes.is_empty()
+            {
+                return Err(Failure::new(409, "github_threads_changed"));
+            }
+            let mut seen = HashSet::new();
+            let mut bytes = 0;
+            for thread in nodes {
+                if !seen.insert(r::text(thread, "id")?) {
+                    return Err(Failure::protocol());
                 }
-                if observed["__typename"] != "PullRequest"
-                    || observed["id"] != pull_node
-                    || r::big_id(&observed["fullDatabaseId"])? != pull_id
-                    || observed["number"].as_u64() != Some(q.number)
-                    || observed["repository"]["id"] != repository_node
-                {
-                    return Err(Failure::new(409, "github_threads_changed"));
-                }
-                let connection = &observed["reviewThreads"];
-                let count = connection["totalCount"]
-                    .as_u64()
-                    .ok_or_else(Failure::protocol)?;
-                if count > 1000 {
+                let item = project(
+                    thread,
+                    pull_node,
+                    &pull_id,
+                    q.number,
+                    repository_node,
+                    1,
+                    10,
+                )?;
+                bytes += serde_json::to_vec(&item)
+                    .map_err(|_| Failure::protocol())?
+                    .len();
+                if bytes > 2 * 1024 * 1024 {
                     return Err(Failure::new(413, "github_threads_too_large"));
                 }
-                if total
-                    .replace(count)
-                    .is_some_and(|previous| previous != count)
-                {
-                    return Err(Failure::new(409, "github_threads_changed"));
-                }
-                let nodes = connection["nodes"]
-                    .as_array()
-                    .ok_or_else(Failure::protocol)?;
-                if nodes.len() > 50 {
-                    return Err(Failure::protocol());
-                }
-                for thread in nodes {
-                    let id = r::text(thread, "id")?;
-                    if !ids.insert(id.to_owned()) {
-                        return Err(Failure::protocol());
-                    }
-                    let item = project(
-                        thread,
-                        pull_node,
-                        &pull_id,
-                        q.number,
-                        repository_node,
-                        1,
-                        10,
-                    )?;
-                    comments += item["comments"]["items"]
-                        .as_array()
-                        .ok_or_else(Failure::protocol)?
-                        .len();
-                    bytes += serde_json::to_vec(&item)
-                        .map_err(|_| Failure::protocol())?
-                        .len();
-                    if all.len() >= 1000 || comments > 1000 || bytes > 8 * 1024 * 1024 {
-                        return Err(Failure::new(413, "github_threads_too_large"));
-                    }
-                    all.push(item);
-                }
-                let following = r::graphql_continuation(connection)?;
-                if following.is_none() {
-                    if all.len() as u64 != count {
-                        return Err(Failure::new(409, "github_threads_changed"));
-                    }
-                    break;
-                }
-                if nodes.is_empty()
-                    || ids.len() >= 1000
-                    || !cursors.insert(following.clone().ok_or_else(Failure::protocol)?)
-                {
-                    return Err(Failure::protocol());
-                }
-                after = following;
+                projected.push(item);
             }
-            let start = (q.page as usize - 1)
-                .checked_mul(q.limit as usize)
-                .ok_or_else(Failure::invalid)?;
-            if start >= all.len() && !(q.page == 1 && all.is_empty()) {
-                return Err(Failure::invalid());
-            }
-            let end = all.len().min(start + q.limit as usize);
-            next = if end < all.len() { q.page + 1 } else { 0 };
-            projected.extend(all.into_iter().skip(start).take(end - start));
+            next = if following.is_some() { q.page + 1 } else { 0 };
+            next_cursor = thread_cursor::encode(
+                &bound,
+                next,
+                following.as_deref().unwrap_or(""),
+                Some(total),
+                end,
+            )?;
+        }
+        for item in &mut projected {
+            let limit = if q.thread_id.is_empty() { 10 } else { q.limit };
+            let root = r::text(item, "external_id")?;
+            let next = item["comments"]["next_page"]
+                .as_u64()
+                .ok_or_else(Failure::protocol)? as u32;
+            item["comments"]["next_cursor"] =
+                json!(thread_cursor::encode(&scope(root, limit)?, next, "", None, 0)?);
         }
         let current = self.raw_subject(true, q.number).await?;
-        if r::id(&current["id"])? != pull_id || current["node_id"] != pull_node {
+        if r::id(&current["id"])? != pull_id
+            || current["node_id"] != pull_node
+            || binding(&current)? != captured
+        {
             return Err(Failure::new(409, "github_threads_changed"));
         }
         self.recheck().await?;
         Ok(
-            json!({"repository":q.repository,"name":self.name,"pull":{"kind":"pull","external_id":pull_id,"number":q.number},"items":projected,"next_page":next}),
+            json!({"repository":q.repository,"name":self.name,"pull":{"kind":"pull","external_id":pull_id,"number":q.number},"items":projected,"next_page":next,"next_cursor":next_cursor}),
         )
     }
 }
@@ -280,7 +319,7 @@ fn project(
         return Err(Failure::protocol());
     }
     let more = r::graphql_continuation(connection)?.is_some();
-    if more != (start + (nodes.len() as u64) < total) || more && nodes.is_empty() {
+    if more != (start + (nodes.len() as u64) < total) || more && nodes.len() != limit as usize {
         return Err(Failure::protocol());
     }
     let mut seen = HashSet::new();

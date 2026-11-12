@@ -20,6 +20,31 @@ pub(super) fn admit_verdict(event: &str, preparation: &Value) -> Result<()> {
     }
     Ok(())
 }
+pub(super) struct PendingCapture<'a> { raw: &'a Value }
+impl<'a> PendingCapture<'a> {
+    pub(super) fn new(raw: &'a Value) -> Result<Self> {
+        if raw["pending"].is_null() || raw["comments_snapshot"]["complete"] != true {
+            return Err(Failure::new(409,"github_pending_review_changed"));
+        }
+        Ok(Self { raw })
+    }
+    pub(super) fn digest(pending: &Value) -> Result<String> {
+        Ok(super::transport::sha256(&serde_json::to_vec(pending).map_err(|_|Failure::protocol())?))
+    }
+    pub(super) fn verify(&self, request: &super::PendingReviewSubmit) -> Result<()> {
+        let raw = self.raw;
+        if raw["pending"]["node_id"] != request.review_node_id || raw["pending"]["external_id"].as_str() != request.review_id.as_deref()
+            || raw["pending"]["commit"] != request.review_commit || Self::digest(&raw["pending"])? != request.pending_sha256
+            || raw["comments_snapshot"]["identity_writing_sha256"] != request.comments_sha256
+            || raw["comments_snapshot"]["count"].as_u64() != Some(request.comments_count) { return Err(Failure::new(409,"github_pending_review_changed")); }
+        Ok(())
+    }
+    pub(super) fn receipt(&self) -> Result<Value> {
+        Ok(json!({"sha256":Self::digest(&self.raw["pending"])?,"body_sha256":super::transport::sha256(r::text(&self.raw["pending"],"body")?.as_bytes()),
+            "comments_count":self.raw["comments_snapshot"]["count"],"comments_sha256":self.raw["comments_snapshot"]["identity_writing_sha256"]}))
+    }
+}
+
 pub(super) enum PreparationQuery {
     List {
         pull: String,
@@ -108,9 +133,7 @@ impl Reader<'_> {
             .await?;
         let current = self.review_preparation(number, actor, account).await?;
         Self::same_pending(&before, &current)?;
-        before["pending_sha256"] = json!(super::transport::sha256(
-            &serde_json::to_vec(&before["pending"]).map_err(|_| Failure::protocol())?
-        ));
+        before["pending_sha256"] = json!(PendingCapture::digest(&before["pending"])?);
         before["comments_snapshot"] = snapshot;
         Ok(before)
     }

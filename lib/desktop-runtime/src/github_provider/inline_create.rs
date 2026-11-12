@@ -46,16 +46,11 @@ impl Client {
             let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
-            let before = reader
+            let captured = reader
                 .inline_preparation(q.number.into(), &q.anchor, actor, expected)
                 .await?;
-            if before["repository_node_id"] != q.repository_node_id
-                || before["pull"]["external_id"] != q.pull_id
-                || before["pull"]["node_id"] != q.pull_node_id
-                || before["sha256"] != q.preparation_sha256
-            {
-                return Err(Failure::new(409, "github_inline_preparation_changed"));
-            }
+            captured.verify(&q.repository_node_id,&q.pull_id,&q.pull_node_id,&q.preparation_sha256)?;
+            let before = captured.value();
             if !before["pending"].is_null() {
                 return Err(Failure::new(409, "github_pending_review_changed"));
             }

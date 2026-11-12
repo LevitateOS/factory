@@ -1,5 +1,6 @@
 //! Stable native collaboration contracts. Provider transports and product authority stay outside.
 mod payloads;
+pub(crate) mod thread_cursor;
 pub(crate) mod operation;
 pub(crate) mod read;
 pub use payloads::*;

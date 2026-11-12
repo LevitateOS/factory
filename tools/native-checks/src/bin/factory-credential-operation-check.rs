@@ -1195,9 +1195,12 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
                 ("permission-change", "merge_preparation", 0), ("withdrawal", "merge_preparation", 0),
                 ("veto", "merge_preparation", 11), ("pending", "merge_preparation", 0),
                 ("retry-exhaustion", "merge_preparation", 0), ("slow-body", "merge_preparation", 0),
+                ("threads-small", "pull_threads", 17), ("threads-many", "pull_threads", 17),
+                ("threads-body-change", "pull_threads", 0), ("threads-revision-change", "pull_threads", 0),
             ] {
                 fs::write(io.join("mode"), mode)?;
                 let query = match kind {
+                    "pull_threads" => Read::PullThreads { repository: enrolled.repository.id.clone(), number:7, page:1,limit:1,thread_id:String::new(),cursor:String::new() },
                     "automation_checks" => Read::AutomationChecks { repository: enrolled.repository.id.clone(), number: 7 },
                     "pull_check_runs" => Read::PullCheckRuns { repository: enrolled.repository.id.clone(), number: 7, head: String::new(), page: 1, limit: 10 },
                     _ => Read::MergePreparation { repository: enrolled.repository.id.clone(), number: 7 },
@@ -1208,10 +1211,11 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
                 let calls: u32 = fs::read_to_string(io.join("count"))?.parse()?;
                 if count == 0 {
                     ensure(result.is_err(), "changed Fountain facts escaped paired observation")?;
-                    ensure(calls <= 11, "refusal exceeded complete read bound")?;
+                    ensure(calls <= if kind=="pull_threads"{17}else{11}, "refusal exceeded complete read bound")?;
                 } else {
                     let value = result.map_err(|error| error.code)?;
                     ensure(calls == count, "Fountain compound read amplified wire calls")?;
+                    if kind == "pull_threads" { ensure(value["threads"]["items"].as_array().is_some_and(|items| items.len()==1) && value["threads"]["items"][0]["comments"]["items"][0]["body"] == "Preserved human thread body", "selected Fountain thread body or window changed")?; }
                     if mode == "veto" { ensure(value["preparation"]["provider_eligible"] == false, "human veto disappeared")?; }
                     if mode == "merge" { ensure(value["preparation"]["provider_eligible"] == true && value["preparation"]["checks"][0]["state"] == "success", "merge union lost check/eligibility")?; }
                 }

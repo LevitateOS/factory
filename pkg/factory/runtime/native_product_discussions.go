@@ -150,8 +150,9 @@ type nativeThread struct {
 	ViewerCanResolve   *bool                         `json:"viewer_can_resolve"`
 	ViewerCanUnresolve *bool                         `json:"viewer_can_unresolve"`
 	Comments           struct {
-		Items    []nativeReviewComment `json:"items"`
-		NextPage int                   `json:"next_page"`
+		Items      []nativeReviewComment `json:"items"`
+		NextPage   int                   `json:"next_page"`
+		NextCursor string                `json:"next_cursor"`
 	} `json:"comments"`
 }
 
@@ -163,7 +164,7 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 	if err := s.admitRead(ctx, actor, repo, factoryservice.ErrThreadMissing); err != nil {
 		return empty, err
 	}
-	c, err := cursorDecode(q.Cursor, nativeCursor{Kind: "pull_review_threads_v1", Repository: s.identity.SelectedRepository, Number: number, Root: q.ThreadID, Limit: q.Limit})
+	c, err := cursorDecode(q.Cursor, nativeCursor{Kind: "pull_review_threads_v2", Connection: s.identity.Connection.Connection, Repository: s.identity.SelectedRepository, Number: number, Root: q.ThreadID, Limit: q.Limit})
 	if err != nil {
 		return empty, factoryservice.ErrThreadQuery
 	}
@@ -173,8 +174,9 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 		Pull       nativeSubjectRef `json:"pull"`
 		Items      []nativeThread   `json:"items"`
 		NextPage   int              `json:"next_page"`
+		NextCursor string           `json:"next_cursor"`
 	}
-	if err = s.read(ctx, nativeRead{Kind: "pull_threads", Repository: c.Repository, Number: uint32(number), Page: uint32(c.Page), Limit: uint32(c.Limit), ThreadID: &q.ThreadID}, &raw); err != nil {
+	if err = s.read(ctx, nativeRead{Kind: "pull_threads", Repository: c.Repository, Number: uint32(number), Page: uint32(c.Page), Limit: uint32(c.Limit), ThreadID: &q.ThreadID, Cursor: c.ProviderCursor}, &raw); err != nil {
 		var failure *NativePortError
 		if errors.As(err, &failure) {
 			if failure.Status == 409 {
@@ -185,6 +187,9 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 			}
 		}
 		return empty, nativeMissing(err, factoryservice.ErrThreadMissing)
+	}
+	if (raw.NextPage == 0) != (raw.NextCursor == "") {
+		return empty, factoryservice.ErrThreadChanged
 	}
 	var actors []collaboration.ObservedActor
 	if raw.Pull.Kind != "pull" || !nativeRemoteID(raw.Pull.ExternalID) || raw.Pull.Number != number || raw.Repository != c.Repository || raw.Items == nil || !validNativePage(raw.NextPage, c.Page, c.Limit, len(raw.Items), false) || q.ThreadID != "" && (len(raw.Items) != 1 || raw.NextPage != 0) {
@@ -223,6 +228,10 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 		}
 		commentCursor := c
 		commentCursor.Root = thread.ExternalID
+		commentCursor.ProviderCursor = thread.Comments.NextCursor
+		if (thread.Comments.NextPage == 0) != (thread.Comments.NextCursor == "") {
+			return empty, factoryservice.ErrThreadChanged
+		}
 		if q.ThreadID == "" {
 			commentCursor.Limit = 10
 		}
@@ -243,6 +252,7 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 		items = append(items, collaboration.ReviewThread{ExternalID: thread.ExternalID, Pull: pull, Observation: s.observation(thread), RecordedLocation: thread.RecordedLocation, Resolution: thread.Resolution, Outdated: thread.Outdated,
 			Comments: nativePage(obs, comments, cursorEncode(commentCursor, thread.Comments.NextPage)), Capabilities: capabilities})
 	}
+	c.ProviderCursor = raw.NextCursor
 	return nativePage(obs, items, cursorEncode(c, raw.NextPage)), nil
 }
 

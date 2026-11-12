@@ -204,6 +204,8 @@ pub enum Read {
         comment_id: String,
     },
     PullThreads {
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        cursor: String,
         repository: String,
         number: u32,
         page: u32,
@@ -330,7 +332,7 @@ pub(crate) fn branch_name(value: &str) -> bool {
 impl Read {
     pub fn wire_limit(&self) -> u32 {
         match self {
-            Self::InlinePreparation { .. } => 384,
+            Self::InlinePreparation { .. } | Self::PullThreads { .. } => 384,
             Self::SetupSource { .. } => 80,
             _ => 64,
         }
@@ -659,12 +661,12 @@ impl Read {
         }
         let files = matches!(self, Self::PullFiles { .. });
         if let Self::PullThreads {
-            thread_id, limit, ..
+            thread_id, limit, cursor, ..
         } = self
         {
             if !thread_id.is_empty()
                 && (!node_id(thread_id) || thread_id.bytes().all(|b| b.is_ascii_digit()))
-                || *limit > 20
+                || *limit > 20 || cursor.len() > 2048 || cursor.chars().any(char::is_control)
             {
                 return Err(Failure::invalid());
             }

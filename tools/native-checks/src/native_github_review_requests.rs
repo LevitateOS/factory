@@ -1001,6 +1001,17 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
     let mut cases = Vec::new();
+    let capture_only = std::env::var_os("FACTORY_DECLARED_CAPTURE_CASES").is_some();
+    let selected = |name: &str| {
+        !capture_only
+            || [
+                "inline-draft-lines",
+                "inline-draft-stale-preparation",
+                "inline-draft-wrong-pending",
+                "inline-draft-loss",
+            ]
+            .contains(&name)
+    };
     for name in [
         "inline-draft-lines",
         "inline-draft-single",
@@ -1018,6 +1029,9 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
         "inline-draft-count-change",
         "inline-draft-published",
     ] {
+        if !selected(name) {
+            continue;
+        }
         mode(name)?;
         let mut a = anchor();
         match name {
@@ -1173,6 +1187,9 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
         "inline-draft-wrong-parent",
         "inline-no-pending",
     ] {
+        if !selected(name) {
+            continue;
+        }
         mode(name)?;
         let mut q = saved.clone();
         let current = client
@@ -1226,6 +1243,9 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
         "inline-draft-pagination",
         "inline-draft-bad-date",
     ] {
+        if !selected(name) {
+            continue;
+        }
         mode(name)?;
         let before = writes()?;
         ensure(
@@ -1236,6 +1256,15 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
             "lost/misbound reply became no-effect or was retried",
         )?;
         cases.push(name);
+    }
+    if capture_only {
+        ensure(
+            !io.join("unexpected-request").exists(),
+            "capture check sent undeclared request",
+        )?;
+        tokio::task::spawn_blocking(move || owner.stop()).await??;
+        println!("PASS: inline capture, exact hashes/receipt, stale refusal and one-send lost reply: {:?}", cases);
+        return Ok(());
     }
     mode("comments-maximum")?;
     let before = writes()?;
@@ -1348,9 +1377,17 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
     let selected = std::env::var("FACTORY_DECLARED_INLINE_CASES").ok();
-    let include = |name: &str| selected.as_ref().is_none_or(|selected| selected.split(',').any(|case| case == name));
+    let include = |name: &str| {
+        selected
+            .as_ref()
+            .is_none_or(|selected| selected.split(',').any(|case| case == name))
+    };
     let attempts = |client: &soda_desktop_runtime::github_provider::Client| -> Result<u64> {
-        Ok(serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].as_u64().ok_or("attempts absent")?)
+        Ok(
+            serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"]
+                .as_u64()
+                .ok_or("attempts absent")?,
+        )
     };
     let mut cases = Vec::new();
     for name in [
@@ -1374,7 +1411,9 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
         "control-content",
         "large-catalogue",
     ] {
-        if !include(name) { continue; }
+        if !include(name) {
+            continue;
+        }
         mode(name)?;
         let mut a = anchor();
         if matches!(
@@ -1406,7 +1445,12 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
             .map_err(|f| format!("inline preparation {name}: {} {}", f.status, f.code))?;
         let expected_files = if name == "large-catalogue" { 3000 } else { 13 };
         let sends = attempts(&client)? - before_attempts;
-        if matches!(name, "new-lines" | "large-catalogue") { ensure(sends == 22 + (expected_files as u64).div_ceil(10), "inline files repeated common observation brackets")?; }
+        if matches!(name, "new-lines" | "large-catalogue") {
+            ensure(
+                sends == 22 + (expected_files as u64).div_ceil(10),
+                "inline files repeated common observation brackets",
+            )?;
+        }
         let p = &v["preparation"];
         ensure(
             v["kind"] == "inline_preparation"
@@ -1506,7 +1550,9 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
         ("aggregate-bytes", 413),
         ("deadline", 504),
     ] {
-        if !include(name) { continue; }
+        if !include(name) {
+            continue;
+        }
         mode(name)?;
         let mut a = anchor();
         match name {
@@ -2327,15 +2373,51 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .and_then(|r| r["reviewer"]["team"]["id"].as_str())
         .ok_or("observed canonical team absent")?;
     let mut cases = vec!["canonical-catalogue"];
-    for (kind, name, field, canonical) in [("user", "target-user", "actor", user), ("team", "target-team", "team", team)] {
-        let result = call(&runtime,&store,&connection,"GET",&format!("{submit}/lookup?kind={kind}&name={name}"),&[]).await?;
-        ensure(result.0 == 200 && result.1[field]["id"] == canonical && result.1["pull"]["external_id"] == "700" && writes()? == 0,
-            &format!("canonical {kind} lookup failed: {} {}",result.0,result.1))?;
-        cases.push(if kind == "user" { "user-name-lookup" } else { "team-slug-lookup" });
+    for (kind, name, field, canonical) in [
+        ("user", "target-user", "actor", user),
+        ("team", "target-team", "team", team),
+    ] {
+        let result = call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &format!("{submit}/lookup?kind={kind}&name={name}"),
+            &[],
+        )
+        .await?;
+        ensure(
+            result.0 == 200
+                && result.1[field]["id"] == canonical
+                && result.1["pull"]["external_id"] == "700"
+                && writes()? == 0,
+            &format!("canonical {kind} lookup failed: {} {}", result.0, result.1),
+        )?;
+        cases.push(if kind == "user" {
+            "user-name-lookup"
+        } else {
+            "team-slug-lookup"
+        });
     }
-    for suffix in ["?kind=user&name=declared-target&name=other", "?kind=user&name=x&extra=x", "?kind=bot&name=x", "?kind=user&name=..%2Fbad"] {
-        ensure(call(&runtime,&store,&connection,"GET",&format!("{submit}/lookup{suffix}"),&[]).await?.0 == 400,
-            "invalid reviewer lookup reached provider")?;
+    for suffix in [
+        "?kind=user&name=declared-target&name=other",
+        "?kind=user&name=x&extra=x",
+        "?kind=bot&name=x",
+        "?kind=user&name=..%2Fbad",
+    ] {
+        ensure(
+            call(
+                &runtime,
+                &store,
+                &connection,
+                "GET",
+                &format!("{submit}/lookup{suffix}"),
+                &[],
+            )
+            .await?
+            .0 == 400,
+            "invalid reviewer lookup reached provider",
+        )?;
     }
     cases.push("invalid-lookup-refused");
     for mode in [
@@ -3040,7 +3122,11 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
     };
     let token = || Token::new(b"factory-declared-review-create".to_vec());
     let request = || ReviewCreate {
-        controller_grant_id: String::new(), source_connection: String::new(), author_id: String::new(), head_ref: String::new(), base_ref: String::new(),
+        controller_grant_id: String::new(),
+        source_connection: String::new(),
+        author_id: String::new(),
+        head_ref: String::new(),
+        base_ref: String::new(),
         base: String::new(),
         repository: "123".into(),
         repository_node_id: "R_123".into(),
@@ -3913,9 +3999,18 @@ pub(super) async fn pending_product(
     let unchanged_id = format!("{:032x}", 9800);
     let before = writes()?;
     let unchanged = call(
-        &runtime, &store, &connection, "POST", &submit,
-        &envelope(&unchanged_id, "draft", "Exact pending writing 🍵\n[link](relative.md)")?,
-    ).await?;
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &submit,
+        &envelope(
+            &unchanged_id,
+            "draft",
+            "Exact pending writing 🍵\n[link](relative.md)",
+        )?,
+    )
+    .await?;
     ensure(
         unchanged.0 == 409 && writes()? == before,
         "unchanged draft summary dispatched a provider mutation",
@@ -3941,11 +4036,28 @@ pub(super) async fn pending_product(
         mode(&format!("submit-{name}"))?;
         if i == 0 {
             let stale_id = format!("{:032x}", 9900);
-            let stale = serde_json::to_vec(&json!({"command_id":stale_id,"event":event,"body":body,"expected_head":"f".repeat(40)}))?;
+            let stale = serde_json::to_vec(
+                &json!({"command_id":stale_id,"event":event,"body":body,"expected_head":"f".repeat(40)}),
+            )?;
             let before = writes()?;
-            ensure(call(&runtime,&store,&connection,"POST",&submit,&stale).await?.0 == 409
-                && call(&runtime,&store,&connection,"GET",&command(&stale_id),&[]).await?.0 == 404
-                && writes()? == before, "pending review stale head was captured or dispatched")?;
+            ensure(
+                call(&runtime, &store, &connection, "POST", &submit, &stale)
+                    .await?
+                    .0
+                    == 409
+                    && call(
+                        &runtime,
+                        &store,
+                        &connection,
+                        "GET",
+                        &command(&stale_id),
+                        &[],
+                    )
+                    .await?
+                    .0 == 404
+                    && writes()? == before,
+                "pending review stale head was captured or dispatched",
+            )?;
             cases.push("selected-head-conflict-before-capture".into());
         }
         let id = format!("{:032x}", 100 + i);
@@ -4911,6 +5023,17 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
     let mut cases = Vec::new();
+    let capture_only = std::env::var_os("FACTORY_DECLARED_CAPTURE_CASES").is_some();
+    let selected = |name: &str| {
+        !capture_only
+            || [
+                "comment",
+                "changed-pending-hash",
+                "changed-comments-hash",
+                "drop-reply",
+            ]
+            .contains(&name)
+    };
     async fn saved(
         client: &soda_desktop_runtime::github_provider::Client,
         io: &Path,
@@ -4965,6 +5088,9 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
         "changed-count-reply",
         "no-request-id",
     ] {
+        if !selected(name) {
+            continue;
+        }
         mode(&format!("submit-{name}"))?;
         let mut q = saved(&client, &io).await?;
         if name == "approve" || name == "clear-approval" {
@@ -5061,6 +5187,9 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
         "empty-changes",
         "preflight-deadline",
     ] {
+        if !selected(name) {
+            continue;
+        }
         mode(&format!("submit-{name}"))?;
         let mut q = saved(&client, &io).await?;
         match name {
@@ -5119,6 +5248,9 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
         "oversized-request-id",
         "duplicate-request-id",
     ] {
+        if !selected(name) {
+            continue;
+        }
         mode(&format!("submit-{name}"))?;
         let q = saved(&client, &io).await?;
         let before = writes()?;
@@ -5148,6 +5280,15 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
             )?;
         }
         cases.push(name);
+    }
+    if capture_only {
+        ensure(
+            !io.join("unexpected-request").exists(),
+            "capture check sent undeclared request",
+        )?;
+        tokio::task::spawn_blocking(move || owner.stop()).await??;
+        println!("PASS: pending capture, exact hashes/receipt, stale refusal and one-send lost reply: {:?}", cases);
+        return Ok(());
     }
     mode("submit-invalid")?;
     let q = saved(&client, &io).await?;

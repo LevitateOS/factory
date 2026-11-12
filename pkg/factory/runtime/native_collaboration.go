@@ -263,7 +263,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		maximum = 384
 	case nativeReadEffect:
 		switch read.Query.Kind {
-		case "inline_preparation":
+		case "inline_preparation", "pull_threads":
 			maximum = 384
 		case "setup_source":
 			maximum = 80

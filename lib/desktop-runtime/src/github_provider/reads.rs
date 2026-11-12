@@ -237,7 +237,7 @@ impl Client {
                                             .ok_or_else(Failure::protocol)?,
                                         &identity.external_id,
                                     )
-                                    .await?,
+                                    .await?.into_value(),
                             )
                         }
                         "branch_creation" => (
@@ -314,6 +314,7 @@ impl Client {
                         }
                         "pull_threads" => {
                             let Read::PullThreads {
+                                cursor,
                                 repository,
                                 number,
                                 page,
@@ -330,7 +331,7 @@ impl Client {
                                 limit: *limit,
                                 thread_id: thread_id.clone(),
                             };
-                            ("threads", reader.graph_threads(&selector).await?)
+                            ("threads", reader.graph_threads_page(&selector, cursor, &identity.external_id).await?)
                         }
                         "reviewer_lookup" => {
                             let Read::ReviewerLookup {

@@ -829,19 +829,22 @@ builds, apps or provider requests in this design phase.
   Native async reads are boxed at the connector boundary to avoid multiplying
   the already large selector future on the stack; local branch check passes.
   These controlled checks qualify this refactor, not connected/installed gates.
-  F3 IN PROGRESS: inline file pages now have one opening/closing diff bracket,
-  coefficient1 page cost and complete pending-body preflight. Same owner handles
-  pending comparison. f3-inline-local.log passes selected existing native cases:
-  13files24 sends;3000files322 sends; changed pending/count/base refusal,
-  invalid selectors and owner retirement. First fixture's unfiltered negative
-  loop hit its local600 ceiling; preserved, selector corrected, no live traffic
-  or original budget/state cleared. Fresh file-catalogue review found no issue;
-  capacity error ordering was restored. F3 file slice is committed separately.
-  Uncommitted F3 thread integration: selected GitHub GraphQL page; scope-bound
-  thread/comment continuation through Go; Fountain selects metadata/members then
-  reads only their referenced reviews, retaining paired snapshots/body hashes.
-  Native and Go builds pass, but thread controlled qualification and shared
-  capture/seal consolidation remain. F4–F8 pending. No live/model effects or
-  original profiles/uncertain outcomes changed. No checks running.
-  Next: qualify new thread cursors/selected-page request bounds through the
-  existing no-forwarding thread fixture; finish capture owner, then F4.
+  F3 COMPLETE (file catalogue7795dce plus this thread/capture slice). One selected
+  GitHub page costs7 sends at2 or1000 threads. Scope-bound opaque cursors bind
+  account/repository/pull/head/base/root/limit and reject legacy or oversized
+  offsets; deleted source forks remain readable. Fountain reads complete bounded
+  metadata once, then only selected comment IDs through exact point endpoints
+  (17 sends at2 or50 unrelated threads/reviews), with current enrollment, equal
+  revision and body-hash checks. Native pending/inline capture owners preserve
+  original digest bytes and receipt fields; stale captures refuse and lost
+  replies remain one-send uncertain. No partial catalogue grants write authority.
+  Evidence: f3-inline-local.log (13files24 sends;3000files322),
+  f3-fountain-threads-local.log, f3-thread-product-local.log (17 canonical Go/API
+  cases and realPG retained restart), f3-draft-local.log, f3-submit-local.log,
+  f3-thread-offset-final.log, f3-offset-build.log. Same refactor scratch directory.
+  Independent review found and corrected full-review body overfetch, nullable
+  source-fork handling and unchecked cursor offset. The product thread fixture's
+  old null-capability assertion contradicted baseline; it now checks the already
+  supported bound display capability. These controlled results qualify only the
+  refactor. F4–F8 pending. No live/model effects or original state changed.
+  Next: resume bounded inventory/creation work in existing Go collectors (F4).

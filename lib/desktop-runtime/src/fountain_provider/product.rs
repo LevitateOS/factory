@@ -174,7 +174,7 @@ impl Client {
             }
             Read::PullRequiredChecks {repository:selected,number,head,base} if selected==repository=>json!({"kind":"pull_required_checks","account":account,"required_checks":self.visible_required_checks(repository,*number,head,base).await?}),
             Read::DeliveryOpinions {repository:selected,number} if selected==repository=>json!({"kind":"delivery_opinions","account":account,"delivery_opinions":self.delivery_opinions(repository,*number).await?}),
-            Read::PullThreads {repository:selected,number,page,limit,thread_id} if selected==repository=>json!({"kind":"pull_threads","account":account,"threads":self.discussion_threads(repository,*number,*page,*limit,thread_id).await?}),
+            Read::PullThreads {repository:selected,number,page,limit,thread_id,cursor} if selected==repository=>json!({"kind":"pull_threads","account":account,"threads":self.discussion_threads(repository,*number,*page,*limit,thread_id,cursor).await?}),
             Read::PullCheckRuns {repository:selected,number,page,limit,head} | Read::PullCommitStatuses {repository:selected,number,page,limit,head} if selected==repository=>{
                 let runs=matches!(query,Read::PullCheckRuns {..});
                 let value=self.visible_checks(repository,*number,*page,*limit,head,runs).await?;

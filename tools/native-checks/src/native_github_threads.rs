@@ -30,6 +30,50 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     };
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
+    if std::env::var("FACTORY_DECLARED_THREAD_PAGES").as_deref() == Ok("1") {
+        use soda_desktop_runtime::github_provider::Read;
+        let query = |page, cursor: String, root: &str, limit| Read::PullThreads { repository:"123".into(), number:7, page,limit,thread_id:root.into(),cursor };
+        let attempts = || -> Result<u64> { Ok(serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].as_u64().ok_or("attempts absent")?) };
+        mode("positive")?;
+        let first = client.observe(token()?,"321",&query(1,String::new(),"",1)).await.map_err(|e| e.code)?;
+        let cursor = first["threads"]["next_cursor"].as_str().ok_or("thread cursor absent")?.to_owned();
+        {
+            use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+            let mut changed: serde_json::Value = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(&cursor)?)?;
+            changed["offset"] = json!(u64::MAX);
+            let changed = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&changed)?);
+            let before = attempts()?;
+            let failure = client.observe(token()?,"321",&query(2,changed,"",1)).await.err().ok_or("unbounded cursor offset accepted")?;
+            ensure(failure.code == "native_thread_cursor_changed" && attempts()? - before <= 4,"unbounded cursor offset reached thread paging")?;
+        }
+        let before = attempts()?;
+        let second = client.observe(token()?,"321",&query(2,cursor.clone(),"",1)).await.map_err(|e|e.code)?;
+        ensure(attempts()? - before == 7 && second["threads"]["items"][0]["external_id"] == "PRRT_declared2" && second["threads"]["next_page"] == 0,"selected thread page walked other pages")?;
+        mode("large-history")?;
+        let before = attempts()?;
+        let large = client.observe(token()?,"321",&query(1,String::new(),"",1)).await.map_err(|e|e.code)?;
+        ensure(attempts()? - before == 7 && large["threads"]["items"].as_array().ok_or("items absent")?.len() == 1 && large["threads"]["next_page"] == 2,"thread page cost grew with history")?;
+        mode("detail")?;
+        let detail = client.observe(token()?,"321",&query(1,String::new(),"PRRT_declared1",2)).await.map_err(|e|e.code)?;
+        let continuation = detail["threads"]["items"][0]["comments"]["next_cursor"].as_str().ok_or("comment cursor absent")?.to_owned();
+        let detail = client.observe(token()?,"321",&query(2,continuation,"PRRT_declared1",2)).await.map_err(|e|e.code)?;
+        ensure(detail["threads"]["items"][0]["comments"]["items"][0]["external_id"] == "903","bound comment continuation lost offset")?;
+        for name in ["head-drift","base-drift","positive","identity-change","read-withdrawn"] {
+            mode(name)?;
+            let expected = if name=="identity-change" {"322"} else {"321"};
+            let root = if name=="positive" {"PRRT_declared1"} else {""};
+            let before = attempts()?;
+            let failure = client.observe(token()?,expected,&query(2,cursor.clone(),root,1)).await.err().ok_or("changed thread scope accepted")?;
+            ensure(matches!(failure.status,403|409) && attempts()? - before <= 4,"changed thread cursor sent excess requests")?;
+        }
+        mode("positive")?;
+        let mut legacy = request(); legacy.page=2;
+        ensure(client.observe_review_threads(token()?,"321",&legacy).await.is_err(),"legacy numeric cursor reacquired unrelated page")?;
+        owner.stop()?;
+        ensure(!io.join("unexpected-request").exists(),"thread page sent undeclared request")?;
+        println!("PASS: selected thread page costs7 sends at2 and1000 history; bound thread/comment continuation and changed head/base/root/account/withdrawal plus legacy-cursor refusal; no mutations");
+        return Ok(());
+    }
     let mut cases = Vec::new();
     for name in [
         "positive",
@@ -322,7 +366,9 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             && first_item["pull"]["repository"] == repository
             && first_item["resolution"] == "unresolved"
             && first_item["outdated"] == false
-            && first_item["capabilities"].is_null()
+            && first_item["capabilities"]["actions"]["thread.resolve"]["state"] == "allowed"
+            && first_item["capabilities"]["connection"] == connection
+            && first_item["capabilities"]["repository"] == repository
             && first_item["anchor"].is_null()
             && first_item["current_anchor"].is_null()
             && first_item["recorded_location"]["line"] == 9
@@ -468,7 +514,11 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         ("too-many-threads", 413),
     ] {
         set_mode(&io, &format!("product-{name}"))?;
-        let result = call(&runtime, &store, &connection, "GET", &target, &[]).await?;
+        let result = if name == "count-change" {
+            let first = call(&runtime,&store,&connection,"GET",&format!("{target}?limit=1"),&[]).await?;
+            let cursor = first.1["next"].as_str().ok_or("first-page cursor absent")?;
+            call(&runtime,&store,&connection,"GET",&format!("{target}?limit=1&cursor={cursor}"),&[]).await?
+        } else { call(&runtime, &store, &connection, "GET", &target, &[]).await? };
         ensure(
             result.0 == status,
             &format!("canonical refusal {name}: {} {}", result.0, result.1),
@@ -508,7 +558,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     fs::write(
         root.join("thread-product-result.json"),
         serde_json::to_vec(
-            &json!({"cases":cases,"native_go_postgresql":true,"legacy_cursor_refused":true,"real_github":false,"capabilities_enabled":false,"owned_grant_removed":true}),
+            &json!({"cases":cases,"native_go_postgresql":true,"legacy_cursor_refused":true,"real_github":false,"display_capabilities":true,"write_dispatch_qualified":false,"owned_grant_removed":true}),
         )?,
     )?;
     fs::write(
