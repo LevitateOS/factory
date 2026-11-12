@@ -237,7 +237,7 @@ export class SodaFactoryPull extends LitElement {
         getJSON(context.transport, path + '/capabilities', joined),
       ])
         .then(([current, capabilities]) => { check(this.live(context, serial) && current.ref.external_id === pull.ref.external_id); this.displaySettled = true; return {pull: current, capabilities}; })
-        .catch(error => { if (this.live(context, serial)) this.displayRead = undefined; throw error; });
+        .catch(error => { if (this.live(context, serial)) { this.displayRead = undefined; this.displaySettled = true; } throw error; });
     }
     const observed = await this.displayRead;
     signal.throwIfAborted();

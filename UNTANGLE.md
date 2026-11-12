@@ -976,3 +976,42 @@ builds, apps or provider requests in this design phase.
   their passing run. SodaOS full web/API test compilation also exposes unrelated
   preexisting journey enum/MCP fixture errors (f8-web-api-build.log); this pass
   does not claim that suite passed or connected/installed qualification.
+
+### Phase3 completion ledger
+
+F1–F8 COMPLETE on main; no branches, worktrees or pushes. Forty of the original
+53 findings are addressed. Thirteen remain for the reasons above: one explicit
+cross-language trust boundary and12 necessary special cases (original24).
+No additional worthwhile finding remains in the final independent review.
+
+| Fix | Factory commits | Canonical SodaOS companion |
+|---|---|---|
+| F1 | c7a417d,34f0a6f | — |
+| F2 | dfbd48e,76fa12c | — |
+| F3 | 7795dce,430fc47 | — |
+| F4 | 7f4aea8,f8b64d8 | 4350718b |
+| F5 | a98cfa9,aec5c8e plus failed-refresh correction in this commit | deda94bf |
+| F6 | a55a9d4 | 947b2997 |
+| F7 | fc28d5c | — |
+| F8 | 121ca15 | 697636ce,778b5c9c |
+
+Fresh native and Go reviews found no remaining production issue; fresh UI/adapter
+review's refresh/navigation/public-URL findings were corrected. A separate
+correction review found that transient failure discarded the need to reread;
+failed attempts now remain settled, making the next explicit refresh reread both
+pull and capability facts. The same reviewer confirms no remaining actionable
+finding. final-ui-browser.log passes that failure/recovery and all prior mounted
+view/count/draft checks. No successful unrelated check was replayed.
+
+The source/import graph rerun is retained separately at
+/home/vince/Projects/factory-provider-audit-20261112/refactor/final-map/;
+original audit artifacts are unchanged. Shared contracts sit below both native
+providers, and the production Go boundary check passes. Native operation caps,
+wire counts, realPG recovery, UI typecheck/browser and full Factory Go suite
+results are scoped above. SodaOS full test-package preexisting compilation
+errors remain an explicit verification limitation; its production build and
+changed feedback integration pass. Canonical Fountain remains untouched at
+984ea1cc33cc49020b296338003c774666bd6ba7. No live provider/model effects, quota
+waiting, original profile/journal changes or connected/installed claims.
+Next product qualification, if requested: reuse the preserved original commands
+and receipts; this refactor does not authorize new paid inference or resends.
