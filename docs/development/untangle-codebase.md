@@ -5768,9 +5768,11 @@ refresh28; total357. Earlier105 comparison/idle96 plus5 guard API calls make458
 real GitHub calls in this qualification. No suppressed calls or provider/local
 ceiling was reached (retained used509/600 at stop). These are measured counts,
 not a claim of optimal volume or qualification for arbitrary repository/load
-counts. The final semantic tree confirms the same route, settled refresh and no
-new merge offer; it does not capture static Delivered prose, so no separate
-visual assertion is claimed. Final UI refresh does not replay delivery.
+counts. The final semantic tree confirms the same route, settled refresh and
+the status “Delivered: merge confirmed and original-issue closure confirmed.”
+The earlier claim that it omitted this prose was a filtering mistake; the
+untruncated raw tree retains it. This is semantic presentation evidence, not a
+physical-window/visual check. Final UI refresh does not replay delivery.
 
 Exact private evidence: goal108-volume.json, goal108-merge-progress-2.log,
 goal109-original-completion.json, goal108-merge-recovery2.log,
@@ -5780,3 +5782,30 @@ resolves through socket/PostgreSQL retirement. No owned app/check/guard or
 uncertain new effect remains. Current task1 is complete within this measured
 installed fixture scope; other GitHub/Muse tasks and whole-product security
 closure remain open. Next uses the original merged receipt, never another send.
+
+### PR62 retained completion reconciliation (2026-11-13)
+
+**COMPLETE for the requested fork PR62 journey.** Local assertions join
+goal62-real-fixer.json and goal64-correction-ci-paid-delivery.json to the original
+goal108 merge/recovery logs, goal109-original-completion.json and the final
+installed tree under `/home/vince/Projects/factory-real-cycle-20261110/`.
+Real Inspector66617d4e…a900's finding5a2cce1b…bab0 was corrected by
+Fixer3a1d845c…e78ba to390aaf4110b7a087d8d56b2665a20f4be079455e;
+causal publication updates the original fork, and CI43174849337/check131036496761
+from app15368 succeeds on that exact head. The retained paid ready_to_merge
+judgment's head/base, review origin and fingerprint match generation3 above.
+Its original single-send receipt, coordinator merged/revision8 and native
+completion agree on2513e1d640756e2e79d99b9398d846f7de5784db, base containment,
+closed PR and original issue57 closure occurrence7404.
+
+Accounting remains on source3d34808251c58eb6555cad0ea58065b9:
+237→244 for the real two-minute Fixer and five one-minute judgments, then
+244→245 for the paid delivery judgment; final active runs0. No new charge was
+incurred for reconciliation. goal108-final-tree-raw.json is untruncated on
+`#view=work-detail&repository=734&issue=57` and contains the exact Delivered status
+quoted above. Fixture permission is restored to write; app/PostgreSQL are
+retired. Cancelled/expired commands, original deadlines and all paid receipts
+remain preserved. This reconciliation made0 GitHub calls and0 model calls;
+no app restart, build or repeated connected check was necessary. Consolidated
+item2 is closed; automatic-discovery, installed recovery/update and broader
+security gates remain open in items3–8.

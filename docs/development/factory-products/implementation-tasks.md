@@ -32,7 +32,8 @@ Architect/Builder work, publication, genuine Inspector → Fixer → re-inspecti
 real app-bound CI and an allowed merge; a subsequent Architect/Builder succeeded
 at that merged result. PR61 has a retained merge. PR62 has actual fork adoption,
 Inspector/Fixer work, correction publication, real CI and a paid ready-to-merge
-decision; its final merge remains open. The latest204-request check uses declared
+decision; its final merge, original-issue closure and accounting are now verified
+in item2 below. The latest204-request check uses declared
 role results and simulated GitHub responses: it establishes production merge
 contracts and zero-call receipt recovery after credential withdrawal/restart,
 not a new Muse Builder run or a new connected merge. Exact identities and
@@ -56,16 +57,19 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   affected paths locally; never wait for quota, reset journals or rotate accounts.
   Admission remains required before any later connected check.
 
-- [ ] **2. Finish PR62's completion evidence reconciliation (Q15/Q17).** Its real
+- [x] **2. Finish PR62's completion evidence reconciliation (Q15/Q17).** Its real
   paid-decision merge now commits and reconciles through installed108:
   command `1bc6784ba2c541b399e0b22a5b6a9bb6`, generation3, result
   `2513e1d640756e2e79d99b9398d846f7de5784db`. Original head/base, causal receipt,
   base containment, issue closure,245 charged minutes/0 active runs and restored
   fixture write permission are proved in item1's evidence. Original cancelled
   `261f778c1a874f3c9e0cbbd1989249c4` and all prior paid work stay preserved.
-  Remaining: confirm the installed presentation's static Delivered/closure text
-  (the semantic control tree does not expose it), and join these exact receipts
-  into Q15/Q17's full scoped completion records. Do not issue another merge or
+  The retained installed tree `goal108-final-tree-raw.json` exposes the exact
+  status “Delivered: merge confirmed and original-issue closure confirmed.” on
+  repository734/issue57, without truncation. Local receipt reconciliation on
+  2026-11-13 joins the real review/correction, app-bound CI, original paid judgment,
+  single committed merge and both closures; it adds no GitHub calls or inference.
+  Q15/Q17 retain their broader remaining gates. Do not issue another merge or
   model call for this already merged candidate.
 
 - [ ] **3. Close automatic own-issue intake through delivery (Q16/Q26).** Polling,
@@ -135,10 +139,11 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
 
 Current checkout is main; no owned app/check/permission guard was left running
 at the last recovery checkpoint. Inspect actual process/journal state before
-resuming. The next connected action is item2 only after item1's request admission
-and original-operation recovery; independent missing installed/update work can
-proceed without that merge. Record concrete regressions as implementation work
-under the affected item rather than declaring all remaining work verification.
+resuming. PR62 needs no further connected action. Continue with the uncovered
+journeys in items3–7, using request admission and original-operation recovery;
+independent missing installed/update work can proceed. Record concrete regressions
+as implementation work under the affected item rather than declaring all remaining
+work verification.
 
 **Earlier implementation-only snapshot (2026-11-10).** Q15–Q17,
 Q19 and Q21–Q29 remain outstanding. Source-only changes do not qualify these
@@ -942,6 +947,13 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
+**PR62 scoped completion (2026-11-13): VERIFIED.** The retained fork journey's
+real review/correction, CI and paid judgment join to one merged result, original
+issue57 closure, installed Delivered status and unchanged245-minute accounting.
+See [completed item2](#githubmuse-consolidated-todo-2026-11-12) and the
+[exact completion ledger](../untangle-codebase.md#pr62-retained-completion-reconciliation-2026-11-13).
+This closes that candidate's journey; broader Q15/installed gates remain open.
+
 **Current GitHub verification (2026-11-11): INCOMPLETE.** The retained PR56
 candidate now has a genuine completed Inspector → Fixer → re-inspection cycle
 and causal APPROVED COMMENT receipt. Fresh explicit generation3 merged PR56 to
@@ -1590,6 +1602,14 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q17"></a>
 
 ### Q17 — GitHub external PR adoption
+
+**PR62 fork journey (2026-11-13): VERIFIED.** Its real corrected fork candidate
+merged once to `2513e1d640756e2e79d99b9398d846f7de5784db`; original issue57 is
+closed, installed UI reports Delivered and accounting remains245/active0.
+The [completion ledger](../untangle-codebase.md#pr62-retained-completion-reconciliation-2026-11-13)
+joins the original receipts without another send or inference. Q17 remains
+INCOMPLETE for the broader automatic-discovery/refusal/restart qualification in
+consolidated item4; the following dated checkpoints are retained history.
 
 **Current installed automatic adoption (2026-11-12): same-repository journey
 VERIFIED; Q17 INCOMPLETE for the remaining fork journey.**
