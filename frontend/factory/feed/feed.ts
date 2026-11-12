@@ -234,9 +234,11 @@ export class SodaFactoryFeed extends LitElement {
 
   private startPolling() {
     if (this.refreshTimer || this.accessFailure) return;
+    // Feed/status reads revalidate provider access. Passive discovery follows
+    // the background cadence; explicit refresh and posting remain immediate.
     this.refreshTimer = setInterval(() => {
       if (this.isConnected && document.visibilityState === 'visible' && !this.view.busy) void this.readLatest(false);
-    }, 10000);
+    }, 300000);
   }
 
   private accessMessage() {

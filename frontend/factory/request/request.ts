@@ -510,7 +510,7 @@ export class SodaIntent extends LitElement {
     super.connectedCallback();
     window.addEventListener('storage', this.saveStorageChanged);
     this.requestUpdate('active', undefined);
-    this.progressTimer = setInterval(() => void this.refreshProgress(), 10000);
+    this.progressTimer = setInterval(() => void this.refreshProgress(), 60000);
   }
   private async refreshProgress() {
     const epoch = this.requestEpoch;

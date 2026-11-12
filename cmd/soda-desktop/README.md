@@ -102,9 +102,10 @@ the runtime is absent, and counters reset with a new owner.
 `github_traffic.local_budget` is separate retained state: at most 600 wire
 attempts per rolling hour for this profile, across restarts and token changes.
 Every GitHub request counts, including OAuth, GraphQL, Git and failed transport.
-Its numeric `used`, `reset`, `suppressed`, `provider_reset` and `available` facts
-distinguish a local ceiling from a provider hold; `null` means unavailable, never
-a fresh allowance. Factory also preserves the provider's last 20% of reported
+Its numeric `ceiling`, `used`, `reset`, `suppressed` and `provider_reset` facts
+distinguish a local ceiling from a provider hold. Boolean `available` reports
+journal health, not remaining capacity: compare `used` with `ceiling` and `reset`.
+`null` means unavailable, never a fresh allowance. Factory also preserves the provider's last 20% of reported
 quota. A hold refuses before sending; it never establishes the outcome of an
 earlier write. Preserve the private `github-wire-budget.*` records with the
 profile. Do not delete or edit them to bypass a hold or repeat qualification.
@@ -116,6 +117,11 @@ commands and newly settled results wake it immediately. To measure idle traffic,
 use two local status snapshots after startup/selection has settled, with no UI
 refreshes between them. Compare semantic reads and suppressions as well as wire
 attempts so a quota refusal is not mistaken for quiet scheduling.
+The Feed also refreshes passively every five minutes; planning and repair
+progress refresh every minute. Explicit refresh and commands remain immediate.
+Feed assembly observes each repository once before reading details and once
+afterward, regardless of row count. Status/access inner fields share only their
+request's admission; their outer permission checks and every writer remain fresh.
 
 ### Linux execution services
 

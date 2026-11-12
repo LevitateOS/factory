@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -5747,6 +5748,75 @@ func initialIntakeFixture() error {
 	if recovered, err := c.AdmitInitialAcceptance(ctx, hint); err != nil || recovered.ID != factory.InitialAcceptanceID(42, "105") {
 		return fmt.Errorf("fresh creator authority did not recover unconsumed original work: %v", err)
 	}
+	// Exercise the real Feed/Post projection over these retained rows. Provider
+	// permission changes are declared at the initial/final observation boundary;
+	// no native request, inference or write authority is configured.
+	if err := db.RecordPostIntake(ctx, post, 1); err != nil {
+		return err
+	}
+	otherPost, otherRevision, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: 43, Body: "Another repository's visible post", IdempotencyKey: "feed-bracket-other"}, "7", "Declared owner", 102)
+	if err != nil {
+		return err
+	}
+	if err := db.RecordPostIntake(ctx, otherPost, otherRevision); err != nil {
+		return err
+	}
+	feed := factoryservice.Feed{Store: db}
+	if err := feed.SaveSubscription(ctx, 7, 0, factory.FeedSubscription{Repositories: []int64{42, 43}}); err != nil {
+		return err
+	}
+	query := factory.FeedQuery{Repositories: []int64{42, 43}, Kinds: []string{factory.FeedKindPost}, Limit: 20}
+	posts := factoryservice.Posts{Store: db}
+	var complete factoryservice.FeedPage
+	for pass := 0; pass < 2; pass++ {
+		reads := make(map[collaboration.RepositoryID]int)
+		page, err := feed.Page(ctx, 7, query, false, func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
+			if actor != 7 || repository != 42 && repository != 43 {
+				return "", errors.New("feed escaped its admitted actor/repository")
+			}
+			reads[repository]++
+			return fmt.Sprintf("Declared repository %d observation %d", repository, reads[repository]), ctx.Err()
+		}, posts)
+		if err != nil || len(page.Entries) < 3 || reads[42] != 2 || reads[43] != 2 {
+			return fmt.Errorf("feed page repeated distinct-repository observations or reused a prior response: pass=%d reads=%v entries=%d err=%v", pass, reads, len(page.Entries), err)
+		}
+		for _, entry := range page.Entries {
+			post, ok := entry.Post.(map[string]any)
+			if !ok || post["post_id"] != entry.ID || entry.Project != fmt.Sprintf("Declared repository %d observation 2", entry.Repository) {
+				return errors.New("feed did not complete post projection before using fresh final visibility")
+			}
+		}
+		complete = page
+	}
+	unknownVisibility := errors.New("declared current provider authority unavailable")
+	for _, unknown := range []bool{false, true} {
+		reads := make(map[collaboration.RepositoryID]int)
+		page, err := feed.Page(ctx, 7, query, false, func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
+			reads[repository]++
+			if repository == 42 && reads[repository] == 2 {
+				if unknown {
+					return "", unknownVisibility
+				}
+				return "", factoryservice.ErrRepositoryHidden
+			}
+			return "Declared visible repository", ctx.Err()
+		}, posts)
+		if unknown {
+			if !errors.Is(err, unknownVisibility) || len(page.Entries) != 0 {
+				return errors.New("unknown final feed authority exposed a partial page")
+			}
+			continue
+		}
+		if err != nil || len(page.Entries) == 0 || reads[42] != 2 || reads[43] != 2 || page.Next != complete.Next || page.Truncated != complete.Truncated {
+			return fmt.Errorf("final feed withdrawal changed cursor or repeated observations: reads=%v err=%v", reads, err)
+		}
+		for _, entry := range page.Entries {
+			if entry.Repository != 43 {
+				return errors.New("feed exposed rows after final repository withdrawal")
+			}
+		}
+	}
+	fmt.Println("PASS: real PostgreSQL Feed/Post page assembly makes exactly two current visibility observations per distinct repository regardless of row count, repeats both for every response, uses fresh final names, filters all rows after final withdrawal without changing cursors, and refuses the entire page on unknown final authority. Provider authority changes declared; no inference/native/provider effect.")
 	fmt.Println("PASS: creator permission revoked during controlled evidence I/O refuses initial acceptance without a decision/head; a fresh authorized read recovers the same original issue (provider permission declared; actual coordinator/PostgreSQL)")
 	fmt.Println("PASS: same-account human intake, replay, unknown-result hold, retained origin after edit, recursion refusal and unrelated issue admission (declared provider facts; actual coordinator/PostgreSQL)")
 	return nil
@@ -13597,11 +13667,145 @@ func (g progressGraphObserver) CheckIntentOwner(ctx context.Context, _, _, _ int
 	return g.observe(ctx)
 }
 
+// A real native application and private HTTP admission use declared provider
+// replies only. No coordinator Start, execution, provider or model is wired.
+func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryruntime.NativeConfig) (result error) {
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	connection := factoryruntime.NativeConnection{Connection: strings.Repeat("a", 32), Provider: "github", Origin: "https://github.com", Account: "321"}
+	mapping, err := db.ApplyCollaborationObservation(ctx, collaboration.ConnectionObservationBatch{Connection: collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: config.Profile, Name: "Declared read capture"}, Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(connection.Connection), Account: connection.Account, Login: "declared"}, Repositories: []collaboration.ObservedRepository{{ExternalID: "123", Name: "fixture/read-capture"}}})
+	if err != nil || len(mapping.Repositories) != 1 {
+		return fmt.Errorf("read-capture canonical fixture: %w", err)
+	}
+	repository, operation := mapping.Repositories[0].ID, strings.Repeat("b", 32)
+	listener, err := net.Listen("unix", filepath.Join(config.Directory, "host.sock"))
+	if err != nil {
+		return err
+	}
+	if err = os.Chmod(listener.Addr().String(), 0600); err != nil {
+		listener.Close()
+		return err
+	}
+	var calls atomic.Int64
+	var deny atomic.Bool
+	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var command struct {
+			Operation string
+			Call      struct {
+				Kind  string
+				Query struct{ Kind, Repository string }
+			}
+		}
+		if r.URL.Path != "/api/native/collaboration" || r.Header.Get("Authorization") != "Bearer "+hex.EncodeToString(config.IPCKey()) || !factory.ValidID(r.Header.Get("X-Soda-Native-Instance")) || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&command) != nil || command.Operation != operation {
+			w.WriteHeader(503)
+			return
+		}
+		var observation any
+		account := collaboration.ObservedActor{ExternalID: "321", Login: "declared"}
+		switch {
+		case command.Call.Kind == "current":
+		case command.Call.Kind == "read" && command.Call.Query.Kind == "identity":
+			observation = map[string]any{"kind": "identity", "account": account}
+		case command.Call.Kind == "read" && command.Call.Query.Kind == "repository" && command.Call.Query.Repository == "123":
+			if calls.Add(1) == 4 && deny.Load() {
+				w.WriteHeader(404)
+				json.NewEncoder(w).Encode(map[string]string{"error": "github_not_visible"})
+				return
+			}
+			observation = map[string]any{"kind": "repository", "account": account, "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture", "private": true, "default_branch": "main", "push": true, "admin": true, "merge_methods": map[string]bool{"merge": true, "squash": true, "rebase": true}}}
+		default:
+			w.WriteHeader(503)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"connection": connection, "repository": "123", "observation": observation})
+	})}
+	joined := make(chan struct{})
+	go func() { defer close(joined); _ = host.Serve(listener) }()
+	defer func() { _ = host.Close(); <-joined }()
+	lifetime, cancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() {
+		done <- factoryruntime.RunNativeWithBinding(lifetime, filepath.Join(config.Directory, "backend.json"), nil, func(ctx context.Context, application factoryservice.Application) (factoryhttpapi.Product, error) {
+			product, err := factoryruntime.BindNativeProduct(ctx, application)
+			if err == nil {
+				for _, scope := range [][2]int64{{int64(product.Actor) + 1, int64(repository)}, {int64(product.Actor), int64(repository) + 1}} {
+					if _, scopeErr := product.Repositories.Status.Bindings(ctx, collaboration.ActorID(scope[0]), collaboration.RepositoryID(scope[1])); scopeErr == nil {
+						return factoryhttpapi.Product{}, errors.New("read capture expanded policy binding scope")
+					}
+					if _, scopeErr := product.Repositories.Access.Viewer(ctx, collaboration.ActorID(scope[0]), collaboration.RepositoryID(scope[1])); scopeErr == nil {
+						return factoryhttpapi.Product{}, errors.New("read capture expanded viewer scope")
+					}
+				}
+			}
+			return product, err
+		})
+	}()
+	defer func() { cancel(); result = errors.Join(result, <-done) }()
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", config.Socket)
+	}, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	instance := ""
+	read := func(path string) (int, map[string]any, error) {
+		request, err := http.NewRequestWithContext(ctx, "GET", "http://soda-native"+path, nil)
+		if err != nil {
+			return 0, nil, err
+		}
+		request.Header.Set("Authorization", "Bearer "+hex.EncodeToString(config.IPCKey()))
+		request.Header.Set("X-Soda-Native-Instance", instance)
+		request.Header.Set("X-Soda-Native-Operation", operation)
+		response, err := (&http.Client{Transport: transport}).Do(request)
+		if err != nil {
+			return 0, nil, err
+		}
+		defer response.Body.Close()
+		var body map[string]any
+		err = json.NewDecoder(io.LimitReader(response.Body, 2<<20)).Decode(&body)
+		return response.StatusCode, body, err
+	}
+	for instance == "" {
+		status, body, err := read("/healthz")
+		if err == nil && status == 200 {
+			instance, _ = body["instance"].(string)
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if instance == "" {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	for _, suffix := range []string{"", "/access"} {
+		for _, withdrawn := range []bool{false, true} {
+			calls.Store(0)
+			deny.Store(withdrawn)
+			status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory%s", repository, suffix))
+			if err != nil || calls.Load() != 4 || !withdrawn && status != 200 || withdrawn && status == 200 {
+				return fmt.Errorf("request-owned repository capture suffix=%q withdrawn=%t calls=%d status=%d: %w", suffix, withdrawn, calls.Load(), status, err)
+			}
+		}
+	}
+	calls.Store(0)
+	deny.Store(false)
+	status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory", repository+1))
+	if err != nil || status != 404 || calls.Load() != 1 {
+		return fmt.Errorf("read capture expanded canonical repository: status=%d calls=%d: %w", status, calls.Load(), err)
+	}
+	fmt.Println("PASS: actual Go native HTTP/PG status and access use four fresh repository reads each; inner request-owned callbacks add none, final visibility withdrawal refuses, and foreign actor/repository scope cannot use the capture. Native provider replies declared; no coordinator Start, provider, model or execution.")
+	return nil
+}
+
 func progressGateFixture() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	config, err := factoryruntime.LoadNative(os.Getenv("SODA_NATIVE_FACTORY_CONFIG"))
 	if err != nil {
+		return err
+	}
+	if err := progressRepositoryReadCaptureFixture(ctx, config); err != nil {
 		return err
 	}
 	db, dsn, cleanup, err := store.OpenEphemeral(ctx, config.DatabaseDSN())

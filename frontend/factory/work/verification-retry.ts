@@ -239,7 +239,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     if (this.repairs.size || this.entries.some((entry) => this.unsettled(entry.delivery_repair?.progress)))
       this.refreshTimer = setTimeout(() => {
         if (this.bound.live(serial, context) && this.isConnected) void this.load(context, serial, true);
-      }, 4000);
+      }, 60000);
   }
   private unsettled(progress: DeliveryRepairProgress | undefined) {
     return progress !== undefined && !SETTLED_REPAIR.has(progress.state);

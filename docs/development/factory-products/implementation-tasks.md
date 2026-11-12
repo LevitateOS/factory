@@ -1808,8 +1808,29 @@ all three controlled-role/paid-acceptance/restart/WAL phases without inference o
 provider effects. `request66-github-budget-final-build.log` and final-check.log
 pass the exact production budget's600/601, rolling expiry, provider reserve,
 competing/reopened owners, pending replacement and missing/corrupt refusal cases,
-using synthetic time/responses and no network/keyring/model. Matching installed
-qualification remains next; never
+using synthetic time/responses and no network/keyring/model.
+Installed66/source5379d7ab proves the hard ceiling: ordinary account/repository
+selection reaches600 attempts and subsequent requests are suppressed; core
+remaining4415 confirms the local ceiling acts before the provider is exhausted.
+This also exposes an unacceptable remaining idle-volume defect: Feed's10-second
+refresh repeats repository authority per row, and status repeats it per field.
+Quit retires app/backend/PG/Muse/socket; the original private budget is preserved.
+The correction groups Feed observations per repository separately before/after
+assembly and shares only request-owned status/access inner reads. Outer checks,
+writers and setup stay fresh. Feed passive refresh becomes5min; planning/repair
+progress1min. `request67-native-read-capture-pg.log` proves four fresh repository
+reads per native status/access HTTP, final-withdrawal refusal and scope isolation.
+`request67-feed-page-pg2.log` proves two observations per distinct repository,
+complete Post projection, fresh final names, filtering/unknown refusal and retained
+cursors through real PG; provider replies are declared, no network/model runs.
+The first Feed fixture failed because plain posts lacked intake records; corrected
+fixture rows preserve production guards. UI typecheck/Lit/production build pass
+(`request67-ui-{typecheck,lit,build}.log`); backend builds as
+`grouped-read-server` SHA256de658b726794b033d1ab2be5cbae4ca27cbb2ea75f80b7fb8dc1b1d31b8619e1.
+Matching installed67 restart/quiet-volume qualification remains next. Preserve the
+original600 debits: first expiry09:35:01Z, all expire09:39:33Z on2026-11-12;
+resume positive measurement after09:40Z, never delete/reset/copy around the hold.
+Read original merge/accounting from the reopened store before effects. Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.

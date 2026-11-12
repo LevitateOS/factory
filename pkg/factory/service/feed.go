@@ -120,9 +120,25 @@ func (f Feed) Page(ctx context.Context, actor collaboration.ActorID, query facto
 	if actor <= 0 {
 		return empty, ErrFeedQueryInvalid
 	}
+	// One page may contain many rows from the same repository. Admit each
+	// repository once for assembly, then observe it afresh after every detail
+	// read below. These observations never escape this response or authorize a
+	// write; principal/channel checks remain with the host's visibility port.
+	type visibilityObservation struct {
+		name string
+		err  error
+	}
+	initial := make(map[int64]visibilityObservation)
 	var accessError error
 	readVisible := func(ctx context.Context, repository int64) (string, error) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if observed, ok := initial[repository]; ok {
+			return observed.name, observed.err
+		}
 		name, err := visible(ctx, actor, collaboration.RepositoryID(repository))
+		initial[repository] = visibilityObservation{name, err}
 		if err != nil && !errors.Is(err, ErrRepositoryHidden) {
 			accessError = errors.Join(accessError, err)
 		}
@@ -163,21 +179,27 @@ func (f Feed) Page(ctx context.Context, actor collaboration.ActorID, query facto
 		joined = append(joined, entry)
 	}
 	// A later post/product/stage read may outlive an earlier repository check.
-	// Seal every returned kind after ALL assembly, including records and system
-	// posts that did not need the human-post detail reader.
+	// Seal each distinct repository afresh after ALL assembly, including records
+	// and system posts that did not need the human-post detail reader. Do not
+	// reuse the initial observations at this authority boundary.
+	final := make(map[int64]visibilityObservation)
 	view.Entries = make([]factory.FeedEntry, 0, len(joined))
 	for _, entry := range joined {
 		if err := ctx.Err(); err != nil {
 			return empty, err
 		}
-		name, err := readVisible(ctx, entry.Repository)
-		if errors.Is(err, ErrRepositoryHidden) {
+		observed, ok := final[entry.Repository]
+		if !ok {
+			observed.name, observed.err = visible(ctx, actor, collaboration.RepositoryID(entry.Repository))
+			final[entry.Repository] = observed
+		}
+		if errors.Is(observed.err, ErrRepositoryHidden) {
 			continue
 		}
-		if err != nil {
-			return empty, err
+		if observed.err != nil {
+			return empty, observed.err
 		}
-		entry.Project = name
+		entry.Project = observed.name
 		view.Entries = append(view.Entries, entry)
 	}
 	if err := ctx.Err(); err != nil {

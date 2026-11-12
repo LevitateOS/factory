@@ -36,6 +36,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		return empty, err
 	}
 	batch := collaboration.ConnectionObservationBatch{Connection: nativeConnectionObservation(port, identity)}
+	var readAdmission *NativeRepository
 	if identity.SelectedRepository != "" {
 		observed, err := port.Repository(ctx, identity.SelectedRepository)
 		if err != nil {
@@ -49,6 +50,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		identity = observed.NativeIdentity
 		batch.Connection = nativeConnectionObservation(port, identity)
 		batch.Repositories = []collaboration.ObservedRepository{{ExternalID: observed.Repository.ExternalID, Name: observed.Repository.Name}}
+		readAdmission = &observed.Repository
 	}
 	mapping, err := application.Store.ApplyCollaborationObservation(ctx, batch)
 	if err != nil {
@@ -65,6 +67,11 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	if err := bound.current(ctx); err != nil {
 		return empty, err
 	}
+	// These view callbacks share this request's authenticated observation.
+	// Their outer service visibility brackets remain fresh on bound, as do
+	// every writer, setup command and background operation below.
+	view := *bound
+	view.readAdmission = readAdmission
 	posts := factoryservice.Posts{Store: application.Store, Visibility: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
 		return bound.visible(ctx, actor, collaboration.RepositoryID(repository))
 	}, WriteAccess: bound.writeAccess}
@@ -81,12 +88,12 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
 			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.visible,
-				Viewer: bound.repositoryViewer, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority,
-				Connections: bound.spendingConnections},
+				Viewer: view.repositoryViewer, Preparation: view.preparationStatus, Authority: view.recordedAuthority,
+				Connections: view.spendingConnections},
 			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
-				Bindings: bound.policyBindings, PolicyOptions: bound.policyOptions, SpendingSources: bound.spendingSources, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority,
+				Bindings: view.policyBindings, PolicyOptions: view.policyOptions, SpendingSources: view.spendingSources, Preparation: view.preparationStatus, Authority: view.recordedAuthority,
 				Diagnostic: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (*control.DispatchObservation, error) {
-					if err := bound.visible(ctx, actor, repository); err != nil {
+					if err := view.visible(ctx, actor, repository); err != nil {
 						return nil, err
 					}
 					return application.Coordinator.LatestDispatchObservation(int64(repository)), nil
@@ -230,6 +237,8 @@ type nativeProductAccount struct {
 	binding    collaboration.ConnectionBinding
 	repository *collaboration.RepositoryRef
 	controller *nativeControllerGrant
+	// Set only on the read-only RepositoryStatus/Access callback clone.
+	readAdmission *NativeRepository
 }
 
 func (b *nativeProductAccount) current(ctx context.Context) error {
@@ -263,6 +272,15 @@ func (b *nativeProductAccount) repositoryObservation(ctx context.Context, actor 
 	}
 	if registered.ExternalID != b.identity.SelectedRepository {
 		return empty, factoryservice.ErrRepositoryHidden
+	}
+	if b.readAdmission != nil {
+		if err := b.current(ctx); err != nil {
+			return empty, err
+		}
+		if b.readAdmission.ExternalID != registered.ExternalID {
+			return empty, factoryservice.ErrRepositoryHidden
+		}
+		return *b.readAdmission, ctx.Err()
 	}
 	observed, err := b.port.Repository(ctx, registered.ExternalID)
 	if err != nil {
