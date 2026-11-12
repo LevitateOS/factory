@@ -15,9 +15,13 @@ var (
 // PreparationContextRequest binds transient approved files/diffs to the captured
 // checkout owner. Repository paths are relative selections, never host paths.
 type PreparationContextRequest struct {
-	Input  project.FactoryPreparationContextRequest `json:"input"`
-	Role   string                                   `json:"role"`
-	Native *NativeWorkspaceRef                      `json:"native,omitempty"`
+	Input     project.FactoryPreparationContextRequest `json:"input"`
+	Role      string                                   `json:"role"`
+	Native    *NativeWorkspaceRef                      `json:"native,omitempty"`
+	SourceRun *project.FactoryExport                   `json:"source_run,omitempty"`
+	// Bundle is filled only by the native adapter from SourceRun's retained
+	// export. Callers cannot substitute bytes for the captured run.
+	Bundle []byte `json:"bundle,omitempty"`
 }
 
 func (r PreparationContextRequest) Address() PreparationAddress {
@@ -26,6 +30,14 @@ func (r PreparationContextRequest) Address() PreparationAddress {
 
 func (r PreparationContextRequest) Validate() error {
 	if r.Input.Validate() != nil || r.Address().Validate() != nil || !project.ValidFactoryRole(r.Role) {
+		return ErrPreparationContext
+	}
+	if r.SourceRun != nil {
+		s := r.SourceRun
+		if r.Native == nil || s.Validate() != nil || s.Project != r.Input.Project || s.Role != project.RoleCoder || r.Role != project.RoleCoder || s.Preparation != r.Input.ID || s.Candidate != r.Input.Candidate || s.Candidate == r.Input.SourceCommit || len(r.Bundle) > project.MaxSourceBundle {
+			return ErrPreparationContext
+		}
+	} else if len(r.Bundle) != 0 {
 		return ErrPreparationContext
 	}
 	return nil

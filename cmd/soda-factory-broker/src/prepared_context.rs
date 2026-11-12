@@ -1,5 +1,5 @@
 //! Read Git objects only in the isolated, read-only context service.
-use super::{git, private_process, refused, CHECKOUT};
+use super::{git, private_process, refused};
 use soda_execution_protocol::{
     ContextEntry, ContextFile, ContextPage, ContextReadPage, ContextSelection,
     PreparedSourceOperation, PreparedSourceResult, SourceContext, MAX_CONTEXT_BYTES,
@@ -11,9 +11,6 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::process::{Command, Stdio};
 
-fn query(args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
-    query_at(CHECKOUT, args, limit)
-}
 pub(super) fn query_at(repository: &str, args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
     let mut child = command_at(repository)
         .args(args)
@@ -41,8 +38,6 @@ pub(super) fn query_at(repository: &str, args: &[&str], limit: usize) -> io::Res
 fn command_at(repository: &str) -> Command {
     git(&[
         "-c",
-        "safe.directory=/run/factory-output/repo",
-        "-c",
         "core.fsmonitor=false",
         "-c",
         "core.hooksPath=/dev/null",
@@ -52,8 +47,9 @@ fn command_at(repository: &str) -> Command {
         repository,
     ])
 }
-fn blob(commit: &str, path: &str) -> io::Result<Option<String>> {
-    let entry = query(
+fn blob(repository: &str, commit: &str, path: &str) -> io::Result<Option<String>> {
+    let entry = query_at(
+        repository,
         &["ls-tree", "-z", commit, "--", &format!(":(literal){path}")],
         1024,
     )?;
@@ -76,14 +72,18 @@ fn blob(commit: &str, path: &str) -> io::Result<Option<String>> {
     Ok(Some(fields[2].to_owned()))
 }
 
-fn read_page(object: &str, request: &ContextReadPage) -> io::Result<(Vec<u8>, ContextPage)> {
-    let size = query(&["cat-file", "-s", object], 32)?;
+fn read_page(
+    repository: &str,
+    object: &str,
+    request: &ContextReadPage,
+) -> io::Result<(Vec<u8>, ContextPage)> {
+    let size = query_at(repository, &["cat-file", "-s", object], 32)?;
     let total: u64 = std::str::from_utf8(&size)
         .ok()
         .and_then(|text| text.trim().parse().ok())
         .filter(|size| *size <= MAX_PREPARED_TREE_BYTES && request.offset <= *size)
         .ok_or_else(|| refused("source page offset or file size exceeds bounds"))?;
-    let mut child = command_at(CHECKOUT)
+    let mut child = command_at(repository)
         .args(["cat-file", "blob", object])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -153,9 +153,33 @@ pub(super) fn run() -> io::Result<()> {
     let request: PreparedSourceOperation =
         serde_json::from_slice(&bytes).map_err(|_| refused("context request invalid"))?;
     let result = match request {
-        PreparedSourceOperation::Context { selection } => PreparedSourceResult::Context {
-            context: read(selection)?,
-        },
+        PreparedSourceOperation::Context { selection } => {
+            if !selection.valid() {
+                return Err(refused("context selection invalid"));
+            }
+            let repository = super::prepared_candidate::source(&selection.source_commit)?;
+            PreparedSourceResult::Context {
+                context: read(repository, selection)?,
+            }
+        }
+        PreparedSourceOperation::CandidateContext {
+            selection,
+            delta_length,
+            delta_sha256,
+        } => {
+            if !selection.valid() {
+                return Err(refused("context selection invalid"));
+            }
+            let repository = super::prepared_candidate::import(
+                &selection.source_commit,
+                &selection.candidate,
+                delta_length,
+                &delta_sha256,
+            )?;
+            PreparedSourceResult::Context {
+                context: read(repository, selection)?,
+            }
+        }
         PreparedSourceOperation::Candidate {
             base,
             candidate,
@@ -173,7 +197,7 @@ pub(super) fn run() -> io::Result<()> {
     output.sync_all()?;
     File::open("/run/factory-context-output")?.sync_all()
 }
-fn read(request: ContextSelection) -> io::Result<SourceContext> {
+fn read(repository: &str, request: ContextSelection) -> io::Result<SourceContext> {
     if !request.valid() {
         return Err(refused("context selection invalid"));
     }
@@ -183,7 +207,8 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
         &request.diff_base,
         &request.candidate,
     ] {
-        if query(
+        if query_at(
+            repository,
             &["rev-parse", "--verify", &format!("{commit}^{{commit}}")],
             41,
         )? != format!("{commit}\n").as_bytes()
@@ -191,7 +216,8 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
             return Err(refused("context commit differs"));
         }
     }
-    if !query(
+    if !query_at(
+        repository,
         &[
             "merge-base",
             "--is-ancestor",
@@ -222,14 +248,18 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
     let mut total = 0;
     let mut page = None;
     for path in paths {
-        if let Some(object) = blob(&request.candidate, &path)? {
+        if let Some(object) = blob(repository, &request.candidate, &path)? {
             let content =
                 if let Some(selection) = request.page.as_ref().filter(|page| page.path == path) {
-                    let (content, metadata) = read_page(&object, selection)?;
+                    let (content, metadata) = read_page(repository, &object, selection)?;
                     page = Some(metadata);
                     content
                 } else {
-                    let content = query(&["cat-file", "blob", &object], MAX_CONTEXT_FILE_BYTES)?;
+                    let content = query_at(
+                        repository,
+                        &["cat-file", "blob", &object],
+                        MAX_CONTEXT_FILE_BYTES,
+                    )?;
                     if std::str::from_utf8(&content).is_err() {
                         return Err(refused("context file is not text"));
                     }
@@ -243,7 +273,12 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
         }
     }
     let entries = if let Some(directory) = &request.directory {
-        directory_entries(&request.candidate, directory, MAX_CONTEXT_BYTES - total)?
+        directory_entries(
+            repository,
+            &request.candidate,
+            directory,
+            MAX_CONTEXT_BYTES - total,
+        )?
     } else {
         Vec::new()
     };
@@ -251,7 +286,8 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
         .iter()
         .map(|entry| entry.path.len() + entry.kind.len())
         .sum::<usize>();
-    let diff = query(
+    let diff = query_at(
+        repository,
         &[
             "diff",
             "--no-ext-diff",
@@ -275,13 +311,18 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
     })
 }
 
-fn directory_entries(commit: &str, directory: &str, limit: usize) -> io::Result<Vec<ContextEntry>> {
+fn directory_entries(
+    repository: &str,
+    commit: &str,
+    directory: &str,
+    limit: usize,
+) -> io::Result<Vec<ContextEntry>> {
     let tree = if directory.is_empty() {
         commit.to_owned()
     } else {
         format!("{commit}:{directory}")
     };
-    let bytes = query(&["ls-tree", "-z", &tree], limit)?;
+    let bytes = query_at(repository, &["ls-tree", "-z", &tree], limit)?;
     let mut entries = Vec::new();
     for entry in bytes.split(|b| *b == 0).filter(|entry| !entry.is_empty()) {
         let tab = entry

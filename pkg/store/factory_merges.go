@@ -185,7 +185,7 @@ func applyMergeUpdateTx(ctx context.Context, tx *sql.Tx, m factory.Merge, regist
 		 AND EXISTS(SELECT 1 FROM factory_operator_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_environment_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM factory_sponsorships s JOIN factory_assignments a
-		   ON a.id=$14 AND s.connection=COALESCE(NULLIF(a.data->>'connection',''),a.data#>>'{retained_publication,connection}')
+		   ON a.id=$14 AND s.connection=`+assignmentSponsorshipConnectionSQL+`
 		   WHERE s.repository=$7 AND COALESCE((s.data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_requirement_heads WHERE project_id=$15 AND decision=$16)
 		 AND EXISTS(SELECT 1 FROM project_approval_heads WHERE project_id=$15 AND decision=$17)

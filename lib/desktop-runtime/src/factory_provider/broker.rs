@@ -576,7 +576,8 @@ impl Broker {
             )?;
         }
         let result = (|| {
-            Self::preparing(cancellation.clone()).prepare_reviewer(run, profile, &sha256, candidate)?;
+            Self::preparing(cancellation.clone())
+                .prepare_reviewer(run, profile, &sha256, candidate)?;
             let receipt = Self::read_source_setup(run, profile, &sha256, candidate, cancellation)?;
             if receipt.setup_sha256 != approved.digest() {
                 return Err(refused("native setup receipt differs"));
@@ -594,6 +595,9 @@ impl Broker {
         sha256: &str,
         candidate: &str,
         selection: &soda_execution_protocol::ContextSelection,
+        source: &[u8],
+        role: Role,
+        delta: &[u8],
         cancellation: AgentCancellation,
     ) -> io::Result<soda_execution_protocol::SourceContext> {
         if !id(run, 32)
@@ -602,12 +606,29 @@ impl Broker {
             || !id(candidate, 40)
             || !selection.valid()
             || selection.source_commit != candidate
+            || source.len() > MAX_BUNDLE
+            || !source.is_empty() && (role != Role::Coder || delta.is_empty())
+            || delta.len() > MAX_BUNDLE
+            || !delta.is_empty() && selection.candidate == candidate
         {
             return Err(refused("context selector invalid"));
         }
-        let bytes = serde_json::to_vec(selection).map_err(io::Error::other)?;
+        let mut bytes = serde_json::to_vec(selection).map_err(io::Error::other)?;
+        let mut request = json!({"kind":"read_context","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role.as_str(),"length":bytes.len()});
+        if !source.is_empty() {
+            request["source_length"] = json!(source.len());
+            bytes.extend_from_slice(source);
+        }
+        if !delta.is_empty() {
+            request["delta_length"] = json!(delta.len());
+            request["delta_sha256"] = json!(Sha256::digest(delta)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>());
+            bytes.extend_from_slice(delta);
+        }
         let result: soda_execution_protocol::PreparedSourceResult = exchange_controlled(
-            json!({"kind":"read_context","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"length":bytes.len()}),
+            request,
             Some(&bytes),
             PREPARE_TIME,
             Some(cancellation),

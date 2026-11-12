@@ -20,6 +20,11 @@ const storePublicationLimit = 1024
 // storePublishableLimit bounds one publishable-assignment listing.
 const storePublishableLimit = 256
 
+// Execution, retained publication and external continuation owners capture
+// their payer in different payloads. Publication and merge registration use
+// this same projection; a missing capture never selects another sponsorship.
+const assignmentSponsorshipConnectionSQL = `COALESCE(NULLIF(a.data->>'connection',''),NULLIF(a.data#>>'{retained_publication,connection}',''),a.data#>>'{external_publication,connection}')`
+
 // ErrPublicationConflict rejects replacement of a recorded publication intent.
 var ErrPublicationConflict = errors.New("publication immutable input changed")
 
@@ -359,7 +364,7 @@ func updatePublicationTx(ctx context.Context, tx *sql.Tx, p factory.Publication)
 		 AND EXISTS(SELECT 1 FROM factory_operator_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_environment_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM factory_sponsorships s JOIN factory_assignments a
-		   ON a.id=$14 AND s.connection=COALESCE(NULLIF(a.data->>'connection',''),a.data#>>'{retained_publication,connection}')
+		   ON a.id=$14 AND s.connection=`+assignmentSponsorshipConnectionSQL+`
 		   WHERE s.repository=$7 AND COALESCE((s.data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_requirement_heads WHERE project_id=$15 AND decision=$16)
 		 AND EXISTS(SELECT 1 FROM project_approval_heads WHERE project_id=$15 AND decision=$17)

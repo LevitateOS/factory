@@ -815,13 +815,26 @@ Normal Quit62's lost reply resolves through original app/backend/PG/Muse/socket
 retirement. Byte/link-verified public stages20/22/23 alone are reclaimed, retaining
 complete host originals, every installed release and all private state; guest
 free space rises above512MiB (goal62-public-space.log).
-**Next executable action:** finish the confirmed corrected-candidate context
-handoff in the existing Go/native/broker owners, with bounded
-correction wait logging832ca7d and recover this exact held publication. It must
-reuse the successful Fixer, candidate, original review and receipts; no send
-deadline is renewed. Native/context checks and owned source edits are the active
-context slice. Real branch publication/CI/paid judgment/reinspection remain
-unqualified; no role is running. Credentials/profile stay exact.
+Installed63/source887ad68 exposes the current correction's `store_conflict`:
+atomic registration looks up an ordinary/retained payer but omits the external
+continuation's explicit source. Its execution connection is intentionally empty.
+One SQL projection now serves publication/merge registration for all three owner
+forms. Real-PG request64-registration-pg2.log passes exact external registration,
+withdrawal refusal and unchanged ownership; provider/candidate facts are declared.
+The combined backend builds. Separately, the current context owner now exports
+only an exact successful settled run and reads its captured live or confirmed-
+retired source plus corrected delta in temporary Git-only isolation. No setup,
+reviewer/model allocation or old authority renewal occurs. The original bundle,
+setup receipt, native address, process/custody and deadline remain authoritative.
+Affected Rust typecheck passes retired-corrected-context-rust-final-check.log.
+Existing native integration assertions cover live and prior-instance context,
+refusals and unchanged source; runtime qualification awaits matching64 assets.
+**Next executable action:** build/install64's matching app/broker/preparer/context
+unit and backend, then recover this original correction publication. Reuse the
+successful Fixer/candidate/original review; never renew old send deadlines.
+Normal Quit63 retires app/backend/PG/Muse/socket; no role is running, usage244.
+Real branch publication/CI/paid judgment/reinspection remain unqualified.
+Credentials/profile and original uncertain outcomes stay exact.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
 user-side GitHub revocation is pending. Earlier55 evidence remains preserved.
 The existing initial-intake fixture additionally passes creator withdrawal

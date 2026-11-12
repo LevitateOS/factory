@@ -1755,16 +1755,28 @@ original private terminal retain the actual facts. Normal Quit62 resolves its
 lost reply through joined app/backend/PG/Muse/socket retirement. Only verified
 duplicate public stages20/22/23 were reclaimed; complete host originals and all
 installed releases/private state remain (`goal62-public-space.log`).
-**Q17 remains INCOMPLETE:** recover the exact held correction publication, then
-real CI and paid delivery judgment/reinspection. A confirmed independent context
-defect reads the old preparation instead of the corrected candidate; its existing
-Go/native/broker owners are being corrected for the next matching release. Bounded correction
-wait logging832ca7d will expose the current pre-send hold. No role is running;
-never renew old send authority or repeat the successful Fixer. Installed56
+Installed63/source887ad68 exposes `store_conflict` before recording any correction
+operation. Its atomic sponsorship join omits the external continuation's captured
+connection because this non-executing owner has an empty execution connection.
+Publication and merge registration now share the complete three-owner source
+projection. `request64-registration-pg2.log` passes the actual registration
+transaction, withdrawal refusal and unchanged owner, with declared candidate/native
+facts and no provider send. Backend `corrected-context-registration-server` builds.
+The separate context handoff now exports the exact successful settled candidate
+and reads its captured live or confirmed-retired recipe in bounded temporary
+Git-only isolation. Original source/setup receipts, native address and retirement
+stay exact; setup/execution authority is not renewed. The final affected Rust
+typecheck passes (`retired-corrected-context-rust-final-check.log`). Existing
+native context assertions include prior-instance reads and unchanged source;
+their runtime execution awaits matching app/broker/preparer/context-unit assets.
+**Q17 remains INCOMPLETE:** install the matching64 assets and recover the original
+correction publication, then real CI and paid delivery judgment/reinspection.
+Normal Quit63 confirms all process/socket retirement. No role is running; never
+renew old send authority or repeat the successful Fixer. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.
-Saved credentials remain. Owned context source edits and affected compile checks
-belong to the active context slice; exact inputs are retained outside Git.
+Saved credentials and the244-minute charge remain. Exact release/check inputs
+are retained outside Git; no connected context/CI/judgment pass is claimed yet.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

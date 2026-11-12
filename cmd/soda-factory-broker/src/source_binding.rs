@@ -408,7 +408,11 @@ pub(super) fn clear_context(directory: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
-    for name in ["context-request.json", "context-candidate.bundle"] {
+    for name in [
+        "context-request.json",
+        "context-base.bundle",
+        "context-candidate.bundle",
+    ] {
         match fs::remove_file(directory.join(name)) {
             Ok(()) => (),
             Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -417,16 +421,66 @@ pub(super) fn clear_context(directory: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-pub(super) fn read(
+
+struct Context {
+    id: String,
+    directory: PathBuf,
+    closed: bool,
+}
+impl Context {
+    fn create() -> io::Result<Self> {
+        state()?;
+        let contexts = Path::new(STATE).join("contexts");
+        match DirBuilder::new().mode(0o700).create(&contexts) {
+            Ok(()) => (),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+            Err(error) => return Err(error),
+        }
+        private_dir(&contexts, 0o700)?;
+        let mut random = [0u8; 16];
+        File::open("/dev/urandom")?.read_exact(&mut random)?;
+        let id = random
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let directory = contexts.join(&id);
+        DirBuilder::new().mode(0o700).create(&directory)?;
+        Ok(Self {
+            id,
+            directory,
+            closed: false,
+        })
+    }
+    fn close(&mut self) -> io::Result<()> {
+        if self.closed {
+            return Ok(());
+        }
+        manager("stop", "context", &self.id)?;
+        private_dir(&self.directory, 0o700)?;
+        clear_context(&self.directory)?;
+        fs::remove_dir(&self.directory)?;
+        self.closed = true;
+        Ok(())
+    }
+}
+impl Drop for Context {
+    fn drop(&mut self) {
+        let _ = self.close();
+    }
+}
+
+fn live_context_source(
     run: &str,
     profile: &str,
     digest: &str,
     candidate: &str,
-    operation: &soda_execution_protocol::PreparedSourceOperation,
-    delta: &[u8],
+    role: &str,
     desktop_uid: u32,
-) -> io::Result<soda_execution_protocol::PreparedSourceResult> {
-    let proof = receipt(run, profile, digest, candidate, desktop_uid)?;
+) -> io::Result<Vec<u8>> {
+    let runs = state()?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
+    preparation_caller_current()?;
+    let proof = receipt_locked(run, profile, digest, candidate, desktop_uid)?;
     if proof.output_truncated
         || proof.setup_exit != Some(0)
         || proof.check_exit != Some(0)
@@ -434,31 +488,71 @@ pub(super) fn read(
     {
         return Err(denied("context preparation is not ready"));
     }
-    let runs = state()?;
-    let (_lock, _run_lock) = lock_run(&runs, run)?;
-    preparation_caller_current()?;
     let source = runs.join(run);
-    verified_source(&source, profile, digest, "context source missing", |_| {
-        Ok(())
-    })?;
-    let directory = preparation_run(&preparations()?, run)?
-        .ok_or_else(|| denied("context preparation missing"))?;
-    if prepared_output(&directory)? != Some(0o555)
-        || read_manifest(&directory.join("manifest.env"))?.as_deref()
-            != Some(manifest(candidate, digest).as_str())
-    {
-        return Err(denied("context preparation changed"));
+    if role.is_empty() {
+        read_role(&source)?;
+    } else {
+        verified_role(&source, role)?;
     }
-    let request = directory.join("context-request.json");
-    let output = directory.join("context-output");
-    manager("stop", "context", run)?;
-    clear_context(&directory)?;
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(source.join("bundle"))?;
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != 0
+        || meta.mode() & 0o7777 != 0o444
+        || !(1..=MAX_BUNDLE as u64).contains(&meta.len())
+    {
+        return Err(denied("context source metadata invalid"));
+    }
+    let mut bytes = Vec::with_capacity(meta.len() as usize);
+    file.take(MAX_BUNDLE as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != meta.len() || hash(&bytes) != digest {
+        return Err(denied("context source changed"));
+    }
+    Ok(bytes)
+}
+
+pub(super) fn read(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    operation: &soda_execution_protocol::PreparedSourceOperation,
+    delta: &[u8],
+    source: &[u8],
+    role: &str,
+    desktop_uid: u32,
+) -> io::Result<soda_execution_protocol::PreparedSourceResult> {
+    let live_source;
+    let source = if source.is_empty() {
+        live_source = live_context_source(run, profile, digest, candidate, role, desktop_uid)?;
+        live_source.as_slice()
+    } else {
+        if role != "coder"
+            || source.len() > MAX_BUNDLE
+            || hash(source) != digest
+            || !matches!(
+                operation,
+                soda_execution_protocol::PreparedSourceOperation::CandidateContext { .. }
+            )
+        {
+            return Err(denied("retained context source invalid"));
+        }
+        source
+    };
+    preparation_caller_current()?;
+    let mut context = Context::create()?;
+    let request = context.directory.join("context-request.json");
+    let output = context.directory.join("context-output");
     write(&request, &serde_json::to_vec(operation)?)?;
-    write(&directory.join("context-candidate.bundle"), delta)?;
+    write(&context.directory.join("context-base.bundle"), source)?;
+    write(&context.directory.join("context-candidate.bundle"), delta)?;
     DirBuilder::new().mode(0o777).create(&output)?;
     fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
     let result = (|| {
-        start_preparation(&format!("soda-factory-context@{run}.service"), 90)?;
+        start_preparation(&format!("soda-factory-context@{}.service", context.id), 90)?;
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -479,7 +573,6 @@ pub(super) fn read(
         }
         serde_json::from_slice(&bytes).map_err(|_| denied("context result invalid"))
     })();
-    manager("stop", "context", run)?;
-    clear_context(&directory)?;
+    context.close()?;
     result
 }

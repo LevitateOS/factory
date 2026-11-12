@@ -11,44 +11,29 @@ const REPO: &str = "/run/factory-context-private/repo";
 const DELTA: &str = "/run/factory-context-candidate.bundle";
 const BUNDLE: &str = "/run/factory-context-private/source.bundle";
 
-pub(super) fn run(
-    base: &str,
-    candidate: &str,
-    delta_length: usize,
-    delta_sha256: &str,
-) -> io::Result<PreparedSourceResult> {
-    if !hex(base, 40)
-        || !hex(candidate, 40)
-        || !hex(delta_sha256, 64)
-        || !(1..=MAX_STAGE_BUNDLE).contains(&delta_length)
-    {
-        return Err(refused("candidate import input invalid"));
+fn hash(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+pub(super) fn source(base: &str) -> io::Result<&'static str> {
+    if !hex(base, 40) {
+        return Err(refused("context source commit invalid"));
     }
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(DELTA)?;
+        .open("/run/factory-context-base.bundle")?;
     let meta = file.metadata()?;
     if !meta.is_file()
         || meta.uid() != 0
         || meta.mode() & 0o7777 != 0o444
-        || meta.len() != delta_length as u64
+        || !(1..=MAX_STAGE_BUNDLE as u64).contains(&meta.len())
     {
-        return Err(refused("candidate import metadata invalid"));
+        return Err(refused("context source metadata invalid"));
     }
-    let mut bytes = Vec::new();
-    file.take(MAX_STAGE_BUNDLE as u64 + 1)
-        .read_to_end(&mut bytes)?;
-    let hash = |bytes: &[u8]| {
-        Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    };
-    if bytes.len() != delta_length || hash(&bytes) != delta_sha256 {
-        return Err(refused("candidate import digest differs"));
-    }
-    drop(bytes);
     let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
     if unsafe {
         libc::statfs(
@@ -79,8 +64,44 @@ pub(super) fn run(
     {
         return Err(refused("candidate base differs"));
     }
+    Ok(REPO)
+}
+
+pub(super) fn import(
+    base: &str,
+    candidate: &str,
+    delta_length: usize,
+    delta_sha256: &str,
+) -> io::Result<&'static str> {
+    if !hex(base, 40)
+        || !hex(candidate, 40)
+        || !hex(delta_sha256, 64)
+        || !(1..=MAX_STAGE_BUNDLE).contains(&delta_length)
+    {
+        return Err(refused("candidate import input invalid"));
+    }
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(DELTA)?;
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != 0
+        || meta.mode() & 0o7777 != 0o444
+        || meta.len() != delta_length as u64
+    {
+        return Err(refused("candidate import metadata invalid"));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_STAGE_BUNDLE as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() != delta_length || hash(&bytes) != delta_sha256 {
+        return Err(refused("candidate import digest differs"));
+    }
+    drop(bytes);
+    let repository = source(base)?;
     query_at(
-        REPO,
+        repository,
         &[
             "fetch",
             "--quiet",
@@ -92,7 +113,7 @@ pub(super) fn run(
         0,
     )?;
     if query_at(
-        REPO,
+        repository,
         &[
             "rev-parse",
             "--verify",
@@ -103,13 +124,27 @@ pub(super) fn run(
     {
         return Err(refused("candidate imported head differs"));
     }
-    query_at(REPO, &["merge-base", "--is-ancestor", base, candidate], 0)?;
     query_at(
-        REPO,
+        repository,
+        &["merge-base", "--is-ancestor", base, candidate],
+        0,
+    )?;
+    query_at(
+        repository,
         &["symbolic-ref", "HEAD", "refs/heads/factory-candidate"],
         0,
     )?;
-    query_at(REPO, &["bundle", "create", BUNDLE, "HEAD"], 0)?;
+    Ok(repository)
+}
+
+pub(super) fn run(
+    base: &str,
+    candidate: &str,
+    delta_length: usize,
+    delta_sha256: &str,
+) -> io::Result<PreparedSourceResult> {
+    let repository = import(base, candidate, delta_length, delta_sha256)?;
+    query_at(repository, &["bundle", "create", BUNDLE, "HEAD"], 0)?;
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)

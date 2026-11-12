@@ -317,7 +317,11 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
-	repository, err := readRepositoryContext(ctx, c.Host, attempt, preparation, contextRole, owner.SourceCommit, p.CurrentDiffBase(), p.Candidate, p.External != nil && basis.correction == nil)
+	var sourceRun *project.FactoryExport
+	if preparation.Native != nil && contextRole == project.RoleCoder && p.Candidate != preparation.Preparation.SourceCommit && p.Run != "" {
+		sourceRun = &project.FactoryExport{Project: p.ProjectID, ID: p.Run, Role: project.RoleCoder, Preparation: preparationID, Candidate: p.Candidate}
+	}
+	repository, err := readRepositoryContext(ctx, c.Host, attempt, preparation, contextRole, owner.SourceCommit, p.CurrentDiffBase(), p.Candidate, p.External != nil && basis.correction == nil, sourceRun)
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}

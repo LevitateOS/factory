@@ -189,18 +189,46 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 
 func (p NativeExecution) ReadWorkspaceContext(ctx context.Context, request execution.PreparationContextRequest) (execution.PreparationContext, error) {
 	var result execution.PreparationContext
-	if p.Store == nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) || !time.Now().Before(request.Input.NotAfter) {
+	if p.Store == nil || request.Validate() != nil || len(request.Bundle) != 0 || request.Native == nil || request.Native.Profile != p.Config.Profile || !time.Now().Before(request.Input.NotAfter) {
 		return result, execution.ErrPreparationContext
 	}
 	record, err := p.Store.Preparation(ctx, request.Input.ID)
 	if err != nil {
 		return result, err
 	}
-	if record.Native == nil || *record.Native != *request.Native || record.Preparation.Project != request.Input.Project || record.Preparation.Role != request.Role || record.Preparation.SourceCommit != request.Input.SourceCommit || !record.State.Ready || record.State.Stopped {
+	if record.Validate() != nil || record.Native == nil || *record.Native != *request.Native || record.Preparation.Project != request.Input.Project || record.Preparation.Role != request.Role || record.Preparation.SourceCommit != request.Input.SourceCommit {
 		return result, execution.ErrPreparationContext
 	}
 	bounded, cancel := context.WithDeadline(ctx, request.Input.NotAfter)
 	defer cancel()
+	if request.SourceRun != nil {
+		// A settled run may need its captured recipe after restart. Inspect the
+		// original native owner; confirmed retirement permits only this read,
+		// never a new setup or execution under its old authority.
+		state, inspectErr := p.InspectWorkspacePreparation(bounded, record.Address())
+		if inspectErr != nil || state.SourceBundleSHA256 != record.State.SourceBundleSHA256 {
+			return result, execution.ErrPreparationContext
+		}
+		record.State = state
+	}
+	if !(p.currentPreparationAddress(record.Address()) && record.State.Ready && !record.State.Stopped) && !(request.SourceRun != nil && record.RetiredRecipeCandidate()) {
+		return result, execution.ErrPreparationContext
+	}
+	if ref := request.SourceRun; ref != nil {
+		assignment, err := p.Store.AssignmentByRun(bounded, ref.ID)
+		if err != nil || assignment.Validate() != nil || !assignment.SucceededReported() || assignment.Result == nil || assignment.Result.Candidate != ref.Candidate || assignment.ProjectID != ref.Project || assignment.Preparation != ref.Preparation || assignment.SourceCommit != request.Input.SourceCommit {
+			return result, execution.ErrPreparationContext
+		}
+		run, err := p.Store.FactoryRun(bounded, ref.ID)
+		if err != nil || run.Validate() != nil || !run.Reconciled || run.Outcome != factory.Succeeded || run.Native == nil || !run.Native.Settled() {
+			return result, execution.ErrPreparationContext
+		}
+		exported, err := p.ExportCandidate(bounded, execution.CandidateRequest{Address: execution.RunAddress{Run: ref.ID, Workspace: ref.Project}, Role: ref.Role, Preparation: ref.Preparation, Candidate: ref.Candidate})
+		if err != nil {
+			return result, err
+		}
+		request.Bundle = exported.Bundle
+	}
 	// An empty selection still reads instructions and the candidate diff.
 	// The native protocol represents that selection as an array, not null.
 	if request.Input.Paths == nil {

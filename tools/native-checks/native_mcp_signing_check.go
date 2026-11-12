@@ -8478,6 +8478,47 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if readErr != nil {
 			return readErr
 		}
+		// Read a corrected run's incremental candidate against the original
+		// protected preparation, before allocating another preparation/setup.
+		// Run/export provenance is declared here; the native importer and read
+		// execute in the actual isolated context owner.
+		candidateCommit := os.Getenv("SODA_NATIVE_CANDIDATE_COMMIT")
+		candidateContext := execution.PreparationContextRequest{Native: ref, Role: prep.Role,
+			SourceRun: &project.FactoryExport{Project: prep.Project, ID: factory.NewID(), Role: project.RoleCoder, Preparation: prep.ID, Candidate: candidateCommit},
+			Input:     project.FactoryPreparationContextRequest{Project: prep.Project, ID: prep.ID, SourceCommit: source, ApprovedBase: source, DiffBase: source, Candidate: candidateCommit, Paths: []string{candidatePath}, NotAfter: time.Now().Add(20 * time.Second)}}
+		if _, err = port.ReadWorkspaceContext(ctx, candidateContext); err == nil {
+			return errors.New("candidate context accepted an unrecorded source run")
+		}
+		candidateContext.Bundle = delta
+		if _, err = port.ReadWorkspaceContext(ctx, candidateContext); err == nil {
+			return errors.New("candidate context accepted caller-supplied source bytes")
+		}
+		beforeContext, err := port.InspectWorkspacePreparation(ctx, request.Address())
+		if err != nil {
+			return err
+		}
+		var correctedContext execution.PreparationContext
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "context", "request": candidateContext}, &correctedContext); err != nil {
+			return fmt.Errorf("native corrected-candidate context: %w", err)
+		}
+		if correctedContext.ValidateFor(candidateContext) != nil || !strings.Contains(string(correctedContext.Material.Diff), "+"+candidateText) || !bytes.Equal(correctedContext.Material.Setup, files["setup.sh"]) || !bytes.Equal(correctedContext.Material.Check, files["check.sh"]) {
+			return errors.New("corrected-candidate context differs from exact source/diff/approved scripts")
+		}
+		foundCandidate := false
+		for _, file := range correctedContext.Material.Files {
+			foundCandidate = foundCandidate || file.Path == candidatePath && strings.Contains(string(file.Content), candidateText)
+		}
+		if !foundCandidate {
+			return errors.New("corrected-candidate context omitted current candidate bytes")
+		}
+		candidateContext.SourceRun.Preparation = "f" + factory.NewID()[:24]
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "context", "request": candidateContext}, &correctedContext); err == nil {
+			return errors.New("candidate context accepted another preparation's export")
+		}
+		if after, err := port.InspectWorkspacePreparation(ctx, request.Address()); err != nil || !reflect.DeepEqual(after, beforeContext) {
+			return errors.New("candidate context changed original source/setup/preparation state")
+		}
+		fmt.Println("PASS: existing isolated context imports a bound corrected delta and reads exact new candidate/files/diff without another preparation/setup; unrecorded Go source/caller bytes and mismatched native preparation refuse, original source/setup state unchanged. Source-run export provenance declared; no model/provider send.")
 		candidate := record.Preparation
 		candidate.ID, candidate.Revision, candidate.Role, candidate.SourceCommit = "f"+factory.NewID()[:24], 0, project.RoleReviewer, os.Getenv("SODA_NATIVE_CANDIDATE_COMMIT")
 		owner := *ref
@@ -8559,6 +8600,32 @@ func nativeRetiredSourceFixture(ctx context.Context, db *store.Store, port facto
 	if !record.RetiredRecipeCandidate() {
 		return errors.New("retained source lacks successful setup and confirmed retirement")
 	}
+	delta, err := os.ReadFile(os.Getenv("SODA_NATIVE_CANDIDATE_BUNDLE"))
+	if err != nil {
+		return err
+	}
+	selected, expected := "docs/note.md", "native-context-change"
+	if value := os.Getenv("SODA_NATIVE_CANDIDATE_PATH"); value != "" {
+		selected, expected = value, os.Getenv("SODA_NATIVE_CANDIDATE_TEXT")
+	}
+	read := execution.PreparationContextRequest{Native: record.Native, Role: project.RoleCoder, Bundle: delta,
+		SourceRun: &project.FactoryExport{Project: record.Preparation.Project, ID: factory.NewID(), Role: project.RoleCoder, Preparation: record.Preparation.ID, Candidate: os.Getenv("SODA_NATIVE_CANDIDATE_COMMIT")},
+		Input:     project.FactoryPreparationContextRequest{Project: record.Preparation.Project, ID: record.Preparation.ID, SourceCommit: record.Preparation.SourceCommit, ApprovedBase: record.Preparation.SourceCommit, DiffBase: record.Preparation.SourceCommit, Candidate: os.Getenv("SODA_NATIVE_CANDIDATE_COMMIT"), Paths: []string{selected}, NotAfter: time.Now().Add(20 * time.Second)}}
+	var material execution.PreparationContext
+	if err = nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/preparation", map[string]any{"operation": "context", "request": read}, &material); err != nil {
+		return fmt.Errorf("retired original-owner candidate context: %w", err)
+	}
+	if material.ValidateFor(read) != nil || !strings.Contains(string(material.Material.Diff), "+"+expected) {
+		return errors.New("retired recipe context lost exact corrected candidate diff")
+	}
+	read.SourceRun, read.Bundle = nil, nil
+	if err = nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/preparation", map[string]any{"operation": "context", "request": read}, &material); err == nil {
+		return errors.New("retired preparation supplied ordinary current-checkout context")
+	}
+	if after, err := port.InspectWorkspacePreparation(ctx, record.Address()); err != nil || !reflect.DeepEqual(after, retired) {
+		return errors.New("retired candidate context changed original source/setup retirement")
+	}
+	fmt.Println("PASS: prior-instance confirmed-retired successful recipe reads exact corrected candidate/diff in readonly isolation without setup or retirement renewal; source-run export provenance declared")
 	bundle, err := os.ReadFile(os.Getenv("SODA_NATIVE_CANDIDATE_FULL_BUNDLE"))
 	if err != nil {
 		return err
@@ -15476,6 +15543,46 @@ func externalPreparationFixture() error {
 	if after, err := db.FactoryRun(ctx, retryRun.ID); err != nil || !reflect.DeepEqual(after, retryRun) {
 		return errors.New("explicit Builder Retry changed the original native outcome/deadline")
 	}
+	// Exercise only the real registration transaction. Candidate/native facts
+	// are declared; no connector, model or provider send is configured here.
+	correctionRegistration, err := db.PublicationByID(ctx, retryCommand)
+	if err != nil {
+		return err
+	}
+	registrationOwner, err := db.Assignment(ctx, retryCommand)
+	if err != nil || registrationOwner.Connection != "" || registrationOwner.ExternalPublication == nil || registrationOwner.ExternalPublication.Connection != handoffOwner.Connection {
+		return fmt.Errorf("declared external registration lacks its captured payer: %v", err)
+	}
+	registrationCandidate := strings.Repeat("1", 40)
+	if registrationCandidate == correctionRegistration.Candidate {
+		registrationCandidate = strings.Repeat("2", 40)
+	}
+	registrationIntent := factory.PublicationIntent{OperationID: factory.PublicationOperationID(correctionRegistration.ID, factory.OpRefPublish, 2), AuthRevision: factory.AuthRevisionFor(correctionRegistration.ID, correctionRegistration.ID, correctionRegistration.Revision), TargetBranch: correctionRegistration.TargetBranch, Candidate: registrationCandidate, ExpectedOld: correctionRegistration.Candidate, ComparisonRef: correctionRegistration.TargetBranch, ComparisonOID: correctionRegistration.BaseSHA, PRTitle: "Declared correction registration", Repository: correctionRegistration.Repository, ActorID: registrationOwner.ActorID, NativeRev: 1, NotAfter: time.Now().Add(30 * time.Second).Unix(), CorrectionNumber: correctionRegistration.PRNumber, CorrectionAuthor: correctionRegistration.PullTarget().AuthorID}
+	correctionRegistration.Corrections = factory.CorrectionOps{{Kind: factory.OpRefPublish, RunID: factory.NewID(), Work: &registrationIntent, OperationID: registrationIntent.OperationID, Attempts: 1, UpdatedUnix: time.Now().Unix()}}
+	correctionRegistration.Revision++
+	if err = correctionRegistration.Validate(); err != nil {
+		return fmt.Errorf("declared correction registration: %w", err)
+	}
+	var sponsorshipBefore []byte
+	if err = raw.QueryRowContext(ctx, `SELECT data FROM factory_sponsorships WHERE repository=$1 AND connection=$2`, correctionRegistration.Repository, handoffOwner.Connection).Scan(&sponsorshipBefore); err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_sponsorships SET data=jsonb_set(data,'{active}','false') WHERE repository=$1 AND connection=$2`, correctionRegistration.Repository, handoffOwner.Connection); err != nil {
+		return err
+	}
+	withdrawnRegistration := db.UpdatePublication(ctx, correctionRegistration)
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_sponsorships SET data=$1 WHERE repository=$2 AND connection=$3`, string(sponsorshipBefore), correctionRegistration.Repository, handoffOwner.Connection); err != nil {
+		return err
+	}
+	if withdrawnRegistration == nil {
+		return errors.New("withdrawn external payer admitted correction registration")
+	}
+	if err = db.UpdatePublication(ctx, correctionRegistration); err != nil {
+		return fmt.Errorf("captured external payer did not admit correction registration: %w", err)
+	}
+	if after, err := db.Assignment(ctx, retryCommand); err != nil || !reflect.DeepEqual(after, registrationOwner) {
+		return errors.New("correction registration changed its external payer capture")
+	}
 	if err = db.Close(); err != nil {
 		return err
 	}
@@ -15496,6 +15603,7 @@ func externalPreparationFixture() error {
 	fmt.Println("PASS: exact pending-context no-start acknowledgement preserves intent/deadline/manifest/source, retires with zero charge and resumes interrupted capability retirement; cleared marker/acquisition/changed intent/missing zero usage refuse, while a fresh explicit bounded funding command preserves the spent correction identity without model replay. Native absence acknowledgement declared; actual Store/accounting transactions.")
 	fmt.Println("PASS: task/workspace admission follows the authentic original Architect head and current-root retained correction singleton; a settled nonreported failed Corrector with an exact retained charge permits a fresh explicit finite command without unused-budget transfer, while unsettled execution or uncertain publication refuse. Activation/process facts declared; native task calls stop at the observation boundary, no inference or send.")
 	fmt.Println("PASS: an ordinary Builder's blocked/nonreported needs-human result and independently failed retired native run admit one explicit Retry command and exact replay, preserving the original result/outcome/deadline; confirmed-unused reservation declared, no inference or dispatch.")
+	fmt.Println("PASS: real correction registration uses the external continuation's captured source despite its empty execution connection, refuses withdrawn sponsorship, and preserves the owner; candidate/native facts declared, no inference or provider send.")
 	fmt.Println("PASS: closed external Architect/committed Inspector history with a retired expired unlaunched correction admits one explicit same-source bounded continuation and fresh Corrector using the original Inspector; spent reviews/charges and old rows/deadlines/receipts remain exact, replay never renews authority, and changed source/head/base or unrelated historical parent refuse. Role/native/provider facts declared; no inference or host send.")
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")

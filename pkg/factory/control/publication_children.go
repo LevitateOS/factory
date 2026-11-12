@@ -772,7 +772,7 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 		checksPrompt = in.checks
 	}
 	repositoryContext, contextErr := readRepositoryContext(ctx, c.Host, plan, contextPreparation, role,
-		owner.SourceCommit, p.CurrentDiffBase(), p.Candidate, false)
+		owner.SourceCommit, p.CurrentDiffBase(), p.Candidate, false, nil)
 	if contextErr != nil {
 		publicationWait(report, p.ID, "native prepared repository context is unavailable or changed")
 		return nil, true

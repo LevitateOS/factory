@@ -429,7 +429,7 @@ func renderAttemptPrompt(ctx context.Context, deps DispatchDeps, plan *attemptPl
 		return nil, nil
 	}
 	repositoryContext, contextErr := readRepositoryContext(ctx, deps.Host, plan, plan.prep, role,
-		plan.prep.Preparation.SourceCommit, plan.prep.Preparation.SourceCommit, plan.inputs.Tip, true)
+		plan.prep.Preparation.SourceCommit, plan.prep.Preparation.SourceCommit, plan.inputs.Tip, true, nil)
 	if contextErr != nil {
 		return waitFor(WaitSource, "native prepared repository context is unavailable or changed"), nil
 	}

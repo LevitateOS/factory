@@ -16,7 +16,7 @@ import (
 
 var repositoryPathReference = regexp.MustCompile(`(?:[A-Za-z0-9._-]+/)+[A-Za-z0-9._-]+|[A-Za-z0-9_-]+\.(?:can|go|rs|py|js|ts|tsx|jsx|java|kt|c|h|cpp|md|toml|yaml|yml|json|sh|sql|html|css|lock)\b`)
 
-func readRepositoryContext(ctx context.Context, host DispatchHost, plan *attemptPlan, record execution.PreparationRecord, role string, approvedBase, diffBase, candidate string, requirePreparedCandidate bool) (*project.FactoryPreparationContext, error) {
+func readRepositoryContext(ctx context.Context, host DispatchHost, plan *attemptPlan, record execution.PreparationRecord, role string, approvedBase, diffBase, candidate string, requirePreparedCandidate bool, sourceRun *project.FactoryExport) (*project.FactoryPreparationContext, error) {
 	preparation := record.Preparation
 	if host == nil || plan == nil || record.Validate() != nil || plan.projectID != preparation.Project || role != preparation.Role || !time.Now().Before(plan.deadline) {
 		return nil, errors.New("native preparation context reader unavailable")
@@ -42,7 +42,7 @@ func readRepositoryContext(ctx context.Context, host DispatchHost, plan *attempt
 	if err := bounded.Err(); err != nil {
 		return nil, err
 	}
-	scoped := execution.PreparationContextRequest{Input: request, Role: role, Native: record.Native}
+	scoped := execution.PreparationContextRequest{Input: request, Role: role, Native: record.Native, SourceRun: sourceRun}
 	result, err := host.ReadWorkspaceContext(bounded, scoped)
 	if err != nil {
 		return nil, err

@@ -70,6 +70,14 @@ enum Request {
         sha256: String,
         candidate: String,
         length: usize,
+        #[serde(default)]
+        delta_length: usize,
+        #[serde(default)]
+        delta_sha256: String,
+        #[serde(default)]
+        source_length: usize,
+        #[serde(default)]
+        role: String,
     },
     StagePreparation {
         version: u8,
@@ -2579,6 +2587,8 @@ fn serve() -> io::Result<()> {
                     delta_sha256,
                 },
                 &delta,
+                &[],
+                "",
                 desktop_uid,
             )?)?
         }
@@ -2589,6 +2599,10 @@ fn serve() -> io::Result<()> {
             sha256,
             candidate,
             length,
+            delta_length,
+            delta_sha256,
+            source_length,
+            role,
         } => {
             if version != 1
                 || !id(&run, 32)
@@ -2596,6 +2610,15 @@ fn serve() -> io::Result<()> {
                 || !id(&sha256, 64)
                 || !id(&candidate, 40)
                 || !(1..=soda_execution_protocol::MAX_CONTEXT_REQUEST).contains(&length)
+                || delta_length > MAX_BUNDLE
+                || source_length > MAX_BUNDLE
+                || !role.is_empty() && !matches!(role.as_str(), "coder" | "reviewer")
+                || source_length > 0 && (role != "coder" || delta_length == 0)
+                || if delta_length == 0 {
+                    !delta_sha256.is_empty()
+                } else {
+                    !id(&delta_sha256, 64)
+                }
             {
                 return Err(denied("context read selector invalid"));
             }
@@ -2610,13 +2633,44 @@ fn serve() -> io::Result<()> {
             if !selection.valid() || selection.source_commit != candidate {
                 return Err(denied("context source differs"));
             }
+            let mut source = vec![0; source_length];
+            if source_length > 0 {
+                read_client_exact(
+                    &mut input,
+                    &mut source,
+                    Instant::now() + Duration::from_secs(30),
+                )?;
+                if hash(&source) != sha256 {
+                    return Err(denied("context source input differs"));
+                }
+            }
+            let mut delta = vec![0; delta_length];
+            let operation = if delta_length == 0 {
+                soda_execution_protocol::PreparedSourceOperation::Context { selection }
+            } else {
+                read_client_exact(
+                    &mut input,
+                    &mut delta,
+                    Instant::now() + Duration::from_secs(30),
+                )?;
+                if hash(&delta) != delta_sha256 {
+                    return Err(denied("context candidate input differs"));
+                }
+                soda_execution_protocol::PreparedSourceOperation::CandidateContext {
+                    selection,
+                    delta_length,
+                    delta_sha256,
+                }
+            };
             serde_json::to_vec(&source_binding::read(
                 &run,
                 &profile,
                 &sha256,
                 &candidate,
-                &soda_execution_protocol::PreparedSourceOperation::Context { selection },
-                &[],
+                &operation,
+                &delta,
+                &source,
+                &role,
                 desktop_uid,
             )?)?
         }

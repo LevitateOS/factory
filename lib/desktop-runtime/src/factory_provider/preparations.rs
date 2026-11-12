@@ -66,7 +66,11 @@ fn refreshed_source(request: &Value) -> bool {
     let input = &request["input"];
     match input["preparation"]["role"].as_str() {
         Some("soda-coder") => matches!(
-            (&input["source_run"], &input["source_merge"], &input["source_pull"]),
+            (
+                &input["source_run"],
+                &input["source_merge"],
+                &input["source_pull"]
+            ),
             (Value::Object(_), Value::Null, Value::Null)
                 | (Value::Null, Value::Object(_), Value::Null)
                 | (Value::Null, Value::Null, Value::Object(_))
@@ -848,7 +852,8 @@ impl Preparations {
             .iter()
             .map(|(name, bytes)| (name.clone(), encode(bytes)))
             .collect();
-        let mut binding = json!({"key":source_key,"base":base.source,"sha256":digest(&bundle),"address":source});
+        let mut binding =
+            json!({"key":source_key,"base":base.source,"sha256":digest(&bundle),"address":source});
         if complete {
             binding["complete"] = Value::Bool(true);
         }
@@ -902,15 +907,32 @@ impl Preparations {
         let meta = &request["input"];
         let address =
             json!({"id":meta["id"],"workspace":meta["project"],"native":request["native"]});
-        if !matches!(self.status(&address)?.phase, Phase::Ready(_)) {
+        let source_run = request.get("source_run").filter(|value| !value.is_null());
+        let status = self.status(&address)?;
+        let retained = matches!(status.phase, Phase::Stopped { .. });
+        if !matches!(status.phase, Phase::Ready(_)) && !(retained && source_run.is_some()) {
             return Err(denied());
         }
         let key = self.key(&address)?;
-        let (input, cancellation) = {
+        let input = match status.subject {
+            Subject::Input(input) => input,
+            Subject::Fence(_) => return Err(denied()),
+        };
+        let cancellation = if retained {
+            // Only the immutable successful recipe is read. Its original
+            // cancelled setup/execution lease is never re-entered.
+            AgentCancellation::default()
+        } else {
             let entries = self.entries.lock().map_err(|_| denied())?;
             let entry = entries.get(&key).ok_or_else(denied)?;
-            (entry.input.clone(), entry.cancellation.clone())
+            entry.cancellation.clone()
         };
+        let remaining = OffsetDateTime::parse(text(meta, "not_after", 64)?, &Rfc3339)
+            .map_err(|_| denied())?
+            - OffsetDateTime::now_utc();
+        let milliseconds = u64::try_from(remaining.whole_milliseconds()).map_err(|_| denied())?;
+        let cancellation = cancellation
+            .with_deadline(Instant::now() + Duration::from_millis(milliseconds.min(30_000)));
         let role = input.role.product();
         if meta["source_commit"] != input.source || request["role"] != role {
             return Err(denied());
@@ -924,12 +946,56 @@ impl Preparations {
         if !selection.valid() {
             return Err(denied());
         }
+        let delta = if let Some(source) = source_run {
+            if input.role != Role::Coder
+                || source["project"] != input.workspace
+                || source["preparation"] != input.id
+                || source["role"] != "soda-coder"
+                || source["candidate"] != selection.candidate
+                || !source["id"].as_str().is_some_and(|id| super::hex(id, 32))
+                || selection.candidate == input.source
+            {
+                return Err(denied());
+            }
+            let encoded = request["bundle"].as_str().ok_or_else(denied)?;
+            if encoded.len() > MAX_STAGE_BUNDLE * 4 / 3 + 4 {
+                return Err(denied());
+            }
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .map_err(|_| denied())?;
+            if bytes.is_empty() || bytes.len() > MAX_STAGE_BUNDLE {
+                return Err(denied());
+            }
+            bytes
+        } else {
+            if request
+                .get("bundle")
+                .is_some_and(|value| !value.is_null() && value != "")
+            {
+                return Err(denied());
+            }
+            Vec::new()
+        };
+        let bundle = input.effective_bundle(&self.directory.join(&key))?;
+        let bundle_sha256 = digest(&bundle);
+        if retained
+            && (status.source_sha256.as_deref() != Some(bundle_sha256.as_str())
+                || !status.phase.receipt().is_some_and(|receipt| {
+                    setup_ready(receipt) && receipt.setup_sha256 == input.setup
+                }))
+        {
+            return Err(denied());
+        }
         let context = Broker::read_source_context(
             &key,
             &self.profile,
-            &digest(&input.effective_bundle(&self.directory.join(&key))?),
+            &bundle_sha256,
             &input.source,
             &selection,
+            if retained { &bundle } else { &[] },
+            input.role,
+            &delta,
             cancellation,
         )?;
         let setup = input.approved.files.get("setup.sh").ok_or_else(denied)?;
@@ -1020,8 +1086,10 @@ impl Preparations {
         }
         let id = text(address, "id", 25)?;
         let workspace = text(address, "workspace", 25)?;
-        if !id.starts_with('f') || !super::hex(&id[1..], 24)
-            || !workspace.starts_with('p') || !super::hex(&workspace[1..], 24)
+        if !id.starts_with('f')
+            || !super::hex(&id[1..], 24)
+            || !workspace.starts_with('p')
+            || !super::hex(&workspace[1..], 24)
         {
             return Err(denied());
         }
@@ -1031,8 +1099,10 @@ impl Preparations {
             // admitting any constructor or remote claim. This terminal journal
             // occupies the original key, so a later identical send cannot start.
             private_dir(&directory).map_err(|_| denied())?;
-            save(&directory.join("retired.json"),
-                &json!({"kind":"not_started","root":key,"address":address}))?;
+            save(
+                &directory.join("retired.json"),
+                &json!({"kind":"not_started","root":key,"address":address}),
+            )?;
         }
         drop(entries);
         self.retained(address)
@@ -1053,7 +1123,8 @@ impl Preparations {
         let directory = self.directory.join(&key);
         let marker: Value = load(&directory.join("retired.json"))?;
         if marker["kind"] == "not_started" {
-            if marker["root"] != key || marker["address"] != *address
+            if marker["root"] != key
+                || marker["address"] != *address
                 || directory.join("request.json").try_exists()?
             {
                 return Err(denied());

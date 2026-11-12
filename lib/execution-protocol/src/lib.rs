@@ -51,6 +51,11 @@ pub enum PreparedSourceOperation {
     Context {
         selection: ContextSelection,
     },
+    CandidateContext {
+        selection: ContextSelection,
+        delta_length: usize,
+        delta_sha256: String,
+    },
     Candidate {
         base: String,
         candidate: String,
