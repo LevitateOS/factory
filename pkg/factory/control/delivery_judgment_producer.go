@@ -251,6 +251,9 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 	if !ready || pending || refused || review.Review == nil || c.Planning == nil {
 		return nil, factory.DeliveryDecision{}, nil
 	}
+	if !hasFundedDeliveryAcceptance(p) {
+		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
+	}
 	chooser, boundRevision, err := c.deliveryChooser(ctx, p.Repository)
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
@@ -283,6 +286,17 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 		return &acceptance, receipt.Decision, nil
 	}
 	return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
+}
+
+// Receipt lookup cannot create an acceptance. Its absence only denies merge;
+// a recorded acceptance still requires the full current material recheck.
+func hasFundedDeliveryAcceptance(p factory.Publication) bool {
+	for _, acceptance := range p.DeliveryAcceptances {
+		if acceptance.Kind == factory.AcceptanceJevAcceptance {
+			return true
+		}
+	}
+	return false
 }
 
 func deliveryResolutionsConfirmed(p factory.Publication, acceptance factory.DeliveryAcceptance) bool {

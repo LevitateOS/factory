@@ -240,8 +240,19 @@ func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge,
 	// A superseded or closed attempt cannot acquire its first merge operation.
 	// Check the local owner before accepted-input reads; recorded operations
 	// still reconcile above under their original identity and receipts.
-	if op.Attempts == 0 && op.Work == nil && op.Effect == "" && !c.currentMergeAttempt(ctx, *m, report) {
-		return none, 0, false
+	if op.Attempts == 0 && op.Work == nil && op.Effect == "" {
+		if !c.currentMergeAttempt(ctx, *m, report) {
+			return none, 0, false
+		}
+		// A findings COMMENT needs a journaled funded acceptance. Polling
+		// current inputs cannot supply that missing local receipt, and the
+		// separate delivery producer remains responsible for creating it.
+		if !m.Authorization.Bound() && !hasFundedDeliveryAcceptance(*p) {
+			if review, found := currentReviewOperation(*p); found && currentReviewOpReady(*p, review) && review.Work.Event == "COMMENT" && review.Work.Disposition() == "REQUEST_CHANGES" {
+				mergeWait(report, m.ID, "funded_delivery_unavailable")
+				return none, 0, false
+			}
+		}
 	}
 	policy, revision, allowed := c.mergeAuthority(ctx, *m, report)
 	if !allowed {

@@ -69,6 +69,17 @@ func (c *Coordinator) refreshReadinessForAuthority(ctx context.Context, control 
 	if control.HoldsClosedIssue() && control.AssessedUnix <= now && now-control.AssessedUnix < int64(closedIssuePollInterval/time.Second) {
 		return control, nil
 	}
+	authorityChanged := false
+	if publicationAuthority != nil || control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing && !control.HoldsClosedIssue() {
+		authority, err := readAuthority(ctx, control.Repository)
+		if err != nil {
+			return factory.IssueControl{}, err
+		}
+		authorityChanged = factory.AuthorityFingerprint(authority) != control.Authority
+		if !authorityChanged && control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing && !control.HoldsClosedIssue() {
+			return control, nil
+		}
+	}
 	if c.Readiness == nil {
 		if c.AcceptanceReads != nil {
 			reserved, err := c.reserveIssueAssessment(ctx, factory.DependenceRef{Repository: control.Repository, Issue: control.Issue})
@@ -82,17 +93,6 @@ func (c *Coordinator) refreshReadinessForAuthority(ctx context.Context, control 
 			return observed.control, err
 		}
 		return control, nil
-	}
-	authorityChanged := false
-	if publicationAuthority != nil || control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing && !control.HoldsClosedIssue() {
-		authority, err := readAuthority(ctx, control.Repository)
-		if err != nil {
-			return factory.IssueControl{}, err
-		}
-		authorityChanged = factory.AuthorityFingerprint(authority) != control.Authority
-		if !authorityChanged && control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing {
-			return control, nil
-		}
 	}
 	budget := readinessBudgetFrom(ctx)
 	if budget != nil && !budget.reserveNativeRPC(1) {

@@ -1582,6 +1582,16 @@ Combined backend/native builds and the existing finite progress-gate and
 external-preparation PostgreSQL checks pass (request51-{progress,external}-pg.json).
 Actual installed51 correction remains unqualified: resume original root6aac,
 finding5a2 and the remaining bounded correction/review without new planning.
+Installed51 reconnects with valid original review/CI/root/allowance, but no Fixer
+starts; usage stays235. Local traffic still reaches1860 requests. Pure retained
+contract validation passes. A zero-role backend stack capture identifies desktop
+readiness bypassing its unchanged-authority negative check; normal Quit then
+retires all processes/socket. Existing funded-acceptance lookup also fetched
+native material despite an absent receipt. Both negative preflights are corrected;
+child holds now log only validated IDs/whitelisted reasons without extra reads.
+The backend build and affected existing progress-gate check pass
+(request52-progress-pg.log). Next: exact-prior52 installation, then inspect its
+original correction hold/receipt before any further effect; no role is replayed.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

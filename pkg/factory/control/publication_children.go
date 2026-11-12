@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
 	"reflect"
 	"slices"
 	"time"
@@ -32,12 +33,27 @@ func (c *Coordinator) producePublishedChildren(ctx context.Context, report *Publ
 		publicationError(report, "", "child_producer_listing_unavailable")
 		return
 	}
+	logNew := func(waits, failures int) {
+		for _, wait := range report.Waits[waits:] {
+			if factory.ValidID(wait.ID) {
+				log.Printf("publication child wait id=%q reason=%q", wait.ID, dispatchObservationReason(0, 0, wait.Reason, "").Reason)
+			}
+		}
+		for _, failure := range report.Errors[failures:] {
+			if factory.ValidID(failure.ID) {
+				log.Printf("publication child error id=%q reason=%q", failure.ID, dispatchObservationReason(0, 0, failure.Reason, "").Reason)
+			}
+		}
+	}
 	for _, publication := range publications {
+		waits, failures := len(report.Waits), len(report.Errors)
 		if err := ctx.Err(); err != nil {
 			publicationWait(report, publication.ID, "child_producer_cancelled")
+			logNew(waits, failures)
 			return
 		}
 		c.producePublicationChild(ctx, publication, report)
+		logNew(waits, failures)
 	}
 }
 

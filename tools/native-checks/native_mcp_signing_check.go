@@ -13770,6 +13770,8 @@ func progressClosedIssueFixture(ctx context.Context, db *store.Store, raw *sql.D
 }
 
 func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.DB, p factory.Publication, owner factory.Assignment, allowance factory.AttemptAllowance) error {
+	// This declared publication's review must name its actual recorded head.
+	p.Candidate, p.PRCreate.BaseOID = p.InitialCandidate(), p.BaseSHA
 	m := factory.Merge{ID: factory.NewID(), PublicationID: p.ID, AssignmentID: p.AssignmentID, ProjectID: p.ProjectID, Role: p.Role, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue,
 		PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: 7, ReviewerID: 7, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID,
 		Authority: factory.AuthorityRef{Policy: 1}, Operation: factory.MergeOperation{Kind: factory.OpMerge}, Stage: factory.MergeOpen, CreatedUnix: time.Now().Unix()}
@@ -13796,6 +13798,12 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 			return err
 		}
 		return write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($2,7,12,'declared-merge-run','finished',0,$1)`, a, a.ID)
+	}
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	if err := write(`UPDATE factory_publications SET data=$1 WHERE assignment=$2`, p, p.AssignmentID); err != nil {
+		return err
 	}
 	lookups := 0
 	c := control.NewCoordinator(db, nil, nil)
@@ -13849,6 +13857,29 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	if checkable, err := db.CheckablePublications(ctx, 256); err != nil || len(checkable) != 1 || checkable[0].ID != p.ID {
 		return errors.New("same-root child concealed the current publication from checks")
 	}
+	// A declared settled findings COMMENT has no funded acceptance. The merge
+	// consumer cannot create that receipt by refreshing provider evidence.
+	findings := p
+	w := factory.ReviewWork{OperationID: "review-" + owner.Run, AuthRevision: factory.ReviewAuthRevision(p.AssignmentID, owner.Run), Repository: p.Repository, ActorID: 7, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID, Event: "COMMENT", AgentVerdict: "REQUEST_CHANGES", Body: "Declared findings receipt", NativeRev: 1, NotAfter: time.Now().Add(time.Minute).Unix()}
+	findings.ReviewOperations = []factory.ReviewOperation{{RunID: owner.Run, Work: w, Outcome: factory.OperationOutcome{OperationID: w.OperationID, InstallationID: "declared", Kind: factory.OpReviewSubmit, ActorID: w.ActorID, RepositoryID: w.Repository, Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, Receipt: []byte("declared native receipt")}}}
+	if err := findings.Validate(); err != nil {
+		return err
+	}
+	if err := write(`UPDATE factory_publications SET data=$1 WHERE assignment=$2`, findings, p.AssignmentID); err != nil {
+		return err
+	}
+	reads := &progressClosedIssueReads{}
+	c.AcceptanceReads = reads
+	if err := assertWait("funded_delivery_unavailable"); err != nil || reads.acceptance != 0 {
+		return fmt.Errorf("missing funded acceptance fetched native inputs: reads=%d error=%v", reads.acceptance, err)
+	}
+	if stored, err := db.MergeByPublication(ctx, p.ID); err != nil || !reflect.DeepEqual(stored, m) {
+		return errors.New("missing funded acceptance changed its original merge journal")
+	}
+	if err := write(`UPDATE factory_publications SET data=$1 WHERE assignment=$2`, p, p.AssignmentID); err != nil {
+		return err
+	}
+	c.AcceptanceReads = nil
 	allowance.Closed = true
 	if err := write(`UPDATE factory_attempt_allowances SET data=$1 WHERE root_assignment=$2`, allowance, allowance.RootAssignment); err != nil {
 		return err
@@ -13897,7 +13928,7 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	if report := c.MergePass(ctx); len(report.Errors) != 1 || lookups != 1 {
 		return fmt.Errorf("recorded merge lookup was suppressed: %+v lookups=%d", report, lookups)
 	}
-	fmt.Println("PASS: real PG holds a pristine superseded merge before provider inputs without changing its journal; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
+	fmt.Println("PASS: real PG holds a pristine superseded merge and a findings COMMENT without a funded acceptance before provider inputs without changing original journals; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
 	return nil
 }
 

@@ -633,6 +633,23 @@ Existing finite progress-gate and external-preparation realPG checks pass with
 clean shutdown; request51-{progress,external}-pg.json retains exact commands and
 results. Exact-prior51 installation and actual original Fixer qualification are
 next; no new adoption, authority renewal or inference replay.
+Installed51 inventoryd0c9ddc8 reconnects normally, but no Fixer/preparation starts
+and usage remains235. Original publication/check/control/cycle/typed-review
+validators pass (goal51-pure-validation.log); exact ownership/allowance/head agree.
+Its local counters reach1860 requests, so efficiency remains unqualified.
+With0active/unsettled/held work, SIGQUIT captures the original blocked backend;
+goal51-backend-stack-current.log shows old issue59 readiness I/O through the
+desktop Readiness=nil branch. Normal Quit fully retires app/backend/native/Muse
+and socket. The existing negative authority fingerprint check now precedes that
+branch, preserving after-minute closed-issue reopening. Absent funded acceptance
+also holds pristine findings-comment merge admission and receipt lookup before
+native material reads; original operation lookup remains first. Child waits and
+errors log only validated IDs/whitelisted reasons, without Detail or extra reads.
+Backend local-hold-preflight-server SHA0c468d530f6e9e51317aeb133da295bb37af35b51986d84354945b5a61740131
+and affected existing realPG progress-gate pass (request52-progress-pg.log), with
+clean shutdown. Exact-prior52 and the actual retained Fixer are next. No paid
+inference, command, deadline or receipt is replaced; all other remaining gates
+above stay open.
 
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits
