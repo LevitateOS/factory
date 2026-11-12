@@ -13846,6 +13846,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 				Query   struct {
 					Kind, Repository    string
 					Page, Limit, Number uint32
+					Cursor              string
 				}
 			}
 		}
@@ -13887,6 +13888,34 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			field := ""
 			pull := map[string]any{"kind": "pull", "external_id": "700", "number": 7}
 			switch kind {
+			case "completion_issues":
+				field = "inputs"
+				if !inventoryMode.Load() {
+					w.WriteHeader(503)
+					return
+				}
+				if inventoryMissing.Load() {
+					w.WriteHeader(404)
+					json.NewEncoder(w).Encode(map[string]string{"error": "github_not_visible"})
+					return
+				}
+				inventoryLists.Add(1)
+				first := 1
+				if command.Call.Query.Cursor == "after-50" {
+					first = 51
+				} else if command.Call.Query.Cursor != "" {
+					w.WriteHeader(503)
+					return
+				}
+				inputs := []any{}
+				for n := first; n < first+50 && n <= 60; n++ {
+					inputs = append(inputs, map[string]any{"issue": map[string]any{"id": strconv.Itoa(1300 + n), "number": n, "title": fmt.Sprintf("Declared objective %d", n), "body": "Declared body", "version": 0, "title_occurrence": "original", "lifecycle_occurrence": "original", "author": account, "created_at": "2026-01-01T00:00:00Z", "closed": false, "locked": false}, "comments": []any{}, "dependencies": []any{}, "tip": strings.Repeat("b", 40), "tip_ref": "refs/heads/main"})
+				}
+				next := "after-50"
+				if first == 51 {
+					next = ""
+				}
+				payload = map[string]any{"repository": "123", "target_ref": "refs/heads/main", "tip": strings.Repeat("b", 40), "items": inputs, "next_cursor": next, "complete": next == ""}
 			case "issues":
 				field = "issues"
 				if !inventoryMode.Load() {
@@ -16402,11 +16431,15 @@ func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sq
 			traversals++
 		}
 		reads++
-		title := fmt.Sprintf("Issue %d", n)
+		index := n
+		if traversals%2 == 1 && n < 3 {
+			index = 3 - n
+		}
+		title := fmt.Sprintf("Issue %d", index)
 		if edits && traversals == 2 && n == 3 {
 			title = "Concurrent human edit"
 		}
-		body := factory.CompletionIssueEvidence{Index: int64(n), Title: title, Body: "Retained body", TitleDigest: fmt.Sprintf("%x", sha256.Sum256([]byte(title))), ContentDigest: fmt.Sprintf("%x", sha256.Sum256([]byte("Retained body")))}
+		body := factory.CompletionIssueEvidence{Index: int64(index), Title: title, Body: "Retained body", TitleDigest: fmt.Sprintf("%x", sha256.Sum256([]byte(title))), ContentDigest: fmt.Sprintf("%x", sha256.Sum256([]byte("Retained body")))}
 		encoded, err := body.CanonicalData()
 		if err != nil {
 			return control.IssueObservationPage{}, err
@@ -16415,7 +16448,7 @@ func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sq
 		if n < 20 {
 			next = strconv.Itoa(n + 1)
 		}
-		return control.IssueObservationPage{Issues: []control.NativeInventoryIssue{{Index: int64(n), Data: encoded}}, Next: next, Complete: next == ""}, nil
+		return control.IssueObservationPage{Issues: []control.NativeInventoryIssue{{Index: int64(index), Data: encoded}}, Next: next, Complete: next == ""}, nil
 	}}
 	// Persist actual collection progress, then replace the coordinator. The next
 	// callback must continue at9, rather than silently restarting at1.
@@ -16485,15 +16518,15 @@ func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sq
 func progressNativeInventoryFixture(ctx context.Context, db *store.Store, input factoryruntime.NativeInputSource, repo, revision int64, lists *atomic.Int64, shifted, missing, edited *atomic.Bool) error {
 	lists.Store(0)
 	first, err := input.ReadCompletionIssuePage(ctx, repo, "")
-	if err != nil || first.Complete || len(first.Issues) != 1 || first.Next == "" {
+	if err != nil || first.Complete || len(first.Issues) != 50 || first.Next == "" {
 		return fmt.Errorf("native first inventory step: %+v %v", first, err)
 	}
 	second, err := input.ReadCompletionIssuePage(ctx, repo, first.Next)
-	if err != nil || len(second.Issues) != 1 || second.Issues[0].Index != 2 || lists.Load() != 1 {
+	if err != nil || len(second.Issues) != 10 || second.Issues[0].Index != 51 || !second.Complete || lists.Load() != 2 {
 		return fmt.Errorf("native inventory repeated list page: lists=%d err=%v", lists.Load(), err)
 	}
 	missing.Store(true)
-	_, err = input.ReadCompletionIssuePage(ctx, repo, second.Next)
+	_, err = input.ReadCompletionIssuePage(ctx, repo, first.Next)
 	missing.Store(false)
 	if err == nil || err.Error() != control.HoldInventoryRevision {
 		return fmt.Errorf("deleted cached member did not invalidate progress: %v", err)

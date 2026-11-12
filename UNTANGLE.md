@@ -850,7 +850,7 @@ builds, apps or provider requests in this design phase.
   refactor. F4–F8 pending. No live/model effects or original state changed.
   Next: resume bounded inventory/creation work in existing Go collectors (F4).
 
-- F4 IN PROGRESS: bounded Go inventory steps now persist through the existing
+- F4 COMPLETE (resumption7f4aea8 plus this batch slice): bounded Go inventory steps now persist through the existing
   collector; a first and confirming whole inventory must match before sealing.
   Intake corroborates membership once through retained source steps, then reuses
   it for individually verified candidates. Schema107 atomically checkpoints scan
@@ -875,7 +875,14 @@ builds, apps or provider requests in this design phase.
   race reread and rollback checks); f4-sodaos-adapter-final.log; backend/harness
   build logs. Native replies in these Go cases are declared; F2's physical-send
   enforcement remains in force. Independent review's membership/reset/cadence/
-  upgrade findings are corrected. Next executable work: batch supported GitHub
-  issue evidence at the native owner so large completion scans avoid per-issue
-  brackets, then qualify actual wire counts before marking F4 complete. F5–F8
-  remain pending. No live provider/model/writes or original retained state touched.
+  upgrade findings are corrected. GitHub now batches up to50 original issue observations in5 physical sends per
+  page, reusing the existing evidence projector and current account bracket.
+  Unordered provider pages compare as exact sets before numeric sealing.
+  f4-batch-wire-final.log retains50/10/empty/unordered pages and changed body/
+  tip, duplicate, incomplete-history, wrong-repository and withdrawal refusal;
+  saved JSON artifacts passed the local structural assertions. The launcher’s
+  final Node wrapper failed while seeking its runtime; /usr/bin/node verified
+  those artifacts without repeating native effects. f4-batch-progress-pg.log
+  passes native callback pagination, unordered whole-set sealing and existing
+  realPG progress/recovery gates. f4-batch-native-final.log builds the connector.
+  Independent batch review found no substantive issue. F5–F8 remain pending. No live provider/model/writes or original retained state touched.

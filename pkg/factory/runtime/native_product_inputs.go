@@ -75,6 +75,17 @@ func (s nativeIssueInputs) readInputs(ctx context.Context, repository, index str
 	if err = s.read(ctx, nativeRead{Kind: "automation_inputs", Repository: s.repository.ExternalID, Number: uint32(number), Comments: comments, TargetRef: target}, &raw); err != nil {
 		return raw, 0, nil, err
 	}
+	raw, revision, mapped, err := s.acceptInputs(ctx, raw, repo, number, comments, target)
+	if err == nil {
+		err = s.current(ctx)
+	}
+	return raw, revision, mapped, err
+}
+
+func (s nativeIssueInputs) acceptInputs(ctx context.Context, raw nativeInputSnapshot, repo, number int64, comments []string, target string) (nativeInputSnapshot, int64, map[string]string, error) {
+	if !nativeIndex(number) || s.repository == nil || int64(s.repository.ID) != repo {
+		return raw, 0, nil, errNativeReadScope
+	}
 	i := raw.Issue
 	if i.Number != number || !nativeRemoteID(i.ID) || i.Title == "" || len(i.Title) > 4096 || len(i.Body) > 65536 || i.Version == nil || *i.Version < 0 || !nativeActor(i.Author) || i.CreatedAt == nil || i.CreatedAt.IsZero() || i.Closed == nil || i.Locked == nil || *i.Closed != (i.ClosedAt != nil) || raw.Comments == nil || len(raw.Comments) != len(comments) || raw.Dependencies == nil || len(raw.Dependencies) > 50 || raw.TipRef != target || !factory.ValidCommit(raw.Tip) {
 		return raw, 0, nil, errNativeRead
@@ -94,7 +105,7 @@ func (s nativeIssueInputs) readInputs(ctx context.Context, repository, index str
 		}
 		occurrences = append(occurrences, i.ClosingOccurrence)
 	}
-	seen = map[string]bool{}
+	seen := map[string]bool{}
 	for _, edge := range raw.Dependencies {
 		if !nativeRemoteID(edge.DependsOn) || !nativeRemoteID(edge.Repository) || edge.Number <= 0 || !nativeReviewNode(edge.Occurrence, 1024) || seen[edge.DependsOn] {
 			return raw, 0, nil, errNativeRead
@@ -118,9 +129,6 @@ func (s nativeIssueInputs) readInputs(ctx context.Context, repository, index str
 		return raw, 0, nil, err
 	}
 	revision, mapped, err := s.store.ObserveNativeIssueInputs(ctx, repo, number, inputDigest(encoded), occurrences)
-	if err == nil {
-		err = s.current(ctx)
-	}
 	return raw, revision, mapped, err
 }
 

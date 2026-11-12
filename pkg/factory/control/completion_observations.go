@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"reflect"
+	"sort"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -40,13 +40,14 @@ type IssueObservationPage struct {
 }
 
 type IssueObservationProgress struct {
-	NotBefore  int64 `json:",omitempty"`
-	Version    int
-	Generation int64
-	Cursor     string
-	Confirming bool
-	Confirmed  int
-	Pages      int
+	NotBefore        int64 `json:",omitempty"`
+	Version          int
+	Generation       int64
+	Cursor           string
+	Confirming       bool
+	Confirmed        int
+	ConfirmedIndexes map[int64]bool `json:",omitempty"`
+	Pages            int
 }
 
 func bracketPagedIssueObservations(ctx context.Context, deps CompletionDriveDeps, repository, generation int64, saved *InventoryCollector) bracketResult {
@@ -62,8 +63,8 @@ func bracketPagedIssueObservations(ctx context.Context, deps CompletionDriveDeps
 		return bracketResult{hold: HoldInventoryUnavailable, progress: saved}
 	}
 	collector := saved
-	if collector == nil || collector.Observation == nil || collector.Observation.Version != 1 || collector.Observation.Generation != generation || !collector.Local.Equal(local) {
-		collector = &InventoryCollector{Local: local, Issues: []NativeInventoryIssue{}, Observation: &IssueObservationProgress{Version: 1, Generation: generation}}
+	if collector == nil || collector.Observation == nil || collector.Observation.Version != 2 || collector.Observation.Generation != generation || !collector.Local.Equal(local) {
+		collector = &InventoryCollector{Local: local, Issues: []NativeInventoryIssue{}, Observation: &IssueObservationProgress{Version: 2, Generation: generation}}
 	}
 	progress := collector.Observation
 	if progress.Confirmed < 0 || progress.Confirmed > len(collector.Issues) || progress.Pages < 0 || checkInventoryIssues(collector.Issues, 0, 0, 0) != nil {
@@ -93,24 +94,36 @@ func bracketPagedIssueObservations(ctx context.Context, deps CompletionDriveDeps
 			return bracketResult{hold: HoldInventoryOversize}
 		}
 		if progress.Confirming {
-			end := progress.Confirmed + len(page.Issues)
-			if end > len(collector.Issues) || len(page.Issues) > 0 && !reflect.DeepEqual(page.Issues, collector.Issues[progress.Confirmed:end]) {
-				return bracketResult{hold: HoldInventoryRevision}
+			if progress.ConfirmedIndexes == nil {
+				progress.ConfirmedIndexes = make(map[int64]bool)
 			}
-			progress.Confirmed = end
+			for _, issue := range page.Issues {
+				index := sort.Search(len(collector.Issues), func(i int) bool { return collector.Issues[i].Index >= issue.Index })
+				if progress.ConfirmedIndexes[issue.Index] || index == len(collector.Issues) || collector.Issues[index] != issue {
+					return bracketResult{hold: HoldInventoryRevision}
+				}
+				progress.ConfirmedIndexes[issue.Index] = true
+				progress.Confirmed++
+			}
 		} else {
-			var last int64
-			if len(collector.Issues) > 0 {
-				last = collector.Issues[len(collector.Issues)-1].Index
-			}
 			evidence := 0
+			seen := map[int64]bool{}
 			for _, issue := range collector.Issues {
 				evidence += len(issue.Data)
+				seen[issue.Index] = true
 			}
-			if err := checkInventoryIssues(page.Issues, last, len(collector.Issues), evidence); err != nil {
-				return bracketResult{hold: err.Error()}
+			for _, issue := range page.Issues {
+				if seen[issue.Index] {
+					return bracketResult{hold: HoldInventoryRevision}
+				}
+				if err := checkInventoryIssues([]NativeInventoryIssue{issue}, 0, len(collector.Issues), evidence); err != nil {
+					return bracketResult{hold: err.Error()}
+				}
+				seen[issue.Index] = true
+				evidence += len(issue.Data)
+				collector.Issues = append(collector.Issues, issue)
 			}
-			collector.Issues = append(collector.Issues, page.Issues...)
+			sort.Slice(collector.Issues, func(i, j int) bool { return collector.Issues[i].Index < collector.Issues[j].Index })
 		}
 		progress.Cursor = page.Next
 		if !page.Complete {
@@ -125,7 +138,7 @@ func bracketPagedIssueObservations(ctx context.Context, deps CompletionDriveDeps
 		}
 		confirmed, err := deps.CaptureLocal(ctx, repository)
 		if err != nil {
-			progress.Cursor, progress.Confirmed = "", 0
+			progress.Cursor, progress.Confirmed, progress.ConfirmedIndexes = "", 0, nil
 			return bracketResult{hold: HoldInventoryUnavailable, progress: collector}
 		}
 		if !collector.Local.Equal(confirmed) {

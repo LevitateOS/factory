@@ -2591,7 +2591,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             stopped?;
             outcome
         }
-        (Some("--github-automation-inputs" | "--github-merge-completion" | "--github-source-bundle"), n) if n >= 6 => {
+        (Some("--github-automation-inputs" | "--github-merge-completion" | "--github-source-bundle" | "--github-completion-issues"), n) if n >= 6 => {
             use std::io::Write;
             use std::os::unix::fs::OpenOptionsExt;
             let field = |n: usize| {
@@ -2610,7 +2610,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     .await??;
             let completion=args[0]=="--github-merge-completion";
             let source=args[0]=="--github-source-bundle";
-            let query=if source { soda_desktop_runtime::github_provider::Read::SourceBundle {repository:field(2)?.into(),base:field(3)?.into(),expected_base:String::new(),commit:field(4)?.into(),target_ref:field(6)?.into(),number:None,head_repository:String::new()} }
+            let batch=args[0]=="--github-completion-issues";
+            let query=if batch { soda_desktop_runtime::github_provider::Read::CompletionIssues {repository:field(2)?.into(),target_ref:field(4)?.into(),limit:field(3)?.parse()?,cursor:if args.len()>6 {field(6)?.into()}else{String::new()}} } else if source { soda_desktop_runtime::github_provider::Read::SourceBundle {repository:field(2)?.into(),base:field(3)?.into(),expected_base:String::new(),commit:field(4)?.into(),target_ref:field(6)?.into(),number:None,head_repository:String::new()} }
             else if completion { soda_desktop_runtime::github_provider::Read::MergeCompletion {repository:field(2)?.into(),number:field(3)?.parse()?} } else {
                 soda_desktop_runtime::github_provider::Read::AutomationInputs {repository:field(2)?.into(),number:field(3)?.parse()?,target_ref:field(4)?.into(),comments:args[6..].iter().map(|s|s.to_str().map(str::to_owned).ok_or("invalid selected comment")).collect::<std::result::Result<_,_>>()?}
             };

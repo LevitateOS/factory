@@ -5,18 +5,20 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use zeroize::Zeroizing;
 
-const QUERY: &str = r#"query FactoryIssueInputs($owner:String!,$name:String!,$number:Int!,$ref:String!,$comments:[ID!]!){
-repository(owner:$owner,name:$name){databaseId nameWithOwner
-issue(number:$number){id databaseId number title body createdAt closedAt closed locked lastEditedAt
+macro_rules! issue_fields { () => { r#"id databaseId number title body createdAt closedAt closed locked lastEditedAt
 author{__typename login ... on User{databaseId} ... on Bot{databaseId}}
 userContentEdits(first:1){totalCount}
 timelineItems(first:100,itemTypes:[RENAMED_TITLE_EVENT,CLOSED_EVENT,REOPENED_EVENT,BLOCKED_BY_ADDED_EVENT,BLOCKED_BY_REMOVED_EVENT]){pageInfo{hasNextPage} nodes{
 __typename ... on RenamedTitleEvent{id currentTitle} ... on ClosedEvent{id} ... on ReopenedEvent{id}
 ... on BlockedByAddedEvent{id blockingIssue{databaseId}} ... on BlockedByRemovedEvent{id blockingIssue{databaseId}}}}
-blockedBy(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId number repository{databaseId}}}}
+blockedBy(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId number repository{databaseId}}}"# }; }
+const QUERY: &str = concat!(r#"query FactoryIssueInputs($owner:String!,$name:String!,$number:Int!,$ref:String!,$comments:[ID!]!){
+repository(owner:$owner,name:$name){databaseId nameWithOwner
+issue(number:$number){"#, issue_fields!(), r#"}
 ref(qualifiedName:$ref){name prefix target{__typename oid}}}
 nodes(ids:$comments){__typename ... on IssueComment{id databaseId body lastEditedAt isMinimized issue{id} userContentEdits(first:1){totalCount}}}}
-"#;
+"#);
+const INVENTORY_QUERY: &str=concat!(r#"query FactoryCompletionIssues($owner:String!,$name:String!,$ref:String!,$after:String,$limit:Int!){repository(owner:$owner,name:$name){databaseId nameWithOwner issues(first:$limit,after:$after,states:OPEN,orderBy:{field:CREATED_AT,direction:ASC}){pageInfo{hasNextPage endCursor} nodes{"#,issue_fields!(),r#"}} ref(qualifiedName:$ref){name prefix target{__typename oid}}}}"#);
 
 fn opaque(value: &Value, field: &str) -> Result<String> {
     r::text(value, field).and_then(|s| {
@@ -92,13 +94,16 @@ impl Reader<'_> {
 }
 impl Client {
     async fn issue_inputs_query(&self, token: &[u8], variables: Value) -> Result<Value> {
+        self.issue_inputs_document(token,QUERY,variables,2*1024*1024).await
+    }
+    async fn issue_inputs_document(&self,token:&[u8],query:&'static str,variables:Value,limit:usize)->Result<Value> {
         let token = Zeroizing::new(token.to_vec());
         Ok(self
             .provider_request(
                 move |http| {
                     Ok((
-                        super::transport::graphql(http, &token, QUERY, variables)?,
-                        2 * 1024 * 1024,
+                        super::transport::graphql(http, &token, query, variables)?,
+                        limit,
                     ))
                 },
                 None,
@@ -118,11 +123,15 @@ fn project(
     if value.get("errors").is_some_and(|errors| !errors.is_null()) {
         return Err(Failure::protocol());
     }
-    let repo = &value["data"]["repository"];
+    let repo=&value["data"]["repository"];
+    project_input(repo,&repo["issue"],&value["data"]["nodes"],repository,number,selected,target)
+}
+
+fn project_input(repo:&Value,issue:&Value,nodes:&Value,repository:&str,number:u32,selected:&[String],target:&str)->Result<Value> {
+
     if r::big_id(&repo["databaseId"])? != repository {
         return Err(Failure::protocol());
     }
-    let issue = &repo["issue"];
     if issue["number"].as_u64() != Some(u64::from(number)) {
         return Err(Failure::protocol());
     }
@@ -206,7 +215,7 @@ fn project(
         dependencies.push(json!({"occurrence":occurrence,"depends_on":id,"repository":r::big_id(&endpoint["repository"]["databaseId"])?,"number":count(&endpoint["number"])?}));
     }
     dependencies.sort_by_key(|v| v["depends_on"].as_str().unwrap_or("").to_owned());
-    let nodes = value["data"]["nodes"]
+    let nodes = nodes
         .as_array()
         .filter(|v| v.len() == selected.len())
         .ok_or_else(Failure::protocol)?;
@@ -227,17 +236,7 @@ fn project(
         }
         comments.push(json!({"id":id,"body":content,"version":version}));
     }
-    let reference = &repo["ref"];
-    if format!(
-        "{}{}",
-        r::text(reference, "prefix")?,
-        r::text(reference, "name")?
-    ) != target
-        || reference["target"]["__typename"] != "Commit"
-        || !r::text(&reference["target"], "oid").is_ok_and(super::request::commit)
-    {
-        return Err(Failure::protocol());
-    }
+    let reference=project_reference(repo,target)?;
     let projected = json!({"issue":{"id":issue_id,"number":number,"title":title,"body":body,"version":version,"title_occurrence":title_occurrence,
         "lifecycle_occurrence":lifecycle_occurrence,"closing_occurrence":closing_occurrence,"author":author,"created_at":issue["createdAt"],"closed_at":issue["closedAt"],"closed":issue["closed"],"locked":issue["locked"]},
         "dependencies":dependencies,"comments":comments,"tip":reference["target"]["oid"],"tip_ref":target});
@@ -249,4 +248,59 @@ fn project(
         return Err(Failure::new(409, "github_issue_inputs_incomplete"));
     }
     Ok(projected)
+}
+
+impl Reader<'_> {
+    pub(super) async fn completion_issues(&self,after:&str,target:&str,limit:u32)->Result<Value> {
+        let (owner,name)=self.name.split_once('/').ok_or_else(Failure::protocol)?;
+        let variables=json!({"owner":owner,"name":name,"ref":target,"after":if after.is_empty(){Value::Null}else{json!(after)},"limit":limit});
+        let observe=|| async {
+            let raw=self.client.issue_inputs_document(self.token,INVENTORY_QUERY,variables.clone(),8*1024*1024).await?;
+            project_inventory(&raw,self.repository,target,limit,after)
+        };
+        if crate::provider_contract::operation::Operation::current().is_some_and(|work| !work.can_finish(3)) {
+            return Err(Failure::new(429,"native_operation_budget"));
+        }
+        let first=observe().await?;
+        self.recheck().await?;
+        let confirmed=observe().await?;
+        if first!=confirmed {return Err(Failure::new(409,"github_inventory_changed"));}
+        Ok(first)
+    }
+}
+
+fn project_inventory(raw:&Value,repository:&str,target:&str,limit:u32,after:&str)->Result<Value> {
+    if raw.get("errors").is_some_and(|e|!e.is_null()) {return Err(Failure::protocol());}
+    let repo=&raw["data"]["repository"];
+    if r::big_id(&repo["databaseId"])?!=repository {return Err(Failure::protocol());}
+    let reference=project_reference(repo,target)?;
+    let connection=&repo["issues"];
+    let nodes=connection["nodes"].as_array().filter(|n|n.len()<=limit as usize).ok_or_else(Failure::protocol)?;
+    let next=r::graphql_continuation(connection)?.unwrap_or_default();
+    if !next.is_empty() && (nodes.is_empty() || next==after) {return Err(Failure::protocol());}
+    let mut items=Vec::with_capacity(nodes.len());
+    let mut seen=BTreeSet::new();let mut numbers=BTreeSet::new();
+    for node in nodes {
+        let number=node["number"].as_u64().filter(|n|*n>0 && *n<=i32::MAX as u64).ok_or_else(Failure::protocol)?;
+        if !numbers.insert(number) {return Err(Failure::protocol());}
+        let projected=project_input(repo,node,&json!([]),repository,number as u32,&[],target)?;
+        if projected["issue"]["closed"]!=false || !seen.insert(projected["issue"]["id"].clone().as_str().ok_or_else(Failure::protocol)?.to_owned()) {return Err(Failure::protocol());}
+        items.push(projected);
+    }
+    Ok(json!({"repository":repository,"target_ref":target,"tip":reference["target"]["oid"],"items":items,"next_cursor":next,"complete":next.is_empty()}))
+}
+
+fn project_reference<'a>(repo:&'a Value,target:&str)->Result<&'a Value> {
+    let reference = &repo["ref"];
+    if format!(
+        "{}{}",
+        r::text(reference, "prefix")?,
+        r::text(reference, "name")?
+    ) != target
+        || reference["target"]["__typename"] != "Commit"
+        || !r::text(&reference["target"], "oid").is_ok_and(super::request::commit)
+    {
+        return Err(Failure::protocol());
+    }
+    Ok(reference)
 }

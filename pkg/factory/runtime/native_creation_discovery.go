@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"time"
 
@@ -134,6 +135,7 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 					scan = fresh()
 					break
 				}
+				sort.Slice(scan.Members, func(i, j int) bool { return scan.Members[i].Number < scan.Members[j].Number })
 				scan.Ready = true
 			}
 		}

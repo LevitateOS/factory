@@ -22,7 +22,7 @@ type nativeIssueScan struct {
 	Next       string
 	Complete   bool
 	Pages      int
-	Last       int64
+	Numbers    []int64
 	Seen       []string
 	Bytes      int
 }
@@ -31,6 +31,9 @@ func inventoryReadError(err error) error {
 	var failure *NativePortError
 	if errors.As(err, &failure) && failure.Code == "native_operation_budget" {
 		return control.ErrReadinessPassPending
+	}
+	if errors.As(err, &failure) && failure.Status == 413 {
+		return errors.New(control.HoldInventoryOversize)
 	}
 	return err
 }
@@ -41,9 +44,9 @@ func changedInventoryMember(err error) bool {
 }
 
 func (s *nativeProductAccount) scanIssue(ctx context.Context, cursor, state string) (*collaboration.Issue, string, bool, error) {
-	scan := nativeIssueScan{Version: 1, Connection: s.identity.Connection, Repository: s.repository.ExternalID, State: state}
+	scan := nativeIssueScan{Version: 2, Connection: s.identity.Connection, Repository: s.repository.ExternalID, State: state}
 	if cursor != "" {
-		if len(cursor) > 3<<20 || json.Unmarshal([]byte(cursor), &scan) != nil || scan.Version != 1 || scan.Connection != s.identity.Connection || scan.Repository != s.repository.ExternalID || scan.State != state || len(scan.Pending) > 50 || scan.Pages < 1 || scan.Pages > 256 || scan.Last < 0 || len(scan.Seen) > factory.MaxReassessmentIssues || scan.Bytes < 0 || scan.Bytes > 2<<20 {
+		if len(cursor) > 3<<20 || json.Unmarshal([]byte(cursor), &scan) != nil || scan.Version != 2 || scan.Connection != s.identity.Connection || scan.Repository != s.repository.ExternalID || scan.State != state || len(scan.Pending) > 50 || scan.Pages < 1 || scan.Pages > 256 || len(scan.Numbers) != len(scan.Seen) || len(scan.Seen) > factory.MaxReassessmentIssues || scan.Bytes < 0 || scan.Bytes > 2<<20 {
 			return nil, "", false, errors.New(control.HoldInventoryRevision)
 		}
 	}
@@ -65,12 +68,16 @@ func (s *nativeProductAccount) scanIssue(ctx context.Context, cursor, state stri
 		for _, id := range scan.Seen {
 			seen[id] = true
 		}
-		last := scan.Last
+		numbers := map[int64]bool{}
+		for _, n := range scan.Numbers {
+			numbers[n] = true
+		}
 		for _, issue := range page.Items {
-			if issue.Ref.Number <= last || seen[issue.Ref.ExternalID] {
+			if issue.Ref.Number <= 0 || numbers[issue.Ref.Number] || seen[issue.Ref.ExternalID] {
 				return nil, "", false, errors.New(control.HoldInventoryRevision)
 			}
-			last = issue.Ref.Number
+			numbers[issue.Ref.Number] = true
+			scan.Numbers = append(scan.Numbers, issue.Ref.Number)
 			seen[issue.Ref.ExternalID] = true
 			scan.Seen = append(scan.Seen, issue.Ref.ExternalID)
 			scan.Bytes += len(issue.Title) + len(issue.Body)
@@ -85,7 +92,6 @@ func (s *nativeProductAccount) scanIssue(ctx context.Context, cursor, state stri
 		item := scan.Pending[0]
 		issue = &item
 		scan.Pending = scan.Pending[1:]
-		scan.Last = item.Ref.Number
 	}
 	complete := scan.Complete && len(scan.Pending) == 0
 	if complete {

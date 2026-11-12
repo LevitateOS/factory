@@ -155,6 +155,10 @@ impl Client {
                                 )
                                 .await?,
                         ),
+                        "completion_issues" => {
+                            let Read::CompletionIssues {cursor,target_ref,limit,..}=query else {return Err(Failure::invalid());};
+                            ("inputs",reader.completion_issues(cursor,target_ref,*limit).await?)
+                        }
                         "automation_inputs" => {
                             let Read::AutomationInputs {
                                 number,

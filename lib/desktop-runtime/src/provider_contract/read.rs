@@ -92,6 +92,13 @@ pub enum Read {
     Repository {
         repository: String,
     },
+    CompletionIssues {
+        repository: String,
+        target_ref: String,
+        #[serde(default)]
+        cursor: String,
+        limit: u32,
+    },
     AutomationInputs {
         repository: String,
         number: u32,
@@ -375,7 +382,7 @@ impl Read {
             Self::CanonicalIssue { .. } => Some("issues"),
             Self::Repositories { .. } => None,
             Self::Repository { .. } => Some("repository"),
-            Self::AutomationInputs { .. } => Some("inputs"),
+            Self::AutomationInputs { .. } | Self::CompletionIssues { .. } => Some("inputs"),
             Self::BranchCreation { .. } => Some("preparation"),
             Self::WriteCapabilities { .. } => Some("capabilities"),
             Self::MergePreparation { .. } => Some("preparation"),
@@ -534,6 +541,9 @@ impl Read {
             if *number > i32::MAX as u32 || !commit(head) || !commit(base) || head == base {
                 return Err(Failure::invalid());
             }
+        }
+        if let Self::CompletionIssues {target_ref,cursor,limit,..}=self {
+            if *limit==0 || *limit>50 || cursor.len()>4096 || cursor.chars().any(char::is_control) || !target_ref.strip_prefix("refs/heads/").is_some_and(branch_name) {return Err(Failure::invalid());}
         }
         if let Self::AutomationInputs {
             number,
