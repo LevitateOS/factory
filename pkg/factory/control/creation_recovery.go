@@ -18,7 +18,7 @@ type CreationRecoverySource interface {
 
 const creationRecoveryPageSize = 16
 
-const idleCreationPollSeconds = 60
+const idleCreationPollSeconds = int64(passiveProgressInterval / time.Second)
 
 // This is scheduling metadata, never a history cursor or admission. A new
 // policy or runtime owner polls immediately; restart still resumes the durable
@@ -33,6 +33,10 @@ var ErrCreationProvenanceIncomplete = errors.New("retained native creation prove
 // repository page per pass keeps unavailable or full repositories from starving
 // later repositories. Native retention is a boundary, not universal history.
 func (c *Coordinator) recoverCreations(ctx context.Context) error {
+	return c.recoverCreationStep(ctx, false)
+}
+
+func (c *Coordinator) recoverCreationStep(ctx context.Context, resumeOnly bool) (result error) {
 	if c.Creations == nil {
 		return nil
 	}
@@ -56,9 +60,23 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 		delete(c.externalPullPolls, repository)
 		return nil
 	}
-	// Optional PR discovery has separate provider reads and consent. Its
-	// unavailability must not stop the original issue recovery owner.
-	_ = c.recoverExternalPulls(ctx, repository, policy)
+	if resumeOnly {
+		saved, e := c.Store.CreationRecoveryScanCursor(ctx, repository)
+		if e != nil {
+			return e
+		}
+		poll, known := c.creationIdlePolls[repository]
+		active := saved != "" || known && poll.position == after && poll.policyRevision == policy.Revision && poll.notBefore == 0
+		if external := c.externalPullPolls[repository]; external.policy == policy.Revision && external.cursor != "" {
+			_ = c.recoverExternalPulls(ctx, repository, policy)
+		}
+		if !active {
+			return nil
+		}
+	} else {
+		// Independent optional discovery retains its own finite due/cursor state.
+		_ = c.recoverExternalPulls(ctx, repository, policy)
+	}
 	now := time.Now().Unix()
 	if poll, ok := c.creationIdlePolls[repository]; ok {
 		if poll.position == after && poll.policyRevision == policy.Revision && poll.notBefore > now && poll.notBefore <= now+idleCreationPollSeconds {
@@ -66,6 +84,18 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 		}
 		delete(c.creationIdlePolls, repository)
 	}
+	defer func() {
+		if result != nil {
+			if c.creationIdlePolls == nil {
+				c.creationIdlePolls = make(map[int64]creationIdlePoll)
+			}
+			due := time.Now().Unix() + idleCreationPollSeconds
+			if errors.Is(result, ErrReadinessPassPending) {
+				due = 0
+			}
+			c.creationIdlePolls[repository] = creationIdlePoll{position: after, policyRevision: policy.Revision, notBefore: due}
+		}
+	}()
 	if !readinessBudgetFrom(ctx).reserveNativeRPC(1) {
 		return ErrReadinessPassPending
 	}
@@ -85,7 +115,15 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 	if !page.ProvenanceComplete {
 		checkpoint = after
 	}
-	if err := c.Store.EnqueueReadinessCreationPage(ctx, repository, after, checkpoint, works, policy.Revision); err != nil {
+	if page.SourceCursor != nil {
+		if !page.ProvenanceComplete {
+			return ErrCreationProvenanceIncomplete
+		}
+		err = c.Store.EnqueueReadinessCreationScanPage(ctx, repository, after, checkpoint, works, policy.Revision, page.ExpectedSourceCursor, *page.SourceCursor)
+	} else {
+		err = c.Store.EnqueueReadinessCreationPage(ctx, repository, after, checkpoint, works, policy.Revision)
+	}
+	if err != nil {
 		return err
 	}
 	if !page.ProvenanceComplete {
@@ -98,6 +136,11 @@ func (c *Coordinator) recoverCreations(ctx context.Context) error {
 			c.creationIdlePolls = make(map[int64]creationIdlePoll)
 		}
 		c.creationIdlePolls[repository] = creationIdlePoll{position: checkpoint, policyRevision: policy.Revision, notBefore: time.Now().Unix() + idleCreationPollSeconds}
+	} else if !page.ReachedRetainedEnd {
+		if c.creationIdlePolls == nil {
+			c.creationIdlePolls = make(map[int64]creationIdlePoll)
+		}
+		c.creationIdlePolls[repository] = creationIdlePoll{position: checkpoint, policyRevision: policy.Revision}
 	}
 	return nil
 }

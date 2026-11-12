@@ -42,7 +42,7 @@ type externalPullPoll struct {
 
 // Pagination is scheduling metadata. On restart it starts at the beginning;
 // retained commands, assignments and the dispatch gate own durable dedupe.
-func (c *Coordinator) recoverExternalPulls(ctx context.Context, repository int64, policy factory.RepositoryPolicy) error {
+func (c *Coordinator) recoverExternalPulls(ctx context.Context, repository int64, policy factory.RepositoryPolicy) (result error) {
 	reader, ok := c.Reviews.(automaticExternalPullSource)
 	if !ok || !policy.Enabled || policy.Paused || !policy.AutomaticExternalPulls {
 		return nil
@@ -55,6 +55,15 @@ func (c *Coordinator) recoverExternalPulls(ctx context.Context, repository int64
 	if poll.notBefore > now && poll.notBefore <= now+idleCreationPollSeconds {
 		return nil
 	}
+	defer func() {
+		if result != nil && !errors.Is(result, ErrReadinessPassPending) {
+			poll.notBefore = time.Now().Unix() + idleCreationPollSeconds
+			if c.externalPullPolls == nil {
+				c.externalPullPolls = map[int64]externalPullPoll{}
+			}
+			c.externalPullPolls[repository] = poll
+		}
+	}()
 	if !readinessBudgetFrom(ctx).reserveNativeRPC(1) {
 		return ErrReadinessPassPending
 	}

@@ -28,7 +28,7 @@ type ApplicationPorts struct {
 	Checks                 control.CheckObserver
 	Merges                 control.MergeExecutor
 	CompletionEnumerator   control.CompletionIssueEnumerator
-	CompletionIssues       func(context.Context, int64) ([]control.NativeInventoryIssue, error)
+	CompletionIssuePage    func(context.Context, int64, string) (control.IssueObservationPage, error)
 	CompletionLocalCapture func(context.Context, int64) (factory.CompletionLocal, error)
 	Priority               control.PriorityChooser
 	Planning               control.ProductJudgment
@@ -60,7 +60,7 @@ func NewApplication(ports ApplicationPorts) Application {
 	coordinator.Publication, coordinator.Reviews = ports.Publication, ports.Reviews
 	coordinator.Resolutions, coordinator.Checks, coordinator.Merges = ports.Resolutions, ports.Checks, ports.Merges
 	coordinator.CompletionEnumerator, coordinator.CompletionLocalCapture = ports.CompletionEnumerator, ports.CompletionLocalCapture
-	coordinator.CompletionIssues = ports.CompletionIssues
+	coordinator.CompletionIssuePage = ports.CompletionIssuePage
 	coordinator.Priority = &control.PriorityJudgments{Journal: ports.Store, Chooser: ports.Priority, MaxCalls: control.PriorityDefaultMaxCalls}
 	coordinator.ContextChooser = ports.ContextChooser
 	if ports.Planning != nil {

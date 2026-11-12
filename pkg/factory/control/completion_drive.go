@@ -23,16 +23,16 @@ const HoldCompletionWiring = "completion_reads_unwired"
 // never seals, decides or releases.
 type CompletionDriveDeps struct {
 	Enumerator   CompletionIssueEnumerator
-	ReadIssues   func(context.Context, int64) ([]NativeInventoryIssue, error)
+	ReadPage     func(context.Context, int64, string) (IssueObservationPage, error)
 	CaptureLocal func(ctx context.Context, repository int64) (factory.CompletionLocal, error)
 }
 
 func (d CompletionDriveDeps) available() bool {
-	return d.CaptureLocal != nil && (d.Enumerator != nil || d.ReadIssues != nil)
+	return d.CaptureLocal != nil && (d.Enumerator != nil || d.ReadPage != nil)
 }
 
 func (c *Coordinator) completionDriveDeps() CompletionDriveDeps {
-	return CompletionDriveDeps{Enumerator: c.CompletionEnumerator, ReadIssues: c.CompletionIssues, CaptureLocal: c.CompletionLocalCapture}
+	return CompletionDriveDeps{Enumerator: c.CompletionEnumerator, ReadPage: c.CompletionIssuePage, CaptureLocal: c.CompletionLocalCapture}
 }
 
 // CompletionDriveReport is the durable outcome of one completion
@@ -68,6 +68,10 @@ func SealEvidenceFingerprint(inventoryDigest, completionID, cycleID string) stri
 // exact serial adoption journal. Every failure holds with
 // its resumable step; a later drive retries from persisted progress.
 func (c *Coordinator) DriveCompletions(ctx context.Context, deps CompletionDriveDeps) CompletionDriveReport {
+	return c.driveCompletions(ctx, deps, false)
+}
+
+func (c *Coordinator) driveCompletions(ctx context.Context, deps CompletionDriveDeps, resumeOnly bool) CompletionDriveReport {
 	var report CompletionDriveReport
 	if c.Store == nil {
 		return report
@@ -96,6 +100,9 @@ func (c *Coordinator) DriveCompletions(ctx context.Context, deps CompletionDrive
 			continue
 		}
 		for _, record := range cycles {
+			if resumeOnly && len(record.CollectorProgress) == 0 {
+				continue
+			}
 			switch routeCompletionCycle(record.Cycle.State) {
 			case driveCollect:
 				c.driveCollecting(ctx, deps, record, &report)
@@ -212,8 +219,8 @@ func bracketMaterialCollect(ctx context.Context, deps CompletionDriveDeps, repos
 	if !deps.available() {
 		return bracketResult{hold: HoldCompletionWiring, progress: saved}
 	}
-	if deps.ReadIssues != nil {
-		return bracketIssueObservations(ctx, deps, repository, generation)
+	if deps.ReadPage != nil {
+		return bracketPagedIssueObservations(ctx, deps, repository, generation, saved)
 	}
 	// Both bracket observations plus both serving captures are
 	// reserved upfront: with fewer than eight units free this holds

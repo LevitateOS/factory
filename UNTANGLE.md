@@ -564,8 +564,9 @@ Use the existing Go inventory collector, cursor and readiness-work records as
 the owner of each finite scan. Replace the native `ReadIssues` path that returns
 a whole repository with bounded provider page/evidence steps behind the
 existing completion enumerator. Native receipts report actual sends consumed;
-remove the obsolete completion accounting exports once all real adapters are
-wired to the defining budget. Control does not mirror a Forgejo page constant.
+retain actual appliance page accounting at its adapter boundary and remove
+unused whole-repository callbacks. Control accepts the provider maximum rather
+than mirroring a Forgejo page constant.
 
 Creation discovery advances its retained source cursor; it does not fetch two
 whole memberships again for every16 candidates. Share facts already acquired
@@ -848,3 +849,33 @@ builds, apps or provider requests in this design phase.
   supported bound display capability. These controlled results qualify only the
   refactor. F4–F8 pending. No live/model effects or original state changed.
   Next: resume bounded inventory/creation work in existing Go collectors (F4).
+
+- F4 IN PROGRESS: bounded Go inventory steps now persist through the existing
+  collector; a first and confirming whole inventory must match before sealing.
+  Intake corroborates membership once through retained source steps, then reuses
+  it for individually verified candidates. Schema107 atomically checkpoints scan
+  cursor and queued original work. Mutable pagination cannot advance over an
+  unconfirmed member; stale scope/member observations reset without losing work.
+  Idle/failed discovery uses the common5min due interval; ordinary worker ticks
+  resume only known source/collector steps. Failed active reads defer instead of
+  spinning. Native operation-budget refusal maps to existing pending work.
+  The unused full-inventory product callback and implementation are removed;
+  controlled graph checks explicitly collect paged observations in the harness.
+  P28 correction: canonical SodaOS has real page-accounting callers; preserve
+  those counters, with provider maximum passed by the defining adapter. SodaOS
+  4350718b updates that caller and three preexisting typed-state conversion
+  compile failures, preserving all outcome validators. Its adapter build passes
+  with the resolved scratch modfile; canonical module manifests are unchanged.
+  Exact already-selected missing modules were fetched through the Go proxy,
+  without direct GitHub fallback or product traffic. Evidence in existing
+  refactor scratch: f4-resume-progress-pg.log (native Go list-page reuse,404 reset,
+  deletion-boundary refusal, concurrent cursor CAS, queued work preservation,
+ 20-issue two-pass collector/restart/change refusal and failed-read deferral);
+  f4-migration-pg.log (existing concurrent retained68 migration, lost upgrade
+  race reread and rollback checks); f4-sodaos-adapter-final.log; backend/harness
+  build logs. Native replies in these Go cases are declared; F2's physical-send
+  enforcement remains in force. Independent review's membership/reset/cadence/
+  upgrade findings are corrected. Next executable work: batch supported GitHub
+  issue evidence at the native owner so large completion scans avoid per-issue
+  brackets, then qualify actual wire counts before marking F4 complete. F5–F8
+  remain pending. No live provider/model/writes or original retained state touched.

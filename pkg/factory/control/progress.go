@@ -261,6 +261,8 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	if standingPreparationCursor != nil && !terminalObserved && time.Now().Before(c.nextPassiveProgress) {
 		// A merge-only command advances its exact saved row. It must not wake
 		// intake, unrelated merges, CI refresh or paid-delivery producers.
+		_ = c.recoverCreationStep(ctx, true)
+		_ = c.driveCompletions(ctx, c.completionDriveDeps(), true)
 		c.driveRequestedMerges(ctx)
 		c.observeProgressStage("retry_preparation")
 		_ = c.reconcileRetryPreparations(ctx)

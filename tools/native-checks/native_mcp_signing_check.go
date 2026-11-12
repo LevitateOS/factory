@@ -8987,7 +8987,7 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 		if err != nil || captured.SourceCommit != record.Preparation.SourceCommit {
 			return fmt.Errorf("native current completion capture: %w", err)
 		}
-		issues, err := input.ReadCompletionIssues(ctx, repository)
+		issues, err := nativeCompleteObservation(ctx, input, repository)
 		if err != nil || len(issues) != 1 {
 			return fmt.Errorf("native complete issue inventory: count=%d err=%w", len(issues), err)
 		}
@@ -9070,8 +9070,8 @@ func nativeCompletionInventoryFixture(ctx context.Context, db *store.Store, inpu
 	coordinator := control.NewCoordinator(db, nil, nil)
 	calls := 0
 	changeFile := filepath.Join(filepath.Dir(tipFile), "completion-body-change")
-	deps := control.CompletionDriveDeps{CaptureLocal: input.CaptureCompletionLocal, ReadIssues: func(ctx context.Context, repo int64) ([]control.NativeInventoryIssue, error) {
-		issues, err := input.ReadCompletionIssues(ctx, repo)
+	deps := control.CompletionDriveDeps{CaptureLocal: input.CaptureCompletionLocal, ReadPage: func(ctx context.Context, repo int64, cursor string) (control.IssueObservationPage, error) {
+		issues, err := input.ReadCompletionIssuePage(ctx, repo, cursor)
 		calls++
 		if calls == 1 && err == nil {
 			err = os.WriteFile(changeFile, []byte("declared concurrent edit"), 0600)
@@ -9086,7 +9086,7 @@ func nativeCompletionInventoryFixture(ctx context.Context, db *store.Store, inpu
 	if err = os.Remove(changeFile); err != nil {
 		return err
 	}
-	deps.ReadIssues = input.ReadCompletionIssues
+	deps.ReadPage = input.ReadCompletionIssuePage
 	report := coordinator.DriveCompletions(ctx, deps)
 	sealed, err := db.ReassessmentRecord(ctx, cycle.CycleID)
 	if err != nil || len(report.Sealed) != 1 || sealed.Cycle.State != factory.ReassessmentDeciding || sealed.InventoryDigest == "" || sealed.EvidenceIssues != 1 || len(sealed.Evidence) != 1 || sealed.Local.SourceCommit != source {
@@ -13075,7 +13075,7 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 		if _, err = conn.ExecContext(ctx, `INSERT INTO factory_intent_generations(revision,data) VALUES($1,$2)`, revision.ID, string(raw)); err != nil {
 			return err
 		}
-		baseline, err := graph.NativeInputSource.ReadCompletionIssues(ctx, revision.Repository)
+		baseline, err := nativeCompleteObservation(ctx, graph.NativeInputSource, revision.Repository)
 		if err != nil {
 			return err
 		}
@@ -13297,7 +13297,28 @@ func nativeCreationDiscoveryFixture(ctx context.Context, input factoryruntime.Na
 	if err != nil {
 		return err
 	}
-	page, err := input.ReadCreations(ctx, policy.Repository, 0, 16)
+	page := factory.CreationRecoveryBatch{Events: []factory.OriginalCreationEvent{}}
+	var position int64
+	for step := 0; step < 16; step++ {
+		observed, e := input.ReadCreations(ctx, policy.Repository, position, 16)
+		if e != nil {
+			return e
+		}
+		if observed.SourceCursor == nil {
+			return errors.New("native discovery cursor absent")
+		}
+		if e = input.Store.EnqueueReadinessCreationScanPage(ctx, policy.Repository, 0, 0, nil, policy.Revision, observed.ExpectedSourceCursor, *observed.SourceCursor); e != nil {
+			return e
+		}
+		page.Events = append(page.Events, observed.Events...)
+		page.NextPosition = observed.NextPosition
+		page.ReachedRetainedEnd = observed.ReachedRetainedEnd
+		page.ProvenanceComplete = observed.ProvenanceComplete
+		position = observed.NextPosition
+		if observed.ReachedRetainedEnd {
+			break
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -13382,6 +13403,17 @@ func nativeCreationDiscoveryFixture(ctx context.Context, input factoryruntime.Na
 	if err = c.Start(ctx, filepath.Join(profile, "native-intake-check.lock")); err != nil {
 		return err
 	}
+	until := time.Now().Add(8 * time.Second)
+	for time.Now().Before(until) {
+		cursor, e := input.Store.CreationRecoveryCursor(ctx, policy.Repository)
+		if e != nil {
+			return e
+		}
+		if cursor == 20 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 	if err = c.Close(); err != nil {
 		return err
 	}
@@ -13424,7 +13456,7 @@ func nativeGraphPrefixFixture(ctx context.Context, graph factoryruntime.NativeGr
 	if err != nil {
 		return err
 	}
-	current, err := graph.NativeInputSource.ReadCompletionIssues(ctx, repository)
+	current, err := nativeCompleteObservation(ctx, graph.NativeInputSource, repository)
 	if err != nil {
 		return err
 	}
@@ -13499,7 +13531,7 @@ func nativeGraphRevisionFixture(ctx context.Context, graph factoryruntime.Native
 	if _, err = conn.ExecContext(ctx, `INSERT INTO factory_intent_generations(revision,data) VALUES($1,$2)`, g.RevisionID, string(raw)); err != nil {
 		return err
 	}
-	baseline, err := graph.NativeInputSource.ReadCompletionIssues(ctx, repository)
+	baseline, err := nativeCompleteObservation(ctx, graph.NativeInputSource, repository)
 	if err != nil {
 		return err
 	}
@@ -13795,6 +13827,11 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	var identities atomic.Int64
 	var denyAt atomic.Int64
 	var denied atomic.Int64
+	var inventoryMode atomic.Bool
+	var inventoryLists atomic.Int64
+	var inventoryShift atomic.Bool
+	var inventoryMissing atomic.Bool
+	var inventoryEdited atomic.Bool
 	var materialMode atomic.Bool
 	var materialVersion atomic.Int64
 	var materialReads atomic.Int64
@@ -13806,7 +13843,10 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			Call                            struct {
 				Kind    string
 				Version uint8
-				Query   struct{ Kind, Repository string }
+				Query   struct {
+					Kind, Repository    string
+					Page, Limit, Number uint32
+				}
 			}
 		}
 		if r.Header.Get("Authorization") != "Bearer "+hex.EncodeToString(config.IPCKey()) || !factory.ValidID(r.Header.Get("X-Soda-Native-Instance")) || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&command) != nil {
@@ -13847,9 +13887,45 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			field := ""
 			pull := map[string]any{"kind": "pull", "external_id": "700", "number": 7}
 			switch kind {
+			case "issues":
+				field = "issues"
+				if !inventoryMode.Load() {
+					w.WriteHeader(503)
+					return
+				}
+				inventoryLists.Add(1)
+				list := []any{}
+				start := int(command.Call.Query.Page-1)*50 + 1
+				if inventoryShift.Load() {
+					start++
+				}
+				for n := start; n < start+50 && n <= 60; n++ {
+					list = append(list, map[string]any{"external_id": strconv.Itoa(1300 + n), "number": n, "title": fmt.Sprintf("Declared objective %d", n), "body": "Declared body", "state": "open", "locked": false, "author": account, "assignees": []any{}, "labels": []any{}, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"})
+				}
+				payload["items"] = list
+				if start+50 <= 60 {
+					payload["next_page"] = command.Call.Query.Page + 1
+				}
+			case "issue_creator_permission":
+				field = "permission"
+				payload = map[string]any{"repository": "123", "issue_id": strconv.Itoa(1300 + int(command.Call.Query.Number)), "number": command.Call.Query.Number, "creator": "321", "write": true}
 			case "automation_inputs":
 				field = "inputs"
 				payload = map[string]any{"issue": map[string]any{"id": "1300", "number": 12, "title": "Declared objective", "body": "Declared body", "version": 0, "title_occurrence": "original", "lifecycle_occurrence": "original", "author": account, "created_at": "2026-01-01T00:00:00Z", "closed": false, "locked": false}, "comments": []any{}, "dependencies": []any{}, "tip": strings.Repeat("b", 40), "tip_ref": "refs/heads/main"}
+				if inventoryMode.Load() {
+					if inventoryMissing.Load() {
+						w.WriteHeader(404)
+						json.NewEncoder(w).Encode(map[string]string{"error": "github_not_visible"})
+						return
+					}
+					i := payload["issue"].(map[string]any)
+					i["id"] = strconv.Itoa(1300 + int(command.Call.Query.Number))
+					i["number"] = command.Call.Query.Number
+					i["title"] = fmt.Sprintf("Declared objective %d", command.Call.Query.Number)
+					if inventoryEdited.Load() {
+						i["title"] = "Concurrent human edit"
+					}
+				}
 			case "pull":
 				field = "pulls"
 				branch := func(name, commit string) any {
@@ -14046,6 +14122,18 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			return fmt.Errorf("material envelope mode=%d calls=%d identities=%d reads=%d closing=%d: %v", version, calls.Load(), identities.Load(), materialReads.Load(), closingReadiness.Load(), readErr)
 		}
 	}
+	materialVersion.Store(1)
+	inventoryMode.Store(true)
+	policy.Enabled = true
+	policy.TargetBranch = "refs/heads/main"
+	encoded, _ = json.Marshal(policy)
+	if _, err = raw.ExecContext(ctx, "UPDATE factory_policies SET data=$2 WHERE repository=$1", repository, string(encoded)); err != nil {
+		return err
+	}
+	if err = progressNativeInventoryFixture(ctx, db, native.NativeInputSource, int64(repository), policy.Revision, &inventoryLists, &inventoryShift, &inventoryMissing, &inventoryEdited); err != nil {
+		return err
+	}
+	inventoryMode.Store(false)
 	fmt.Println("PASS: real Go material reader accepts known-prior and version1 envelopes, rejects unknown versions/mixed payloads at the first read, and preserves closing withdrawal refusal with no provider/model/write.")
 	fmt.Println("PASS: production material reader completes both five-read discussion traversals and original input, then exactly one closing paired CI/protection read; closing permission withdrawal exposes no material. Exactly 13 declared native reads, no provider/model/write.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access and Work each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
@@ -14072,6 +14160,9 @@ func progressGateFixture() error {
 		return err
 	}
 	defer raw.Close()
+	if err := progressPagedInventoryFixture(ctx, db, raw); err != nil {
+		return err
+	}
 	target := factory.CheckTarget{Repository: 7, PRNumber: 3, PRID: 11, IssueID: 13, HeadRef: "refs/heads/factory/check", BaseRef: "refs/heads/main", HeadOID: strings.Repeat("a", 40), BaseOID: strings.Repeat("b", 40)}
 	owner := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, target.BaseOID)
 	owner.ID, owner.AttemptRoot, owner.PublicationAssignment = strings.Repeat("b", 32), strings.Repeat("b", 32), strings.Repeat("b", 32)
@@ -16244,4 +16335,256 @@ func externalPreparationFixture() error {
 	fmt.Println("PASS: declared non-executing direct external publication reuses exact completed Architect provenance for finite merge-only preparation without a Builder run or changing its retained inference allowance. Original adoption/expired merge receipts declared; no inference or native send.")
 	fmt.Println("PASS: normal PublishPass retires the exact completed external fork Architect's private source once before first reviewer preparation admission; capacity remains enforced before handoff, and original source capture/deadline and reserved review allowance remain unchanged. Custody/retirement/provider history declared; no model or provider send.")
 	return nil
+}
+
+func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sql.DB) error {
+	const repository int64 = 811
+	digest := strings.Repeat("a", 64)
+	authority := factory.CompletionAuthority{Effective: factory.EffectiveAuthority{Missing: []string{}, Authority: factory.AuthorityRef{RequirementsID: "d" + strings.Repeat("1", 24), ApprovalID: "d" + strings.Repeat("2", 24)}}, ProjectID: "p" + strings.Repeat("3", 24), RequirementSourceCommit: strings.Repeat("b", 40), RequirementSetupDigest: digest, RequirementInputsDigest: digest, ApprovalEffectsDigest: digest, ApprovalReadinessDigest: digest, TargetBranch: "refs/heads/main", Roles: []string{}, ReassessmentMinutes: factory.EffectiveReassessmentMinutes(0)}
+	model := map[string]any{"repository": strconv.FormatInt(repository, 10), "authority": authority}
+	for _, key := range []string{"intents", "acceptances", "withdrawals", "controls", "preparations", "plans", "plan_heads", "plan_tasks", "assignments", "publications", "merges", "checks"} {
+		model[key] = []any{}
+	}
+	data, _ := json.Marshal(model)
+	var material factory.CompletionMaterial
+	if err := json.Unmarshal(data, &material); err != nil {
+		return err
+	}
+	scope, err := material.Digest()
+	if err != nil {
+		return err
+	}
+	local := factory.CompletionLocal{Material: &material, SourceCommit: authority.RequirementSourceCommit, PreparationDigest: digest, ScopeDigest: scope, AuthorityFingerprint: "declared-inventory"}
+	if err := local.Validate(); err != nil {
+		return err
+	}
+	event := factory.CompletionEvent{ID: factory.NewID(), PublicationID: factory.NewID(), Repository: repository, Issue: 1, Generation: 1, MergedCommit: local.SourceCommit, ClosingOccurrence: "declared-paged-completion", AcceptanceID: "d" + strings.Repeat("4", 24)}
+	record := store.ReassessmentRecord{Cycle: factory.ReassessmentCycle{EventID: event.ID, CycleID: factory.NewID(), State: factory.ReassessmentCollecting, Repository: repository, Generation: 1}, Completion: event, Issue: 1}
+	if err := record.Validate(); err != nil {
+		return err
+	}
+	for _, row := range []struct {
+		query string
+		data  any
+	}{
+		{`INSERT INTO factory_completions(repository,generation,event,publication,occurrence,data) VALUES(811,1,$1,$2,$3,$4)`, event},
+		{`INSERT INTO factory_reassessments(cycle,repository,generation,event,state,data) VALUES($1,811,1,$2,$3,$4)`, record},
+	} {
+		encoded, _ := json.Marshal(row.data)
+		var err error
+		if _, ok := row.data.(factory.CompletionEvent); ok {
+			_, err = raw.ExecContext(ctx, row.query, event.ID, event.PublicationID, event.ClosingOccurrence, string(encoded))
+		} else {
+			_, err = raw.ExecContext(ctx, row.query, record.Cycle.CycleID, event.ID, record.Cycle.State, string(encoded))
+		}
+		if err != nil {
+			return err
+		}
+	}
+	reads, traversals, edits := 0, 0, false
+	unavailable := false
+	deps := control.CompletionDriveDeps{CaptureLocal: func(context.Context, int64) (factory.CompletionLocal, error) { return local, nil }, ReadPage: func(pass context.Context, repo int64, cursor string) (control.IssueObservationPage, error) {
+		if unavailable {
+			reads++
+			return control.IssueObservationPage{}, errors.New("declared transport unavailable")
+		}
+		if repo != repository {
+			return control.IssueObservationPage{}, errors.New("inventory scope changed")
+		}
+		n := 1
+		if cursor != "" {
+			var err error
+			n, err = strconv.Atoi(cursor)
+			if err != nil {
+				return control.IssueObservationPage{}, err
+			}
+		} else {
+			traversals++
+		}
+		reads++
+		title := fmt.Sprintf("Issue %d", n)
+		if edits && traversals == 2 && n == 3 {
+			title = "Concurrent human edit"
+		}
+		body := factory.CompletionIssueEvidence{Index: int64(n), Title: title, Body: "Retained body", TitleDigest: fmt.Sprintf("%x", sha256.Sum256([]byte(title))), ContentDigest: fmt.Sprintf("%x", sha256.Sum256([]byte("Retained body")))}
+		encoded, err := body.CanonicalData()
+		if err != nil {
+			return control.IssueObservationPage{}, err
+		}
+		next := ""
+		if n < 20 {
+			next = strconv.Itoa(n + 1)
+		}
+		return control.IssueObservationPage{Issues: []control.NativeInventoryIssue{{Index: int64(n), Data: encoded}}, Next: next, Complete: next == ""}, nil
+	}}
+	// Persist actual collection progress, then replace the coordinator. The next
+	// callback must continue at9, rather than silently restarting at1.
+	coordinator := control.NewCoordinator(db, nil, nil)
+	first := coordinator.DriveCompletions(ctx, deps)
+	saved, err := db.ReassessmentRecord(ctx, record.Cycle.CycleID)
+	if err != nil || len(first.Sealed) != 0 || len(saved.CollectorProgress) == 0 || reads != 8 {
+		return fmt.Errorf("paged inventory prefix: reads=%d saved=%d err=%v", reads, len(saved.CollectorProgress), err)
+	}
+	var progress control.InventoryCollector
+	if json.Unmarshal(saved.CollectorProgress, &progress) != nil || progress.Observation == nil || progress.Observation.Cursor != "9" || len(progress.Issues) != 8 {
+		return errors.New("paged inventory lost its retained prefix")
+	}
+	unavailable = true
+	coordinator.DriveCompletions(ctx, deps)
+	failures := reads
+	coordinator.DriveCompletions(ctx, deps)
+	saved, err = db.ReassessmentRecord(ctx, record.Cycle.CycleID)
+	if err != nil || reads != failures || json.Unmarshal(saved.CollectorProgress, &progress) != nil || progress.Observation == nil || progress.Observation.Cursor != "9" || progress.Observation.NotBefore <= time.Now().Unix() {
+		return errors.New("failed active inventory spun or lost its pending step")
+	}
+	// Advance only recorded scheduling time in this controlled fixture.
+	progress.Observation.NotBefore = 0
+	saved.CollectorProgress, _ = json.Marshal(progress)
+	if err = db.CasReassessmentRecord(ctx, record.Cycle.CycleID, factory.ReassessmentCollecting, saved); err != nil {
+		return err
+	}
+	unavailable = false
+
+	edits = true
+	for attempt := 0; attempt < 5; attempt++ {
+		before := reads
+		coordinator = control.NewCoordinator(db, nil, nil)
+		coordinator.DriveCompletions(ctx, deps)
+		if reads-before > 8 {
+			return errors.New("paged inventory exceeded one pass quantum")
+		}
+		saved, err = db.ReassessmentRecord(ctx, record.Cycle.CycleID)
+		if err != nil {
+			return err
+		}
+		if saved.WaitReason == control.HoldInventoryRevision {
+			break
+		}
+	}
+	if saved.Cycle.State != factory.ReassessmentCollecting || saved.WaitReason != control.HoldInventoryRevision || len(saved.CollectorProgress) != 0 || saved.InventoryDigest != "" {
+		return errors.New("changed complete inventory sealed or retained a mixed prefix")
+	}
+	edits = false
+	traversals = 0
+	reads = 0
+	for attempt := 0; attempt < 8; attempt++ {
+		coordinator = control.NewCoordinator(db, nil, nil)
+		report := coordinator.DriveCompletions(ctx, deps)
+		if len(report.Sealed) > 0 {
+			break
+		}
+	}
+	saved, err = db.ReassessmentRecord(ctx, record.Cycle.CycleID)
+	if err != nil || saved.Cycle.State != factory.ReassessmentDeciding || saved.EvidenceIssues != 20 || reads != 40 || traversals != 2 || len(saved.CollectorProgress) != 0 {
+		return fmt.Errorf("two full paged inventories did not seal: reads=%d traversals=%d state=%s reason=%s err=%v", reads, traversals, saved.Cycle.State, saved.WaitReason, err)
+	}
+	fmt.Println("PASS: real PG paged completion retains8-step prefix across coordinator restart, rejects changed confirming inventory, and seals only two whole equal20-issue observations; no provider/model/effects")
+	return nil
+}
+
+func progressNativeInventoryFixture(ctx context.Context, db *store.Store, input factoryruntime.NativeInputSource, repo, revision int64, lists *atomic.Int64, shifted, missing, edited *atomic.Bool) error {
+	lists.Store(0)
+	first, err := input.ReadCompletionIssuePage(ctx, repo, "")
+	if err != nil || first.Complete || len(first.Issues) != 1 || first.Next == "" {
+		return fmt.Errorf("native first inventory step: %+v %v", first, err)
+	}
+	second, err := input.ReadCompletionIssuePage(ctx, repo, first.Next)
+	if err != nil || len(second.Issues) != 1 || second.Issues[0].Index != 2 || lists.Load() != 1 {
+		return fmt.Errorf("native inventory repeated list page: lists=%d err=%v", lists.Load(), err)
+	}
+	missing.Store(true)
+	_, err = input.ReadCompletionIssuePage(ctx, repo, second.Next)
+	missing.Store(false)
+	if err == nil || err.Error() != control.HoldInventoryRevision {
+		return fmt.Errorf("deleted cached member did not invalidate progress: %v", err)
+	}
+	// Store only observation progress until two whole memberships corroborate.
+	// A deletion at a page boundary must not checkpoint a later issue over a gap.
+	checkpoint := func(after int64, page factory.CreationRecoveryBatch) error {
+		works := []store.ReadinessWork{}
+		for _, event := range page.Events {
+			works = append(works, store.ReadinessWork{ID: "declared:" + event.Delivery, Delivery: event.Delivery, Root: factory.DependenceRef{Repository: repo, Issue: event.Issue}, CreationVerified: event.Verified, CreatorID: event.Creator, CreatorWrite: event.CreatorWrite, NativeIssueID: event.OriginalIssueID, CreatedUnix: event.CreatedUnix, TitleDigest: event.TitleDigest, ContentDigest: event.ContentDigest})
+		}
+		if page.SourceCursor == nil {
+			return errors.New("native creation omitted retained cursor")
+		}
+		return db.EnqueueReadinessCreationScanPage(ctx, repo, after, page.NextPosition, works, revision, page.ExpectedSourceCursor, *page.SourceCursor)
+	}
+	page, err := input.ReadCreations(ctx, repo, 0, 16)
+	if err != nil || len(page.Events) != 0 || page.NextPosition != 0 || page.ReachedRetainedEnd {
+		return fmt.Errorf("uncorroborated intake advanced: %+v %v", page, err)
+	}
+	if err = checkpoint(0, page); err != nil {
+		return err
+	}
+	// Exact stale concurrent scan checkpoint refuses even with unchanged task_id.
+	if err = checkpoint(0, page); !errors.Is(err, store.ErrStaleRevision) {
+		return fmt.Errorf("stale source cursor overwrote current progress: %v", err)
+	}
+	shifted.Store(true)
+	page, err = input.ReadCreations(ctx, repo, 0, 16)
+	shifted.Store(false)
+	if err != nil || len(page.Events) != 0 || page.NextPosition != 0 {
+		return fmt.Errorf("page-boundary shift admitted skipped membership: %+v %v", page, err)
+	}
+	if err = checkpoint(0, page); err != nil {
+		return err
+	}
+	var after int64
+	lists.Store(0)
+	for step := 0; step < 6; step++ {
+		page, err = input.ReadCreations(ctx, repo, after, 16)
+		if err != nil {
+			return fmt.Errorf("retained native intake step %d: %v", step, err)
+		}
+		if err = checkpoint(after, page); err != nil {
+			return err
+		}
+		after = page.NextPosition
+		if after == 2 {
+			break
+		}
+	}
+	if after != 2 || lists.Load() != 4 {
+		return fmt.Errorf("corroborated membership recollected while processing candidates: cursor=%d lists=%d", after, lists.Load())
+	}
+	saved, err := db.CreationRecoveryScanCursor(ctx, repo)
+	if err != nil || saved == "" {
+		return errors.New("native source cursor not retained")
+	}
+	edited.Store(true)
+	page, err = input.ReadCreations(ctx, repo, after, 16)
+	edited.Store(false)
+	if err != nil || len(page.Events) != 0 || page.NextPosition != after || page.SourceCursor == nil || *page.SourceCursor != "" {
+		return fmt.Errorf("changed cached creation did not reset observation only: %+v %v", page, err)
+	}
+	if err = checkpoint(after, page); err != nil {
+		return err
+	}
+	for n := int64(1); n <= 2; n++ {
+		if _, err = db.ReadinessWork(ctx, "declared:github-original-issue:"+strconv.FormatInt(1300+n, 10)); err != nil {
+			return fmt.Errorf("scan reset lost admitted original work: %v", err)
+		}
+	}
+	fmt.Println("PASS: native Go inventory reads each list page once, cached404 invalidates; real PG intake retains two corroborated memberships across steps, refuses stale concurrent checkpoints and deletion gaps, processes candidates without recollection, and resets changed observations without losing queued work. Native replies declared; no provider/model/write.")
+	return nil
+}
+
+// Explicit full collection belongs only to this controlled check, never one
+// production RPC. Production persists every bounded source step.
+func nativeCompleteObservation(ctx context.Context, input factoryruntime.NativeInputSource, repository int64) ([]control.NativeInventoryIssue, error) {
+	items := []control.NativeInventoryIssue{}
+	cursor := ""
+	for steps := 0; steps < factory.MaxReassessmentIssues+256; steps++ {
+		page, err := input.ReadCompletionIssuePage(ctx, repository, cursor)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, page.Issues...)
+		if page.Complete {
+			return items, nil
+		}
+		cursor = page.Next
+	}
+	return nil, errors.New(control.HoldInventoryOversize)
 }

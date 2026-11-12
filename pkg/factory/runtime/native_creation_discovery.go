@@ -2,62 +2,38 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"reflect"
-	"sort"
 	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
-	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
 )
 
 var _ control.CreationRecoverySource = NativeInputSource{}
 
-// openIssues is the complete bounded membership observation shared by intake
-// and completion. Provider cursors stay inside the authenticated reader.
-func (s *nativeProductAccount) openIssues(ctx context.Context) ([]collaboration.Issue, error) {
-	query := factoryservice.CollaborationIssueQuery{State: "open", Limit: 50}
-	items := []collaboration.Issue{}
-	seen := map[string]bool{}
-	seenNumbers := map[int64]bool{}
-	bytes := 0
-	for page := 0; ; page++ {
-		if page >= 256 {
-			return nil, errors.New(control.HoldInventoryOversize)
-		}
-		observed, err := (nativeCollaborationReads{s}).ReadIssues(ctx, s.binding.Actor.ID, s.repository.ID, query)
-		if err != nil {
-			return nil, err
-		}
-		for _, issue := range observed.Items {
-			if seen[issue.Ref.ExternalID] || seenNumbers[issue.Ref.Number] || issue.State != "open" {
-				return nil, errNativeRead
-			}
-			seen[issue.Ref.ExternalID] = true
-			seenNumbers[issue.Ref.Number] = true
-			bytes += len(issue.Title) + len(issue.Body)
-			items = append(items, issue)
-			if len(items) > factory.MaxReassessmentIssues || bytes > 2<<20 {
-				return nil, errors.New(control.HoldInventoryOversize)
-			}
-		}
-		if observed.Complete {
-			if observed.Next != "" {
-				return nil, errNativeRead
-			}
-			break
-		}
-		if observed.Next == "" || observed.Next == query.Cursor {
-			return nil, errNativeRead
-		}
-		query.Cursor = observed.Next
-	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Ref.Number < items[j].Ref.Number })
-	return items, nil
+type nativeCreationMember struct {
+	ID          string
+	Number      int64
+	Title, Body string
+}
+type nativeCreationScan struct {
+	Version    int
+	Policy     int64
+	Connection NativeConnection
+	Repository string
+	Cursor     string
+	Members    []nativeCreationMember
+	Confirming bool
+	Confirmed  int
+	Ready      bool
+}
+
+func creationMember(issue *collaboration.Issue) nativeCreationMember {
+	return nativeCreationMember{ID: issue.Ref.ExternalID, Number: issue.Ref.Number, Title: inputDigest([]byte(issue.Title)), Body: inputDigest([]byte(issue.Body))}
 }
 
 type nativeCreatorPermission struct {
@@ -82,7 +58,8 @@ func (s *nativeProductAccount) creatorPermission(ctx context.Context, number int
 
 // ReadCreations discovers visible original issues. Positions are stable provider
 // issue numbers, not webhook/event history or a global provider revision.
-func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after int64, limit int) (factory.CreationRecoveryBatch, error) {
+func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after int64, limit int) (result factory.CreationRecoveryBatch, err error) {
+	defer func() { err = inventoryReadError(err) }()
 	var empty factory.CreationRecoveryBatch
 	if repository <= 0 || after < 0 || limit < 1 || limit > 16 {
 		return empty, errNativeReadScope
@@ -101,34 +78,103 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 	if err != nil {
 		return empty, err
 	}
-	before, err := account.openIssues(ctx)
+	expected, err := s.Store.CreationRecoveryScanCursor(ctx, repository)
 	if err != nil {
 		return empty, err
 	}
-	visited := 0
-	for _, listed := range before {
-		if listed.Ref.Number <= after {
-			continue
+	fresh := func() nativeCreationScan {
+		return nativeCreationScan{Version: 1, Policy: policy.Revision, Connection: account.identity.Connection, Repository: account.repository.ExternalID}
+	}
+	scan := fresh()
+	if expected != "" {
+		if json.Unmarshal([]byte(expected), &scan) != nil || scan.Version != 1 {
+			return empty, errNativeReadScope
 		}
-		if visited == limit {
-			page.ReachedRetainedEnd = false
+		if scan.Policy != policy.Revision || scan.Connection != account.identity.Connection || scan.Repository != account.repository.ExternalID {
+			scan = fresh()
+		}
+	}
+	if len(scan.Members) > factory.MaxReassessmentIssues || scan.Confirmed < 0 || scan.Confirmed > len(scan.Members) {
+		return empty, errNativeReadScope
+	}
+	page.ExpectedSourceCursor = expected
+	page.ReachedRetainedEnd = false
+	// Corroborate membership once across retained page steps before advancing the
+	// numeric intake cursor. Mutable page-number boundaries cannot skip a member.
+	for steps := 0; !scan.Ready && steps < 50; steps++ {
+		listed, next, complete, e := account.scanIssue(ctx, scan.Cursor, "open")
+		if e != nil {
+			if e.Error() != control.HoldInventoryRevision {
+				return empty, e
+			}
+			scan = fresh()
 			break
 		}
-		visited++
-		page.NextPosition = listed.Ref.Number
+		if listed != nil {
+			member := creationMember(listed)
+			if scan.Confirming {
+				if scan.Confirmed >= len(scan.Members) || scan.Members[scan.Confirmed] != member {
+					scan = fresh()
+					break
+				}
+				scan.Confirmed++
+			} else {
+				scan.Members = append(scan.Members, member)
+				if len(scan.Members) > factory.MaxReassessmentIssues {
+					return empty, errors.New(control.HoldInventoryOversize)
+				}
+			}
+		}
+		scan.Cursor = next
+		if complete {
+			if !scan.Confirming {
+				scan.Confirming = true
+			} else {
+				if scan.Confirmed != len(scan.Members) {
+					scan = fresh()
+					break
+				}
+				scan.Ready = true
+			}
+		}
+	}
+	var listed *nativeCreationMember
+	if scan.Ready {
+		for i := range scan.Members {
+			if scan.Members[i].Number > after {
+				listed = &scan.Members[i]
+				break
+			}
+		}
+		page.ReachedRetainedEnd = listed == nil
+	}
+	for _, listed := range []*nativeCreationMember{listed} {
+		if listed == nil || listed.Number <= after {
+			continue
+		}
+		page.NextPosition = listed.Number
 		// Existing explicit acceptance owns this issue. Discovery cannot replace it.
-		if _, e := s.Store.AcceptanceHead(ctx, repository, listed.Ref.Number); e == nil {
+		if _, e := s.Store.AcceptanceHead(ctx, repository, listed.Number); e == nil {
 			continue
 		} else if !errors.Is(e, store.ErrNotFound) {
 			return empty, e
 		}
-		raw, revision, _, e := (nativeIssueInputs{account}).readInputs(ctx, strconv.FormatInt(repository, 10), strconv.FormatInt(listed.Ref.Number, 10), nil, policy.TargetBranch)
+		raw, revision, _, e := (nativeIssueInputs{account}).readInputs(ctx, strconv.FormatInt(repository, 10), strconv.FormatInt(listed.Number, 10), nil, policy.TargetBranch)
 		if e != nil {
+			if changedInventoryMember(e) {
+				page.NextPosition = after
+				page.ReachedRetainedEnd = false
+				scan = fresh()
+				break
+			}
 			return empty, e
 		}
 		i := raw.Issue
-		if i.ID != listed.Ref.ExternalID || i.Title != listed.Title || i.Body != listed.Body || *i.Closed {
-			return empty, errors.New(control.HoldInventoryRevision)
+		if i.ID != listed.ID || inputDigest([]byte(i.Title)) != listed.Title || inputDigest([]byte(i.Body)) != listed.Body || *i.Closed {
+			page.NextPosition = after
+			page.ReachedRetainedEnd = false
+			scan = fresh()
+			break
 		}
 		// These are confirmed ineligible for original-creation intake, not missing
 		// history treated as a new objective. Explicit acceptance stays available.
@@ -165,20 +211,18 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 		}
 		page.Events = append(page.Events, factory.OriginalCreationEvent{Position: i.Number, Delivery: delivery, Repository: repository, Issue: i.Number, OriginalIssueID: id, Creator: int64(creator.ID), CreatorWrite: *permission.Write, CreatedUnix: i.CreatedAt.Unix(), TitleDigest: inputDigest([]byte(i.Title)), ContentDigest: inputDigest([]byte(i.Body)), Verified: true})
 	}
-	confirm, err := account.openIssues(ctx)
-	if err != nil {
-		return empty, err
+	scanData := ""
+	if !page.ReachedRetainedEnd && (len(scan.Members) > 0 || scan.Cursor != "" || scan.Confirming) {
+		raw, e := json.Marshal(scan)
+		if e != nil {
+			return empty, e
+		}
+		scanData = string(raw)
+		if len(scanData) > 3<<20 {
+			return empty, errors.New(control.HoldInventoryOversize)
+		}
 	}
-	// Observation IDs are local read metadata; compare only provider issue facts.
-	for index := range before {
-		before[index].Observation = collaboration.Observation{}
-	}
-	for index := range confirm {
-		confirm[index].Observation = collaboration.Observation{}
-	}
-	if !reflect.DeepEqual(before, confirm) {
-		return empty, errors.New(control.HoldInventoryRevision)
-	}
+	page.SourceCursor = &scanData
 	current, err := s.Store.RepositoryPolicy(ctx, repository)
 	if err != nil {
 		return empty, err

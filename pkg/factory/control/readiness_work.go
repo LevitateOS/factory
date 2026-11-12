@@ -120,12 +120,6 @@ func (b *readinessPass) reserveNativeRPC(count int) bool {
 	}
 }
 
-// completionNativePageCap mirrors forgejo.SnapshotPageLimit without
-// importing the native adapter: the control import boundary stays
-// adapter-free (see CompletionIssueEnumerator), and the collector
-// budget test asserts the equality.
-const completionNativePageCap = 50
-
 // ReserveCompletionPageCall reserves one actual completion-page
 // native call (one ReadNativeRevision or ReadSnapshot inside a
 // completion inventory page) against the existing pass budget. It
@@ -153,15 +147,18 @@ func ReserveCompletionPageCall(ctx context.Context) error {
 // and collector final observations already prepaid. A nil budget
 // returns the native cap, keeping existing test behavior. A return
 // below 1 means the caller holds pending before any page call.
-func CompletionPageItemLimit(ctx context.Context) int {
+func CompletionPageItemLimit(ctx context.Context, providerMaximum int) int {
+	if providerMaximum < 1 {
+		return 0
+	}
 	budget := readinessBudgetFrom(ctx)
 	if budget == nil {
-		return completionNativePageCap
+		return providerMaximum
 	}
 	remaining := int(readinessMaxNativeRPC) - int(budget.nativeRPC.Load())
 	limit := (remaining - 3) / 3
-	if limit > completionNativePageCap {
-		limit = completionNativePageCap
+	if limit > providerMaximum {
+		limit = providerMaximum
 	}
 	return limit
 }

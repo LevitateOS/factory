@@ -6,7 +6,6 @@ import (
 	"errors"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
@@ -60,54 +59,60 @@ func (s NativeInputSource) CaptureCompletionLocal(ctx context.Context, repositor
 	return local, account.current(ctx)
 }
 
-// ReadCompletionIssues returns one complete bounded observation, never an idle
-// provider claim. Control compares two independent observations before sealing.
-func (s NativeInputSource) ReadCompletionIssues(ctx context.Context, repository int64) ([]control.NativeInventoryIssue, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
+func completionIssueEvidence(raw nativeInputSnapshot, account *nativeProductAccount) ([]byte, error) {
+	issue := raw.Issue
+	body := factory.CompletionIssueEvidence{Index: issue.Number, Title: issue.Title, Body: issue.Body, TitleDigest: inputDigest([]byte(issue.Title)), ContentDigest: inputDigest([]byte(issue.Body))}
+	for _, dep := range raw.Dependencies {
+		if dep.Repository != account.repository.ExternalID {
+			return nil, errors.New(control.HoldInventoryUnavailable)
+		}
+		body.Dependencies = append(body.Dependencies, dep.DependsOn)
+	}
+	sort.Slice(body.Dependencies, func(i, j int) bool {
+		a, b := body.Dependencies[i], body.Dependencies[j]
+		return len(a) < len(b) || len(a) == len(b) && a < b
+	})
+	if err := body.Validate(); err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	return encoded, nil
+}
+
+// ReadCompletionIssuePage advances one non-authorizing inventory step. Control
+// persists its cursor and compares two entire independent observations.
+func (s NativeInputSource) ReadCompletionIssuePage(ctx context.Context, repository int64, cursor string) (result control.IssueObservationPage, err error) {
+	defer func() { err = inventoryReadError(err) }()
+	empty := control.IssueObservationPage{}
 	account, err := s.account(ctx, strconv.FormatInt(repository, 10), factory.OpRefPublish)
 	if err != nil {
-		return nil, err
+		return empty, err
 	}
-	items, err := account.openIssues(ctx)
+	listed, next, complete, err := account.scanIssue(ctx, cursor, "open")
 	if err != nil {
-		return nil, err
+		return empty, err
 	}
-	result := make([]control.NativeInventoryIssue, 0, len(items))
-	bytes := 0
-	for _, listed := range items {
+	page := control.IssueObservationPage{Issues: []control.NativeInventoryIssue{}, Next: next, Complete: complete}
+	if listed != nil {
 		raw, _, _, err := (nativeIssueInputs{account}).readInputs(ctx, strconv.FormatInt(repository, 10), strconv.FormatInt(listed.Ref.Number, 10), nil, "")
 		if err != nil {
-			return nil, err
-		}
-		issue := raw.Issue
-		if issue.ID != listed.Ref.ExternalID || *issue.Closed {
-			return nil, errors.New(control.HoldInventoryRevision)
-		}
-		body := factory.CompletionIssueEvidence{Index: issue.Number, Title: issue.Title, Body: issue.Body, TitleDigest: inputDigest([]byte(issue.Title)), ContentDigest: inputDigest([]byte(issue.Body))}
-		for _, dep := range raw.Dependencies {
-			if dep.Repository != account.repository.ExternalID {
-				return nil, errors.New(control.HoldInventoryUnavailable)
+			if changedInventoryMember(err) {
+				return empty, errors.New(control.HoldInventoryRevision)
 			}
-			body.Dependencies = append(body.Dependencies, dep.DependsOn)
+			return empty, err
 		}
-		sort.Slice(body.Dependencies, func(i, j int) bool {
-			a, b := body.Dependencies[i], body.Dependencies[j]
-			return len(a) < len(b) || len(a) == len(b) && a < b
-		})
-		if err := body.Validate(); err != nil {
-			return nil, err
+		if raw.Issue.ID != listed.Ref.ExternalID || *raw.Issue.Closed || raw.Issue.Title != listed.Title || raw.Issue.Body != listed.Body {
+			return empty, errors.New(control.HoldInventoryRevision)
 		}
-		encoded, err := json.Marshal(body)
+		encoded, err := completionIssueEvidence(raw, account)
 		if err != nil {
-			return nil, err
+			return empty, err
 		}
-		bytes += len(encoded)
-		if bytes > factory.MaxReassessmentEvidenceBytes {
-			return nil, errors.New(control.HoldInventoryOversize)
-		}
-		result = append(result, control.NativeInventoryIssue{Index: body.Index, Data: string(encoded)})
+		page.Issues = append(page.Issues, control.NativeInventoryIssue{Index: listed.Ref.Number, Data: string(encoded)})
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Index < result[j].Index })
-	return result, account.current(ctx)
+	return page, account.current(ctx)
 }

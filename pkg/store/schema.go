@@ -8,9 +8,8 @@ import (
 	"sync"
 )
 
-// Schema 106 retains separate automatic external-PR authority. Older writers
-// must refuse rather than ignore its current association and author checks.
-const schemaFormatVersion = 106
+// Schema 107 retains bounded intake observation progress alongside its durable cursor.
+const schemaFormatVersion = 107
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -101,7 +100,7 @@ content_digest TEXT NOT NULL DEFAULT '' CHECK(octet_length(content_digest) IN (0
 generation BIGINT NOT NULL DEFAULT 0 CHECK(generation>=0), turn BIGINT NOT NULL CHECK(turn>0),
 retry_at TIMESTAMPTZ NOT NULL DEFAULT 'epoch', attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts BETWEEN 0 AND 6),
 CHECK(NOT creation_verified OR (creator_id>0 AND native_issue_id>0 AND created_unix>0 AND octet_length(title_digest)=64 AND octet_length(content_digest)=64)))`,
-	`CREATE TABLE factory_creation_cursors(repository BIGINT PRIMARY KEY CHECK(repository>0), task_id BIGINT NOT NULL CHECK(task_id>=0))`,
+	`CREATE TABLE factory_creation_cursors(repository BIGINT PRIMARY KEY CHECK(repository>0), task_id BIGINT NOT NULL CHECK(task_id>=0), scan TEXT NOT NULL DEFAULT '' CHECK(octet_length(scan)<=3145728))`,
 	`CREATE TABLE factory_readiness_nodes(
 source TEXT NOT NULL REFERENCES factory_readiness_sources(id) ON DELETE CASCADE,
 repository BIGINT NOT NULL CHECK(repository>0), issue BIGINT NOT NULL CHECK(issue>0),
@@ -303,7 +302,7 @@ func verifyRequiredColumns(ctx context.Context, t *sql.Tx) error {
 		`SELECT cycle,repository,generation,event,state,data FROM factory_reassessments LIMIT 0`,
 		`SELECT id,generation,next_turn FROM factory_readiness_budget LIMIT 0`,
 		`SELECT id,delivery,repository,issue,creation_verified,creator_id,creator_write,native_issue_id,created_unix,title_digest,content_digest,generation,turn,retry_at,attempts FROM factory_readiness_sources LIMIT 0`,
-		`SELECT repository,task_id FROM factory_creation_cursors LIMIT 0`,
+		`SELECT repository,task_id,scan FROM factory_creation_cursors LIMIT 0`,
 		`SELECT source,repository,issue,state,cursor_repository,cursor_issue FROM factory_readiness_nodes LIMIT 0`,
 	} {
 		rows, err := t.QueryContext(ctx, query)
@@ -734,6 +733,17 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=106 WHERE version=105`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate automatic external publication authority: %w", err))
+		}
+		version = 106
+	}
+	if version == 106 {
+		if _, err = t.ExecContext(ctx, "ALTER TABLE factory_creation_cursors ADD COLUMN IF NOT EXISTS scan TEXT NOT NULL DEFAULT '' CHECK(octet_length(scan)<=3145728)"); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, err)
+		}
+		if _, err = t.ExecContext(ctx, "UPDATE schema_version SET version=107 WHERE version=106"); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, err)
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

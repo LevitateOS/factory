@@ -92,12 +92,13 @@ type SealedInventory struct {
 // progress instead. Progress serializes into the cycle row so restarts
 // and crashes resume instead of rescanning.
 type InventoryCollector struct {
-	Running  [32]byte
-	Issues   []NativeInventoryIssue
-	Local    factory.CompletionLocal
-	Cursor   string
-	Revision int64
-	Restarts int
+	Observation *IssueObservationProgress `json:",omitempty"`
+	Running     [32]byte
+	Issues      []NativeInventoryIssue
+	Local       factory.CompletionLocal
+	Cursor      string
+	Revision    int64
+	Restarts    int
 }
 
 // parseInventoryCursor validates a nonempty cursor as a canonical

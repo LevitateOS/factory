@@ -53,6 +53,9 @@ type GeneratedDependency struct {
 // Numeric positions and original issue IDs retain the existing journal's domain;
 // mixed-provider identity translation remains the separate T02-IDENTITIES gate.
 type CreationRecoveryBatch struct {
+	// Optional retained observation cursor; it never establishes creation authority.
+	SourceCursor           *string
+	ExpectedSourceCursor   string
 	Repository             int64
 	Events                 []OriginalCreationEvent
 	NextPosition           int64

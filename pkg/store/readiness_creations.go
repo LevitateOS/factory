@@ -146,7 +146,32 @@ func (s *Store) CreationRecoveryRepositories(ctx context.Context, after int64, l
 // EnqueueReadinessCreationPage advances native history only after every original
 // observation is durable. Capacity, identity conflicts and stale cursors roll
 // back the whole page, so a later serving pass can retry the same native tasks.
+type creationScanCheckpoint struct{ expected, next string }
+
+func (s *Store) EnqueueReadinessCreationScanPage(ctx context.Context, repository, expected, next int64, works []ReadinessWork, revision int64, expectedScan, nextScan string) error {
+	if len(expectedScan) > 3<<20 || len(nextScan) > 3<<20 {
+		return errors.New("invalid creation scan size")
+	}
+	return s.enqueueReadinessCreationPage(ctx, repository, expected, next, works, &creationScanCheckpoint{expectedScan, nextScan}, revision)
+}
+
+func (s *Store) CreationRecoveryScanCursor(ctx context.Context, repository int64) (string, error) {
+	if repository <= 0 {
+		return "", errors.New("invalid creation repository")
+	}
+	var cursor string
+	err := s.db.QueryRowContext(ctx, "SELECT scan FROM factory_creation_cursors WHERE repository=$1", repository).Scan(&cursor)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return cursor, err
+}
+
 func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, expected, next int64, works []ReadinessWork, policyRevision ...int64) error {
+	return s.enqueueReadinessCreationPage(ctx, repository, expected, next, works, nil, policyRevision...)
+}
+
+func (s *Store) enqueueReadinessCreationPage(ctx context.Context, repository, expected, next int64, works []ReadinessWork, scan *creationScanCheckpoint, policyRevision ...int64) error {
 	if repository <= 0 || expected < 0 || next < expected || len(works) > 16 || len(policyRevision) > 1 || len(policyRevision) == 1 && policyRevision[0] < 1 {
 		return errors.New("invalid creation page")
 	}
@@ -168,10 +193,11 @@ func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, ex
 		return err
 	}
 	var saved int64
-	if err = tx.QueryRowContext(ctx, `SELECT task_id FROM factory_creation_cursors WHERE repository=$1 FOR UPDATE`, repository).Scan(&saved); err != nil {
+	var savedScan string
+	if err = tx.QueryRowContext(ctx, `SELECT task_id,scan FROM factory_creation_cursors WHERE repository=$1 FOR UPDATE`, repository).Scan(&saved, &savedScan); err != nil {
 		return err
 	}
-	if saved != expected {
+	if saved != expected || scan != nil && savedScan != scan.expected {
 		return ErrStaleRevision
 	}
 	for _, work := range works {
@@ -209,7 +235,12 @@ func (s *Store) EnqueueReadinessCreationPage(ctx context.Context, repository, ex
 			return err
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE factory_creation_cursors SET task_id=$2 WHERE repository=$1`, repository, next); err != nil {
+	if scan != nil {
+		savedScan = scan.next
+	} else if next != expected {
+		savedScan = ""
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE factory_creation_cursors SET task_id=$2,scan=$3 WHERE repository=$1`, repository, next, savedScan); err != nil {
 		return err
 	}
 	return tx.Commit()
