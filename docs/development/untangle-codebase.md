@@ -6,8 +6,8 @@
 INCOMPLETE. Fountain and user-started Daybreak are excluded. Completed below:
 retained genuine Inspector → Fixer → re-inspection → current-CI/allowed-merge
 journey. The actual next Architect/Builder also succeeded at that merged result.
-Remaining: paid pre-merge delivery
-judgment/acceptance, connected fork adoption, required installed
+Remaining: final connected merge of the fork candidate using its retained paid
+delivery judgment/acceptance, required installed
 withdrawal/revocation/I/O and remaining update activation/retirement composition.
 Reuse valid scoped evidence; a second forced correction cycle is unnecessary.
 
@@ -5676,3 +5676,41 @@ merge-preparation facts; the native mutation retains its independent current
 preflight. Fountain keeps its existing paths. request96-progress-pg.log and
 request96-external-pg.log pass their existing scopes. These scoped checks do not
 establish the final native send; installed verification remains INCOMPLETE.
+
+Installed97 (backend a6a2cc25336c405aecc9a0d06f8cf8ee258db51d, inventory
+a5c3d8a361a1b90ecfafcd32ecf402d8342ee5337f3a26d5fbde6024f74f8769)
+upgrades exact-prior93 with the original request journal byte-identical.
+Its original cancellation owner settles allocated261f… as complete,
+not_committed/cancelled_before_dispatch, stage withdrawn/revision5; original
+Work/generation2/deadline1794521082 remain captured. Source245/active0 is
+unchanged. Real window minimize/restore and same-desktop second launch pass
+with the original PID/session/mode; the first launch from a different D-Bus
+session timed out and is preserved, not counted as success. Status/tree and
+keyboard refresh add0 provider calls. Evidence goal76-*97.json,
+goal97-local-lifecycle.log and package97-* under the existing private root.
+Selecting the account/fixture subsequently uses56 calls (including background
+intake), leaving only129 retained sends. No new merge command or admin grant
+was issued. Normal Quit's lost reply is resolved by retired control socket and
+PostgreSQL. The original journal and saved account remain intact.
+
+The existing native merge harness now declares the current typed reviewer,
+cycle/owner joins and pre-existing merge row, rather than relying on obsolete
+COMMENT-only history. request103-budget-local.log and
+fc-github-assembly103/assembly-merge-budget.json pass complete paired material,
+one-shot observation, fresh submission, causal result/issue/base completion,
+replay, cancellation and actual restart with withdrawn credential:204 physical
+sends for the whole controlled journey,0 during retained recovery. Provider and
+role results are declared; no live GitHub/model evidence is inferred. Earlier
+request101's dummy peer omitted merged completion; its repeated completion
+polling was stopped and is preserved. Declared checks now fail on the first
+missing completion instead of polling. Original live commands/charges are
+unaffected. Reopen104 confirms the same installed inventory/Ready and original
+471-debit journal with0 new calls; its normal Quit joins socket/PostgreSQL
+(goal76-recovered104.json, goal104-retirement.log). No owned app/check/guard,
+uncommitted edit or uncertain new effect remains. Current connected blocker:
+129 remaining retained sends cannot safely accommodate the measured complete
+merge plus navigation. No quota wait/reset/account rotation was used. Next:
+finish the retained PR62 merge through a fresh finite explicit command only
+with enough measured request capacity, then required installed
+withdrawal/revocation/update composition. Never renew261f…; whole GitHub/Muse
+qualification remains INCOMPLETE.

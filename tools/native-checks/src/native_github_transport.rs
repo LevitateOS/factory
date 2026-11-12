@@ -57,6 +57,28 @@ pub(super) async fn run_assembly_budget_declared(
         .as_str()
         .ok_or("canonical repository absent")?;
     let mut stages = Vec::new();
+    if std::env::var_os("FACTORY_ASSEMBLY_MERGE").is_some() {
+        let helper = std::env::var_os("FACTORY_ASSEMBLY_HELPER").ok_or("merge helper absent")?;
+        let input = root.join("merge-input.json");
+        fs::write(&input, serde_json::to_vec(&json!({"Repository":repository,"Issue":"12","Connection":saved.connection,"Checks":{"pr_number":"7","pr_id":"700","issue_id":"800","head_ref":"refs/heads/topic","base_ref":"refs/heads/main","head_oid":"a".repeat(40),"base_oid":"b".repeat(40),"merge_checks":["build"],"paired":true}}))?)?;
+        let before = attempts()?;
+        let result = tokio::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("check-background-assembly-merge").arg(&input).status().await?;
+        ensure(result.success(), "complete declared native merge refused")?;
+        let sends = attempts()? - before;
+        ensure(sends <= 250, "complete merge exceeded physical-send bound")?;
+        store.withdraw(&saved.connection).await?;
+        runtime.stop()?;
+        let before_recovery = attempts()?;
+        let reopened = NativeSupervisor::start(payload, production, profile)?;
+        let retained = tokio::process::Command::new(helper).arg(profile).arg(reopened.health()?.instance).arg("check-background-merge-retained").arg(input).status().await?;
+        reopened.stop()?;
+        ensure(retained.success(), "retained merge recovery refused after withdrawal/restart")?;
+        ensure(attempts()? == before_recovery, "retained merge recovery contacted provider")?;
+        ensure(!io.join("unexpected-request").exists(), "merge peer saw undeclared request")?;
+        fs::write(root.join("assembly-merge-budget.json"), serde_json::to_vec_pretty(&json!({"physical_sends":sends,"recovery_sends":0,"withdrawn_restart":true,"workflow_declared":true,"no_live_provider":true}))?)?;
+        println!("PASS: controlled complete native merge with {sends} physical sends; no live provider or model");
+        return Ok(());
+    }
     for target in [
         format!("/api/repositories/{repository}/factory"),
         format!("/api/repositories/{repository}/factory/access"),

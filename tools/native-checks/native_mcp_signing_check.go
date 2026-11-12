@@ -3309,7 +3309,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	if strings.HasPrefix(action, "check-background-creation") {
 		fixtureTimeout = 120 * time.Second
 	}
-	if action == "check-background-delivery-material" || action == "check-background-assembly-material" {
+	if action == "check-background-delivery-material" || action == "check-background-assembly-material" || action == "check-background-assembly-merge" {
 		fixtureTimeout = 150 * time.Second
 	}
 	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") || strings.HasPrefix(action, "check-background-merge") {
@@ -3340,13 +3340,20 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	if strings.HasPrefix(action, "check-background-creation") {
 		return connectedCreationFixture(ctx, source, int64(connection.Actor), connection.ID, repository, issue, profile, action)
 	}
-	if action == "check-background-assembly-material" {
-		// Dummy-only native wire qualification uses the production collector,
-		// without granting policy execution, funding, or any write capability.
+	if action == "check-background-assembly-material" || action == "check-background-assembly-merge" {
+		// Dummy-only wire qualification uses the production collector. The
+		// merge variant declares workflow rows and permits controlled writes;
+		// neither variant provides an inference source or model execution.
 		ref := func(kind string) factory.ActorBindingRef {
 			return factory.ActorBindingRef{Kind: kind, ActorID: int64(connection.Actor), NativeProfile: config.Profile, NativeConnection: connection.ID}
 		}
 		policy := factory.RepositoryPolicy{Repository: repository, Revision: 1, Publish: ref(factory.OpRefPublish), Merge: ref(factory.OpMerge)}
+		if action == "check-background-assembly-merge" {
+			policy.GrantedBy, policy.TargetBranch, policy.MergeMethod = int64(connection.Actor), "refs/heads/main", "merge"
+			policy.Checks, policy.ReassessmentMinutes, policy.AttemptLimits = []string{"build"}, factory.DefaultReassessmentMinutes, factory.DefaultAttemptLimits()
+			policy.Create, policy.Review = ref(factory.OpPRCreate), ref(factory.OpReviewSubmit)
+			policy.Roles = map[string]factory.RoleSelection{project.RoleCoder: {Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}, project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}}
+		}
 		encoded, err := json.Marshal(policy)
 		if err != nil {
 			return err
@@ -3359,6 +3366,11 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		if _, err = raw.ExecContext(ctx, `INSERT INTO factory_policies(repository,revision,data) VALUES($1,1,$2) ON CONFLICT(repository) DO NOTHING`, repository, string(encoded)); err != nil {
 			return err
 		}
+	}
+	if action == "check-background-assembly-merge" {
+		target := input.Checks
+		target.Repository = repository
+		return nativeReviewFixture(ctx, db, factoryruntime.NativeReviews{NativeInputSource: source}, connection.Actor, issue, target, path, "check-background-merge")
 	}
 	if action == "check-background-delivery-material" || action == "check-background-assembly-material" {
 		port := factoryruntime.NativeMerges{NativeInputSource: source}
@@ -4472,6 +4484,57 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	}
 	if action == "check-background-merge" {
 		p.ReviewOperations[0].Outcome = outcome
+		// The native transport fixture declares a typed, settled reviewer. It
+		// must satisfy the same current-cycle join as real role output; a
+		// provider COMMENT alone is not an independent inspection verdict.
+		a := offlineRoleAssignment(project.ExecutionReview, project.RoleReviewer, p.Candidate)
+		a.PublicationAssignment, a.AttemptRoot, a.ParentAssignment = p.AssignmentID, p.AssignmentID, p.AssignmentID
+		a.Repository, a.Issue, a.ActorID = p.Repository, p.Issue, int64(actor)
+		a.Subject.Issue.Issue = p.Issue
+		a.Run, a.RunHistory = run, []string{run}
+		a.Stage, a.Outcome, a.FinishedUnix = factory.AssignmentFinished, factory.Succeeded, now
+		a.Reason = factory.AssignReasonReported
+		cycle := factory.ReviewCycle{PublicationID: p.ID, AttemptRoot: p.AssignmentID, Round: 1, Phase: "review", TriggerDecision: "declared-native-fixture", TriggerReason: "Controlled transport qualification; no model inspection", Head: p.Candidate, BaseOID: target.BaseOID, FindingDigest: strings.Repeat("a", 64), ReviewerAssignment: a.ID}
+		cycle.ID = factory.ReviewCycleID(p.ID, p.AssignmentID, 1, cycle.Phase)
+		content, e := factory.FindingContentDigest(nil)
+		if e != nil {
+			return e
+		}
+		coverage, e := factory.ClearCoverageDigest(cycle.Head, cycle.BaseOID, content)
+		if e != nil {
+			return e
+		}
+		a.Result = &factory.AssignmentResult{AssignmentID: a.ID, RunID: run, Status: "completed", Summary: "Declared transport fixture verdict", Reported: true, RecordedUnix: now, Phase: project.ExecutionReview, PhaseResult: &factory.PhaseResult{Version: factory.PhaseResultVersion, Phase: project.ExecutionReview, Status: "completed", Summary: "Declared transport fixture verdict", Output: &factory.PhaseOutput{Clear: &factory.ClearReviewReport{Conclusion: factory.ClearReviewConclusion, CycleID: cycle.ID, Head: cycle.Head, BaseOID: cycle.BaseOID, CoverageDigest: coverage}}}}
+		if e = a.Validate(); e != nil {
+			return e
+		}
+		p.ReviewCycles = []factory.ReviewCycle{cycle}
+		raw, e := json.Marshal(a)
+		if e != nil {
+			return e
+		}
+		conn, e := sql.Open("pgx", port.Config.DatabaseDSN())
+		if e != nil {
+			return e
+		}
+		defer conn.Close()
+		if _, e = conn.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, a.ID, a.Repository, a.Issue, a.Run, a.Stage, string(raw)); e != nil {
+			return e
+		}
+		owner := offlineRoleAssignment(project.ExecutionImplement, project.RoleCoder, target.BaseOID)
+		owner.ID, owner.AttemptRoot, owner.PublicationAssignment = p.AssignmentID, p.AssignmentID, p.AssignmentID
+		owner.Repository, owner.Issue, owner.ActorID = p.Repository, p.Issue, int64(actor)
+		owner.Subject.Issue.Issue = p.Issue
+		if e = owner.Validate(); e != nil {
+			return e
+		}
+		raw, e = json.Marshal(owner)
+		if e != nil {
+			return e
+		}
+		if _, e = conn.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, owner.ID, owner.Repository, owner.Issue, owner.Run, owner.Stage, string(raw)); e != nil {
+			return e
+		}
 		if err = write(); err != nil {
 			return err
 		}
@@ -4593,6 +4656,7 @@ func nativeMergeRetained(ctx context.Context, db *store.Store, port factoryrunti
 func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeMerges, p factory.Publication, review factory.ReviewOutcome, path string) error {
 	var options struct {
 		Checks struct {
+			Paired      bool     `json:"paired"`
 			MergeChecks []string `json:"merge_checks"`
 			Method      string   `json:"method"`
 			Phases      []struct {
@@ -4652,6 +4716,11 @@ func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntim
 		}
 	}
 	w := factory.MergeWork{Method: policy.MergeMethod, MergeID: factory.NewID(), PublicationID: p.ID, OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared-native-merge-fixture", Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: review.ReviewerID, ReviewerID: review.ReviewerID, ActorID: review.ReviewerID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID, ReviewID: review.ReviewID, ReviewEvent: "COMMENT", NotAfter: time.Now().Add(5 * time.Minute).Unix()}
+	initial := factory.Merge{ID: w.MergeID, PublicationID: p.ID, AssignmentID: p.AssignmentID, ProjectID: p.ProjectID, Role: p.Role, Acceptance: p.Acceptance, Authority: p.Authority, Repository: w.Repository, Issue: w.Issue, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, ReviewerID: w.ReviewerID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, Stage: factory.MergeOpen, CreatedUnix: time.Now().Unix(), NativeRev: p.NativeRev, ObservedUnix: time.Now().Unix()}
+	initial.Operation.Kind = factory.OpMerge
+	if err = db.RecordMerge(ctx, initial); err != nil {
+		return err
+	}
 	for n, phase := range options.Checks.Phases {
 		ready := filepath.Join(filepath.Dir(path), fmt.Sprintf("merge-phase-%02d", n))
 		if err = os.WriteFile(ready+".ready", []byte(phase.Name), 0600); err != nil {
@@ -4690,7 +4759,29 @@ func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntim
 	}
 	// Phase observations precede admission; freeze a new bounded lease only now.
 	w.NotAfter = time.Now().Add(5 * time.Minute).Unix()
-	observed, err := port.ObserveMerge(ctx, w)
+	var observed factory.MergeObservation
+	if options.Checks.Paired {
+		evidence, e := port.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
+		if e != nil {
+			return e
+		}
+		w.NativeRev = evidence.Revision
+		material, continuation, e := port.ReadDeliveryMaterialForMerge(ctx, p, w)
+		if e != nil {
+			return e
+		}
+		if !material.Eligible || continuation == nil {
+			return errors.New("paired merge material unavailable")
+		}
+		observed, err = continuation(w)
+		if err == nil {
+			if _, e = continuation(w); e == nil {
+				return errors.New("paired merge observation replayed")
+			}
+		}
+	} else {
+		observed, err = port.ObserveMerge(ctx, w)
+	}
 	if os.Getenv("FACTORY_FOUNTAIN_CONTROLLER_MERGE") == "1" {
 		for {
 			if err == nil && observed.MethodAvailable && observed.ProviderComplete && observed.ProviderEligible {
@@ -4781,7 +4872,7 @@ func writeDeclaredNativeMerge(ctx context.Context, port factoryruntime.NativeMer
 		return err
 	}
 	defer conn.Close()
-	_, err = conn.ExecContext(ctx, `INSERT INTO factory_merges(publication,repository,issue,pr,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, m.PublicationID, m.Repository, m.Issue, m.PRNumber, m.Stage, string(raw))
+	_, err = conn.ExecContext(ctx, `INSERT INTO factory_merges(publication,repository,issue,pr,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6) ON CONFLICT(publication) DO UPDATE SET data=EXCLUDED.data WHERE factory_merges.data->>'id'=EXCLUDED.data->>'id' AND COALESCE((factory_merges.data->'operation'->>'attempts')::int,0)=0`, m.PublicationID, m.Repository, m.Issue, m.PRNumber, m.Stage, string(raw))
 	return err
 }
 
@@ -4823,6 +4914,9 @@ func finishNativeMergeFixture(ctx context.Context, db *store.Store, port factory
 		state.Confirmation, err = port.ObserveCompletion(ctx, w)
 		if err == nil && state.Confirmation.MergedCommit == state.Adopted.MergedCommit && state.Confirmation.BaseContainsMergedCommit && state.Confirmation.IssueClosed && state.Confirmation.OriginalClosed && state.Confirmation.OriginalClosingOccurrence != "" {
 			break
+		}
+		if os.Getenv("FACTORY_ASSEMBLY_MERGE") == "1" {
+			return fmt.Errorf("declared merge completion differs: observed=%+v err=%v", state.Confirmation, err)
 		}
 		select {
 		case <-ctx.Done():
