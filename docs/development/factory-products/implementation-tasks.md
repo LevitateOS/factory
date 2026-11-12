@@ -1827,10 +1827,23 @@ The first Feed fixture failed because plain posts lacked intake records; correct
 fixture rows preserve production guards. UI typecheck/Lit/production build pass
 (`request67-ui-{typecheck,lit,build}.log`); backend builds as
 `grouped-read-server` SHA256de658b726794b033d1ab2be5cbae4ca27cbb2ea75f80b7fb8dc1b1d31b8619e1.
-Matching installed67 restart/quiet-volume qualification remains next. Preserve the
-original600 debits: first expiry09:35:01Z, all expire09:39:33Z on2026-11-12;
-resume positive measurement after09:40Z, never delete/reset/copy around the hold.
-Read original merge/accounting from the reopened store before effects. Never
+Installed67/source50f0d7857cf4eecf25ce195148725874f29e6fae passes exact-prior66
+upgrade, archive/inventory integrity and Ready, with the new UI and unchanged2697
+helpers. Local status proves attempts0 and retained600/600; the original budget
+SHA25615fff11751abcf7bdf7a075dc7d5165044c23cbeb77fc66c1609ebe8ff07e066
+is unchanged before upgrade, after restart and after Quit. Local store readback
+confirms245 charged minutes,0 active/unsettled runs, and original merge31019ff6
+still open/unbound revision1 with0 attempts/no operation. Normal Quit's lost reply
+resolves through joined app/backend/PG/Muse/socket retirement. Exact build inputs,
+hashes and readbacks: `package67-*`, `goal67-budget-restart.json` outside Git.
+**Recovery:** source and checks committed on main; no running app/check, model or
+uncertain new effect. The original consumed budget prevents positive quiet-volume
+measurement until first expiry09:35:01Z/all debits09:39:33Z on2026-11-12. After
+09:40Z (10:40 Amsterdam), launch installed67 once, select the saved account/fixture
+once, measure settled quiet traffic through local status snapshots, then trace
+the original merge using its retained ready decision. Never delete/reset/copy
+around the hold. Genuine user-side provider revocation is separately pending.
+Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.

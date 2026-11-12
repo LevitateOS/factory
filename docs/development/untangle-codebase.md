@@ -876,9 +876,15 @@ refresh becomes5min and planning/repair progress1min. Existing real native HTTP/
 checks pass exact counts and final withdrawal/scope/cursor refusal
 (`request67-native-read-capture-pg.log`, `request67-feed-page-pg2.log`); UI typecheck,
 Lit and production build pass. Provider replies are declared in those checks.
-Next: matching installed67, original budget preserved across restart, local
-merge/usage readback, then positive quiet-volume qualification after the original
-600 debits expire09:39:33Z (2026-11-12), using09:40Z as the safe retry time.
+Installed67/source50f0d785 passes exact-prior upgrade/integrity/Ready with unchanged
+2697 helpers. Status reports0 wire attempts and original600/600; budget bytes stay
+exact across restart/Quit. Store confirms245 minutes,0 active/unsettled and original
+merge31019ff6 open/unbound with0 attempts/no operation. Original Quit's lost reply
+is resolved by joined process/socket retirement. `goal67-budget-restart.json` and
+`package67-*` retain exact build hashes/readbacks. No app/check/model remains
+running. Next: positive quiet-volume qualification after the original600 debits
+expire09:39:33Z (2026-11-12), using09:40Z as the safe retry time, then the original
+merge's retained ready decision. Preserve the hold; no budget reset or paid replay.
 No original operation or paid receipt changed.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.
