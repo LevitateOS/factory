@@ -576,10 +576,18 @@ pub fn report(
                 {
                     let runtime = state.runtime.lock().unwrap();
                     let owner = runtime.as_ref().ok_or("retried runtime missing")?;
-                    tauri::async_runtime::block_on(owner.start_execution_coordinator())?;
+                    let unavailable = owner.execution_error();
+                    let started = tauri::async_runtime::block_on(owner.start_execution_coordinator());
+                    if let Some(error) = unavailable {
+                        if started != Err(error) {
+                            return Err("unavailable execution admitted coordinator startup".into());
+                        }
+                    } else {
+                        started?;
+                    }
                 }
                 state.check.stage.store(2, Ordering::SeqCst);
-                println!("PASS: actual native execution-unavailable UI, production retry generation, successful coordinator start and Quit; missing worker isolation remains unavailable");
+                println!("PASS: actual native execution-unavailable UI, production retry generation, readiness-enforced coordinator start and Quit; missing worker isolation remains unavailable");
                 quit(app);
                 return Ok(());
             }
