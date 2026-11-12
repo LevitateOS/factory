@@ -1460,7 +1460,8 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q17 — GitHub external PR adoption
 
-**Current installed automatic-intake continuation (2026-11-11): INCOMPLETE.**
+**Current installed automatic adoption (2026-11-12): same-repository journey
+VERIFIED; Q17 INCOMPLETE for the remaining fork journey.**
 PR61 has real green CI at6165f7c/base609f18f and links only unchanged-text reopened
 issue57. Explicit normal-UI policy10 enables same-repository adoption on the same
 finite Muse source. The earlier429 hold cleared; native discovery and normal
@@ -1478,8 +1479,19 @@ The actual independent Inspector7ba2db944625520345fb8e145dc0cbf1 succeeds,
 seals/retires/reconciles and posts causal COMMENT5866320688 at the exact head.
 CI43090799720/app15368 passes. Original merge4e13a0c18374a6deed0198b7ecd091f8
 remains unallocated/unsent; its22:53:55Z generation expired and cannot be renewed.
-The local hold before native merge observation remains unresolved. Recover
-this original publication, not a replacement/manual adoption. The owner's excessive-request
+The hold is now resolved on this original automatic publication; no replacement
+or manual adoption was used. Installed46 proves classic protection is concealed
+from the fixture writer even with healthy quota. The owner explicitly authorizes
+temporary admin on only this fixture repository. Generation5 command
+4d9330175ac24abca7eee504fdfdcc79 merges once at00:40:45Z, with committed native
+receipt, complete reconciliation and resulting commitdb730481aba37fb67fc596775add85d331374a34.
+Original issue57 closes at00:40:46Z; the original allowance closes, no assignment
+remains unsettled, and219→220 minutes includes the new post-completion opinion.
+The fixture team's original write role is immediately restored and verified.
+All four earlier expired/unsent generations remain unchanged. Exact original
+command, role, CI, merge and restored-permission evidence is retained in
+goal47-protected-merge-completed.json and the active ledger.
+The owner's excessive-request
 investigation found excessive idle traffic. Its causal closed-issue correction
 6707791 passes the finite realPG check and actual ordinary installed39 comparison:
 77 requests in60.047s versus155 in60.052s before it (about50% fewer). Residual
@@ -1497,7 +1509,42 @@ The local counter inspection uses no provider calls or inference. The qualificat
 Quit and all app/backend processes/socket are retired. Repository734 usage is219
 minutes after the original Architect and Inspector; old allowances/receipts remain.
 The active decision ledger retains precise inputs and the remaining merge hold,
-paid premerge/fork/withdrawal journeys and request-efficiency work.
+paid premerge/fork/withdrawal journeys and request-efficiency work. Further
+verified/pushed a604598 fixes the normal merge-only recovery offer for external
+Architect ownership; finite realPG check and exact-prior installed43 pass. Its
+actual commandfb5140dc80514c17b18e249bfaab1262 preserves generation1 but also
+expires unsent at23:51:53Z; no model or charge is repeated. 80362ec's bounded
+existing-log hold reasons qualify on installed44: fresh normal UI generation3
+command1d004fedf8814b0eb3b0d4e5ec9bbd26 holds at native observation with
+provider_merge_requirements_pending,0 attempts/no work, deadline00:11:59Z on
+2026-11-12 unchanged. bd51c2f preserves behavior while logging the five existing
+provider eligibility booleans; its backend build and exact-prior45 pass. Fresh
+commandebf305af3b4144568c5e0588d8353c20 expires/withdraws unsent at00:23:08Z:
+native method/permission/veto gates pass, but protection completeness/check
+eligibility do not. A proposed fixture-only admin increase was rejected by
+automatic approval review; no permission changed. Verified829d0a7 fixes direct
+non-executing external merge recovery, with the existing finite realPG check and
+backend build passing.388ca44's shared Checks explanation passes typecheck,
+existing Lit validation and production UI build; installed46 is in progress.
+Its actual installed explanation and protected merge now qualify as described
+above. Further6ef2615 removes one duplicate fresh repository observation from
+work access while retaining the independent current writer/scope check; one
+backend build passes. Installed47's work detail, requirement preview and revised
+acceptance pass; no total request-delta closure is claimed. Both native roles
+prepare the actual merged db730481 source with setup/check exit0. Normal saved
+GitHub login refresh recovers expiry without new authentication. Append-only
+comment6811304781 is accepted asdd35489bbd3f43df2e2397b53 with unchanged issue text.
+Existing fork PR62 at31fe14a/base db730481 has real CI43132134695 passing.
+Its explicit fork command6ea59f48dd0941778357cc2a4be51835 records source setup but
+refuses before any model/assignment/charge; the UI incorrectly discards that
+pre-packet command. The recovery fix distinguishes persisted, unretired source
+preparation as preparation_pending so the same command remains recoverable.
+Production backend build and focused existing production-DOM pending/remount/
+identical-command recovery pass. Installed47 is normally Quit and all processes/
+developer socket retire; installed48 qualification is next. Original setup
+f6e2ea24c2eba700c2f4364e5 and first deadline1794447102 remain preserved; usage220.
+Sodaos has accepted fixture-fork write, with original read retained for restoration.
+No fork model execution yet; the original refused command is never renewed.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

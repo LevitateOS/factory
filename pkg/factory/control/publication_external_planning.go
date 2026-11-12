@@ -143,6 +143,15 @@ func sameExternalPlanningOrigin(left, right factory.ExternalPublicationOrigin) b
 func (c *Coordinator) planExternalPull(ctx context.Context, cmd factory.Command, request factory.ExternalPullAdoption) (factory.ExternalPullAdmission, error) {
 	var empty factory.ExternalPullAdmission
 	refuse := func(stage, reason, detail string, cause error) (factory.ExternalPullAdmission, error) {
+		// Setup can already own a native effect before an Architect packet
+		// exists. Keep that command recoverable until its original checkout
+		// is confirmed retired; a pre-packet wait is not a no-effect refusal.
+		if errors.Is(cause, store.ErrAdmissionChanged) {
+			prior, readErr := c.Store.CandidatePreparation(ctx, coderPreparationID(cmd.ID, request.Target.BaseOID))
+			if !errors.Is(readErr, store.ErrNotFound) && (readErr != nil || !prior.Stopped || prior.Retirement != "confirmed") {
+				cause = errors.Join(cause, store.ErrCandidatePreparationPending)
+			}
+		}
 		// Only bounded owner reason codes reach stderr; never log prompt,
 		// provider error text or the captured adoption payload.
 		reason = reason[:min(len(reason), 128)]

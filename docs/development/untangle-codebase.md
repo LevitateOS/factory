@@ -474,10 +474,84 @@ repository write was needed for this comparison. The sole normal Quit's unknown
 reply is resolved by process/socket retirement. The app is stopped; no check,
 model or package process remains. Request traffic is substantially reduced but
 still frequent; positive authority caching across sends is not introduced.
-Next: resolve the retained original PR61 local merge hold before any fresh finite
-merge preparation; never renew its expired generation or replay completed models. The original
-PR61 unsent merge hold, paid premerge/fork/withdrawal journeys remain outstanding.
-No external journey or request-efficiency closure is claimed.
+**Merge recovery and same-repository automatic adoption VERIFIED (2026-11-12).**
+a604598 and829d0a7 fix finite merge-only preparation for actual external Architect
+and non-executing direct-publication ownership. The existing finite realPG
+merge-owner-pg-2.log and direct-external-merge-owner-pg.log pass; original source,
+closed allowances and no-send histories stay unchanged.80362ec/bd51c2f add only
+bounded hold diagnostics.388ca44513e50161ba8f687c969c184debc18de5 adds the shared
+Checks explanation from existing facts, with typecheck/Lit/production build
+passing. Exact-prior installed46 includes that native/UI and verified backend
+829d0a7037187fa7c2105d575bf6fbb9afece4ee; package46 inputs/integrity retain exact
+app/backend/inventory hashes and prior releases.
+
+The normal installed Checks view proves classic protection is concealed from
+Sodaos's writer account even with healthy quota. Owner reads show supported
+app15368/q15-note-example, no required approvals or other unsupported constraints.
+An initial admin proposal is rejected by automatic approval review with no
+mutation. The owner then explicitly approves the exact fixture-only temporary
+grant. Normal command4d9330175ac24abca7eee504fdfdcc79 admits generation5 until
+00:44:34Z, retaining all four expired/unsent generations. Its one native operation
+soda-2e03e7af3f5cb85fa8c62350d268d460-merge-generation-5 commits00:40:45Z as
+Sodaos353332758 on repository1451647791/PR5265848096 (#61), methodmerge,
+head6165f7c76de5609d08342ecb2bd1536254b1258a/base609f18fef789a7b545f4589afc154a0da8e42113,
+resultdb730481aba37fb67fc596775add85d331374a34. Receipt200 includes causal request
+and response hashes, writing_matches=true and complete native reconciliation.
+Original issue57 closes00:40:46Z, the allowance closes and no assignment remains
+unsettled. The team is immediately restored to its original write role,
+admin/maintain=false, with readback. goal47-protected-merge-completed.json and
+goal47-final-closure.json retain originals; earlier unknown/expired receipts remain
+in goal44/45/46 artifacts. No plan, Builder or Inspector replay occurs: the original
+Architect720cfefabd648b2b94c9f81624b3f3e2, Inspector7ba2db944625520345fb8e145dc0cbf1,
+causal COMMENT5866320688 and CI43090799720 now reach one allowed installed merge.
+
+Post-completion opinion60a093464a1ae3e9098c68058504a4e0 finishes and retires
+on the selected Muse source3d34808251c58eb6555cad0ea58065b9, model
+muse-spark-1.3-contributor, selectedcontinue,1 charged minute. Receipt580fc6b54457a9ff7624bfcb7ef53251baefee8d32e4bd03f93d5c7eb796fba0 is
+post-completion-reassessment-v1; total repository usage220. This does not establish
+paid premerge acceptance: the all-repository retained audit has no jev_acceptance.
+
+The active hold path records1358 wire attempts (identity309/repository413) and
+exhausted REST quota; this differs from the earlier idle comparison.6ef2615 removes
+one duplicate repository read in work access while keeping fresh actor/repository,
+rename/current-binding and Push checks. Its one production backend build passes.
+Installed47 work detail/requirement preview and acceptance pass; a total request
+delta is not qualified. No positive permission cache is added.
+
+Fork repository1454291951 has accepted Sodaos write via original invitation
+343028224; its original read permission must be restored after qualification.
+Installed47 inventory25daacebb9abc56d58ac0f8406b2ac5effd57915da19d147ade0c48b3d613307
+retains nativeec6a8312/UI13fa75 and backend0c5c9e6a from6ef2615. Actual merged
+db730481 source/bundle21b0a1c15cb75ff7bd47fc313c44d5ec350b105f4230047f031396547793a89e
+prepares Coderff235228fe46b437ec3ccc44b and Reviewerfab4b1225a5fd10a37569fb06,
+both setup/check exit0; goal48-merged-source-preparation.json retains the facts.
+The expired GitHub login is normally refreshed once and reconnects automatically;
+the first stale-scope checkbox refuses before dispatch. Normal requirements
+review/acceptance then binds append-only comment6811304781 to decision
+dd35489bbd3f43df2e2397b53; unchanged issue body digest563b1103 is preserved.
+
+Real fork PR62 (5269383751), head31fe14a910577e7aa9e98d7cdeb794070bd1618c,
+basedb730481, fork1454291951/canonical38523, is created once with separate
+veighnsche actor and journaled append/reopen receipts. Real CI43132134695/check
+130898573169 passes against test merge2390a81b0ab6756274800d69e70be4c89fea3913.
+The proposal genuinely omits missing-argument handling for its uppercase option;
+no role result is fabricated. Normal UI explicit fork consent binds command
+6ea59f48dd0941778357cc2a4be51835, exact tuple/actor/account/policy10/Muse source
+and15min/run/2reviews/1correction. Original source preparation
+f6e2ea24c2eba700c2f4364e5 starts, but the plan waits before recording a command,
+assignment or model. The old API incorrectly reports this as discardable
+preparation_changed. The fix preserves pending/uncertain preparation custody
+through preparation_pending; a definitive pre-effect refusal remains distinct.
+Production backend build and focused existing production-DOM pending/remount/
+identical-command receipt recovery pass, reusing UI13fa75 without rebuilding it.
+external-preparation-pending-ui-2.log retains that scope; the initial broad harness
+attempt failed an unrelated obsolete merge-label assertion before this case.
+Installed47 normally Quits; no app/backend/native/Muse process or developer socket
+remains. Original setup deadline1794447102, zero new runs and usage220 are retained.
+Next: install backend-only48, observe original setup retirement and admit the fork
+through the corrected normal UI, preserving the old unlaunched identity.
+Paid premerge, fork and installed withdrawal/update composition remain open.
+The ordinary GitHub goal is INCOMPLETE; no full Q17/request-efficiency closure.
 All original installed payloads/profiles/captures remain; only byte-verified
 duplicate public transfer copies/archives were reclaimed, with host archives kept.
 
@@ -485,8 +559,8 @@ Owned ordinary fork fixture created once for the later explicit-consent journey:
 veighnsche/factory-installed-github-check-20261109 (1454291951), parent
 LevitateOS fixture1451647791. Existing forks were empty before the create;
 original intent/response are goal-fork-fixture-{intent,response}.json in the
-evidence root. No fork PR, source execution or inference yet. Wait for the new
-delivery's target before creating its exact branch/PR; no fork adoption is claimed.
+evidence root. PR62 and its exact branch are now created as recorded above;
+do not recreate them. Fork model execution/adoption qualification is still pending.
 
 Historical stage15 continuation: source fixes `922aa7c` (publication-scoped action) and
 `211393f` (explicit fork consent/source/correction) are committed/pushed on main.

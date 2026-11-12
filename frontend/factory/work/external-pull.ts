@@ -7,9 +7,9 @@ import {PendingRecord} from '../shared/retained-record.js';
 import {PendingCommandController} from '../shared/pending-command.js';
 import type {ClassifyRefusal} from '../shared/pending-command.js';
 
-// preparation_changed is returned by pkg/factory/control/publication_external.go and
-// publication_external_planning.go only before executeFreshAttempt and the store's rolled-back
-// transaction (pkg/store/factory_external_publications.go); command_conflict means a record exists.
+// Only preparation_changed proves refusal before any live or uncertain command-owned
+// preparation. preparation_pending preserves that preparation's original command for
+// recovery, including after reload; command_conflict also keeps the retained identity.
 const classifyRefusal: ClassifyRefusal = (status, code) =>
   status === 409 && code === 'preparation_changed' ? 'discard' : 'keep';
 
