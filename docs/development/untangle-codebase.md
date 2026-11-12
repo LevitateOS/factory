@@ -5645,3 +5645,34 @@ provider admission remain unchanged. No live provider/model effect occurred.
 Next: package/install this committed read reduction over exact prior77, then
 recover the same PR62 candidate/paid receipt under a new finite explicit command;
 the old ddea command remains definitively unallocated and expired.
+
+Installed93 is exact72aa783, inventory ff0709386ba33336804f7ddbd8ea4efc208338f1d21fcea320c185642cdc6f6d
+(package93-*); exact-prior77 upgrade preserves the original request journal byte
+for byte and all other assets. Installed Feed and issue57's complete journey read.
+Fresh finite merge261f778c1a874f3c9e0cbbd1989249c4 reuses original fingerprint657d3d42…c804c,
+native revision9465, head390aaf4…455e and basedb73048…a34. It binds generation2
+and allocates operation soda-2a2ae20a06be4623917f1204ec96f3c1-merge-generation-2
+under original deadline1794521082. The five-minute fixture admin guard restored
+write during its final provider recheck; current requirements then refused before
+native merge preparation. Preserve this allocated original intent; final native
+capture/receipt lookup remains required before retry. Source charge245, active
+runs0 at last local read. A due passive sweep also repeated material reads after
+the explicit pass, so the next fix postpones that sweep after explicit work.
+Normal Quit retires app/socket/backend/PG at22:03:51Z; session93 ended415 sends,
+suppressed0, with the team restored to write (goal93-fixture-admin.log). No model
+replay. Current status INCOMPLETE. Next: recover operation261f… from the stopped
+store, verify the scheduling fix locally, then finish independent installed
+lifecycle/recovery work. Do not wait for or reset the request budget, or resubmit
+the allocated original under renewed authority.
+
+Production LookupOp on the stopped database-only copy confirms261f…'s original
+operation is not observed, with no native capture/effect/receipt and charge245
+(request94-merge-lookup.log). This lookup is diagnostic, not retry authority;
+the original owner must retire/cancel it before any fresh command. The scheduler
+now postpones passive sweeps after explicit merge work. Initial observation
+reuses the request's copied complete review facts; submission still reads the
+provider review afresh. Capture construction reuses submission's fresh validated
+merge-preparation facts; the native mutation retains its independent current
+preflight. Fountain keeps its existing paths. request96-progress-pg.log and
+request96-external-pg.log pass their existing scopes. These scoped checks do not
+establish the final native send; installed verification remains INCOMPLETE.

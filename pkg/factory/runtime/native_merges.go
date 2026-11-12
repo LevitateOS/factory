@@ -129,10 +129,10 @@ func (p NativeMerges) LookupOp(ctx context.Context, id string) (factory.Operatio
 }
 
 func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (factory.MergeObservation, error) {
-	return p.observeMerge(ctx, w, p.observeProviderMerge)
+	return p.observeMerge(ctx, w, p.observeProviderMerge, nil)
 }
 
-func (p NativeMerges) observeMerge(ctx context.Context, w factory.MergeWork, provider func(context.Context, factory.MergeWork, *nativeProductAccount) (factory.MergeObservation, error)) (factory.MergeObservation, error) {
+func (p NativeMerges) observeMerge(ctx context.Context, w factory.MergeWork, provider func(context.Context, factory.MergeWork, *nativeProductAccount) (factory.MergeObservation, error), capturedReviews *[]factory.DeliveryNativeReview) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
 	fail := func(stage string, cause error) (factory.MergeObservation, error) {
 		class, code, status := "owner", "", 0
@@ -202,15 +202,26 @@ func (p NativeMerges) observeMerge(ctx context.Context, w factory.MergeWork, pro
 	if review.ReviewID <= 0 || review.Event != w.ReviewEvent || w.ReviewID != 0 && w.ReviewID != review.ReviewID {
 		return empty, &factory.PublicationWait{Reason: "agent_review_pending"}
 	}
-	reviews, err := (nativeCollaborationReads{account}).ReadReviews(ctx, account.binding.Actor.ID, account.repository.ID, w.PRNumber, factoryservice.ReviewQuery{ReviewID: strconv.FormatInt(review.ReviewID, 10), Limit: 1})
-	if err != nil {
-		return fail("review_read", err)
-	}
 	expectedState := "approved"
 	if w.ReviewEvent == "COMMENT" {
 		expectedState = "commented"
 	}
-	if len(reviews.Items) != 1 || reviews.Items[0].Pull.ExternalID != strconv.FormatInt(w.PRID, 10) || int64(reviews.Items[0].Author.ID) != w.ReviewerID || reviews.Items[0].Commit != collaboration.CommitID(op.Work.HeadOID) || reviews.Items[0].State != expectedState {
+	matched := false
+	if capturedReviews != nil {
+		for _, item := range *capturedReviews {
+			if item.ID == strconv.FormatInt(review.ReviewID, 10) && item.ActorID == strconv.FormatInt(w.ReviewerID, 10) && item.Commit == op.Work.HeadOID && item.Type == expectedState {
+				matched = true
+				break
+			}
+		}
+	} else {
+		reviews, err := (nativeCollaborationReads{account}).ReadReviews(ctx, account.binding.Actor.ID, account.repository.ID, w.PRNumber, factoryservice.ReviewQuery{ReviewID: strconv.FormatInt(review.ReviewID, 10), Limit: 1})
+		if err != nil {
+			return fail("review_read", err)
+		}
+		matched = len(reviews.Items) == 1 && reviews.Items[0].Pull.ExternalID == strconv.FormatInt(w.PRID, 10) && reviews.Items[0].Author != nil && int64(reviews.Items[0].Author.ID) == w.ReviewerID && reviews.Items[0].Commit == collaboration.CommitID(op.Work.HeadOID) && reviews.Items[0].State == expectedState
+	}
+	if !matched {
 		return empty, &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
 	observed, err := provider(ctx, w, account)
@@ -282,7 +293,10 @@ func (p NativeMerges) SubmitMerge(ctx context.Context, w factory.MergeWork) (fac
 	if err != nil {
 		return empty, err
 	}
-	observed, err := p.ObserveMerge(ctx, w)
+	var capturedFacts nativeMergeFacts
+	observed, err := p.observeMerge(ctx, w, func(ctx context.Context, work factory.MergeWork, current *nativeProductAccount) (factory.MergeObservation, error) {
+		return p.observeProviderMergeWithOpinions(ctx, work, current, nil, &capturedFacts)
+	}, nil)
 	if err != nil {
 		return empty, err
 	}
@@ -311,7 +325,11 @@ func (p NativeMerges) SubmitMerge(ctx context.Context, w factory.MergeWork) (fac
 	}
 	c, err := p.Store.HumanMergeCapture(ctx, q)
 	if errors.Is(err, store.ErrNotFound) {
-		c, err = (nativeHumanMerges{account}).PrepareHumanMerge(ctx, q)
+		if account.binding.Host.Provider == collaboration.GitHub && capturedFacts.Repository != "" {
+			c, err = (nativeHumanMerges{account}).prepareHumanMergeCapture(ctx, q, capturedFacts)
+		} else {
+			c, err = (nativeHumanMerges{account}).PrepareHumanMerge(ctx, q)
+		}
 		if err != nil {
 			return empty, err
 		}
@@ -500,10 +518,10 @@ type nativeMergeReadiness struct {
 }
 
 func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeWork, account *nativeProductAccount) (factory.MergeObservation, error) {
-	return p.observeProviderMergeWithOpinions(ctx, w, account, nil)
+	return p.observeProviderMergeWithOpinions(ctx, w, account, nil, nil)
 }
 
-func (p NativeMerges) observeProviderMergeWithOpinions(ctx context.Context, w factory.MergeWork, account *nativeProductAccount, captured *nativeReviewOpinions) (factory.MergeObservation, error) {
+func (p NativeMerges) observeProviderMergeWithOpinions(ctx context.Context, w factory.MergeWork, account *nativeProductAccount, captured *nativeReviewOpinions, capturedFacts *nativeMergeFacts) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
 	var facts nativeMergeFacts
 	var paired nativeMergeReadiness
@@ -570,6 +588,9 @@ func (p NativeMerges) observeProviderMergeWithOpinions(ctx context.Context, w fa
 	}
 	if captured != nil {
 		*captured = opinions
+	}
+	if capturedFacts != nil {
+		*capturedFacts = facts
 	}
 	veto := false
 	for _, opinion := range opinions.Items {

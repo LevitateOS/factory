@@ -97,6 +97,13 @@ func (p NativeMerges) ReadDeliveryMaterialForMerge(ctx context.Context, publicat
 		return empty, nil, err
 	}
 	var used atomic.Bool
+	// Copy the complete paired review facts; callers receive separate material
+	// slices. Submission still makes its independent fresh provider review read.
+	var reviewed *[]factory.DeliveryNativeReview
+	if capture.account.binding.Host.Provider == collaboration.GitHub {
+		copy := append([]factory.DeliveryNativeReview{}, material.Reviews...)
+		reviewed = &copy
+	}
 	return material, func(work factory.MergeWork) (factory.MergeObservation, error) {
 		var none factory.MergeObservation
 		if !used.CompareAndSwap(false, true) || ctx.Err() != nil {
@@ -123,7 +130,7 @@ func (p NativeMerges) ReadDeliveryMaterialForMerge(ctx context.Context, publicat
 				return none, errNativeDeliveryMaterial
 			}
 			return capture.observation, nil
-		})
+		}, reviewed)
 		if err != nil {
 			return none, err
 		}
@@ -191,7 +198,7 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 		}
 	}
 	var closingOpinions nativeReviewOpinions
-	after, err := p.observeProviderMergeWithOpinions(bounded, w, account, &closingOpinions)
+	after, err := p.observeProviderMergeWithOpinions(bounded, w, account, &closingOpinions, nil)
 	if err != nil {
 		return empty, nativeDeliveryReadFailure(bounded, "provider recheck", err)
 	}

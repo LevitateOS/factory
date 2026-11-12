@@ -120,6 +120,20 @@ func (s nativeHumanMerges) PrepareHumanMerge(ctx context.Context, q factory.Huma
 	if err := s.read(ctx, nativeRead{Kind: "merge_preparation", Repository: s.repository.ExternalID, Number: uint32(q.Number)}, &f); err != nil {
 		return empty, err
 	}
+	return s.prepareHumanMergeCapture(ctx, q, f)
+}
+
+// Workflow submission already observed these complete facts in its fresh
+// provider admission. Reuse them only for capture construction; the native
+// mutation still makes its independent current preflight before dispatch.
+func (s nativeHumanMerges) prepareHumanMergeCapture(ctx context.Context, q factory.HumanMergeCommand, f nativeMergeFacts) (factory.HumanMergeCapture, error) {
+	var empty factory.HumanMergeCapture
+	if err := s.admit(ctx, q); err != nil {
+		return empty, err
+	}
+	if !nativeMergeSupported(q) || (s.binding.Host.Provider == collaboration.Fountain) != (q.Method == factory.MergeFastForward) {
+		return empty, factoryservice.ErrHumanMergeUnavailable
+	}
 	headCondition, baseCondition := "expected_head_oid", "bounded_preflight"
 	if s.binding.Host.Provider == collaboration.Fountain {
 		headCondition, baseCondition = "atomic_head_oid", "atomic_base_oid"

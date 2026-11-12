@@ -259,6 +259,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	// is due. Sharing that pass with an old repository sweep can exhaust its
 	// provider budget before the requested merge reaches admission.
 	if c.driveRequestedMerges(ctx) {
+		c.nextPassiveProgress = time.Now().Add(passiveProgressInterval)
 		return
 	}
 	// Local retirement, checkpoints and withdrawal stay responsive. Passive
