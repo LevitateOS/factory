@@ -1347,6 +1347,11 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
     };
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
+    let selected = std::env::var("FACTORY_DECLARED_INLINE_CASES").ok();
+    let include = |name: &str| selected.as_ref().is_none_or(|selected| selected.split(',').any(|case| case == name));
+    let attempts = |client: &soda_desktop_runtime::github_provider::Client| -> Result<u64> {
+        Ok(serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].as_u64().ok_or("attempts absent")?)
+    };
     let mut cases = Vec::new();
     for name in [
         "new-lines",
@@ -1367,7 +1372,9 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
         "escaped-path",
         "no-newline",
         "control-content",
+        "large-catalogue",
     ] {
+        if !include(name) { continue; }
         mode(name)?;
         let mut a = anchor();
         if matches!(
@@ -1392,10 +1399,14 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
             }
             _ => (),
         }
+        let before_attempts = attempts(&client)?;
         let v = client
             .observe(token()?, "321", &query(a.clone()))
             .await
             .map_err(|f| format!("inline preparation {name}: {} {}", f.status, f.code))?;
+        let expected_files = if name == "large-catalogue" { 3000 } else { 13 };
+        let sends = attempts(&client)? - before_attempts;
+        if matches!(name, "new-lines" | "large-catalogue") { ensure(sends == 22 + (expected_files as u64).div_ceil(10), "inline files repeated common observation brackets")?; }
         let p = &v["preparation"];
         ensure(
             v["kind"] == "inline_preparation"
@@ -1407,7 +1418,7 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
                 && p["diff"]["scope"]["base"] == a.base
                 && p["diff"]["scope"]["head"] == a.head
                 && p["diff"]["catalogue"]["complete"] == true
-                && p["diff"]["catalogue"]["count"] == 13
+                && p["diff"]["catalogue"]["count"] == expected_files
                 && p["condition"] == "bounded_observation",
             "inline preparation lost exact account/selection or complete catalogue",
         )?;
@@ -1495,6 +1506,7 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
         ("aggregate-bytes", 413),
         ("deadline", 504),
     ] {
+        if !include(name) { continue; }
         mode(name)?;
         let mut a = anchor();
         match name {

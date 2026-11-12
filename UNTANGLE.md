@@ -809,8 +809,7 @@ builds, apps or provider requests in this design phase.
   Plan refinement: retain P17/P32 as required legacy receipt/provider boundaries;
   removing those mappings/fences would change captured write semantics for no
   request reduction. 40 entries remain assigned to fixes,13 retained with reasons.
-  F2 COMPLETE (binding slice dfbd48e plus the operation-budget/compound-read
-  commit). One inherited allowance/deadline reaches both HTTP sinks; native
+  F2 COMPLETE (binding slice dfbd48e and operation-budget/compound-read76fa12c). One inherited allowance/deadline reaches both HTTP sinks; native
   cancellation closes admission before usage publication. Go refunds only
   validated actual usage and retains lost/invalid replies' whole allocation.
   Native limits64 ordinary/80 setup/384 inline are clamped by the pass remainder;
@@ -830,8 +829,19 @@ builds, apps or provider requests in this design phase.
   Native async reads are boxed at the connector boundary to avoid multiplying
   the already large selector future on the stack; local branch check passes.
   These controlled checks qualify this refactor, not connected/installed gates.
-  F3–F8 pending. F3 must replace whole diff brackets per file page and preflight
-  complete pending-body walks against remaining allowance; oversized collections
-  currently refuse without producing a preparation seal. No live/model effects,
-  original profiles or uncertain outcomes changed. No checks running.
-  Next: F3 additive file catalogue, selected threads and shared capture contract.
+  F3 IN PROGRESS: inline file pages now have one opening/closing diff bracket,
+  coefficient1 page cost and complete pending-body preflight. Same owner handles
+  pending comparison. f3-inline-local.log passes selected existing native cases:
+  13files24 sends;3000files322 sends; changed pending/count/base refusal,
+  invalid selectors and owner retirement. First fixture's unfiltered negative
+  loop hit its local600 ceiling; preserved, selector corrected, no live traffic
+  or original budget/state cleared. Fresh file-catalogue review found no issue;
+  capacity error ordering was restored. F3 file slice is committed separately.
+  Uncommitted F3 thread integration: selected GitHub GraphQL page; scope-bound
+  thread/comment continuation through Go; Fountain selects metadata/members then
+  reads only their referenced reviews, retaining paired snapshots/body hashes.
+  Native and Go builds pass, but thread controlled qualification and shared
+  capture/seal consolidation remain. F4–F8 pending. No live/model effects or
+  original profiles/uncertain outcomes changed. No checks running.
+  Next: qualify new thread cursors/selected-page request bounds through the
+  existing no-forwarding thread fixture; finish capture owner, then F4.

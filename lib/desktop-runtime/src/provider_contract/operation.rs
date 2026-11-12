@@ -57,6 +57,13 @@ impl Operation {
             })
             .unwrap_or(384)
     }
+    pub(crate) fn can_finish(&self, sends: u32) -> bool {
+        self.0.lock().is_ok_and(|state| {
+            !state.closed
+                && Instant::now() < state.deadline
+                && sends <= state.limit.saturating_sub(state.attempts)
+        })
+    }
     pub(crate) fn debit(&self) -> bool {
         let Ok(mut state) = self.0.lock() else {
             return false;

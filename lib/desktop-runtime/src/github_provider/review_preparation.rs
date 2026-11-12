@@ -107,20 +107,7 @@ impl Reader<'_> {
             })
             .await?;
         let current = self.review_preparation(number, actor, account).await?;
-        for key in [
-            "repository",
-            "repository_node_id",
-            "actor_node_id",
-            "viewer_is_author",
-            "archived",
-            "disabled",
-            "pull",
-            "pending",
-        ] {
-            if current[key] != before[key] {
-                return Err(Failure::new(409, "github_pending_review_changed"));
-            }
-        }
+        Self::same_pending(&before, &current)?;
         before["pending_sha256"] = json!(super::transport::sha256(
             &serde_json::to_vec(&before["pending"]).map_err(|_| Failure::protocol())?
         ));
@@ -128,6 +115,18 @@ impl Reader<'_> {
         Ok(before)
     }
 
+    pub(super) fn pending_completion_sends(&self, before: &Value) -> Result<u32> {
+        let pages = before["visible_pending_count"].as_u64().ok_or_else(Failure::protocol)?.div_ceil(50).max(1);
+        let comments = before["pending"]["comments_count"].as_u64().unwrap_or(0);
+        if comments > 1000 { return Err(Failure::new(413, "github_pending_comments_too_large")); }
+        Ok((5 + pages + if before["pending"].is_null() { 0 } else { 1 + comments.div_ceil(2).max(1) }) as u32)
+    }
+    pub(super) fn same_pending(before: &Value, current: &Value) -> Result<()> {
+        for key in ["repository", "repository_node_id", "actor_node_id", "viewer_is_author", "archived", "disabled", "pull", "pending"] {
+            if current[key] != before[key] { return Err(Failure::new(409, "github_pending_review_changed")); }
+        }
+        Ok(())
+    }
     async fn review_comment_snapshot(&self, scope: CommentScope<'_>) -> Result<Value> {
         let CommentScope {
             exclude,
@@ -139,6 +138,10 @@ impl Reader<'_> {
             pending,
             expected_count,
         } = scope;
+        if expected_count > 1000 { return Err(Failure::new(413, "github_pending_comments_too_large")); }
+        if crate::provider_contract::operation::Operation::current().is_some_and(|work| !work.can_finish(expected_count.div_ceil(2).max(1) as u32)) {
+            return Err(Failure::new(429, "native_operation_budget"));
+        }
         let mut after = None;
         let mut cursors = HashSet::new();
         let mut ids = HashSet::new();

@@ -18,27 +18,24 @@ impl Reader<'_> {
     ) -> Result<Value> {
         anchor.validate()?;
         let mut page = 1u32;
-        let mut total = None;
-        let mut scope = None;
+        let captured = self.open_diff(&json!({"kind":"pull_files","number":number,"base":anchor.base,"head":anchor.head})).await?;
+        let scope = &captured.scope;
+        let total = captured.total.ok_or_else(Failure::protocol)?;
+        let pending = self.review_preparation(number, actor, account).await?;
+        if pending["pending"]["comments_count"].as_u64().is_some_and(|count| count >= 1000) {
+            return Err(Failure::new(413, "github_inline_pending_capacity"));
+        }
+        let remaining = total.div_ceil(10).max(1) as u32 + self.pending_completion_sends(&pending)? + 2;
+        if let Some(work) = crate::provider_contract::operation::Operation::current() {
+            if !work.can_finish(remaining) {
+                return Err(Failure::new(429, "native_operation_budget"));
+            }
+        }
         let mut names = HashSet::new();
         let mut bytes = 0usize;
         let mut selected = None;
         loop {
-            let files=self.diff(&json!({"kind":"pull_files","number":number,"base":anchor.base,"head":anchor.head,"page":page,"limit":10})).await?;
-            let diff = &files["diff"];
-            let count = files["total"]
-                .as_u64()
-                .filter(|n| *n <= 3000)
-                .ok_or_else(Failure::protocol)?;
-            if total.replace(count).is_some_and(|old| old != count)
-                || scope.as_ref().is_some_and(|old| old != diff)
-                || diff["base"] != anchor.base
-                || diff["head"] != anchor.head
-                || diff["pull"]["number"].as_u64() != Some(number)
-            {
-                return Err(Failure::new(409, "github_inline_selection_changed"));
-            }
-            scope = Some(diff.clone());
+            let files = self.diff_files(&captured, page, 10).await?;
             for file in files["items"].as_array().ok_or_else(Failure::protocol)? {
                 let old = r::text(file, "old_path")?;
                 let new = r::text(file, "new_path")?;
@@ -77,7 +74,7 @@ impl Reader<'_> {
             }
             page = next as u32;
         }
-        if Some(names.len() as u64) != total {
+        if names.len() as u64 != total {
             return Err(Failure::new(409, "github_inline_catalogue_changed"));
         }
         let file =
@@ -89,29 +86,18 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_inline_selection_unavailable"));
         }
         let writing = selection(&file, anchor)?;
-        let scope_query =
-            json!({"kind":"pull_diff","number":number,"base":anchor.base,"head":anchor.head});
-        // Each reader brackets its own mutable facts. A second complete pending
-        // snapshot around the independently bracketed file catalogue adds no
-        // atomic provider condition; dispatch rechecks this complete capture.
-        let (mut before, current_scope) = tokio::try_join!(
-            async {
-                let before = self.review_preparation(number, actor, account).await?;
-                if before["pending"]["comments_count"]
-                    .as_u64()
-                    .is_some_and(|n| n >= 1000)
-                {
-                    return Err(Failure::new(413, "github_inline_pending_capacity"));
-                }
-                self.complete_pending_snapshot(number, actor, account, before)
-                    .await
-            },
-            self.diff(&scope_query)
-        )?;
-        if scope.as_ref() != Some(&current_scope)
-            || before["pull"]["head"] != anchor.head
-            || current_scope["pull"]["external_id"] != before["pull"]["external_id"]
-        {
+        let mut before = if pending["pending"].is_null() {
+            let current = self.review_preparation(number, actor, account).await?;
+            Self::same_pending(&pending, &current)?;
+            self.complete_pending_snapshot(number, actor, account, current).await?
+        } else {
+            self.complete_pending_snapshot(number, actor, account, pending).await?
+        };
+        if before["pending"]["comments_count"].as_u64().is_some_and(|n| n >= 1000) {
+            return Err(Failure::new(413, "github_inline_pending_capacity"));
+        }
+        self.close_diff(&captured).await?;
+        if before["pull"]["head"] != anchor.head || scope["pull"]["external_id"] != before["pull"]["external_id"] {
             return Err(Failure::new(409, "github_inline_selection_changed"));
         }
         before["selection"] = serde_json::to_value(anchor).map_err(|_| Failure::protocol())?;
