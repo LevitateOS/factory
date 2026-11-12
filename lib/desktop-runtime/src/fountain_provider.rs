@@ -20,7 +20,7 @@ mod discussion;
 mod issues;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{
-    CompletionState, EffectState, HostState, NativeRevision, Note, OperationRecord, PublicationClass,
+    CompletionState, EffectState, HostState, NativeRevision, OperationRecord, PublicationClass,
 };
 pub use publication::PublicationOutcome;
 pub use controller::{
@@ -221,15 +221,11 @@ impl Client {
     async fn call<T: serde::de::DeserializeOwned>(
         &self,
         method: reqwest::Method,
-        resource: bool,
         body: Option<Vec<u8>>,
     ) -> Result<T> {
         let mut parts = Vec::new();
         if method != reqwest::Method::POST {
             parts.push(self.command.as_str());
-        }
-        if resource {
-            parts.push("repository");
         }
         self.request(method, &parts, body).await
     }
@@ -374,21 +370,17 @@ impl Client {
             "proof_sha256": hash,
         }))
         .map_err(|_| invalid())?;
-        self.checked(self.call(reqwest::Method::POST, false, Some(body)).await?)
+        self.checked(self.call(reqwest::Method::POST, Some(body)).await?)
     }
     pub async fn status(&self) -> Result<Enrollment> {
-        self.checked(self.call(reqwest::Method::GET, false, None).await?)
+        self.checked(self.call(reqwest::Method::GET, None).await?)
     }
     pub async fn withdraw(&self) -> Result<Enrollment> {
-        let value = self.checked(self.call(reqwest::Method::DELETE, false, None).await?)?;
+        let value = self.checked(self.call(reqwest::Method::DELETE, None).await?)?;
         if value.active {
             return Err(unavailable());
         }
         Ok(value)
     }
-    pub async fn repository(&self) -> Result<Repository> {
-        let value = self.call(reqwest::Method::GET, true, None).await?;
-        self.repository_matches(&value)?;
-        Ok(value)
-    }
+
 }

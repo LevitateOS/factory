@@ -1,7 +1,7 @@
 //! Typed native effect transport. The host's original journal is authoritative;
 //! a retained intent permits lookup only, never a second POST after uncertainty.
 use super::{hex, invalid, unavailable, Client, Failure, OperationGrant, Result};
-use crate::private_fs::{private_dir, publish_bytes, read_bytes};
+use crate::private_fs::{publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -13,7 +13,7 @@ pub struct NativeRevision {
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Note {
+struct Note {
     pub issue_id: i64,
     pub content: String,
     pub merge_ref: String,
@@ -117,19 +117,6 @@ struct Lookup {
     operation_id: String,
     status: String,
     record: Option<OperationRecord>,
-}
-#[derive(Serialize)]
-struct Intent<'a> {
-    controller_grant_id: &'a str,
-    installation_id: &'a str,
-    operation_id: &'a str,
-    actor_id: &'a str,
-    repository_id: &'a str,
-    kind: &'static str,
-    authorization_revision: &'a str,
-    expected_native_revision: i64,
-    not_after: i64,
-    payload: &'a Note,
 }
 fn unknown() -> Failure {
     Failure {
@@ -305,112 +292,6 @@ impl Client {
             Err(_) => return Err(unavailable()),
         };
         self.check_note_record(grant, operation, &note, &record)?;
-        if record
-            .host_state()
-            .is_some_and(HostState::operation_terminal)
-        {
-            let bytes = serde_json::to_vec(&record).map_err(|_| invalid())?;
-            if publish_bytes(&receipt_path, &bytes).is_err()
-                && read_bytes(&receipt_path, 65536).map_err(|_| unavailable())? != bytes
-            {
-                return Err(unknown());
-            }
-        }
-        Ok(record)
-    }
-    /// Append one typed completion note through the existing native effect
-    /// owner. This cannot edit human text or publish an arbitrary issue comment.
-    pub async fn submit_note(
-        &self,
-        profile: &Path,
-        grant: &OperationGrant,
-        operation: &str,
-        revision: i64,
-        not_after: i64,
-        note: &Note,
-    ) -> Result<OperationRecord> {
-        if !hex(operation, 32)
-            || revision < 1
-            || not_after <= 0
-            || not_after > grant.not_after
-            || grant.enrollment_id != self.command
-            || grant.runtime_id != self.runtime
-            || grant.actor.id != self.capability.account().account
-            || grant.repository.owner.to_ascii_lowercase() != self.owner
-            || grant.repository.name.to_ascii_lowercase() != self.repository
-            || !hex(&grant.id, 32)
-            || !grant
-                .operations
-                .iter()
-                .any(|kind| kind == "issue.comment.publish")
-            || note.issue_id <= 0
-            || note.content.trim().is_empty()
-            || note.content.chars().count() > 1000
-            || note.content.contains('\0')
-            || note.merge_ref.is_empty()
-            || note.merge_ref.len() > 512
-        {
-            return Err(invalid());
-        }
-        let intent = Intent {
-            controller_grant_id: &grant.id,
-            installation_id: &grant.installation_id,
-            operation_id: operation,
-            actor_id: &grant.actor.id,
-            repository_id: &grant.repository.id,
-            kind: "issue.comment.publish",
-            authorization_revision: &grant.id,
-            expected_native_revision: revision,
-            not_after,
-            payload: note,
-        };
-        let capture=serde_json::to_vec(&serde_json::json!({"version":1,"profile":self.runtime,"source_connection":self.capability.account().connection,
-            "origin":self.capability.account().origin,"account":self.capability.account().account,"application":self.application,"enrollment":self.command,"intent":intent})).map_err(|_|invalid())?;
-        let directory = profile.join("fountain-operations");
-        private_dir(&directory).map_err(|_| unavailable())?;
-        let path = directory.join(format!("{operation}.intent.json"));
-        let receipt_path = directory.join(format!("{operation}.receipt.json"));
-        let first = match read_bytes(&path, 16384) {
-            Ok(prior) if prior == capture => false,
-            Ok(_) => return Err(invalid()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                if publish_bytes(&path, &capture).is_ok() {
-                    true
-                } else {
-                    if read_bytes(&path, 16384).map_err(|_| unavailable())? != capture {
-                        return Err(invalid());
-                    }
-                    false
-                }
-            }
-            Err(_) => return Err(unavailable()),
-        };
-        match read_bytes(&receipt_path, 65536) {
-            Ok(bytes) => {
-                let record = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-                self.check_note_record(grant, operation, note, &record)?;
-                return Ok(record);
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-            Err(_) => return Err(unavailable()),
-        }
-        let record = if first {
-            let body = serde_json::to_vec(&intent).map_err(|_| invalid())?;
-            match self
-                .request(
-                    reqwest::Method::POST,
-                    &[&self.command, "operations", &grant.id, "submit"],
-                    Some(body),
-                )
-                .await
-            {
-                Ok(record) => record,
-                Err(_) => self.lookup_note(grant, operation, note).await?,
-            }
-        } else {
-            self.lookup_note(grant, operation, note).await?
-        };
-        self.check_note_record(grant, operation, note, &record)?;
         if record
             .host_state()
             .is_some_and(HostState::operation_terminal)

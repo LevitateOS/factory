@@ -1262,8 +1262,8 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
             println!("PASS: declared Fountain merge11/checks9/empty-runs4 sends, four conflicts add4; closing revision/head/permission/withdrawal, veto/pending and shared retry exhaustion checked");
             fs::write(io.join("mode"), "enrollment")?;
         }
-        let repository = client.repository().await.map_err(|e| e.code)?;
-        ensure(repository.id == enrolled.repository.id, "Fountain repository changed")?;
+        let repository = client.product_read(&enrolled.repository.id,&soda_desktop_runtime::provider_contract::Read::Repository{repository:enrolled.repository.id.clone()}).await.map_err(|e| e.code)?;
+        ensure(repository["repository"]["external_id"] == enrolled.repository.id, "Fountain repository changed")?;
         drop(client);
         drop(signer);
         let signer = Signer::open(profile)?;
@@ -1272,7 +1272,7 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
         ensure(client.status().await.map_err(|e|e.code)?.active, "Fountain enrollment readback missing")?;
         ensure(!client.withdraw().await.map_err(|e|e.code)?.active, "Fountain withdrawal missing")?;
         ensure(!client.enroll().await.map_err(|e|e.code)?.active && !client.status().await.map_err(|e|e.code)?.active, "withdrawal replay reactivated enrollment")?;
-        ensure(matches!(client.repository().await, Err(error) if error.status == 403), "withdrawn repository read was admitted")?;
+        ensure(matches!(client.product_read(&enrolled.repository.id,&soda_desktop_runtime::provider_contract::Read::Repository{repository:enrolled.repository.id.clone()}).await, Err(error) if matches!(error.status,400|403)), "withdrawn repository read was admitted")?;
         Ok::<_, Box<dyn StdError>>(())
     }.await;
     let withdrawn = store.withdraw(&saved.connection).await;
@@ -1579,7 +1579,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
 }
 
 async fn fountain_controller(profile: &Path, origin: &str, application: &str) -> Result<()> {
-    use soda_desktop_runtime::{fountain_oauth, fountain_provider::{Client,Selection,OperationAuthorization,Note,ExecutionClaimRequest,ExecutionRetirement},mcp_signing::Signer};
+    use soda_desktop_runtime::{fountain_oauth, fountain_provider::{Client,Selection,OperationAuthorization,ExecutionClaimRequest,ExecutionRetirement},mcp_signing::Signer};
     prepare(profile)?;
     let lock=fs::OpenOptions::new().create_new(true).write(true).open(profile.join("fixture.lock"))?;
     ensure(unsafe{libc::flock(lock.as_raw_fd(),libc::LOCK_EX|libc::LOCK_NB)}==0,"controller profile lock failed")?;
@@ -1644,32 +1644,12 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let original_claim=first_claim.await?;release?;
         ensure(claim_paused&&matches!(concurrent,Err(e)if e.status==404),"lookup absence did not fence concurrent claim")?;
         ensure(!original_claim.map_err(|e|e.code)?.acquired(),"lost reserve reply authorized a launch from lookup")?;
-        let native=client.native_revision().await.map_err(|e|e.code)?;
-        ensure(native.idle&&!native.inhibited,"native effect domain not idle")?;
-        let note=Note{issue_id:5,content:"Native controller completion-note qualification".into(),merge_ref:"native-controller-qualification".into()};
-        let operation="123456789abcdef0123456789abcdef7";
-        let not_after=grant.not_after;
-        let worker=client.clone();let owned_profile=profile.to_path_buf();let captured_grant=grant.clone();let captured_note=note.clone();
-        let first=tokio::spawn(async move{worker.submit_note(&owned_profile,&captured_grant,operation,native.revision,not_after,&captured_note).await});
-        let root=profile.parent().ok_or("native root missing")?;
-        let until=Instant::now()+Duration::from_secs(3);
-        while !root.join("effect-request-paused").is_file()&&Instant::now()<until{tokio::time::sleep(Duration::from_millis(10)).await;}
-        let paused=root.join("effect-request-paused").is_file();
-        let repeated=if paused{Some(client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await)}else{None};
-        let release=fs::write(root.join("effect-request-release"),b"release-owned-request");
-        let completed=first.await?;release?;
-        ensure(paused,"actual submitted request did not reach fixture barrier")?;
-        ensure(matches!(repeated,Some(Err(error))if error.code=="fountain_operation_unknown"),"missing lookup authorized another send")?;
-        let completed=completed.map_err(|e|e.code)?;
-        ensure(completed.effect_state=="committed"&&completed.completion_state=="complete","lost native write reply was not adopted")?;
         drop(client);drop(signer);store.retire();store=Arc::new(Credentials::open(profile,runtime)?);
         let signer=Signer::open(profile)?;
         ensure(soda_desktop_runtime::fountain_provider::captured_operation_grant(store.clone(),profile,runtime,&"0".repeat(32),&grant.id).await.is_err(),"another native connection adopted the captured controller")?;
         let (client,captured_grant)=soda_desktop_runtime::fountain_provider::captured_operation_grant(store.clone(),profile,runtime,&saved.connection,&grant.id).await.map_err(|e|e.code)?;
         let client=Arc::new(client);
         ensure(captured_grant.id==grant.id&&captured_grant.not_after==grant.not_after&&captured_grant.runtime_id==grant.runtime_id,"native reopen changed the captured controller scope")?;
-        let recovered=client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await.map_err(|e|e.code)?;
-        ensure(recovered.intent_digest==completed.intent_digest&&recovered.receipt==completed.receipt,"native receipt changed across reopen")?;
         if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PAYLOAD").is_some() {
             if let Some(worker)=controller_worker(profile,store.clone(),client.clone(),origin,&saved.connection,&grant).await? {
             let retired=client.execution_claim(&grant,&worker).await.map_err(|e|e.code)?;
@@ -1712,11 +1692,6 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
             ensure(recovered==if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_MERGE").is_some(){4}else if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_REVIEW").is_some(){3}else if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PULL").is_some(){2}else{1},"original publication capture missing or duplicated")?;
             println!("PASS: native restart and central withdrawal preserve the exact original conditional publication host receipt and captured deadline without registration or receive replay");
         }
-        let original_intent=fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?;
-        let original_receipt=profile.join("fountain-operations").join(format!("{operation}.receipt.json"));
-        let receipt_backup=profile.join("fountain-operations").join(format!("{operation}.receipt.original.json"));
-        let original_receipt_bytes=fs::read(&original_receipt)?;
-        fs::rename(&original_receipt,&receipt_backup)?;
         let replacement=store.with_token(&store.capability(&saved.connection).await?,|bytes|Token::new(bytes.to_vec())).await??;
         store.withdraw(&saved.connection).await?;
         let rebound=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:replacement,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository write:issue".into(),client_id:Some(application.into())}).await?;
@@ -1725,13 +1700,8 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let rebound_client=Client::new(store.clone(),store.capability(&rebound.connection).await?,&signer,runtime,application,"user2","repo1",&enrollment).map_err(|e|e.code)?;
         let original_grant=rebound_client.operation_grant(&grant.id).await.map_err(|e|e.code)?;
         ensure(!original_grant.active,"retired controller grant regained authority")?;
-        ensure(matches!(rebound_client.submit_note(profile,&original_grant,operation,native.revision,not_after,&note).await,Err(error)if error.status==400),"a new connection rebound the old captured source")?;
         let old_claim=rebound_client.execution_claim(&original_grant,&lost_claim).await.map_err(|e|e.code)?;
         ensure(old_claim.settled().is_some_and(|(_,digest)|digest==lost_no_start.receipt_digest),"reconnected lookup changed claim retirement or authority")?;
-        let history=rebound_client.recover_note(profile,&original_grant,operation).await.map_err(|e|e.code)?;
-        ensure(history.intent_digest==completed.intent_digest&&history.receipt==completed.receipt,"reconnected read changed the original effect")?;
-        ensure(fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?==original_intent,"history lookup rewrote the captured source/deadline")?;
-        ensure(fs::read(&receipt_backup)?==original_receipt_bytes&&fs::read(&original_receipt)?==original_receipt_bytes,"original receipt was not preserved")?;
         Ok::<_,Box<dyn StdError>>(())
     }.await;
     if let Some(connection)=reconnected_connection {store.withdraw(&connection).await?;}
@@ -1739,7 +1709,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
     let original_preserved=store.with_token(&store.capability(&read_saved.connection).await?,|bytes|!bytes.is_empty()).await?;
     let read_withdrawn=store.withdraw(&read_saved.connection).await;
     store.retire();result?;withdrawn?;read_withdrawn?;ensure(original_preserved,"read credential was not preserved")?;
-    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, actual typed completion note, lookup absence while original send is paused, lost write reply/adoption, exact receipt reopen, controller withdrawal/retirement and reconnected read-only history without source rebinding; connector-only unless finite-worker evidence is printed above; no paid inference");
+    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, original claim lookup after lost reply and reopen, controller withdrawal/retirement and reconnected read-only claim history; connector-only unless finite-worker evidence is printed above; no paid inference");
     Ok(())
 }
 
@@ -1780,7 +1750,7 @@ async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path
         } else {client.enroll().await.map_err(|e|e.code)?};
         let client=fountain_provider::retained_client(store.clone(),store.capability(&saved.connection).await?,profile,&ready.profile,"user2","repo1").await.map_err(|e|e.code)?;
         ensure(enrolled.active&&enrolled.runtime_bound&&enrolled.runtime_id==ready.profile,"real profile proof missing")?;
-        ensure(client.repository().await.map_err(|e|e.code)?.id==enrolled.repository.id,"real enrolled repository mismatch")?;
+        ensure(client.product_read(&enrolled.repository.id,&soda_desktop_runtime::provider_contract::Read::Repository{repository:enrolled.repository.id.clone()}).await.map_err(|e|e.code)?["repository"]["external_id"]==enrolled.repository.id,"real enrolled repository mismatch")?;
         drop(client);
         let cap=store.capability(&saved.connection).await?;
         if std::env::var("SODA_FOUNTAIN_REFRESH_RACE").as_deref()==Ok("1") {
@@ -1798,7 +1768,7 @@ async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path
         ensure(client.enroll().await.map_err(|e|e.code)?.id==enrolled.id,"refresh/reopen lost original enrollment command")?;
         ensure(!client.withdraw().await.map_err(|e|e.code)?.active,"enrollment withdrawal failed")?;
         ensure(!client.enroll().await.map_err(|e|e.code)?.active,"withdrawn enrollment reactivated")?;
-        ensure(matches!(client.repository().await,Err(e)if e.status==403),"withdrawn read admitted")?;
+        ensure(matches!(client.product_read(&enrolled.repository.id,&soda_desktop_runtime::provider_contract::Read::Repository{repository:enrolled.repository.id.clone()}).await,Err(e)if matches!(e.status,400|403)),"withdrawn read admitted")?;
         if std::env::var("SODA_FOUNTAIN_REFRESH_RACE").as_deref()==Ok("1") {
             let cap=reopened.capability(&saved.connection).await?;
             let worker=reopened.clone(); let oauth=oauth.clone();

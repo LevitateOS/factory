@@ -929,3 +929,16 @@ builds, apps or provider requests in this design phase.
   had a mutex recursion; its failed read is preserved in fc-ut-watch1 and the
   peer was corrected before fresh fc-ut-watch2, without replaying any effect.
   F5 exact commits: Factory a98cfa9, SodaOS deda94bf. F7/F8 and final audit remain.
+
+- F7 COMPLETE: cross-repository consumer search confirms the native repository
+  resource and new completion-note send API had only fixture callers. Removed
+  both, the resource selector and fresh note capture/submit plumbing. Fixtures
+  use the real product repository read and keep independent controller, claim,
+  publication and retirement checks. Historical version1 note parsing, receipt
+  verification and GET-only recover_note remain deliberately available; they
+  cannot create intent or send again. Public Fountain host endpoints are intact.
+  Evidence: f7-native-build.log and f7-enrollment-local.log in refactor scratch;
+  the existing native TLS fixture passes product repository read, reopen and
+  withdrawal against the no-forwarding peer. Fresh source review found no stale
+  consumers or unsafe recovery. F6 companion is SodaOS947b2997 / Factorya55a9d4.
+  F8 and final independent audit/baseline comparison remain outstanding.
