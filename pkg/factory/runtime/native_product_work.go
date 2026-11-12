@@ -16,7 +16,7 @@ import (
 
 // All work services share the request's current account and the application's
 // coordinator. Reads remain available when execution or recovery is unavailable.
-func (b *nativeProductAccount) bindWork(application service.Application) (factoryhttp.Work, factoryhttp.Runs) {
+func (b *nativeProductAccount) bindWork(application service.Application, view *nativeProductAccount) (factoryhttp.Work, factoryhttp.Runs) {
 	c := application.Coordinator
 	access := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
 		if err := b.localOwnerAccess(ctx, actor); err != nil {
@@ -25,7 +25,10 @@ func (b *nativeProductAccount) bindWork(application service.Application) (factor
 		return b.writeAccess(ctx, actor, int64(repository))
 	}
 	authority := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (service.WorkAuthority, error) {
-		if err := access(ctx, actor, repository); err != nil {
+		if err := view.localOwnerAccess(ctx, actor); err != nil {
+			return service.WorkAuthority{Reason: service.WorkAuthorityUnavailable, SessionCurrent: view.current(ctx) == nil}, nil
+		}
+		if err := view.writeAccess(ctx, actor, int64(repository)); err != nil {
 			reason := service.WorkAuthorityUnavailable
 			if errors.Is(err, errNativeWriteDenied) {
 				reason = service.WorkWriteRequired
@@ -56,7 +59,7 @@ func (b *nativeProductAccount) bindWork(application service.Application) (factor
 		return execution.RecoveryTarget{Native: &execution.NativeCheckoutRef{Profile: selected.Profile, CheckoutID: selected.Checkout}}, nil
 	}
 	membership := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, workspace string) (bool, error) {
-		if err := b.localResourceAccess(ctx, actor, repository); err != nil {
+		if err := view.localResourceAccess(ctx, actor, repository); err != nil {
 			return false, err
 		}
 		enrolled, native, err := b.store.ExecutionWorkspace(ctx, repository)
@@ -112,7 +115,7 @@ func (b *nativeProductAccount) bindWork(application service.Application) (factor
 			return err == nil, ctx.Err()
 		},
 		Status: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, issue int64) (control.AcceptanceValidity, error) {
-			if err := b.visible(ctx, actor, repository); err != nil {
+			if err := view.visible(ctx, actor, repository); err != nil {
 				return control.AcceptanceValidity{}, err
 			}
 			return c.AcceptanceStatus(ctx, int64(repository), strconv.FormatInt(issue, 10))

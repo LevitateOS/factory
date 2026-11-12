@@ -13792,6 +13792,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		return err
 	}
 	var calls atomic.Int64
+	var identities atomic.Int64
 	var denyAt atomic.Int64
 	var denied atomic.Int64
 	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -13811,6 +13812,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		switch {
 		case command.Call.Kind == "current":
 		case command.Call.Kind == "read" && command.Call.Query.Kind == "identity":
+			identities.Add(1)
 			observation = map[string]any{"kind": "identity", "account": account}
 		case command.Call.Kind == "read" && command.Call.Query.Kind == "repository" && command.Call.Query.Repository == "123":
 			if calls.Add(1) == denyAt.Load() {
@@ -13835,6 +13837,9 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		done <- factoryruntime.RunNativeWithBinding(lifetime, filepath.Join(config.Directory, "backend.json"), nil, func(ctx context.Context, application factoryservice.Application) (factoryhttpapi.Product, error) {
 			product, err := factoryruntime.BindNativeProduct(ctx, application)
 			if err == nil {
+				product.Work.Issues.Status = func(context.Context, collaboration.ActorID, collaboration.RepositoryID, int64) (control.AcceptanceValidity, error) {
+					return control.AcceptanceValidity{}, nil
+				}
 				for _, scope := range [][2]int64{{int64(product.Actor) + 1, int64(repository)}, {int64(product.Actor), int64(repository) + 1}} {
 					if _, scopeErr := product.Repositories.Status.Bindings(ctx, collaboration.ActorID(scope[0]), collaboration.RepositoryID(scope[1])); scopeErr == nil {
 						return factoryhttpapi.Product{}, errors.New("read capture expanded policy binding scope")
@@ -13885,14 +13890,27 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	for _, suffix := range []string{"", "/access"} {
 		for _, withdrawn := range []bool{false, true} {
 			calls.Store(0)
+			identities.Store(0)
 			denyAt.Store(0)
 			if withdrawn {
 				denyAt.Store(4)
 			}
 			status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory%s", repository, suffix))
-			if err != nil || calls.Load() != 4 || !withdrawn && status != 200 || withdrawn && status == 200 {
+			if err != nil || calls.Load() != 4 || identities.Load() != 0 || !withdrawn && status != 200 || withdrawn && status == 200 {
 				return fmt.Errorf("request-owned repository capture suffix=%q withdrawn=%t calls=%d status=%d: %w", suffix, withdrawn, calls.Load(), status, err)
 			}
+		}
+	}
+	for _, withdrawn := range []bool{false, true} {
+		calls.Store(0)
+		identities.Store(0)
+		denyAt.Store(0)
+		if withdrawn {
+			denyAt.Store(3)
+		}
+		status, _, err := read(fmt.Sprintf("/api/repositories/%d/factory/issues/12", repository))
+		if err != nil || calls.Load() != 3 || identities.Load() != 0 || !withdrawn && status != 200 || withdrawn && status == 200 {
+			return fmt.Errorf("request-owned Work capture withdrawn=%t calls=%d identities=%d status=%d: %w", withdrawn, calls.Load(), identities.Load(), status, err)
 		}
 	}
 	for _, withdrawn := range []bool{false, true} {
@@ -13916,6 +13934,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		return fmt.Errorf("read capture expanded canonical repository: status=%d calls=%d: %w", status, calls.Load(), err)
 	}
 	fmt.Println("PASS: actual Go native HTTP/PG status/access use four fresh repository reads, and empty Feed with explicit allowance_holds uses three including final visibility; inner callbacks add none, final withdrawal exposes no rows/advisory, and foreign actor/repository scope cannot use the capture. Native provider replies declared; no coordinator Start, provider, model or execution.")
+	fmt.Println("PASS: selected-repository native HTTP admission uses its authenticated account/repository observation without a separate identity read; Work inner read callbacks share that observation while final visibility still rejects withdrawal. Acceptance status declared; no provider/model.")
 	return nil
 }
 
@@ -14542,8 +14561,22 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 			return fmt.Errorf("expired merge confused missing lookup with confirmed no-send: definitive=%v stage=%s effect=%s", definitive, stored.Stage, stored.Operation.Effect)
 		}
 	}
+	c.Host, c.Broker = factoryruntime.NativeExecution{}, factoryruntime.NativeExecution{}
+	c.Publication = factoryruntime.NativePublication{}
+	allowance.Closed = false
+	if err := write(`UPDATE factory_attempt_allowances SET data=$1 WHERE root_assignment=$2`, allowance, allowance.RootAssignment); err != nil {
+		return err
+	}
+	if _, err := raw.ExecContext(ctx, `DELETE FROM factory_assignments WHERE id=$1`, child.ID); err != nil {
+		return err
+	}
+	publicationReport := c.PublishPass(ctx)
+	if len(publicationReport.Errors) != 0 || reads.acceptance != 0 || reads.dispatch != 0 || len(publicationReport.Waits) != 1 || publicationReport.Waits[0].Reason != "merge_preparation_required" {
+		return fmt.Errorf("finalized merge repeated publication-child material reads: report=%+v reads=%+v", publicationReport, reads)
+	}
 	fmt.Println("PASS: real PG holds a pristine superseded merge and a findings COMMENT without a funded acceptance before provider inputs without changing original journals; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
 	fmt.Println("PASS: expired allocated merge cancels its original identity before provider/material reads; a declared reserved unknown stays open, and only its owner's confirmed no-send withdraws. Original work/deadline retained; no provider or inference.")
+	fmt.Println("PASS: actual PublishPass holds the finalized exact candidate before child delivery-material/acceptance reads, leaving original cancellation and allowance intact until a fresh explicit merge command. No provider/model.")
 	return nil
 }
 

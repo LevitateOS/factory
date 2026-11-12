@@ -31,26 +31,16 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	if err != nil {
 		return empty, err
 	}
-	identity, err := port.Identity(ctx)
+	identity, readAdmission, err := port.Selection(ctx)
 	if err != nil {
 		return empty, err
 	}
 	batch := collaboration.ConnectionObservationBatch{Connection: nativeConnectionObservation(port, identity)}
-	var readAdmission *NativeRepository
 	if identity.SelectedRepository != "" {
-		observed, err := port.Repository(ctx, identity.SelectedRepository)
-		if err != nil {
-			return empty, err
+		if readAdmission == nil || readAdmission.ExternalID != identity.SelectedRepository {
+			return empty, errors.New("native repository binding unavailable")
 		}
-		if !sameNativeAccount(identity, observed.NativeIdentity) {
-			return empty, errors.New("native account changed")
-		}
-		// Use the freshest provider-observed display name. Identity is its stable
-		// account ID, not a login or repository name.
-		identity = observed.NativeIdentity
-		batch.Connection = nativeConnectionObservation(port, identity)
-		batch.Repositories = []collaboration.ObservedRepository{{ExternalID: observed.Repository.ExternalID, Name: observed.Repository.Name}}
-		readAdmission = &observed.Repository
+		batch.Repositories = []collaboration.ObservedRepository{{ExternalID: readAdmission.ExternalID, Name: readAdmission.Name}}
 	}
 	mapping, err := application.Store.ApplyCollaborationObservation(ctx, batch)
 	if err != nil {
@@ -120,7 +110,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
 	}
-	product.Work, product.Runs = bound.bindWork(application)
+	product.Work, product.Runs = bound.bindWork(application, &view)
 	reads := nativeCollaborationReads{bound}
 	postContext := factoryservice.PostContext{Posts: posts, Issues: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, q factoryservice.PostIssueQuery) (collaboration.Page[collaboration.Issue], error) {
 		return (factoryservice.CollaborationIssues{Source: reads}).Read(ctx, actor, repository, factoryservice.CollaborationIssueQuery{Cursor: q.Cursor, Number: q.Number, Limit: q.Limit})
@@ -256,7 +246,7 @@ type nativeProductAccount struct {
 	binding    collaboration.ConnectionBinding
 	repository *collaboration.RepositoryRef
 	controller *nativeControllerGrant
-	// Set only on read-only RepositoryStatus/Access and Feed diagnostic callbacks.
+	// Set only on read-only status/access, Work and Feed diagnostic callbacks.
 	readAdmission *NativeRepository
 }
 

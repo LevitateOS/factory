@@ -957,6 +957,23 @@ harness builds pass without provider/model effects. UI typecheck/build pass for
 status roles exposing the public GitHub code/expiry and account state locally.
 Owner reauthentication of the expired installed login confirms the same sodaos
 connection saved. Matching installed recovery/connected counts remain next.
+Installed71/sourcecd241c8 passes exact-prior70 upgrade/integrity/Ready and renewed
+saved sodaos/workflow login after restart. The actual confirmed-unsent offer is
+available for issue57; no fresh command is sent. A similar-title issue1 detour is
+identified by the saved route, then the original title digest selects issue57.
+Navigation plus passive advice still reaches600 retained calls (16 login/584
+session); normal Quit joins every owner. Original merge31019ff6 remains withdrawn
+revision6, usage245/0 active, no fixture admin grant. The defining follow-up removes
+the duplicate identity read before selected-repository admission and shares only
+read-only Work inner checks; outer visibility/writers stay fresh. Finalized exact-
+target merges hold background child advice before material I/O, preserving native
+retirement and original receipt recovery. Existing real PG HTTP/progress checks
+prove0 separate identity reads,3 fresh Work repository reads with final withdrawal
+refusal and actual PublishPass's zero-material terminal hold; three-phase typed
+role/restart/WAL checks pass (`request72-*`) without provider/model effects.
+Connected counts/full fork merge remain INCOMPLETE; preserve all600 debits until
+12:53:29Z (2026-11-12), then resume once after12:54Z. Disposable guest storage grew
+40→64GiB while retaining all installed payloads, profiles, credentials and receipts.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;

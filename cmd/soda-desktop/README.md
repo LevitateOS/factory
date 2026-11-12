@@ -143,6 +143,11 @@ checks, current reviews and permissions, including the full test-merge binding;
 the final authority recheck remains fresh. Expired allocated merge intents go to
 their original cancellation journal before new material reads. Missing lookup
 alone cannot establish that a write was never sent.
+Selected-repository admission uses that observation's existing authenticated
+account proof, avoiding a separate identity read. Read-only Work callbacks share
+the same request admission, with fresh outer visibility checks. A finalized merge
+holds passive child advice until a fresh command exists; it does not reread full
+delivery material on every sweep. Original operation recovery remains available.
 
 ### Linux execution services
 

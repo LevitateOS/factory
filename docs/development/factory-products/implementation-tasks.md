@@ -1941,6 +1941,31 @@ the owner's fresh installed approval saves the same sodaos connection. Public
 verification code/expiry and account-state text now have status roles for local
 developer inspection without screenshots. Matching installed assets and the
 bounded connected fork journey remain next; no old send authority is renewed.
+Installed71/sourcecd241c866122e99ca689bbabfb7a91fcac542ed3 passes exact-prior70
+upgrade/integrity/Ready, renewed saved sodaos/workflow login and semantic account
+status after restart. Original merge remains withdrawn revision6, usage245/0 active.
+Normal UI navigation reaches the confirmed-unsent merge offer for issue57 without
+sending a command. An older similar-title issue was opened first; its saved route
+reveals issue1, then the retained acceptance title digest identifies the exact
+issue57 on page3. This detour and automatic delivery-material reads consume more
+requests than intended: local status reaches509, then the original retained budget
+reaches600 (16 login +584 installed-session attempts) before normal Quit joins all
+owners. No new merge/model command or charge; fixture admin was never enabled.
+The next defining correction removes the separate identity read before an already
+authenticated selected-repository observation, saving3 wire calls per GitHub HTTP
+admission. Read-only Work inner callbacks share their request's repository proof;
+outer visibility and all writers remain fresh. A finalized exact-target merge now
+holds background child advice before material reads, while native retirement and
+original merge reconciliation remain live. `request72-progress-pg.log` proves0
+separate identity reads,3 repository reads for Work including final withdrawal,
+scope refusal and actual PublishPass holding a cancelled exact candidate before
+acceptance/material I/O. The existing three-phase role/restart/WAL suite passes in
+`request72-role-pg.log`; backend/harness builds pass. Provider/status facts are
+declared in these checks, no model or provider effects. Matching installed volume/
+fork merge qualification remains INCOMPLETE. Preserve the600-debit journal and all
+old command/decision/deadline receipts. All debits expire12:53:29Z on2026-11-12;
+resume at12:54Z with one correct issue57 Work journey and a fresh explicit merge
+command only. Guest disk was grown40→64GiB without removing any release/profile.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation

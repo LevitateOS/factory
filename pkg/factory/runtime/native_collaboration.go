@@ -161,12 +161,16 @@ func nativeObservedText(value string, bound int, empty bool) bool {
 	return true
 }
 func (p *NativeCollaboration) Current(ctx context.Context) (NativeConnection, error) {
+	scope, err := p.currentScope(ctx)
+	return scope.Connection, err
+}
+func (p *NativeCollaboration) currentScope(ctx context.Context) (nativeScope, error) {
 	var observation json.RawMessage
 	scope, err := p.call(ctx, map[string]any{"kind": "current"}, &observation)
 	if err == nil && !bytes.Equal(bytes.TrimSpace(observation), []byte("null")) {
 		err = errors.New("invalid native observation")
 	}
-	return scope.Connection, err
+	return scope, err
 }
 func (p *NativeCollaboration) Identity(ctx context.Context) (NativeIdentity, error) {
 	var observation struct {
@@ -178,6 +182,40 @@ func (p *NativeCollaboration) Identity(ctx context.Context) (NativeIdentity, err
 		err = errors.New("invalid native account observation")
 	}
 	return NativeIdentity{Connection: scope.Connection, Account: observation.Account, SelectedRepository: scope.Repository}, err
+}
+
+// Selection obtains one provider observation for the native-admitted scope.
+// Repository already proves its current account; a separate identity read
+// immediately before it would only repeat that same authenticated observation.
+func (p *NativeCollaboration) Selection(ctx context.Context) (NativeIdentity, *NativeRepository, error) {
+	scope, err := p.currentScope(ctx)
+	if err != nil {
+		return NativeIdentity{}, nil, err
+	}
+	if scope.Repository == "" {
+		identity, err := p.Identity(ctx)
+		return identity, nil, err
+	}
+	// Preserve the separately owned Fountain gateway observation protocol.
+	if scope.Connection.Provider != "github" {
+		identity, err := p.Identity(ctx)
+		if err != nil {
+			return NativeIdentity{}, nil, err
+		}
+		observed, err := p.Repository(ctx, scope.Repository)
+		if err != nil {
+			return NativeIdentity{}, nil, err
+		}
+		if !sameNativeAccount(identity, observed.NativeIdentity) {
+			return NativeIdentity{}, nil, errors.New("native account changed")
+		}
+		return observed.NativeIdentity, &observed.Repository, nil
+	}
+	observed, err := p.Repository(ctx, scope.Repository)
+	if err != nil {
+		return NativeIdentity{}, nil, err
+	}
+	return observed.NativeIdentity, &observed.Repository, nil
 }
 func (p *NativeCollaboration) Repository(ctx context.Context, repository string) (NativeRepositoryObservation, error) {
 	if !nativeRemoteID(repository) {

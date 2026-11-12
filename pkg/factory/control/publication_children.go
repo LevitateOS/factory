@@ -899,6 +899,23 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 			}
 		}
 	}
+	// A finalized merge of this exact candidate needs an explicit new command,
+	// not another paid delivery-material traversal on every background sweep.
+	// Native source retirement above and the merge receipt owner remain live.
+	merged, err := c.Store.MergeByPublication(ctx, p.ID)
+	if err == nil && !factory.MergeTargetChanged(merged, p) &&
+		(merged.Stage == factory.MergeWithdrawn || merged.Stage == factory.MergeFailed || merged.Stage == factory.MergeMerged) {
+		reason := "merge_preparation_required"
+		if merged.Stage == factory.MergeMerged {
+			reason = "delivery_complete"
+		}
+		publicationWait(report, p.ID, reason)
+		return
+	}
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		publicationError(report, p.ID, "merge_unavailable")
+		return
+	}
 	allowance, stop := c.gatePublicationChildAttempt(ctx, p, owner, report)
 	if stop {
 		return
