@@ -91,14 +91,10 @@ impl Reader<'_> {
             {
                 return Err(Failure::new(409, "github_merge_completion_pending"));
             }
-            let mut url =
-                url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
-            url.path_segments_mut()
-                .map_err(|_| Failure::invalid())?
-                .push(branch);
+            let encoded = super::reads::branch_segment(branch)?;
             let observed = self
                 .get(
-                    &format!("/branches/{}", url.path().trim_start_matches('/')),
+                    &format!("/branches/{}", encoded),
                     &[],
                 )
                 .await?

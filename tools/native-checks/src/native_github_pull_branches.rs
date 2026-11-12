@@ -865,10 +865,13 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
         if name == "big-repository" {
             q.head_repository = "5000000000".into();
         }
+        let before_attempts = serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].as_u64().ok_or("attempts absent")?;
         let v = client
             .observe_pull_branches(token()?, "321", &q)
             .await
             .map_err(|f| format!("branch positive {name}: {} {}", f.status, f.code))?;
+        let after_attempts = serde_json::to_value(client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].as_u64().ok_or("attempts absent")?;
+        ensure(after_attempts - before_attempts == if q.head_repository == q.repository { 6 } else { 9 }, "branch observation repeated a same-phase repository read")?;
         let p = &v["branches"];
         ensure(
             v["kind"] == "pull_branches"
@@ -962,7 +965,6 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
         ("malformed", 502),
         ("partial-errors", 502),
         ("denied", 403),
-        ("limited", 429),
         ("validation", 400),
         ("redirect", 409),
         ("oversized", 413),
@@ -1045,6 +1047,18 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
             .is_err(),
         "retired branch owner accepted work",
     )?;
+    // A declared provider hold fences its owner. Exercise it last on its own
+    // owner so no later scenario needs to clear or bypass that hold.
+    mode("limited")?;
+    let mut hold_owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let hold_client = hold_owner.client();
+    let failure = hold_client.observe_pull_branches(token()?, "321", &request()).await.err().ok_or("rate hold accepted")?;
+    ensure(failure.status == 429, "declared rate limit lost")?;
+    let attempts = serde_json::to_value(hold_client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"].clone();
+    let failure = hold_client.observe_pull_branches(token()?, "321", &request()).await.err().ok_or("rate hold bypassed")?;
+    ensure(failure.status == 429 && serde_json::to_value(hold_client.traffic_snapshot().ok_or("traffic absent")?)?["attempts"] == attempts, "provider hold sent another request")?;
+    hold_owner.stop()?;
+    cases.push("limited");
     ensure(
         !io.join("unexpected-request").exists(),
         "branch producer sent undeclared request",

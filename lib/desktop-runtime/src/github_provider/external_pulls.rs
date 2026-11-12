@@ -205,11 +205,7 @@ impl Reader<'_> {
         if raw["user"]["node_id"] != id || raw["user"]["login"] != login {
             return Err(Failure::new(409, "github_pull_author_changed"));
         }
-        let writer = match r::text(&raw, "permission")? {
-            "admin" | "write" => true,
-            "read" | "none" => false,
-            _ => return Err(Failure::new(409, "github_creator_permission_unknown")),
-        };
+        let writer = super::reads::collaborator_can_write(&raw)?;
         let observed = (r::actor(&raw["user"])?, writer);
         cache.insert(id.to_owned(), observed.clone());
         Ok(observed)

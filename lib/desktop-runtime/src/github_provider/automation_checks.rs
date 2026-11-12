@@ -55,16 +55,10 @@ impl Reader<'_> {
         Ok(before)
     }
     pub(super) async fn automation_branch_tip(&self, name: &str) -> Result<String> {
-        if !branch_name(name) {
-            return Err(Failure::protocol());
-        }
-        let mut url = url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
-        url.path_segments_mut()
-            .map_err(|_| Failure::invalid())?
-            .push(name);
+        let encoded = super::reads::branch_segment(name)?;
         let branch = self
             .get(
-                &format!("/branches/{}", url.path().trim_start_matches('/')),
+                &format!("/branches/{}", encoded),
                 &[],
             )
             .await?

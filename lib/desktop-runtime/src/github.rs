@@ -348,6 +348,7 @@ async fn canonical_read(
 ) -> Result<Reply, Error> {
     let q = query.value();
     let kind = q["kind"].clone();
+    let mut captured_identity = None;
     let raw_query = match query {
         Read::Binding => Read::Identity,
         Read::CanonicalRepositories { page, limit } => Read::Repositories {
@@ -355,18 +356,20 @@ async fn canonical_read(
             limit: *limit,
         },
         Read::CanonicalIssues { repository, .. } | Read::CanonicalIssue { repository, .. } => {
-            let identity = match client
-                .read_account(token, &account.account, &Read::Identity)
-                .await
-            {
+            let identity = match client.identity(token).await {
                 Ok(body) => body,
                 Err(failure) => return Ok(failure_reply(failure)),
             };
-            let mut resolved=observation(channel,&json!({"kind":"resolve_repository","connection":account.connection,"account":identity["account"],"repository":repository})).await?;
+            if identity.external_id != account.account {
+                return Ok(failure_reply(crate::github_provider::Failure::new(409, "github_account_changed")));
+            }
+            let observed = serde_json::to_value(&identity).map_err(|_| Error::Protocol)?;
+            captured_identity = Some(identity);
+            let mut resolved=observation(channel,&json!({"kind":"resolve_repository","connection":account.connection,"account":observed,"repository":repository})).await?;
             if resolved.status != 200 {
                 return Ok(resolved);
             }
-            resolved.body["account"] = identity["account"].clone();
+            resolved.body["account"] = observed;
             let repo = &resolved.body["repository"];
             if !canonical_binding_matches(&resolved.body, account, &channel.profile)
                 || repo["id"] != *repository
@@ -395,7 +398,7 @@ async fn canonical_read(
         _ => return Err(Error::Invalid),
     };
     let mut result = match client
-        .read_account(token, &account.account, &raw_query)
+        .read_account_with_identity(token, &account.account, &raw_query, captured_identity)
         .await
     {
         Ok(body) => body,

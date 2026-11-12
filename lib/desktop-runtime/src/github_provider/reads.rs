@@ -18,6 +18,15 @@ impl Client {
         expected: &str,
         query: &Read,
     ) -> Result<Value> {
+        self.read_account_with_identity(token, expected, query, None).await
+    }
+    pub(crate) async fn read_account_with_identity(
+        &self,
+        token: &[u8],
+        expected: &str,
+        query: &Read,
+        identity: Option<super::Identity>,
+    ) -> Result<Value> {
         query.validate()?;
         if !remote_id(expected) {
             return Err(Failure::invalid());
@@ -32,7 +41,10 @@ impl Client {
             return Err(Failure::invalid());
         }
         tokio::time::timeout(query.timeout(), async {
-            let identity = self.identity(token).await?;
+            let identity = match identity {
+                Some(identity) => identity,
+                None => self.identity(token).await?,
+            };
             if identity.external_id != expected {
                 return Err(Failure::new(409, "github_account_changed"));
             }
@@ -386,11 +398,7 @@ impl<'a> Reader<'a> {
         let response = self.get(&format!("/collaborators/{login}/permission"), &[]).await?;
         let raw = &response.value;
         if r::id(&raw["user"]["id"])? != creator { return Err(Failure::protocol()); }
-        let write = match r::text(raw,"permission")? {
-            "admin"|"write" => true,
-            "read"|"none" => false,
-            _ => return Err(Failure::new(409,"github_creator_permission_unknown")),
-        };
+        let write = collaborator_can_write(raw)?;
         self.recheck().await?;
         let after = self.raw_subject(false, number).await?;
         if r::id(&after["id"])? != issue_id || r::id(&after["user"]["id"])? != creator { return Err(Failure::new(409,"github_issue_creator_changed")); }
@@ -754,4 +762,19 @@ pub(super) fn unique(seen: &mut HashSet<String>, id: &str) -> Result<()> {
     } else {
         Err(Failure::protocol())
     }
+}
+
+pub(super) fn collaborator_can_write(raw: &Value) -> Result<bool> {
+    match r::text(raw, "permission")? {
+        "admin" | "write" => Ok(true),
+        "read" | "none" => Ok(false),
+        _ => Err(Failure::new(409, "github_creator_permission_unknown")),
+    }
+}
+
+pub(super) fn branch_segment(name: &str) -> Result<String> {
+    if !super::request::branch_name(name) { return Err(Failure::protocol()); }
+    let mut url = url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
+    url.path_segments_mut().map_err(|_| Failure::invalid())?.push(name);
+    Ok(url.path().trim_start_matches('/').to_owned())
 }

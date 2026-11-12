@@ -282,15 +282,11 @@ impl Reader<'_> {
         let before = self.protection_binding(pull)?;
         // Encode this as one path segment; branch slashes must not select a
         // different endpoint or introduce query parameters.
-        let mut url = url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
-        url.path_segments_mut()
-            .map_err(|_| Failure::invalid())?
-            .push(r::text(&before, "branch")?);
-        let encoded = url.path().trim_start_matches('/');
+        let encoded = super::reads::branch_segment(r::text(&before, "branch")?)?;
         let branch_target = format!("/branches/{encoded}");
         let (branch, (classic, rules)) = tokio::try_join!(
             self.get(&branch_target, &[]),
-            self.protection_sources(&branch_target, encoded)
+            self.protection_sources(&branch_target, &encoded)
         )?;
         let captured_branch = branch_identity(&branch.value, r::text(&before, "branch")?)?;
         let summary = super::protection::summarize(

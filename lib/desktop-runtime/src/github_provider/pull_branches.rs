@@ -38,12 +38,16 @@ impl Client {
 }
 impl Reader<'_> {
     pub(super) async fn pull_branches(&self, q: &PullBranchRead) -> Result<Value> {
-        let head = Reader::new(self.client, self.token, &q.head_repository).await?;
+        let head = if q.repository == q.head_repository {
+            None
+        } else {
+            Some(Reader::new(self.client, self.token, &q.head_repository).await?)
+        };
         let base_repo = self.branch_repository().await?;
-        let head_repo = head.branch_repository().await?;
-        if q.repository == q.head_repository && base_repo != head_repo {
-            return Err(Failure::new(409, "github_branch_pair_changed"));
-        }
+        let head_repo = match &head {
+            Some(head) => head.branch_repository().await?,
+            None => base_repo.clone(),
+        };
         let mut ids = HashMap::new();
         let mut nodes = HashMap::new();
         for repository in [&base_repo, &head_repo] {
@@ -80,10 +84,13 @@ impl Reader<'_> {
             )
         };
         let before = observe().await?;
-        if self.branch_repository().await? != base_repo
-            || head.branch_repository().await? != head_repo
-        {
+        if self.branch_repository().await? != base_repo {
             return Err(Failure::new(409, "github_branch_pair_changed"));
+        }
+        if let Some(head) = &head {
+            if head.branch_repository().await? != head_repo {
+                return Err(Failure::new(409, "github_branch_pair_changed"));
+            }
         }
         if observe().await? != before {
             return Err(Failure::new(409, "github_branch_pair_changed"));

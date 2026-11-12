@@ -792,8 +792,7 @@ builds, apps or provider requests in this design phase.
   Next phase: untangle-refactor, beginning F1/F2 or an explicitly independent
   ready fix; preserve original receipts and prove wire counts locally first.
 
-- Phase3 ACTIVE, F1 COMPLETE in two checkpoints (core c7a417d plus current
-  envelope-limit change). Shared native DTOs/validation/outcomes are below both
+- Phase3 ACTIVE, F1 COMPLETE in c7a417d and34f0a6f. Shared native DTOs/validation/outcomes are below both
   providers; setup vocabulary and read limits have defining contract owners.
   Semantic names derive from serde tags. Version1 uses one payload; known prior
   read shapes and all captured mutation bytes/digests remain intact. Unknown
@@ -810,5 +809,15 @@ builds, apps or provider requests in this design phase.
   Plan refinement: retain P17/P32 as required legacy receipt/provider boundaries;
   removing those mappings/fences would change captured write semantics for no
   request reduction. 40 entries remain assigned to fixes,13 retained with reasons.
-  F2–F8 pending. No live provider/model effects; original profiles and uncertain
-  outcomes untouched. No running checks. Next: implement F2 observation ownership and actual send accounting.
+  F2 IN PROGRESS: same-repository pull branches share opening/closing repository
+  facts; canonical issue mapping carries its already verified identity. GitHub
+  permission interpretation and branch path encoding each have one owner.
+  f2-helper-build.log passes. f2-branches-local.log passes60 declared cases,
+  12 invalid selectors and retirement using the retained no-forwarding peer:
+  exact successful wire attempts6 same-repository (previously9),9 fork.
+  Closing metadata/node/tip changes refuse. The simulated rate hold runs last on
+  its own fixture owner and proves subsequent work sends nothing; no budget is
+  cleared. Canonical carry is source-reviewed, not a connected qualification.
+  F3–F8 pending. No live provider/model effects; original profiles and uncertain
+  outcomes untouched. No running checks. Next: F2 per-operation wire allowance
+  and flattened Fountain observations; then dependent collection/inventory work.
