@@ -91,12 +91,34 @@ impl Reader<'_> {
         account: &str,
     ) -> Result<Value> {
         let pull = self.raw_subject(true, q.number).await?;
+        let repository = self.get("", &[]).await?.value;
+        let result = self
+            .graph_threads_for_pull(q, cursor, account, &pull, &repository)
+            .await?;
+        let current = self.raw_subject(true, q.number).await?;
+        if r::id(&current["id"])? != r::id(&pull["id"])?
+            || current["node_id"] != pull["node_id"]
+            || thread_pull_binding(&current, self.repository)?
+                != thread_pull_binding(&pull, self.repository)?
+        {
+            return Err(Failure::new(409, "github_threads_changed"));
+        }
+        self.recheck().await?;
+        Ok(result)
+    }
+    pub(super) async fn graph_threads_for_pull(
+        &self,
+        q: &ThreadRead,
+        cursor: &str,
+        account: &str,
+        pull: &Value,
+        repository: &Value,
+    ) -> Result<Value> {
         let pull_id = r::id(&pull["id"])?;
         let pull_node = r::text(&pull, "node_id")?;
         if !node_id(pull_node) {
             return Err(Failure::protocol());
         }
-        let repository = self.get("", &[]).await?.value;
         if r::id(&repository["id"])? != q.repository {
             return Err(Failure::new(409, "github_repository_changed"));
         }
@@ -105,19 +127,7 @@ impl Reader<'_> {
             return Err(Failure::protocol());
         }
         use crate::provider_contract::thread_cursor;
-        let binding = |pull: &Value| -> Result<Value> {
-            if !r::text(&pull["head"], "sha").is_ok_and(commit)
-                || !r::text(&pull["base"], "sha").is_ok_and(commit)
-                || r::id(&pull["base"]["repo"]["id"])? != self.repository
-            {
-                return Err(Failure::protocol());
-            }
-            Ok(
-                json!({"head":pull["head"]["sha"],"base":pull["base"]["sha"],"head_ref":r::text(&pull["head"],"ref")?,
-                "base_ref":r::text(&pull["base"],"ref")?,"head_repository":if pull["head"]["repo"].is_null(){Value::Null}else{json!(r::id(&pull["head"]["repo"]["id"])?) }}),
-            )
-        };
-        let captured = binding(&pull)?;
+        let captured = thread_pull_binding(pull, self.repository)?;
         let scope = |root: &str, limit: u32| {
             thread_cursor::scope(&json!({"host":"https://github.com","account":account,
             "repository":q.repository,"pull":pull_node,"binding":captured,"root":root,"limit":limit}))
@@ -206,7 +216,9 @@ impl Reader<'_> {
                 .as_array()
                 .ok_or_else(Failure::protocol)?;
             let start = continuation.offset;
-            let end = start.checked_add(nodes.len() as u64).ok_or_else(Failure::protocol)?;
+            let end = start
+                .checked_add(nodes.len() as u64)
+                .ok_or_else(Failure::protocol)?;
             if nodes.len() > q.limit as usize || end > total {
                 return Err(Failure::protocol());
             }
@@ -255,22 +267,34 @@ impl Reader<'_> {
             let next = item["comments"]["next_page"]
                 .as_u64()
                 .ok_or_else(Failure::protocol)? as u32;
-            item["comments"]["next_cursor"] =
-                json!(thread_cursor::encode(&scope(root, limit)?, next, "", None, 0)?);
+            item["comments"]["next_cursor"] = json!(thread_cursor::encode(
+                &scope(root, limit)?,
+                next,
+                "",
+                None,
+                0
+            )?);
         }
-        let current = self.raw_subject(true, q.number).await?;
-        if r::id(&current["id"])? != pull_id
-            || current["node_id"] != pull_node
-            || binding(&current)? != captured
-        {
-            return Err(Failure::new(409, "github_threads_changed"));
-        }
-        self.recheck().await?;
         Ok(
             json!({"repository":q.repository,"name":self.name,"pull":{"kind":"pull","external_id":pull_id,"number":q.number},"items":projected,"next_page":next,"next_cursor":next_cursor}),
         )
     }
+
 }
+
+fn thread_pull_binding(pull: &Value, repository: &str) -> Result<Value> {
+    if !r::text(&pull["head"], "sha").is_ok_and(commit)
+        || !r::text(&pull["base"], "sha").is_ok_and(commit)
+        || r::id(&pull["base"]["repo"]["id"])? != repository
+    {
+        return Err(Failure::protocol());
+    }
+    Ok(
+        json!({"head":pull["head"]["sha"],"base":pull["base"]["sha"],"head_ref":r::text(&pull["head"],"ref")?,
+                "base_ref":r::text(&pull["base"],"ref")?,"head_repository":if pull["head"]["repo"].is_null(){Value::Null}else{json!(r::id(&pull["head"]["repo"]["id"])?) }}),
+    )
+}
+
 
 fn project(
     thread: &Value,

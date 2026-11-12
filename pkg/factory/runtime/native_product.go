@@ -255,6 +255,9 @@ type nativeProductAccount struct {
 	controller *nativeControllerGrant
 	// Set only within read-only HTTP callbacks.
 	readAdmission *NativeRepository
+	// Private read-only adapter for pages from one complete native discussion.
+	// Missing selectors refuse locally; this cannot fall back to provider I/O.
+	discussion *nativeDiscussionProjection
 }
 
 // Read services bracket assembly with this callback. Their first check shares

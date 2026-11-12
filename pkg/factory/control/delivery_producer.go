@@ -80,10 +80,10 @@ func (c *Coordinator) recordCleanDeliveryAcceptance(ctx context.Context, publica
 // journaled clean acceptance after current authority and exact checks.
 // Previously driven operations keep their original provenance and
 // reconcile through the existing receipt path.
-func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *factory.Merge, publication *factory.Publication, nativeRevision int64, observe *DeliveryMergeObservation) error {
+func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *factory.Merge, publication *factory.Publication, accepted AcceptanceValidity, observe *DeliveryMergeObservation) error {
 	if merge.Authorization.Bound() {
 		if merge.Authorization.Generation.AcceptanceKind == factory.AcceptanceJevAcceptance {
-			acceptance, decision, err := c.currentFundedDeliveryAcceptance(ctx, *publication, observe)
+			acceptance, decision, err := c.currentFundedDeliveryAcceptance(ctx, *publication, observe, &accepted)
 			if err != nil || acceptance == nil || acceptance.ID != merge.Authorization.Generation.AcceptanceID || decision.Answer.Fingerprint != merge.Authorization.Generation.Fingerprint {
 				return &factory.PublicationWait{Reason: "funded_delivery_changed"}
 			}
@@ -100,7 +100,7 @@ func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *fa
 	*publication = updated
 	decision := factory.DeliveryDecision{}
 	if acceptance == nil {
-		acceptance, decision, err = c.currentFundedDeliveryAcceptance(ctx, updated, observe)
+		acceptance, decision, err = c.currentFundedDeliveryAcceptance(ctx, updated, observe, &accepted)
 		if err != nil {
 			return &factory.PublicationWait{Reason: "funded_delivery_unavailable"}
 		}
@@ -126,7 +126,7 @@ func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *fa
 			AcceptanceKind: acceptance.Kind, AcceptanceID: acceptance.ID,
 			AttemptRoot: acceptance.AttemptRoot, OriginReceipt: acceptance.OriginReceipt,
 			Generation: len(merge.History) + 1, ReviewRound: acceptance.Round, AssessmentRevision: assessment.Revision,
-			ObservedNativeRev: nativeRevision, NotAfter: notAfter,
+			ObservedNativeRev: accepted.Revision, NotAfter: notAfter,
 		},
 		ResolutionsConfirmed: true,
 	}

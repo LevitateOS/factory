@@ -233,7 +233,7 @@ func (m *deliveryJudgmentMaterial) validate() error {
 	return nil
 }
 
-func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publication, review ResolvedReviewVerdict, model string, observe *DeliveryMergeObservation) (*deliveryJudgmentMaterial, factory.ReviewCycle, factory.RepositoryPolicy, error) {
+func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publication, review ResolvedReviewVerdict, model string, observe *DeliveryMergeObservation, admitted *AcceptanceValidity) (*deliveryJudgmentMaterial, factory.ReviewCycle, factory.RepositoryPolicy, error) {
 	var emptyCycle factory.ReviewCycle
 	var emptyPolicy factory.RepositoryPolicy
 	source, ok := c.Merges.(deliveryMaterialSource)
@@ -261,8 +261,14 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 		}
 	}
 	gate := MergeReport{}
-	policy, accepted, valid := c.mergeAuthority(ctx, merge, &gate)
-	if !valid || accepted.Acceptance.ID != p.Acceptance {
+	var accepted AcceptanceValidity
+	valid := false
+	if admitted != nil {
+		accepted, valid = *admitted, admitted.Valid
+	} else {
+		policy, accepted, valid = c.mergeAuthority(ctx, merge, &gate)
+	}
+	if !valid || accepted.Acceptance == nil || accepted.Acceptance.ID != p.Acceptance {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
 	revision := accepted.Revision
@@ -333,6 +339,7 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	var native factory.DeliveryNativeMaterial
 	if paired, ok := source.(deliveryMergeMaterialSource); observe != nil && ok {
 		work := c.mergeWork(merge, policy)
+		work.NativeRev = revision
 		work.ReviewEvent = basis.operation.Work.Event
 		native, *observe, err = paired.ReadDeliveryMaterialForMerge(ctx, p, work)
 	} else {

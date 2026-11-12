@@ -3281,6 +3281,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		ExpectedChecks                          map[string]string
 		ExpectedMaterialBlocker                 *string
 		ExpectMaterialRefusal                   bool
+		PairedRevision                          int64
 		EvaluationCommit                        string
 		Checks                                  factory.CheckTarget
 		Correction                              struct {
@@ -3362,7 +3363,33 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	if action == "check-background-delivery-material" || action == "check-background-assembly-material" {
 		port := factoryruntime.NativeMerges{NativeInputSource: source}
 		w := factory.MergeWork{Method: "merge", Repository: repository, Issue: issue, PRNumber: input.Checks.PRNumber, PRID: input.Checks.PRID, IssueID: input.Checks.IssueID, ActorID: int64(connection.Actor), PRAuthorID: int64(connection.Actor), ReviewerID: int64(connection.Actor), ReviewEvent: "COMMENT", HeadRef: input.Checks.HeadRef, BaseRef: input.Checks.BaseRef, HeadOID: input.Checks.HeadOID, BaseOID: input.Checks.BaseOID}
-		material, err := port.ReadDeliveryMaterial(ctx, w)
+		var material factory.DeliveryNativeMaterial
+		if input.PairedRevision > 0 {
+			p := declaredPublishedFixture(factory.CheckTarget{Repository: repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, connection.Actor, factory.NewID(), issue, input.PairedRevision, time.Now().Add(time.Minute).Unix())
+			if err := p.Validate(); err != nil {
+				return err
+			}
+			encoded, encodeErr := json.Marshal(p)
+			if encodeErr != nil {
+				return encodeErr
+			}
+			raw, openErr := sql.Open("pgx", config.DatabaseDSN())
+			if openErr != nil {
+				return openErr
+			}
+			defer raw.Close()
+			if _, err = raw.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, p.AssignmentID, repository, issue, p.Run, p.Stage, string(encoded)); err != nil {
+				return err
+			}
+			w.PublicationID, w.NativeRev = p.ID, input.PairedRevision
+			var continuation control.DeliveryMergeObservation
+			material, continuation, err = port.ReadDeliveryMaterialForMerge(ctx, p, w)
+			if err == nil && continuation == nil {
+				return errors.New("paired material omitted its merge observation")
+			}
+		} else {
+			material, err = port.ReadDeliveryMaterial(ctx, w)
+		}
 		if err != nil {
 			if action == "check-background-assembly-material" && input.ExpectMaterialRefusal {
 				if !reflect.DeepEqual(material, factory.DeliveryNativeMaterial{}) {
@@ -13996,6 +14023,31 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 					return map[string]any{"name": name, "commit": strings.Repeat(commit, 40), "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture"}}
 				}
 				payload["items"] = []any{map[string]any{"external_id": "700", "number": 7, "title": "Declared pull", "body": "Declared body", "state": "open", "author": account, "assignees": []any{}, "draft": false, "locked": false, "base": branch("main", "b"), "head": branch("topic", "a")}}
+			case "delivery_discussion":
+				field = "delivery_discussion"
+				branch := func(name, commit string) any {
+					return map[string]any{"name": name, "commit": strings.Repeat(commit, 40), "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture"}}
+				}
+				pages := []any{}
+				for _, kind := range []string{"pull", "pull_comments", "pull_reviews", "pull_threads"} {
+					q := map[string]any{"kind": kind, "repository": "123", "number": 7}
+					data := map[string]any{"repository": "123", "name": "fixture/read-capture", "items": []any{}, "next_page": 0}
+					if kind == "pull" {
+						data["items"] = []any{map[string]any{"external_id": "700", "number": 7, "title": "Declared pull", "body": "Declared body", "state": "open", "author": account, "assignees": []any{}, "draft": false, "locked": false, "base": branch("main", "b"), "head": branch("topic", "a")}}
+					} else {
+						q["page"], q["limit"] = 1, 50
+						if kind == "pull_comments" {
+							data["subject"] = pull
+						} else {
+							data["pull"] = pull
+						}
+						if kind == "pull_threads" {
+							q["limit"], q["thread_id"], data["next_cursor"] = 20, "", ""
+						}
+					}
+					pages = append(pages, map[string]any{"query": q, "payload": data})
+				}
+				payload = map[string]any{"pages": pages}
 			case "pull_comments":
 				field, payload["subject"] = "discussion", pull
 			case "pull_reviews":
@@ -14178,7 +14230,10 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		materialReads.Store(0)
 		closingReadiness.Store(0)
 		material, readErr := native.ReadDeliveryMaterial(ctx, w)
-		wantReads, wantClosing := int64(9), int64(1)
+		wantReads, wantClosing := int64(2), int64(1)
+		if version == 0 {
+			wantClosing = 0
+		}
 		if version >= 2 {
 			wantReads, wantClosing = 1, 0
 		}
@@ -14198,8 +14253,8 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		return err
 	}
 	inventoryMode.Store(false)
-	fmt.Println("PASS: real Go material reader accepts known-prior and version1 envelopes, rejects unknown versions/mixed payloads at the first read, and preserves closing withdrawal refusal with no provider/model/write.")
-	fmt.Println("PASS: production material reader completes both four-read discussion traversals and original input, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Exactly 11 declared native reads, no provider/model/write.")
+	fmt.Println("PASS: real Go material reader accepts version1 compound pages, refuses a compound kind absent from the frozen prior contract, rejects unknown versions/mixed payloads at the first input read, and preserves closing withdrawal refusal with no provider/model/write.")
+	fmt.Println("PASS: production material reader projects complete native-paired discussion pages through existing decoders, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Three declared native reads, no provider/model/write.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access and Work each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
 	return nil
 }

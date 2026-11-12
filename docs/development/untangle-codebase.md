@@ -5631,3 +5631,17 @@ retains the experiment and request86's synthetic failed fixture state. No live
 effect or inference was repeated. Next: consolidate paired discussion collection
 under the native read owner and prove the complete request budget before returning
 to the retained installed candidate. Full GitHub/Muse qualification stays INCOMPLETE.
+
+Native paired discussion collection now owns pagination and both complete
+traversals within one authenticated read, using the existing page decoders and
+canonical Go projection. Public complete material uses53 sends (fork55); actual
+paired merge collection uses48 with its already-read opening revision, and a
+stale revision refuses. An11-member paginated thread is complete; concurrent
+human text drift, missing current opinion, changed head and withdrawn permission
+expose no partial material. request92-budget-local.log,
+fc-github-assembly92/assembly-budget.json and request92-progress-pg.log pass.
+Submission, unknown-send journals, existing finite bounds and closing fresh
+provider admission remain unchanged. No live provider/model effect occurred.
+Next: package/install this committed read reduction over exact prior77, then
+recover the same PR62 candidate/paid receipt under a new finite explicit command;
+the old ddea command remains definitively unallocated and expired.

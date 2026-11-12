@@ -60,6 +60,12 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    DeliveryDiscussion {
+        repository: String,
+        number: u32,
+        head: String,
+        base: String,
+    },
     ExternalPullCandidates {
         repository: String,
         #[serde(default)]
@@ -375,6 +381,7 @@ impl Read {
             Self::PullRequiredChecks { .. } => Some("required_checks"),
             Self::AutomationReview { .. } => Some("automation_review"),
             Self::DeliveryOpinions { .. } => Some("delivery_opinions"),
+            Self::DeliveryDiscussion { .. } => Some("delivery_discussion"),
             Self::ExternalPullCandidates { .. } => Some("external_pull_candidates"),
             Self::AutomationChecks { .. } => Some("automation_checks"),
             Self::CanonicalRepositories { .. } => Some("repositories"),
@@ -424,7 +431,7 @@ impl Read {
         std::time::Duration::from_secs(match self {
             Self::PullRequiredChecks { .. }
             | Self::AutomationChecks { .. }
-            | Self::MergeReadiness { .. } => 15,
+            | Self::MergeReadiness { .. } | Self::DeliveryDiscussion { .. } => 15,
             _ => 8,
         })
     }
@@ -536,7 +543,7 @@ impl Read {
         }
         if let Self::MergeReadiness {
             number, head, base, ..
-        } = self
+        } | Self::DeliveryDiscussion { number, head, base, .. } = self
         {
             if *number > i32::MAX as u32 || !commit(head) || !commit(base) || head == base {
                 return Err(Failure::invalid());

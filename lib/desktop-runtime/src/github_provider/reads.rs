@@ -141,6 +141,10 @@ impl Client {
                             "delivery_opinions",
                             reader.delivery_opinions(q["number"].as_u64().ok_or_else(Failure::invalid)?).await?,
                         ),
+                        "delivery_discussion" => {
+                            let Read::DeliveryDiscussion { number, head, base, .. } = query else { return Err(Failure::invalid()); };
+                            ("delivery_discussion", reader.delivery_discussion(*number, head, base, &identity.external_id).await?)
+                        }
                         "external_pull_candidates" => {
                             let Read::ExternalPullCandidates { number, cursor, .. } = query else {
                                 return Err(Failure::invalid());
@@ -397,12 +401,15 @@ impl Client {
         .map_err(|_| Failure::new(504, "github_deadline"))?
     }
     pub(super) async fn repository(&self, id: &str, token: &[u8]) -> Result<Value> {
+		Ok(self.resolve_repository(id, token).await?.1)
+	}
+	async fn resolve_repository(&self, id: &str, token: &[u8]) -> Result<(Value, Value)> {
         let response = self.get(&format!("/repositories/{id}"), &[], token).await?;
         let snapshot = r::repository(&response.value)?;
         if snapshot["external_id"] != id {
             return Err(Failure::protocol());
         }
-        Ok(snapshot)
+        Ok((response.value, snapshot))
     }
 }
 pub(super) struct Reader<'a> {
@@ -411,6 +418,7 @@ pub(super) struct Reader<'a> {
     pub repository: &'a str,
     pub name: String,
     pub prefix: String,
+    pub(super) repository_snapshot: Value,
 }
 impl<'a> Reader<'a> {
     async fn issue_creator_permission(&self, number: u64, creator: &str) -> Result<Value> {
@@ -452,7 +460,7 @@ impl<'a> Reader<'a> {
         token: &'a [u8],
         repository: &'a str,
     ) -> Result<Self> {
-        let raw = client.repository(repository, token).await?;
+        let (repository_snapshot, raw) = client.resolve_repository(repository, token).await?;
         let name = r::text(&raw, "name")?;
         if !super::request::repository_name(name) {
             return Err(Failure::protocol());
@@ -463,6 +471,7 @@ impl<'a> Reader<'a> {
             repository,
             name: name.into(),
             prefix: format!("/repos/{name}"),
+            repository_snapshot,
         })
     }
     pub async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Response> {
@@ -578,6 +587,15 @@ impl<'a> Reader<'a> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let pull = q["kind"] == "pull_comments";
         let before = self.subject(pull, number).await?;
+        let value = self.comments_for_subject(q, &before).await?;
+        if self.subject(pull, number).await? != before {
+            return Err(Failure::new(404, "github_not_visible"));
+        }
+        self.recheck().await?;
+        Ok(value)
+    }
+    pub(super) async fn comments_for_subject(&self, q: &Value, before: &Value) -> Result<Value> {
+        let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let (page, limit) = paging(q);
         let response = self
             .get(
@@ -602,10 +620,6 @@ impl<'a> Reader<'a> {
             }
             projected.push(r::comment(item)?);
         }
-        if self.subject(pull, number).await? != before {
-            return Err(Failure::new(404, "github_not_visible"));
-        }
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"name":self.name,"subject":before,"items":projected,"next_page":response.next}),
         )
@@ -613,6 +627,20 @@ impl<'a> Reader<'a> {
     pub(super) async fn reviews(&self, q: &Value, comments: bool) -> Result<Value> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let before = self.subject(true, number).await?;
+        let value = self.reviews_for_subject(q, comments, &before).await?;
+        if self.subject(true, number).await? != before {
+            return Err(Failure::new(404, "github_not_visible"));
+        }
+        self.recheck().await?;
+        Ok(value)
+    }
+    pub(super) async fn reviews_for_subject(
+        &self,
+        q: &Value,
+        comments: bool,
+        before: &Value,
+    ) -> Result<Value> {
+        let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let selected = q[if comments { "comment_id" } else { "review_id" }].as_str();
         let (page, limit) = if selected.is_some() {
             (0, 1)
@@ -672,10 +700,6 @@ impl<'a> Reader<'a> {
                 r::review(&item)?
             });
         }
-        if self.subject(true, number).await? != before {
-            return Err(Failure::new(404, "github_not_visible"));
-        }
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"name":self.name,"pull":before,"items":projected,"next_page":response.next}),
         )

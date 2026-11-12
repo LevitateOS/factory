@@ -758,6 +758,7 @@ async fn background_read(
                     | Read::AutomationChecks { .. }
                     | Read::AutomationReview { .. }
                     | Read::DeliveryOpinions { .. }
+                    | Read::DeliveryDiscussion { .. }
                     | Read::ExternalPullCandidates { .. }
                     | Read::PullComments { .. }
                     | Read::PullReviews { .. }

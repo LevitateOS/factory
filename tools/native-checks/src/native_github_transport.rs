@@ -95,17 +95,22 @@ pub(super) async fn run_assembly_budget_declared(
             "head_ref":"refs/heads/topic","base_ref":"refs/heads/main",
             "head_oid":"a".repeat(40),"base_oid":"b".repeat(40)}
     });
-    for (scenario, blocker, refused) in [
-        ("assembly-positive", "", false),
-        ("assembly-fork", "", false),
-        ("assembly-veto", "requested_changes", false),
-        ("assembly-unmatched-opinion", "", true),
-        ("assembly-head-change", "", true),
-        ("assembly-withdrawn", "", true),
+    for (scenario, blocker, refused, paired) in [
+        ("assembly-positive", "", false, 0),
+        ("assembly-fork", "", false, 0),
+        ("assembly-fork", "", false, 1),
+        ("assembly-fork", "", true, 2),
+        ("assembly-veto", "requested_changes", false, 0),
+        ("assembly-threads", "", false, 0),
+        ("assembly-discussion-change", "", true, 0),
+        ("assembly-unmatched-opinion", "", true, 0),
+        ("assembly-head-change", "", true, 0),
+        ("assembly-withdrawn", "", true, 0),
     ] {
     set_mode(&io, scenario)?;
     material_body["ExpectedMaterialBlocker"] = json!(blocker);
     material_body["ExpectMaterialRefusal"] = json!(refused);
+    material_body["PairedRevision"] = json!(paired);
     fs::write(&material_input, serde_json::to_vec(&material_body)?)?;
     let before_material = attempts()?;
     let material_status = tokio::process::Command::new(&material_helper)
@@ -113,9 +118,9 @@ pub(super) async fn run_assembly_budget_declared(
         .arg("check-background-assembly-material").arg(&material_input)
         .status().await?;
     let material_attempts = attempts()? - before_material;
-    stages.push(json!({"phase":"full-delivery-material","scenario":scenario,"attempts":material_attempts}));
+    stages.push(json!({"phase":"full-delivery-material","scenario":scenario,"paired_revision":paired,"attempts":material_attempts}));
     ensure(material_status.success(), "full native delivery material refused")?;
-    ensure(material_attempts <= 90, "full delivery material exceeds admission budget")?;
+    ensure(material_attempts <= 60, "full delivery material exceeds admission budget")?;
     }
     for scenario in [
         "assembly-positive",

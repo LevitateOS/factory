@@ -2,6 +2,7 @@
 //! The transport owner is joined on retirement, including its TLS/HTTP drivers.
 mod automation_checks;
 mod delivery_opinions;
+mod delivery_discussion;
 mod automation_inputs;
 mod branch_create;
 mod capabilities;

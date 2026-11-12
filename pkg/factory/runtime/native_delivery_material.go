@@ -105,9 +105,11 @@ func (p NativeMerges) ReadDeliveryMaterialForMerge(ctx context.Context, publicat
 		bounded, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 		// Collection has no journal generation. All provider, source and
-		// account facts must match; only these local journal keys differ.
+		// account facts must match. Allocation adds journal keys; the opening
+		// native revision is independently matched by the closing input read.
 		bound := work
 		bound.MergeID, bound.OperationID, bound.AuthRevision = w.MergeID, w.OperationID, w.AuthRevision
+		bound.NativeRev = w.NativeRev
 		if bound != w {
 			return none, errNativeDeliveryMaterial
 		}
@@ -151,9 +153,15 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if err != nil {
 		return empty, err
 	}
-	beforeInput, err := p.ReadAcceptanceEvidence(bounded, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
-	if err != nil {
-		return empty, nativeDeliveryReadFailure(bounded, "accepted input", err)
+	// Merge admission already read the selected accepted sources. Its revision
+	// brackets this request's complete collection; the closing input read below
+	// must still match. Public material reads retain their own opening observation.
+	beforeInput := control.AcceptanceEvidence{Revision: w.NativeRev}
+	if capture == nil || w.NativeRev < 1 {
+		beforeInput, err = p.ReadAcceptanceEvidence(bounded, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
+		if err != nil {
+			return empty, nativeDeliveryReadFailure(bounded, "accepted input", err)
+		}
 	}
 	account, err := p.account(bounded, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
 	if err != nil {
@@ -162,16 +170,25 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if int64(account.binding.Actor.ID) != w.ActorID || policy.Merge.NativeConnection != account.binding.Connection.ID || policy.Merge.ActorID != w.ActorID {
 		return empty, errNativeDeliveryMaterial
 	}
-	first, err := nativeDeliveryDiscussion(bounded, nativeCollaborationReads{account}, w)
+	var first factory.DeliveryNativeMaterial
+	if account.binding.Host.Provider == collaboration.GitHub {
+		first, err = nativeGitHubDeliveryDiscussion(bounded, account, w)
+	} else {
+		first, err = nativeDeliveryDiscussion(bounded, nativeCollaborationReads{account}, w)
+	}
 	if err != nil {
 		return empty, nativeDeliveryReadFailure(bounded, "first discussion traversal", err)
 	}
-	second, err := nativeDeliveryDiscussion(bounded, nativeCollaborationReads{account}, w)
-	if err != nil {
-		return empty, nativeDeliveryReadFailure(bounded, "second discussion traversal", err)
-	}
-	if !reflect.DeepEqual(first, second) {
-		return empty, errNativeDeliveryMaterial
+	// GitHub's compound read pairs complete traversals inside the native
+	// credential/deadline owner. Other hosts retain their existing leaf bracket.
+	if account.binding.Host.Provider != collaboration.GitHub {
+		second, err := nativeDeliveryDiscussion(bounded, nativeCollaborationReads{account}, w)
+		if err != nil {
+			return empty, nativeDeliveryReadFailure(bounded, "second discussion traversal", err)
+		}
+		if !reflect.DeepEqual(first, second) {
+			return empty, errNativeDeliveryMaterial
+		}
 	}
 	var closingOpinions nativeReviewOpinions
 	after, err := p.observeProviderMergeWithOpinions(bounded, w, account, &closingOpinions)
@@ -229,6 +246,73 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 		return empty, errNativeDeliveryMaterial
 	}
 	return first, nil
+}
+
+// A compound native read returns the same page payloads consumed by the leaf
+// projectors. This request-local adapter avoids another connector traversal;
+// it is discarded before the independent closing permission/check observation.
+type nativeDiscussionProjection map[string]json.RawMessage
+
+func (p nativeDiscussionProjection) read(ctx context.Context, query nativeRead, body any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	key, err := json.Marshal(query)
+	if err != nil {
+		return errNativeRead
+	}
+	raw, found := p[string(key)]
+	if !found {
+		return errNativeRead
+	}
+	delete(p, string(key))
+	if nativeDecode(raw, body) != nil {
+		return errNativeRead
+	}
+	return ctx.Err()
+}
+
+func nativeGitHubDeliveryDiscussion(ctx context.Context, account *nativeProductAccount, w factory.MergeWork) (factory.DeliveryNativeMaterial, error) {
+	var empty factory.DeliveryNativeMaterial
+	var captured struct {
+		Pages []struct {
+			Query   nativeRead      `json:"query"`
+			Payload json.RawMessage `json:"payload"`
+		} `json:"pages"`
+	}
+	if err := account.read(ctx, nativeRead{Kind: "delivery_discussion", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber), Head: &w.HeadOID, Base: &w.BaseOID}, &captured); err != nil {
+		return empty, err
+	}
+	if len(captured.Pages) == 0 || len(captured.Pages) > 256 {
+		return empty, errNativeRead
+	}
+	projection := nativeDiscussionProjection{}
+	for _, page := range captured.Pages {
+		q := page.Query
+		if q.Repository != account.repository.ExternalID || q.Number != uint32(w.PRNumber) {
+			return empty, errNativeReadScope
+		}
+		switch q.Kind {
+		case "pull", "pull_comments", "pull_reviews", "pull_threads":
+		default:
+			return empty, errNativeRead
+		}
+		key, err := json.Marshal(q)
+		if err != nil || len(page.Payload) == 0 || projection[string(key)] != nil {
+			return empty, errNativeRead
+		}
+		projection[string(key)] = page.Payload
+	}
+	view := *account
+	view.discussion = &projection
+	material, err := nativeDeliveryDiscussion(ctx, nativeCollaborationReads{&view}, w)
+	if err != nil {
+		return empty, err
+	}
+	if len(projection) != 0 {
+		return empty, errNativeRead
+	}
+	return material, nil
 }
 
 // The aggregate bound includes catalogue entries and every nested member. A

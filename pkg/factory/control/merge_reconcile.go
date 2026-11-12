@@ -267,7 +267,7 @@ func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge,
 		return none, 0, false
 	}
 	revision := accepted.Revision
-	if err := c.authorizeCleanDeliveryMerge(ctx, m, p, revision, observe); err != nil {
+	if err := c.authorizeCleanDeliveryMerge(ctx, m, p, accepted, observe); err != nil {
 		c.mergeCallError(report, m.ID, err)
 		return none, 0, false
 	}

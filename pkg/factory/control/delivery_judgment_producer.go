@@ -120,7 +120,7 @@ func (c *Coordinator) advisePublicationDelivery(ctx context.Context, p factory.P
 	if err != nil {
 		return factory.DeliveryDecision{}, "", ErrDeliveryUnavailable
 	}
-	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel(), nil)
+	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel(), nil, nil)
 	if err != nil {
 		return factory.DeliveryDecision{}, "", err
 	}
@@ -253,7 +253,7 @@ func (c *Coordinator) reconcileDeliveryResolution(ctx context.Context, p *factor
 // currentFundedDeliveryAcceptance re-composes the same semantic evidence on
 // merge admission. Expected resolution effects may advance native revision;
 // any other change prevents reuse without another valid decision.
-func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication, observe *DeliveryMergeObservation) (_ *factory.DeliveryAcceptance, _ factory.DeliveryDecision, resultErr error) {
+func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication, observe *DeliveryMergeObservation, admitted *AcceptanceValidity) (_ *factory.DeliveryAcceptance, _ factory.DeliveryDecision, resultErr error) {
 	stage, fingerprint, started := "acceptance", "", time.Now()
 	defer func() {
 		if resultErr != nil && factory.ValidID(p.ID) {
@@ -274,7 +274,7 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 	}
 	stage = "material"
 	var paired DeliveryMergeObservation
-	material, cycle, policy, err := c.deliveryMaterial(ctx, p, basis.review, chooser.DeliveryModel(), &paired)
+	material, cycle, policy, err := c.deliveryMaterial(ctx, p, basis.review, chooser.DeliveryModel(), &paired, admitted)
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, err
 	}

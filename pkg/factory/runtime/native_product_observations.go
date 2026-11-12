@@ -150,6 +150,9 @@ func (b *nativeProductAccount) readScope(ctx context.Context, actor collaboratio
 	return ctx.Err()
 }
 func (b *nativeProductAccount) read(ctx context.Context, query nativeRead, body any) error {
+	if b.discussion != nil {
+		return b.discussion.read(ctx, query, body)
+	}
 	identity, err := b.port.read(ctx, query, body)
 	if err != nil {
 		return err
