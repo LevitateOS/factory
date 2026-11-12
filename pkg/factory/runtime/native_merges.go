@@ -547,5 +547,8 @@ func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeW
 		veto = veto || opinion.State == "changes_requested"
 	}
 	available := facts.Methods[w.Method] && facts.State == "open" && facts.Draft != nil && !*facts.Draft && facts.Merged != nil && !*facts.Merged && facts.Push != nil && *facts.Push && facts.Archived != nil && !*facts.Archived && facts.Disabled != nil && !*facts.Disabled
+	if factory.ValidID(w.PublicationID) && (!available || !complete || veto || caps.Actions[collaboration.MergePull].State != collaboration.Allowed || gate.StatusGate != "success" && gate.StatusGate != "not_required") {
+		log.Printf("native provider merge held publication=%q method_available=%t requirements_complete=%t human_veto=%t merge_capability_allowed=%t status_gate_passed=%t", w.PublicationID, available, complete, veto, caps.Actions[collaboration.MergePull].State == collaboration.Allowed, gate.StatusGate == "success" || gate.StatusGate == "not_required")
+	}
 	return factory.MergeObservation{Method: w.Method, MethodAvailable: available, Checks: checks, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent, ProviderComplete: complete, ProviderEligible: complete && !veto && caps.Actions[collaboration.MergePull].State == collaboration.Allowed && (gate.StatusGate == "success" || gate.StatusGate == "not_required")}, nil
 }
