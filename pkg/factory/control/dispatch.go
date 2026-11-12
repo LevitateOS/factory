@@ -279,6 +279,9 @@ func dispatchObservationReason(repository, issue int64, reason, detail string) D
 		stage = "host"
 	case "review_preparation_pending", "review_preparation_unavailable", "review_checks_pending", "review_allowance_exhausted", "review_allowance_unavailable", "child_cycle_unrecorded", "child_dispatch_inputs_changed", "child_assignment_unavailable", "child_assignment_unrecorded", "child_producer_cancelled", "issue_readiness_not_current", "candidate_preparation_retirement_pending", "delivery_judgment_required", "delivery_judgment_unavailable", "fork_correction_unavailable", "phase_not_admitted":
 		stage = "publication"
+	case PlanWaitEvidenceUnavailable, PlanWaitTasksIncomplete, PlanWaitFinalIntegration, PlanRefuseFinalIntegration, PlanRefuseTasksFailed, PlanRefuseEvidence, PlanRefuseUnchanged, PlanRefuseCandidate,
+		"authority_ineffective", "correction_refused", "correction_cycle_superseded", "correction_cycle_unknown", "candidate_superseded", "candidate_tuple_observation_required", "run_unlinked", "run_unsettled":
+		stage = "publication"
 	case "native_inputs_changed", "agent_review_pending", "review_evidence_mismatch", "authority_changed", "authority_lost", "accepted_inputs_unavailable", "accepted_inputs_changed",
 		"merge_authorization_expired", "merge_authorization_stale", "merge_judgment_unavailable", "funded_delivery_changed", "funded_delivery_unavailable", "clear_delivery_unavailable",
 		"provider_merge_requirements_pending", "native_merge_method_unavailable", "merge_not_admitted", "superseded_head", "superseded_base", "observation_invalid", "invalid_work",

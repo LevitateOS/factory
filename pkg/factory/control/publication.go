@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"log"
 	"reflect"
 	"time"
 
@@ -179,9 +180,15 @@ func (c *Coordinator) consumePublicationChildren(ctx context.Context, report *Pu
 		case project.RoleCoder:
 			correction := c.publishCorrectionChild(ctx, child)
 			for _, wait := range correction.Waits {
+				if factory.ValidID(wait.ID) {
+					log.Printf("publication correction wait id=%q reason=%q", wait.ID, dispatchObservationReason(0, 0, wait.Reason, "").Reason)
+				}
 				publicationWait(report, wait.ID, wait.Reason)
 			}
 			for _, failure := range correction.Errors {
+				if factory.ValidID(failure.ID) {
+					log.Printf("publication correction error id=%q reason=%q", failure.ID, dispatchObservationReason(0, 0, failure.Reason, "").Reason)
+				}
 				publicationError(report, failure.ID, failure.Reason)
 			}
 			for _, id := range correction.Fenced {
