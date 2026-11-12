@@ -678,10 +678,27 @@ sources still refuse (goal53-retired-source-pull-check.log). The existing single
 negative clock also bounds failed preparation reads, including ordinary reviews.
 Native54 SHA469ea36bdf3f8aa791c6540cce2c25e7abf84db2fe704b16d6b6a0dfef40c262,
 backend child-source-admission-server SHAf952505f194dfff180d76dca99cb43a63bc8e0784fc3e211e393e627693fc3b1
-and affected existing realPG request54-progress-pg.log pass. Next: exact-prior54,
-inspect original f473 retirement/expiry before any continuation. Preserve its
-first deadline,235-minute charge and the completed Architect/Inspector. No new
-model/role command has been issued; actual fork correction remains open.
+and affected existing realPG request54-progress-pg.log pass. Installed54 reaches
+Ready, then confirms original f473 stopped/retirement-confirmed with unchanged
+expired deadline; original publication6aac is fenced/revision6, allowance closed,
+235 minutes/zero active/unsettled. goal54-original-expired-preparation.json retains
+the exact state. Normal Quit54 retires soda/Muse processes and socket.
+**Current Q17 INCOMPLETE recovery:** existing fresh funding wrongly requires an
+initial Builder and drops the already committed external Inspector. The existing
+funding command now creates a fresh external owner linked to authenticated
+predecessor history, retaining the real Architect, original Inspector and spent
+counts. Current correction/retirement/retry and atomic packet admission use the
+original exact-head committed review, without copying or relabeling receipts.
+Backend external-continuation-server SHA08c4823750468a1f249c4f74a294bc3e2e16b0ffda31ebe654bcc73cf9c642d8
+and existing realPG request55-external-pg3.log pass. This proves controlled fresh
+Corrector admission, replay/no-renewal, source/head/base/unrelated-parent refusal
+and byte-identical old records/charges. Two earlier logs retain fixture errors
+(historical seed ordering and absent correct-phase manifest); no guard weakened.
+Native54/UI/provider inputs stay exact. No model/effect is running. Next: commit,
+exact-prior55 install and one explicit bounded continuation under standing
+permission. Preserve old f473/allowance/Architect/Inspector and every receipt;
+no old deadline or authority may be renewed. Remaining ordinary gates above stay
+open, including missing reference-complete payload retirement/profile coverage.
 
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits

@@ -608,12 +608,19 @@ func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factor
 		}
 		found := false
 		for _, source := range history {
-			if source.AssignmentID != prior.PublicationAssignment || source.Run != prior.Run {
+			if source.AssignmentID != prior.PublicationAssignment || prior.Phase != project.ExecutionReview && source.Run != prior.Run {
 				continue
 			}
 			retirementOwner, err = c.Store.Assignment(ctx, source.AssignmentID)
 			if err != nil {
 				return err
+			}
+			if prior.Phase == project.ExecutionReview {
+				op, ok := currentReviewOperation(source)
+				if !ok || !currentReviewOpReady(source, op) || op.RunID != prior.Run ||
+					!reviewerMatchesPublication(prior, source, retirementOwner) {
+					return errors.New("publication predecessor review differs")
+				}
 			}
 			retirementPublication, found = source, true
 			break
@@ -1091,6 +1098,7 @@ func currentReviewOpReady(p factory.Publication, op factory.ReviewOperation) boo
 func reviewerMatchesPublication(reviewer factory.Assignment, p factory.Publication, owner factory.Assignment) bool {
 	return reviewer.Validate() == nil && reviewer.Role == project.RoleReviewer &&
 		reviewer.PublicationAssignment == owner.ID && reviewer.AttemptRoot == owner.AttemptRoot &&
+		reviewer.ActorID == owner.ActorID &&
 		reviewer.SourceCommit == p.Candidate && reviewer.Repository == p.Repository &&
 		reviewer.Issue == p.Issue && reviewer.Acceptance == p.Acceptance &&
 		reviewer.Succeeded() &&
@@ -1099,21 +1107,21 @@ func reviewerMatchesPublication(reviewer factory.Assignment, p factory.Publicati
 
 func (c *Coordinator) currentReviewerForCorrection(ctx context.Context, p factory.Publication, owner factory.Assignment) (factory.Assignment, bool) {
 	var empty factory.Assignment
-	for i := len(p.ReviewOperations) - 1; i >= 0; i-- {
-		op := p.ReviewOperations[i]
-		if op.Work.HeadOID != p.Candidate {
-			continue
-		}
-		if !currentReviewOpReady(p, op) {
-			return empty, false
-		}
-		reviewer, err := c.Store.AssignmentByRun(ctx, op.RunID)
-		if err != nil || !reviewerMatchesPublication(reviewer, p, owner) {
-			return empty, false
-		}
-		return reviewer, true
+	source, op, found, err := currentReviewOperationSource(ctx, c.Store, p)
+	if err != nil || !found || !currentReviewOpReady(source, op) {
+		return empty, false
 	}
-	return empty, false
+	if source.ID != p.ID {
+		owner, err = c.Store.Assignment(ctx, source.AssignmentID)
+		if err != nil {
+			return empty, false
+		}
+	}
+	reviewer, err := c.Store.AssignmentByRun(ctx, op.RunID)
+	if err != nil || !reviewerMatchesPublication(reviewer, source, owner) {
+		return empty, false
+	}
+	return reviewer, true
 }
 
 // currentReviewReport returns only evidence whose native operation completed
@@ -1169,13 +1177,41 @@ func currentReviewOperation(p factory.Publication) (factory.ReviewOperation, boo
 	return factory.ReviewOperation{}, false
 }
 
+// Historical evidence is usable only through the Store's bounded, finished
+// funding chain. Operations remain on their original publication and cycle;
+// the newest current-head operation, including a refusal, prevents fallback.
+func currentReviewOperationSource(ctx context.Context, db *store.Store, p factory.Publication) (factory.Publication, factory.ReviewOperation, bool, error) {
+	if op, found := currentReviewOperation(p); found {
+		return p, op, true, nil
+	}
+	history, err := db.PublicationReviewHistory(ctx, p)
+	if err != nil {
+		return factory.Publication{}, factory.ReviewOperation{}, false, err
+	}
+	for i := len(history) - 1; i >= 0; i-- {
+		source := history[i]
+		before, after := source.PullTarget(), p.PullTarget()
+		before.HeadOID, after.HeadOID = p.Candidate, p.Candidate
+		if source.ID == p.ID || source.Candidate != p.Candidate || before != after {
+			continue
+		}
+		if op, found := currentReviewOperation(source); found {
+			return source, op, true, nil
+		}
+	}
+	return factory.Publication{}, factory.ReviewOperation{}, false, nil
+}
+
 func (c *Coordinator) currentReviewReport(ctx context.Context, p factory.Publication) (ResolvedReviewVerdict, bool, bool, bool) {
 	var empty ResolvedReviewVerdict
-	op, found := currentReviewOperation(p)
+	source, op, found, err := currentReviewOperationSource(ctx, c.Store, p)
+	if err != nil {
+		return empty, false, false, true
+	}
 	if !found {
 		return empty, false, false, false
 	}
-	settled, pending := currentReviewOpCurrent(p, op)
+	settled, pending := currentReviewOpCurrent(source, op)
 	if pending {
 		return empty, false, true, false
 	}
@@ -1183,10 +1219,10 @@ func (c *Coordinator) currentReviewReport(ctx context.Context, p factory.Publica
 		return empty, false, false, true
 	}
 	assignment, err := c.Store.AssignmentByRun(ctx, op.RunID)
-	if err != nil || !reviewAssignmentMatches(assignment, p) {
+	if err != nil || !reviewAssignmentMatches(assignment, source) {
 		return empty, false, false, true
 	}
-	return c.resolveCurrentReviewReport(ctx, p, op, assignment)
+	return c.resolveCurrentReviewReport(ctx, source, op, assignment)
 }
 
 // currentChildCheckAssessment accepts only the current policy's complete

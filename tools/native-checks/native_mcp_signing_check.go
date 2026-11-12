@@ -14139,7 +14139,7 @@ func externalPreparationFixture() error {
 	ref := func(kind string) factory.ActorBindingRef {
 		return factory.ActorBindingRef{NativeProfile: profile.ID, NativeConnection: account.ID, ActorID: int64(actor.ID), Kind: kind}
 	}
-	policy := factory.RepositoryPolicy{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), Enabled: true, AutomaticExternalPulls: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"declared/check"}, Roles: map[string]factory.RoleSelection{project.RoleCoder: selection, project.RoleReviewer: selection}, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+	policy := factory.RepositoryPolicy{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), Enabled: true, AutomaticExternalPulls: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"declared/check"}, Roles: map[string]factory.RoleSelection{project.RoleCoder: selection, project.RoleReviewer: selection}, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.AttemptLimits{ActiveMinutes: 15, ReviewRounds: 2, CorrectionCycles: 1, MaxChildren: 1}, ReassessmentMinutes: factory.DefaultReassessmentMinutes}
 	for _, err = range []error{
 		db.SaveRepositoryPolicy(ctx, policy),
 		db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
@@ -14594,6 +14594,9 @@ func externalPreparationFixture() error {
 	handoffRunNative.Provenance.WorktreeID = handoffOwner.Preparation
 	handoffRunNative.Intent, handoffRunNative.Provenance.BrokerRun = "", factory.NewID()
 	handoffRun := factory.Run{ID: handoffOwner.Run, ProjectID: handoffOwner.ProjectID, Role: handoffOwner.Role, InputSHA: handoffOwner.SourceCommit, Started: finishedRun.Started, Deadline: finishedRun.Deadline, Harness: handoffOwner.Harness, Model: handoffOwner.Model, Outcome: factory.Succeeded, Reconciled: true, Native: &handoffRunNative}
+	handoffAdmission, handoffLaunch := *finishedRun.Admission, *finishedRun.Admission.Native
+	handoffLaunch.Workspace, handoffLaunch.BrokerRun = *handoffSource.Native, handoffRunNative.Provenance.BrokerRun
+	handoffAdmission.Native, handoffRun.Admission = &handoffLaunch, &handoffAdmission
 	if err = handoffRun.Validate(); err != nil || !handoffRun.Native.Settled() {
 		return fmt.Errorf("declared external Architect retirement differs: %v", err)
 	}
@@ -14658,6 +14661,282 @@ func externalPreparationFixture() error {
 	if after, err := db.AttemptAllowance(ctx, handoffOwner.Repository, handoffOwner.Issue); err != nil || !reflect.DeepEqual(after, handoffAllowance) {
 		return errors.New("external source retirement changed existing review allocation or allowance")
 	}
+
+	// Continue the same fork history after a declared completed Inspector,
+	// a confirmed retired unlaunched correction and a closed finite allowance.
+	// Only the PostgreSQL admission is exercised; role/native/provider facts are
+	// declared inputs, not a second Architect, inference or provider send.
+	inspector := handoffOwner
+	inspector.ID, inspector.Run, inspector.Preparation = reviewerID, factory.NewID(), reviewerPrep.Preparation.ID
+	inspector.RunHistory = []string{inspector.Run}
+	inspector.AttemptRoot, inspector.PublicationAssignment, inspector.ParentAssignment = handoffOwner.ID, handoffOwner.ID, handoffOwner.ID
+	inspector.Phase, inspector.Role, inspector.SourceCommit, inspector.ExternalPlanning = project.ExecutionReview, project.RoleReviewer, handoffPublication.Candidate, nil
+	inspector.ReviewContext = &factory.CurrentReviewContext{External: handoffPublication.External, Publication: factory.CurrentPublicationContext{ID: handoffPublication.ID, AssignmentID: handoffOwner.ID}, AdmittedTuple: factory.CandidateTuple{Head: handoffPublication.Candidate, Base: base, DiffBase: base, Revision: 1}, Cycle: cycle}
+	finding := factory.Finding{Key: strings.Repeat("7", 32), OriginRun: inspector.Run, Severity: factory.FindingSeverityMajor, Actionable: true, FixKind: factory.FindingFixCode, Defect: "Declared fork fixture needs a bound", Evidence: "declared:fixture.txt", RequiredOutcome: "Add the missing bound"}
+	inspector.Result = &factory.AssignmentResult{AssignmentID: inspector.ID, RunID: inspector.Run, Status: "completed", Summary: "Declared committed Inspector findings", Reported: true, RecordedUnix: inspector.FinishedUnix, Phase: project.ExecutionReview, PhaseResult: &factory.PhaseResult{Version: factory.PhaseResultVersion, Phase: project.ExecutionReview, Status: "completed", Summary: "Declared committed Inspector findings", Output: &factory.PhaseOutput{Review: &factory.ReviewCycleReport{CycleID: cycle.ID, NewFindings: []factory.Finding{finding}}}}}
+	if err = inspector.Validate(); err != nil {
+		return fmt.Errorf("declared external Inspector: %w", err)
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,'finished',0,$5)`, inspector, inspector.ID, inspector.Repository, inspector.Issue, inspector.Run); err != nil {
+		return err
+	}
+	inspectorRun := handoffRun
+	inspectorRun.ID, inspectorRun.Role, inspectorRun.InputSHA = inspector.Run, inspector.Role, inspector.SourceCommit
+	inspectorNative := *handoffRun.Native
+	inspectorNative.Provenance.WorktreeID, inspectorNative.Provenance.BrokerRun = reviewerPrep.Native.WorktreeID, factory.NewID()
+	inspectorRun.Native = &inspectorNative
+	inspectorAdmission, inspectorLaunch := *handoffRun.Admission, *handoffRun.Admission.Native
+	inspectorLaunch.Workspace, inspectorLaunch.BrokerRun = *reviewerPrep.Native, inspectorNative.Provenance.BrokerRun
+	inspectorAdmission.Native, inspectorRun.Admission = &inspectorLaunch, &inspectorAdmission
+	if err = inspectorRun.Validate(); err != nil {
+		return fmt.Errorf("declared Inspector custody: %w", err)
+	}
+	if err = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, inspectorRun, inspectorRun.ID); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: inspectorRun.ID, Repository: inspector.Repository, Issue: inspector.Issue, Attempt: inspector.ID}); err != nil {
+		return err
+	}
+	for _, observedRun := range []factory.Run{handoffRun, inspectorRun} {
+		if err = db.RecordRunUsage(ctx, factory.Usage{RunID: observedRun.ID, Repository: handoffOwner.Repository, Connection: handoffOwner.Connection, Minutes: 1, StartedAt: observedRun.Started, EndedAt: time.Now()}); err != nil {
+			return err
+		}
+	}
+	if err = db.RecordCandidatePreparationStop(ctx, reviewerPrep.Preparation.ID, execution.PreparationState{ID: reviewerPrep.Preparation.ID, Project: grant.Project, Native: reviewerPrep.Native, Stopped: true, Retirement: "confirmed"}); err != nil {
+		return err
+	}
+	work := factory.ReviewWork{OperationID: "review-" + inspector.Run, AuthRevision: factory.ReviewAuthRevision(handoffOwner.ID, inspector.Run), Repository: inspector.Repository, HeadRepository: int64(fork.ID), ActorID: inspector.ActorID, PRNumber: handoffPublication.PRNumber, PRID: handoffPublication.PRID, IssueID: handoffPublication.PullTarget().IssueID, PRAuthorID: handoffPublication.PullTarget().AuthorID, HeadRef: handoffPublication.PullTarget().HeadRef, BaseRef: handoffPublication.PullTarget().BaseRef, HeadOID: handoffPublication.Candidate, BaseOID: base, Event: "COMMENT", AgentVerdict: "REQUEST_CHANGES", Body: "Declared genuine Inspector receipt", NativeRev: 1, NotAfter: time.Now().Add(time.Minute).Unix()}
+	handoffPublication.ReviewOperations = []factory.ReviewOperation{{RunID: inspector.Run, Work: work, Outcome: factory.OperationOutcome{OperationID: work.OperationID, InstallationID: "declared", Kind: factory.OpReviewSubmit, ActorID: work.ActorID, RepositoryID: work.Repository, Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, Receipt: []byte("declared committed Inspector COMMENT")}}}
+	oldCorrectorID := factory.NewID()
+	findingDigest, err := factory.FindingSetDigest([]string{finding.Key})
+	if err != nil {
+		return err
+	}
+	oldCorrectionCycle := cycle
+	oldCorrectionCycle.ID, oldCorrectionCycle.Phase = factory.ReviewCycleID(handoffPublication.ID, handoffOwner.ID, 1, "correct"), "correct"
+	oldCorrectionCycle.CorrectionAssignment, oldCorrectionCycle.FindingDigest = oldCorrectorID, findingDigest
+	handoffPublication.ReviewCycles = append(handoffPublication.ReviewCycles, oldCorrectionCycle)
+	if err = handoffPublication.Validate(); err != nil {
+		return err
+	}
+	if err = write(`UPDATE factory_publications SET data=$2 WHERE assignment=$1`, handoffPublication, handoffOwner.ID); err != nil {
+		return err
+	}
+	oldCorrectionPrep := execution.PreparationRecord{Preparation: handoffSource.Preparation}
+	oldCorrectionPrep.Preparation.ID, oldCorrectionPrep.Preparation.SourceCommit = factory.NativeCorrectionPreparationID(oldCorrectorID), handoffPublication.Candidate
+	oldCorrectionNative := handoffNative
+	oldCorrectionNative.WorktreeID = oldCorrectionPrep.Preparation.ID
+	oldCorrectionPrep.Native = &oldCorrectionNative
+	oldCorrectionRegistration := reviewerRegistration
+	oldCorrectionRegistration.ChildAssignment, oldCorrectionRegistration.SourcePull = oldCorrectorID, handoffPublication.PullSource()
+	if _, _, err = db.AdmitCandidatePreparation(ctx, oldCorrectionPrep, oldCorrectionRegistration); err != nil {
+		return fmt.Errorf("declared old unlaunched correction preparation: %w", err)
+	}
+	if err = db.RecordCandidatePreparationStop(ctx, oldCorrectionPrep.Preparation.ID, execution.PreparationState{ID: oldCorrectionPrep.Preparation.ID, Project: grant.Project, Native: oldCorrectionPrep.Native, Stopped: true, Retirement: "confirmed"}); err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE project_preparations SET data=jsonb_set(data,'{factory_admission,not_after_unix}',to_jsonb($2::bigint)) WHERE id=$1`, oldCorrectionPrep.Preparation.ID, time.Now().Add(-time.Second).Unix()); err != nil {
+		return err
+	}
+	if _, err = db.Assignment(ctx, oldCorrectorID); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("unlaunched correction acquired an assignment")
+	}
+	// Seed the unrelated Inspector before funding: historical records cannot
+	// become the newest assignment after a fresh owner has been admitted.
+	unrelated := inspector
+	unrelated.ID, unrelated.Run = factory.NewID(), factory.NewID()
+	unrelated.RunHistory = []string{unrelated.Run}
+	unrelatedContext := *inspector.ReviewContext
+	unrelatedContext.Cycle.Round, unrelatedContext.Cycle.ReviewerAssignment = 2, unrelated.ID
+	unrelatedContext.Cycle.ID = factory.ReviewCycleID(handoffPublication.ID, handoffOwner.ID, 2, "review")
+	unrelated.ReviewContext = &unrelatedContext
+	unrelatedFinding := finding
+	unrelatedFinding.OriginRun = unrelated.Run
+	unrelated.Result = &factory.AssignmentResult{AssignmentID: unrelated.ID, RunID: unrelated.Run, Status: "completed", Summary: "Declared unrelated historical Inspector", Reported: true, RecordedUnix: unrelated.FinishedUnix, Phase: project.ExecutionReview, PhaseResult: &factory.PhaseResult{Version: factory.PhaseResultVersion, Phase: project.ExecutionReview, Status: "completed", Summary: "Declared unrelated historical Inspector", Output: &factory.PhaseOutput{Review: &factory.ReviewCycleReport{CycleID: unrelatedContext.Cycle.ID, NewFindings: []factory.Finding{unrelatedFinding}}}}}
+	if err = unrelated.Validate(); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,'finished',0,$5)`, unrelated, unrelated.ID, unrelated.Repository, unrelated.Issue, unrelated.Run); err != nil {
+		return err
+	}
+	unrelatedRun := inspectorRun
+	unrelatedRun.ID = unrelated.Run
+	if err = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, unrelatedRun, unrelatedRun.ID); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: unrelated.Run, Repository: unrelated.Repository, Issue: unrelated.Issue, Attempt: unrelated.ID}); err != nil {
+		return err
+	}
+	if closed, err := db.CloseAttempt(ctx, handoffOwner.ID); err != nil || !closed {
+		return fmt.Errorf("close declared external allowance: %v", err)
+	}
+	closedAllowance, err := db.AttemptAllowance(ctx, handoffOwner.Repository, handoffOwner.Issue)
+	if err != nil {
+		return err
+	}
+	usageBefore, err := db.UsageTotal(ctx, handoffOwner.Repository, handoffOwner.Connection)
+	if err != nil || usageBefore != 2 {
+		return fmt.Errorf("declared original exact-source charge: %d %v", usageBefore, err)
+	}
+	type retainedRow struct{ table, key, id, before string }
+	originalRows := []retainedRow{
+		{"factory_assignments", "id", handoffOwner.ID, ""}, {"factory_assignments", "id", inspector.ID, ""},
+		{"factory_runs", "id", handoffRun.ID, ""}, {"factory_runs", "id", inspectorRun.ID, ""},
+		{"factory_assignments", "id", unrelated.ID, ""}, {"factory_runs", "id", unrelated.Run, ""},
+		{"factory_publications", "assignment", handoffOwner.ID, ""},
+		{"project_preparations", "id", handoffOwner.Preparation, ""}, {"project_preparations", "id", reviewerPrep.Preparation.ID, ""}, {"project_preparations", "id", oldCorrectionPrep.Preparation.ID, ""},
+		{"factory_attempt_allowances", "root_assignment", handoffOwner.ID, ""},
+		{"factory_usage", "run", handoffRun.ID, ""}, {"factory_usage", "run", inspectorRun.ID, ""},
+	}
+	for i := range originalRows {
+		row := &originalRows[i]
+		if err = raw.QueryRowContext(ctx, "SELECT data::text FROM "+row.table+" WHERE "+row.key+"=$1", row.id).Scan(&row.before); err != nil {
+			return err
+		}
+	}
+	originalCommand, err := db.FactoryCommand(ctx, command)
+	if err != nil {
+		return err
+	}
+	funding, err := db.RetainedCandidateFundingOffer(ctx, handoffPublication.ID)
+	if err != nil || !funding.CarryUnused || funding.PreviousRoot != handoffOwner.ID || funding.Connection != handoffOwner.Connection || funding.Requirements != requirement.ID || funding.Approval != approval.ID || funding.Acceptance != acceptance.ID {
+		return fmt.Errorf("completed external Architect/Inspector continuation offer: %+v %v", funding, err)
+	}
+	freshCommand := factory.NewID()
+	observed := *handoffPublication.External
+	observed.CommandID, observed.ForkConsent, observed.Automatic, observed.ObservedUnix = freshCommand, freshCommand, false, time.Now().Unix()
+	observed.ObservationRevision, err = db.ObserveNativeReview(ctx, handoffOwner.Repository, handoffPublication.PRNumber, observed.ObservationDigest)
+	if err != nil {
+		return err
+	}
+	for _, drift := range []string{"source", "head", "base"} {
+		changedFunding := funding
+		switch drift {
+		case "source":
+			changedFunding.Connection = factory.NewID()
+		case "head":
+			changedFunding.Candidate = strings.Repeat("1", 40)
+		case "base":
+			changedFunding.Base = strings.Repeat("2", 40)
+		}
+		changedCommand, changedOrigin := factory.NewID(), observed
+		changedOrigin.CommandID, changedOrigin.ForkConsent = changedCommand, changedCommand
+		if _, err = db.FundRetainedCandidateObserved(ctx, changedCommand, "declared-fork-continuation", changedFunding, &changedOrigin, time.Now()); err == nil {
+			return fmt.Errorf("changed %s funded an external continuation", drift)
+		}
+	}
+	receipt, err := db.FundRetainedCandidateObserved(ctx, freshCommand, "declared-fork-continuation", funding, &observed, time.Now())
+	if err != nil {
+		return fmt.Errorf("fresh external correction funding: %w", err)
+	}
+	freshOwner, err := db.Assignment(ctx, freshCommand)
+	if err != nil || freshOwner.ExternalPublication == nil || freshOwner.ExternalPublication.AdoptedFrom != handoffPublication.ID || freshOwner.ExternalPublication.PlanAssignment != handoffOwner.ID || freshOwner.Run != "" {
+		return fmt.Errorf("fresh external continuation fabricated execution provenance: %v", err)
+	}
+	freshPublication, err := db.PublicationByID(ctx, freshCommand)
+	if err != nil || freshPublication.Run != "" || len(freshPublication.ReviewCycles)+len(freshPublication.ReviewOperations) != 0 {
+		return fmt.Errorf("fresh continuation copied old cycles/receipts into its authority: %v", err)
+	}
+	freshAllowance, err := db.AttemptAllowance(ctx, handoffOwner.Repository, handoffOwner.Issue)
+	if err != nil || freshAllowance.RootAssignment != freshCommand || freshAllowance.Closed || freshAllowance.Limits != closedAllowance.Limits || freshAllowance.ActiveSeconds != closedAllowance.ActiveSeconds || !reflect.DeepEqual(freshAllowance.Reviews, closedAllowance.Reviews) || len(freshAllowance.Corrections) != 0 {
+		return fmt.Errorf("fresh external funding reset spent review or old charge: %+v %v", freshAllowance, err)
+	}
+	if replay, err := db.FundRetainedCandidateObserved(ctx, freshCommand, "declared-fork-continuation", funding, &observed, time.Now().Add(time.Hour)); err != nil || replay != receipt {
+		return fmt.Errorf("funding replay changed or renewed original authority: %v", err)
+	}
+	if after, err := db.Assignment(ctx, freshCommand); err != nil || !reflect.DeepEqual(after, freshOwner) {
+		return errors.New("funding replay renewed fresh owner authority")
+	}
+	if after, err := db.PublicationByID(ctx, freshCommand); err != nil || !reflect.DeepEqual(after, freshPublication) {
+		return errors.New("funding replay renewed fresh publication observation")
+	}
+	if after, err := db.AttemptAllowance(ctx, handoffOwner.Repository, handoffOwner.Issue); err != nil || !reflect.DeepEqual(after, freshAllowance) {
+		return errors.New("funding replay renewed the new finite allowance")
+	}
+	if _, err = db.AuthorizeCandidatePreparation(ctx, oldCorrectionPrep.Preparation.ID); err == nil {
+		return errors.New("fresh funding renewed expired retired correction authority")
+	}
+	corrector := offlineRoleAssignment(project.ExecutionCorrect, project.RoleCoder, freshPublication.Candidate)
+	corrector.AttemptRoot, corrector.PublicationAssignment, corrector.ParentAssignment = freshOwner.ID, freshOwner.ID, inspector.ID
+	corrector.Repository, corrector.Issue, corrector.ProjectID, corrector.ActorID = handoffOwner.Repository, handoffOwner.Issue, handoffOwner.ProjectID, handoffOwner.ActorID
+	corrector.Subject, corrector.Acceptance, corrector.Connection, corrector.Authority = handoffOwner.Subject, handoffOwner.Acceptance, handoffOwner.Connection, freshOwner.Authority
+	corrector.Preparation, corrector.Harness, corrector.HarnessVers, corrector.Model, corrector.NativeTool = factory.NativeCorrectionPreparationID(corrector.ID), handoffOwner.Harness, handoffOwner.HarnessVers, handoffOwner.Model, &tool
+	correctionCycle := oldCorrectionCycle
+	correctionCycle.PublicationID, correctionCycle.AttemptRoot, correctionCycle.CorrectionAssignment = freshPublication.ID, freshOwner.ID, corrector.ID
+	correctionCycle.ID = factory.ReviewCycleID(freshPublication.ID, freshOwner.ID, 1, "correct")
+	freshPublication.ReviewCycles = []factory.ReviewCycle{correctionCycle}
+	corrector.ReviewContext = &factory.CurrentReviewContext{External: freshPublication.External, Publication: factory.CurrentPublicationContext{ID: freshPublication.ID, AssignmentID: freshOwner.ID}, AdmittedTuple: factory.CandidateTuple{Head: freshPublication.Candidate, Base: base, DiffBase: base, Revision: 1}, Cycle: correctionCycle, CarriedFindings: []factory.Finding{finding}}
+	if err = freshPublication.Validate(); err != nil {
+		return err
+	}
+	if err = write(`UPDATE factory_publications SET data=$2 WHERE assignment=$1`, freshPublication, freshOwner.ID); err != nil {
+		return err
+	}
+	correctorPrep := execution.PreparationRecord{Preparation: oldCorrectionPrep.Preparation}
+	correctorPrep.Preparation.ID = corrector.Preparation
+	correctorNative := oldCorrectionNative
+	correctorNative.WorktreeID = corrector.Preparation
+	correctorPrep.Native = &correctorNative
+	correctorRegistration := oldCorrectionRegistration
+	correctorRegistration.OwnerAssignment, correctorRegistration.ChildAssignment, correctorRegistration.AttemptRoot, correctorRegistration.PublicationID = freshOwner.ID, corrector.ID, freshOwner.ID, freshPublication.ID
+	correctorRegistration.Authority, correctorRegistration.SourcePull, correctorRegistration.RequestedNotAfter = freshOwner.Authority, freshPublication.PullSource(), time.Now().Add(time.Minute).Unix()
+	if _, _, err = db.AdmitCandidatePreparation(ctx, correctorPrep, correctorRegistration); err != nil {
+		return fmt.Errorf("fresh external Corrector preparation: %w", err)
+	}
+	correctorPrep.State = execution.PreparationState{ID: corrector.Preparation, Project: corrector.ProjectID, Role: corrector.Role, SourceCommit: corrector.SourceCommit, SetupDigest: correctorPrep.Preparation.SetupDigest, Phase: project.PrepareReady, Ready: true, Native: correctorPrep.Native, SourceBundleSHA256: strings.Repeat("f", 64), SetupExit: &zero, CheckExit: &zero}
+	if err = db.ObservePreparation(ctx, correctorPrep); err != nil {
+		return err
+	}
+	correctorRun := factory.Run{ID: corrector.Run, ProjectID: corrector.ProjectID, Role: corrector.Role, InputSHA: corrector.SourceCommit, Started: time.Now(), Deadline: time.Now().Add(30 * time.Second), Harness: corrector.Harness, Model: corrector.Model, Native: &execution.NativeRecord{Tool: tool, BundleSHA256: correctorPrep.State.SourceBundleSHA256, PromptSHA256: corrector.PromptSHA, Retirement: execution.NotStarted, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: profile.ID, InstanceID: correctorNative.InstanceID, WorktreeID: correctorNative.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+
+	// Unlike the Architect, this correct phase requires the same singleton
+	// manifest envelope used by the existing controlled Fixer fixture.
+	correctionPlan := handoffPlan
+	correctionPlan.ID, correctionPlan.AttemptRoot, correctionPlan.Preparation = factory.NewID(), corrector.AttemptRoot, corrector.Preparation
+	correctionPlan.SourceCommit, correctionPlan.IntegrationCommit = corrector.SourceCommit, corrector.SourceCommit
+	correctionPlan.Tasks = []factory.PlanTask{{ID: "correct", Objective: finding.RequiredOutcome, Outputs: []string{"native-task.txt"}, AcceptanceRefs: correctionPlan.AcceptanceCoverage, Lane: "builder", OwnedPaths: []string{"native-task.txt"}, CheckIDs: []string{"integration"}}}
+	correctionPlan.Lanes = []factory.PlanLane{{ID: "builder", TaskIDs: []string{"correct"}}}
+	correctionPlan.Checks = []factory.CheckSpec{handoffPlan.Checks[len(handoffPlan.Checks)-1]}
+	correctionPlan.Digest, err = factory.PlanDigest(correctionPlan)
+	if err != nil {
+		return err
+	}
+	correctionPlanBytes, err := json.Marshal(correctionPlan)
+	if err != nil {
+		return err
+	}
+	correctorProfile := policy.Roles[corrector.Role].Profile
+	correctorRun.ExecutionManifest, err = project.MarshalExecutionManifest(project.ExecutionManifest{Plan: correctionPlanBytes, PlanDigest: project.PlanDigest(correctionPlanBytes), Invocation: correctorRun.Native.Provenance.BrokerRun, Phase: corrector.Phase, Run: corrector.Run, Deadline: correctorRun.Deadline, Effort: correctorProfile.Effort, Contributor: correctorProfile.Contributor, MaxChildren: 0})
+	if err != nil {
+		return err
+	}
+	correctorLaunch := execution.NativeLaunch{CredentialSHA256: strings.Repeat("a", 64), Workspace: correctorNative, Tool: tool, BundleSHA256: correctorPrep.State.SourceBundleSHA256, PromptSHA256: corrector.PromptSHA, Runtime: runtime.ID, PlacementGeneration: placement.Generation, TrustMode: correctorRun.Native.Provenance.TrustMode, BrokerRun: correctorRun.Native.Provenance.BrokerRun}
+	correctorReservation := factory.Reservation{AssignmentID: corrector.ID, Repository: corrector.Repository, Connection: corrector.Connection, State: factory.ReservationHeld, PlannedMinutes: 1}
+	correctorView := factory.RunView{RunID: corrector.Run, Repository: corrector.Repository, Issue: corrector.Issue, Attempt: corrector.ID}
+	unrelatedChild := corrector
+	unrelatedChild.ParentAssignment = unrelated.ID
+	if err = db.RecordNativeDispatchPacket(ctx, controlRow, unrelatedChild, correctorReservation, correctorRun, correctorView, correctorLaunch); err == nil {
+		return errors.New("unrelated historical Inspector admitted fresh Corrector")
+	}
+	if err = db.RecordNativeDispatchPacket(ctx, controlRow, corrector, correctorReservation, correctorRun, correctorView, correctorLaunch); err != nil {
+		return fmt.Errorf("original committed Inspector did not admit fresh Corrector: %w", err)
+	}
+	if admittedCorrector, err := db.Assignment(ctx, corrector.ID); err != nil || admittedCorrector.ParentAssignment != inspector.ID || admittedCorrector.AttemptRoot != freshCommand || admittedCorrector.Preparation == oldCorrectionPrep.Preparation.ID {
+		return errors.New("fresh Corrector replaced its original Inspector or reused retired preparation")
+	}
+	for _, row := range originalRows {
+		var after string
+		if err = raw.QueryRowContext(ctx, "SELECT data::text FROM "+row.table+" WHERE "+row.key+"=$1", row.id).Scan(&after); err != nil || after != row.before {
+			return fmt.Errorf("fresh Corrector changed original %s/%s: %v", row.table, row.id, err)
+		}
+	}
+	if after, err := db.FactoryCommand(ctx, command); err != nil || !reflect.DeepEqual(after, originalCommand) {
+		return errors.New("fresh correction changed original external command receipt")
+	}
+	if after, err := db.UsageTotal(ctx, handoffOwner.Repository, handoffOwner.Connection); err != nil || after != usageBefore {
+		return errors.New("fresh correction changed original settled exact-source charges")
+	}
+	fmt.Println("PASS: closed external Architect/committed Inspector history with a retired expired unlaunched correction admits one explicit same-source bounded continuation and fresh Corrector using the original Inspector; spent reviews/charges and old rows/deadlines/receipts remain exact, replay never renews authority, and changed source/head/base or unrelated historical parent refuse. Role/native/provider facts declared; no inference or host send.")
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
 	fmt.Println("PASS: ordinary startup discovery skips a retained automatic PR/head command before fresh offer/authority reads, while a changed head reaches a fresh offer; original assignment and publication remain unchanged. Discovery facts declared; no provider, model or native send.")

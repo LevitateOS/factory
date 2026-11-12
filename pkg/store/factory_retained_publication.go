@@ -347,34 +347,44 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	if err != nil {
 		return fail(err)
 	}
-	// Both ordinary and explicitly republished candidates use their original
-	// completed execution. Neither path may invent a candidate or a new run.
-	candidateRun := p.Run
-	if candidateRun == "" && a.RetainedPublication != nil {
-		candidateRun = a.RetainedPublication.Run
-	}
-	if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE run=$1`, candidateRun).Scan(&raw); err != nil {
-		return fail(err)
-	}
-	var candidate factory.Assignment
-	if json.Unmarshal(raw, &candidate) != nil || candidate.Validate() != nil || candidate.Role != project.RoleCoder || !candidate.Succeeded() || candidate.Result == nil || !candidate.Result.Reported || candidate.Result.Status != "completed" || candidate.Result.Candidate != p.Candidate || candidate.Repository != p.Repository || candidate.Issue != p.Issue || candidate.ProjectID != p.ProjectID || candidate.Acceptance != p.Acceptance || candidate.Connection != origin.Connection {
-		return fail(fmt.Errorf("%w: original candidate report changed", ErrRetainedPublicationIneligible))
-	}
 	history, err := publicationReviewHistory(ctx, tx, p)
 	if err != nil {
 		return fail(err)
 	}
-	// An explicitly republished original Builder keeps its original assignment;
-	// later corrected candidates must instead join their admitted review history.
-	boundCandidate := candidate.ID == origin.ID && origin.Run == candidateRun &&
-		origin.AttemptRoot == origin.ID && origin.PublicationAssignment == origin.ID
-	for _, source := range history {
-		if source.Run == candidateRun && source.Candidate == p.Candidate && candidate.AttemptRoot == source.AssignmentID && candidate.PublicationAssignment == source.AssignmentID {
-			boundCandidate = true
+	if p.External != nil && p.Run == "" {
+		// An adopted external head has real completed planning provenance, not
+		// a fabricated initial Builder result. A later correction still takes
+		// the ordinary candidate-run branch below.
+		if !origin.Succeeded() || origin.Phase != project.ExecutionInvestigate || origin.NativeTool == nil || origin.Result == nil ||
+			origin.Result.PhaseResult == nil || origin.Result.PhaseResult.Output == nil || origin.Result.PhaseResult.Output.Plan == nil || origin.Result.PhaseResult.Output.PlanReview == "" ||
+			origin.SourceCommit != p.PullTarget().BaseOID || p.External.Target.HeadOID != p.Candidate ||
+			origin.ExternalPlanning != nil && !reflect.DeepEqual(&origin.ExternalPlanning.Origin, history[0].External) {
+			return fail(fmt.Errorf("%w: external planning provenance changed", ErrRetainedPublicationIneligible))
 		}
-	}
-	if !boundCandidate || a.RetainedPublication != nil && p.Run == "" && (a.RetainedPublication.Run != candidateRun || a.RetainedPublication.Candidate != p.Candidate) {
-		return fail(ErrRetainedPublicationIneligible)
+	} else {
+		// Ordinary and corrected candidates retain their actual completed
+		// execution and exact admitted publication history.
+		candidateRun := p.Run
+		if candidateRun == "" && a.RetainedPublication != nil {
+			candidateRun = a.RetainedPublication.Run
+		}
+		if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE run=$1`, candidateRun).Scan(&raw); err != nil {
+			return fail(err)
+		}
+		var candidate factory.Assignment
+		if json.Unmarshal(raw, &candidate) != nil || candidate.Validate() != nil || candidate.Role != project.RoleCoder || !candidate.Succeeded() || candidate.Result == nil || !candidate.Result.Reported || candidate.Result.Status != "completed" || candidate.Result.Candidate != p.Candidate || candidate.Repository != p.Repository || candidate.Issue != p.Issue || candidate.ProjectID != p.ProjectID || candidate.Acceptance != p.Acceptance || candidate.Connection != origin.Connection {
+			return fail(fmt.Errorf("%w: original candidate report changed", ErrRetainedPublicationIneligible))
+		}
+		boundCandidate := candidate.ID == origin.ID && origin.Run == candidateRun &&
+			origin.AttemptRoot == origin.ID && origin.PublicationAssignment == origin.ID
+		for _, source := range history {
+			if source.Run == candidateRun && source.Candidate == p.Candidate && candidate.AttemptRoot == source.AssignmentID && candidate.PublicationAssignment == source.AssignmentID {
+				boundCandidate = true
+			}
+		}
+		if !boundCandidate || a.RetainedPublication != nil && p.Run == "" && (a.RetainedPublication.Run != candidateRun || a.RetainedPublication.Candidate != p.Candidate) {
+			return fail(ErrRetainedPublicationIneligible)
+		}
 	}
 	if p.Stage == factory.PublicationFenced {
 		if err := admitFreshRetainedReviewTx(ctx, tx, p, a); err != nil {
@@ -686,11 +696,27 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 }
 
 func retainedUnusedReviewBudgetTx(ctx context.Context, tx *sql.Tx, p factory.Publication, prior factory.AttemptAllowance, bounds factory.AttemptLimits) (bool, error) {
+	noEffects := len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0
+	committedInspection := false
+	if p.External != nil && p.Run == "" && len(prior.Corrections) == 0 &&
+		len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0 {
+		// A committed external inspection can hand its unchanged verdict to
+		// the fresh correction owner. Carry its spent review identity too.
+		if _, _, err := currentPublicationReviewTx(ctx, tx, p); err == nil {
+			noEffects = true
+			committedInspection = true
+		} else if !errors.Is(err, ErrAttemptRootMismatch) {
+			return false, err
+		}
+	}
 	eligible := len(prior.Reviews) > 0 && len(prior.Reviews) < prior.Limits.ReviewRounds &&
-		len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0 &&
+		noEffects &&
 		prior.Limits.ActiveMinutes <= bounds.ActiveMinutes && prior.Limits.ReviewRounds <= bounds.ReviewRounds && prior.Limits.CorrectionCycles <= bounds.CorrectionCycles
 	if !eligible {
 		return false, nil
+	}
+	if committedInspection {
+		return true, nil
 	}
 	// A reserved identity without an admitted reviewer packet did not launch.
 	// An incomplete admitted reviewer can hand off only its unused budget.
@@ -746,6 +772,8 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 			return p, a, ErrAdmissionChanged
 		}
 		p.External, p.Run = observed, ""
+		a.RetainedPublication = nil
+		a.ExternalPublication = &factory.ExternalPublicationOwner{PlanAssignment: origin.ID, Connection: origin.Connection, Origin: *observed, AdoptedFrom: prior.ID}
 		p.Publish, p.PRCreate = factory.PublicationOperation{Kind: factory.OpRefPublish}, factory.PublicationOperation{Kind: factory.OpPRCreate}
 		p.NativeRev, p.ObservedUnix, a.NativeRev = observed.ObservationRevision, observed.ObservedUnix, observed.ObservationRevision
 	} else if observed != nil {
@@ -773,6 +801,16 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 	return p, a, err
 }
 
+func retainedReviewPredecessor(owner factory.Assignment) (publication, connection string) {
+	if r := owner.RetainedPublication; r != nil {
+		return r.AdoptedFrom, r.Connection
+	}
+	if e := owner.ExternalPublication; e != nil {
+		return e.AdoptedFrom, e.Connection
+	}
+	return "", ""
+}
+
 func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, g admissionGrants) error {
 	var raw []byte
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, a.AttemptRoot).Scan(&raw); errors.Is(err, sql.ErrNoRows) {
@@ -784,15 +822,16 @@ func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 	if json.Unmarshal(raw, &root) != nil {
 		return ErrAdmissionChanged
 	}
-	if root.RetainedPublication == nil {
+	adoptedFrom, _ := retainedReviewPredecessor(root)
+	if root.RetainedPublication == nil && adoptedFrom == "" {
 		return nil
 	}
 	expectedPublication := root.ID
-	if root.RetainedPublication.AdoptedFrom != "" {
-		expectedPublication = root.RetainedPublication.AdoptedFrom
+	if adoptedFrom != "" {
+		expectedPublication = adoptedFrom
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT payload FROM factory_commands WHERE type=$1 AND target=$2 AND finished<>''
-		AND ($3='' OR id=$4)`, factory.CommandFundRetained, "publication/"+expectedPublication, root.RetainedPublication.AdoptedFrom, root.ID).Scan(&raw); err != nil {
+		AND ($3='' OR id=$4)`, factory.CommandFundRetained, "publication/"+expectedPublication, adoptedFrom, root.ID).Scan(&raw); err != nil {
 		return ErrAdmissionChanged
 	}
 	var f factory.RetainedCandidateFunding
@@ -802,7 +841,7 @@ func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 	if json.Unmarshal(raw, &f) != nil || f.Validate() != nil || f.Publication != expectedPublication || !f.MatchesSource(g.sponsorship) || f.Acceptance != a.Acceptance {
 		return ErrAdmissionChanged
 	}
-	if root.RetainedPublication.AdoptedFrom != "" {
+	if adoptedFrom != "" {
 		var previousRoot string
 		if err := tx.QueryRowContext(ctx, `SELECT assignment FROM factory_publications WHERE data->>'id'=$1`, expectedPublication).Scan(&previousRoot); err != nil || previousRoot != f.PreviousRoot {
 			return ErrAdmissionChanged
@@ -891,8 +930,8 @@ func publicationReviewHistory(ctx context.Context, q grantCommandSQL, p factory.
 			owner.Repository != p.Repository || owner.Issue != p.Issue || owner.ProjectID != p.ProjectID || owner.Acceptance != p.Acceptance {
 			return nil, ErrRetainedPublicationIneligible
 		}
-		r := owner.RetainedPublication
-		if len(history) > 1 && r != nil && len(p.ReviewCycles) > 0 &&
+		adoptedFrom, connection := retainedReviewPredecessor(owner)
+		if len(history) > 1 && (owner.RetainedPublication != nil || adoptedFrom != "") && len(p.ReviewCycles) > 0 &&
 			len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) == 0 {
 			// A later finished funding command admits this predecessor. Only a
 			// closed, never-launched retained root can have reserved cycles with
@@ -916,23 +955,23 @@ func publicationReviewHistory(ctx context.Context, q grantCommandSQL, p factory.
 				}
 			}
 		}
-		if r == nil || r.AdoptedFrom == "" {
+		if adoptedFrom == "" {
 			break
 		}
 		if err := q.QueryRowContext(ctx, `SELECT payload FROM factory_commands WHERE id=$1 AND type=$2 AND target=$3 AND finished<>''`,
-			owner.ID, factory.CommandFundRetained, "publication/"+r.AdoptedFrom).Scan(&raw); err != nil {
+			owner.ID, factory.CommandFundRetained, "publication/"+adoptedFrom).Scan(&raw); err != nil {
 			return nil, err
 		}
 		var funding factory.RetainedCandidateFunding
-		if json.Unmarshal(raw, &funding) != nil || funding.Validate() != nil || funding.Publication != r.AdoptedFrom ||
-			funding.Connection != r.Connection || funding.Candidate != p.InitialCandidate() || funding.Acceptance != p.Acceptance || funding.Base != p.PullTarget().BaseOID {
+		if json.Unmarshal(raw, &funding) != nil || funding.Validate() != nil || funding.Publication != adoptedFrom ||
+			funding.Connection != connection || funding.Candidate != p.InitialCandidate() || funding.Acceptance != p.Acceptance || funding.Base != p.PullTarget().BaseOID {
 			return nil, ErrRetainedPublicationIneligible
 		}
-		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1`, r.AdoptedFrom).Scan(&raw); err != nil {
+		if err := q.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1`, adoptedFrom).Scan(&raw); err != nil {
 			return nil, err
 		}
 		var parent factory.Publication
-		if json.Unmarshal(raw, &parent) != nil || parent.Validate() != nil || parent.ID != r.AdoptedFrom ||
+		if json.Unmarshal(raw, &parent) != nil || parent.Validate() != nil || parent.ID != adoptedFrom ||
 			parent.AssignmentID != funding.PreviousRoot || parent.Candidate != funding.Candidate ||
 			parent.Repository != p.Repository || parent.Issue != p.Issue || parent.ProjectID != p.ProjectID || parent.Acceptance != p.Acceptance ||
 			parent.PRNumber != p.PRNumber || parent.PRID != p.PRID || parent.TargetBranch != p.TargetBranch {
@@ -983,6 +1022,36 @@ func publicationReviewHistory(ctx context.Context, q grantCommandSQL, p factory.
 	}
 	slices.Reverse(history)
 	return history, nil
+}
+
+// currentPublicationReviewTx selects the newest exact-target committed review
+// across only the authenticated funding history. A newer pending or refused
+// operation holds; it never falls through to an older favorable report.
+func currentPublicationReviewTx(ctx context.Context, q grantCommandSQL, p factory.Publication) (factory.Publication, factory.ReviewOperation, error) {
+	history, err := publicationReviewHistory(ctx, q, p)
+	if err != nil {
+		return factory.Publication{}, factory.ReviewOperation{}, err
+	}
+	for i := len(history) - 1; i >= 0; i-- {
+		source := history[i]
+		before, after := source.PullTarget(), p.PullTarget()
+		before.HeadOID, after.HeadOID = p.Candidate, p.Candidate
+		if source.Candidate != p.Candidate || before != after {
+			continue
+		}
+		for j := len(source.ReviewOperations) - 1; j >= 0; j-- {
+			op := source.ReviewOperations[j]
+			if op.Work.HeadOID != p.Candidate {
+				continue
+			}
+			if op.Work.BaseOID != p.PullTarget().BaseOID || op.Outcome.NotObserved ||
+				op.Outcome.Effect != factory.OpEffectCommitted || op.Outcome.Completion != factory.OpCompletionComplete {
+				return factory.Publication{}, factory.ReviewOperation{}, ErrAttemptRootMismatch
+			}
+			return source, op, nil
+		}
+	}
+	return factory.Publication{}, factory.ReviewOperation{}, ErrAttemptRootMismatch
 }
 
 func retainedReviewHasAdmittedWork(ctx context.Context, q grantCommandSQL, root string) (bool, error) {

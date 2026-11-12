@@ -88,11 +88,15 @@ type ExternalPublicationOwner struct {
 	PlanAssignment string                    `json:"plan_assignment"`
 	Connection     string                    `json:"connection"`
 	Origin         ExternalPublicationOrigin `json:"origin"`
+	// AdoptedFrom admits only the prior publication's retained review history
+	// through this owner's finished, explicit funding command.
+	AdoptedFrom string `json:"adopted_from,omitempty"`
 }
 
 func (a Assignment) validateExternalPublicationOwner() error {
 	e := a.ExternalPublication
 	if e == nil || e.Origin.Validate(a.Repository) != nil || e.Origin.CommandID != a.ID || !ValidID(e.PlanAssignment) || e.PlanAssignment == a.ID ||
+		e.AdoptedFrom != "" && (!ValidID(e.AdoptedFrom) || e.AdoptedFrom == a.ID) ||
 		e.Connection == "" || len(e.Connection) > 128 || a.Authority.SponsorshipConnection != e.Connection || a.RetainedPublication != nil ||
 		!ValidID(a.ID) || a.AttemptRoot != a.ID || a.PublicationAssignment != a.ID || a.ParentAssignment != "" ||
 		a.Stage != AssignmentRetained || a.Revision != 0 || a.ActorID <= 0 || a.CreatedUnix < e.Origin.ObservedUnix ||

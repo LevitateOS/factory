@@ -1617,9 +1617,24 @@ bundle, approval and deadline checks; its extracted predicate check passes
 (goal53-retired-source-pull-check.log). The existing negative retry clock also
 covers preparation failures before repeated input/bundle reads. Native54 and
 backend builds plus existing realPG progress-gate pass (request54-progress-pg.log).
-Next: install54, inspect the original preparation's retirement/expiry, then
-resume only valid original authority or an explicit fresh bounded continuation.
-Never renew f473's first deadline or replay completed planning/review.
+Installed54 reaches Ready and confirms f473 stopped/retirement-confirmed with
+the unchanged expired deadline; publication6aac is fenced/revision6 and its
+allowance is closed. Usage235, zero active/unsettled runs. Original state is
+retained in goal54-original-expired-preparation.json. Normal Quit54 retires all
+soda/Muse processes/socket. **Active work remains Q17 INCOMPLETE:** extend the
+existing explicit funding/history path now retains genuine external Architect
+and Inspector provenance instead of requiring an initial Builder. A new owner
+and finite remaining budget link through the finished funding command; old
+review/cycle/operation ownership stays intact. Fresh correction admission and
+retry/retirement use that exact authenticated history. The backend build and
+existing realPG external-preparation check pass (request55-external-pg3.log):
+original Inspector→fresh Corrector, exact spent counts/old rows/receipts,
+idempotent funding and source/head/base/unrelated-parent refusal. Earlier logs
+retain two invalid declared-fixture seeds (chronology, missing manifest);
+production guards were preserved. Native54/UI/provider assets are unchanged.
+Next: exact-prior55 installation and one fresh bounded continuation under
+standing permission; actual connected correction remains unqualified.
+Never renew f473's deadline or replay completed planning/review.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

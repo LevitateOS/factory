@@ -860,9 +860,10 @@ func validReviewLineage(a, owner factory.Assignment) bool {
 
 // validCorrectLineage verifies one corrector child still binds its
 // publication owner and the reviewer that authored its verdict: the same
-// scope, root, acceptance and candidate, a single typed review verdict on
-// this head, and the owner's coder setup in a session distinct from the reviewer.
-func validCorrectLineage(a, owner, reviewer factory.Assignment) bool {
+// scope, acceptance and candidate, a single typed review verdict on this
+// head, and the owner's coder setup in a session distinct from the reviewer.
+// reviewOwner is selected through authenticated publication funding history.
+func validCorrectLineage(a, owner, reviewer, reviewOwner factory.Assignment) bool {
 	if !validPublicationChildOwner(a, owner) {
 		return false
 	}
@@ -872,7 +873,7 @@ func validCorrectLineage(a, owner, reviewer factory.Assignment) bool {
 	if !validCorrectVerdict(a, reviewer) {
 		return false
 	}
-	return correctScopeMatches(a, owner, reviewer)
+	return correctScopeMatches(a, owner, reviewer, reviewOwner)
 }
 
 // validCorrectReviewer verifies the reviewer behind one corrector
@@ -896,14 +897,15 @@ func validCorrectVerdict(a, reviewer factory.Assignment) bool {
 }
 
 // correctScopeMatches verifies one corrector child shares its scope,
-// root, acceptance, candidate and subject with its owner and reviewer
-// while retaining its admitted coder setup.
-func correctScopeMatches(a, owner, reviewer factory.Assignment) bool {
+// acceptance, candidate and subject with its owner and reviewer while
+// retaining its current coder setup and the reviewer's original owner.
+func correctScopeMatches(a, owner, reviewer, reviewOwner factory.Assignment) bool {
 	return a.Role == project.RoleCoder && a.Phase == project.ExecutionCorrect &&
 		reviewer.Repository == a.Repository && reviewer.Issue == a.Issue &&
 		reviewer.ProjectID == a.ProjectID && reviewer.Acceptance == a.Acceptance &&
-		reviewer.AttemptRoot == a.AttemptRoot &&
-		reviewer.PublicationAssignment == a.PublicationAssignment &&
+		reviewer.ActorID == a.ActorID &&
+		reviewer.AttemptRoot == reviewOwner.AttemptRoot &&
+		reviewer.PublicationAssignment == reviewOwner.ID &&
 		reviewer.SourceCommit == a.SourceCommit &&
 		correctSubjectMatches(a) &&
 		a.PublicationCoderPreparation(owner) && a.Preparation != reviewer.Preparation
@@ -914,22 +916,6 @@ func correctScopeMatches(a, owner, reviewer factory.Assignment) bool {
 func correctSubjectMatches(a factory.Assignment) bool {
 	return a.Subject.Kind == factory.SubjectIssue && a.Subject.Issue != nil &&
 		a.Subject.Issue.Issue == a.Issue && a.Subject.Issue.Acceptance == a.Acceptance
-}
-
-// newestCommittedCorrectionRunID returns the run behind the newest committed
-// review submission on one exact head and base.
-func newestCommittedCorrectionRunID(p factory.Publication, head, base string) (string, bool) {
-	for i := len(p.ReviewOperations) - 1; i >= 0; i-- {
-		op := p.ReviewOperations[i]
-		if op.Work.HeadOID != head || op.Work.BaseOID != base {
-			continue
-		}
-		if op.Outcome.Effect != factory.OpEffectCommitted || op.Outcome.Completion != factory.OpCompletionComplete {
-			return "", false
-		}
-		return op.RunID, true
-	}
-	return "", false
 }
 
 // retryPhasedPublicationChild relaunches one interrupted phased reviewer or
@@ -1028,13 +1014,21 @@ func resolvePhasedRetryLineage(ctx context.Context, deps DispatchDeps, a, owner 
 		return attemptLineage{phase: a.Phase, parent: owner.ID}, true
 	}
 	reviewer, err := deps.Store.Assignment(ctx, a.ParentAssignment)
-	if err != nil || !validCorrectLineage(a, owner, reviewer) {
+	if err != nil {
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "corrector lineage no longer holds", report)
 		return none, false
 	}
-	current, ok := newestCommittedCorrectionRunID(p, a.SourceCommit, p.PullTarget().BaseOID)
-	if !ok || current != reviewer.Run {
+	source, op, found, err := currentReviewOperationSource(ctx, deps.Store, p)
+	if err != nil || !found || !currentReviewOpReady(source, op) || op.RunID != reviewer.Run {
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "correction answers a superseded review", report)
+		return none, false
+	}
+	reviewOwner := owner
+	if source.ID != p.ID {
+		reviewOwner, err = deps.Store.Assignment(ctx, source.AssignmentID)
+	}
+	if err != nil || !reviewerMatchesPublication(reviewer, source, reviewOwner) || !validCorrectLineage(a, owner, reviewer, reviewOwner) {
+		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "corrector lineage no longer holds", report)
 		return none, false
 	}
 	return attemptLineage{phase: a.Phase, parent: reviewer.ID}, true

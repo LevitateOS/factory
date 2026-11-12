@@ -745,8 +745,7 @@ func checkCorrectionReviewerIdentity(parent, a factory.Assignment) error {
 func checkCorrectionReviewerScope(parent, a factory.Assignment) error {
 	if parent.Repository != a.Repository || parent.Issue != a.Issue ||
 		parent.ProjectID != a.ProjectID || parent.Acceptance != a.Acceptance ||
-		parent.AttemptRoot != a.AttemptRoot ||
-		parent.PublicationAssignment != a.PublicationAssignment ||
+		parent.ActorID != a.ActorID ||
 		parent.SourceCommit != a.SourceCommit {
 		return fmt.Errorf("%w: correction parent is not its current reviewer", ErrAttemptRootMismatch)
 	}
@@ -815,19 +814,28 @@ func admitCorrectionLineageTx(ctx context.Context, tx *sql.Tx, a factory.Assignm
 	if err = checkCorrectionPublication(publication, owner, a); err != nil {
 		return factory.Assignment{}, factory.Assignment{}, factory.Publication{}, err
 	}
+	if err = checkCorrectionReviewCurrencyTx(ctx, tx, publication, parent); err != nil {
+		return factory.Assignment{}, factory.Assignment{}, factory.Publication{}, err
+	}
 	return parent, owner, publication, nil
+}
+
+// Only the finished explicit funding chain can supply an older reviewer.
+// Its report and submitted operation remain owned by their original root.
+func checkCorrectionReviewCurrencyTx(ctx context.Context, tx *sql.Tx, publication factory.Publication, parent factory.Assignment) error {
+	source, op, err := currentPublicationReviewTx(ctx, tx, publication)
+	if err != nil {
+		return err
+	}
+	if op.RunID != parent.Run || parent.AttemptRoot != source.AssignmentID || parent.PublicationAssignment != source.AssignmentID {
+		return fmt.Errorf("%w: correction answers a superseded review", ErrAttemptRootMismatch)
+	}
+	return nil
 }
 
 func checkCorrectionCurrency(publication factory.Publication, parent, owner, a factory.Assignment) error {
 	if !correctionCycleBound(publication, a) {
 		return fmt.Errorf("%w: correction child answers an unrecorded cycle", ErrAttemptRootMismatch)
-	}
-	// Currency: the newest committed verdict on this exact head and base
-	// must be the parent's run. A superseded reviewer, a pending
-	// submission, or a correction that landed first all refuse.
-	current, ok := newestCommittedReviewRun(publication, a.SourceCommit, publication.PullTarget().BaseOID)
-	if !ok || current != parent.Run {
-		return fmt.Errorf("%w: correction answers a superseded review", ErrAttemptRootMismatch)
 	}
 	if !a.PublicationCoderPreparation(owner) {
 		return errors.New("correction must retain the publication coder preparation")
@@ -902,22 +910,6 @@ func childAllowanceRootExistsTx(ctx context.Context, tx *sql.Tx, a factory.Assig
 		return ErrAttemptRootMismatch
 	}
 	return nil
-}
-
-// newestCommittedReviewRun returns the run behind the newest committed
-// review submission on one exact head and base.
-func newestCommittedReviewRun(publication factory.Publication, head, base string) (string, bool) {
-	for i := len(publication.ReviewOperations) - 1; i >= 0; i-- {
-		op := publication.ReviewOperations[i]
-		if op.Work.HeadOID != head || op.Work.BaseOID != base {
-			continue
-		}
-		if op.Outcome.Effect != factory.OpEffectCommitted || op.Outcome.Completion != factory.OpCompletionComplete {
-			return "", false
-		}
-		return op.RunID, true
-	}
-	return "", false
 }
 
 func checkExpectedControlQueued(expected factory.IssueControl, repository, issue int64, acceptance string) error {

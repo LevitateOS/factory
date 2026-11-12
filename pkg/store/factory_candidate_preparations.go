@@ -594,11 +594,11 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 			if err = json.Unmarshal(publicationData, &publication); err != nil {
 				return empty, err
 			}
-			run, ok := newestCommittedReviewRun(publication, assignment.SourceCommit, publication.PullTarget().BaseOID)
-			if !ok || r.SourcePull == nil && (r.SourceRun == nil || r.SourceRun.ID != publication.Run || r.SourceRun.Candidate != publication.Candidate) {
+			_, review, err := currentPublicationReviewTx(ctx, tx, publication)
+			if err != nil || r.SourcePull == nil && (r.SourceRun == nil || r.SourceRun.ID != publication.Run || r.SourceRun.Candidate != publication.Candidate) {
 				return empty, ErrAttemptRootMismatch
 			}
-			if err = tx.QueryRowContext(ctx, `SELECT id FROM factory_assignments WHERE run=$1`, run).Scan(&assignment.ParentAssignment); err != nil {
+			if err = tx.QueryRowContext(ctx, `SELECT id FROM factory_assignments WHERE run=$1`, review.RunID).Scan(&assignment.ParentAssignment); err != nil {
 				return empty, err
 			}
 			if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, r.OwnerAssignment).Scan(&ownerData); err != nil {
