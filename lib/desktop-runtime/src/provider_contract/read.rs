@@ -328,6 +328,18 @@ pub(crate) fn branch_name(value: &str) -> bool {
             .all(|p| !p.is_empty() && !p.starts_with('.') && !p.ends_with(".lock"))
 }
 impl Read {
+    pub fn request_limit(&self) -> usize {
+        match self {
+            Self::InlinePreparation { .. } => 64 * 1024,
+            _ => 8192,
+        }
+    }
+    pub fn reply_limit(&self) -> usize {
+        match self {
+            Self::SourceBundle { .. } => soda_execution_protocol::MAX_PREPARATION_REQUEST,
+            _ => 2 * 1024 * 1024,
+        }
+    }
     pub fn kind(&self) -> String {
         self.value()["kind"]
             .as_str()
@@ -738,7 +750,14 @@ pub(crate) fn repository_name(name: &str) -> bool {
 }
 
 impl Read {
-    pub fn observation(&self, mut value: Value, version: u8) -> Result<Value> {
+    pub fn observation(&self, value: Value, version: u8) -> Result<Value> {
+        let observation = self.encode_observation(value, version)?;
+        if serde_json::to_vec(&observation).map_or(true, |body| body.len() > self.reply_limit()) {
+            return Err(Failure::new(413, "native_observation_too_large"));
+        }
+        Ok(observation)
+    }
+    fn encode_observation(&self, mut value: Value, version: u8) -> Result<Value> {
         if version == 0 {
             return Ok(value);
         }

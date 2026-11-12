@@ -912,6 +912,16 @@ fn source_bundle_contract() -> Result<(), Box<dyn std::error::Error>> {
         return Err("legacy fork delta source changed its request contract".into());
     }
     let read: Read = serde_json::from_value(full.clone())?;
+    if read.request_limit() != 8192 || read.reply_limit() != soda_execution_protocol::MAX_PREPARATION_REQUEST {
+        return Err("source envelope limits changed".into());
+    }
+    let inline: Read = serde_json::from_value(serde_json::json!({"kind":"inline_preparation","repository":"123","number":7,"anchor":{"base":"a".repeat(40),"head":"b".repeat(40),"path":"file","side":"new","scope":"file","start_line":0,"end_line":0}}))?;
+    inline.validate()?;
+    if inline.request_limit() != 64*1024 || inline.reply_limit() != 2*1024*1024 {
+        return Err("inline envelope limits changed".into());
+    }
+    let oversized=serde_json::json!({"kind":"inline_preparation","account":{"external_id":"123","login":"fixture"},"preparation":{"body":"x".repeat(2*1024*1024)}});
+    if inline.observation(oversized,1).is_ok() { return Err("native read encoder exceeded its declared response class".into()); }
     let captured = serde_json::json!({"kind":"source_bundle","account":{"external_id":"123","login":"fixture"},"publication":{"repository":"123"}});
     if read.kind() != "source_bundle" || read.payload_field() != Some("publication") || read.observation(captured.clone(),0)? != captured { return Err("known prior observation changed".into()); }
     let versioned = read.observation(captured.clone(),1)?;

@@ -345,7 +345,7 @@ nominal Go RPC accounting is not a wire-volume bound.
 
 Audit baseline: **20 hidden links, 7 needless links, 2 surplus pieces and
 24 special cases** (53 entries). Stable IDs P01–P53 follow the original audit
-order. Each original entry appears exactly once below:42 under F1–F8 and11 under
+order. Each original entry appears exactly once below:40 under F1–F8 and13 under
 Leave as is. Their locations describe the audited source, not completed changes.
 
 ### Requirements revealed by all24 special cases
@@ -354,7 +354,7 @@ Leave as is. Their locations describe the audited source, not completed changes.
 |---|---|---|
 | P30 | Reviewer addition/removal use the provider's distinct supported APIs and actor payloads | Leave as is |
 | P31 | Verify the resulting merge commit separately from the reviewed candidate under the captured API contract | Leave as is |
-| P32 | Provider-specific command authority/fields must not become accepted peer-provider input | F1 |
+| P32 | Provider-specific command authority/fields must not become accepted peer-provider input | Leave as is |
 | P33 | Concealed protection is unknown, never proof of no required policy | Leave as is |
 | P34 | CI must prove the actual app/run and evaluated test-merge commit, with bounded distinct-run resolution | F2 |
 | P35 | Conservative uncertain-send classification and original causal identity survive transport refusal | Leave as is |
@@ -379,9 +379,10 @@ Leave as is. Their locations describe the audited source, not completed changes.
 
 ## Fixes
 
-Phase 2 design, **not implemented or runtime-verified**. The owner reviewed the
+Adopted phase2 design; implementation status and scoped checks are in Progress.
+The owner reviewed the
 proposed fixes and replied “No additional constraints.” This is the agreed
-design handoff; implementation and verification remain the next phase. No optional comment/test cleanup is included. Source baseline remains
+design handoff; phase3 is now executing it. No optional comment/test cleanup is included. Source baseline remains
 9482c81; 6076304 added the audit only, so the existing skeleton/import/history
 views were reused and checked against the current defining modules.
 
@@ -396,7 +397,7 @@ they need not wait for Fountain installation or connected GitHub qualification.
 
 | Fix | One-line outcome | Entries | Depends on |
 |---|---|---:|---|
-| F1 | Put shared connector contracts below both providers | 8 | None |
+| F1 | Put shared connector contracts below both providers | 6 | None |
 | F2 | Make one operation own observation boundaries and actual send cost | 10 | F1 |
 | F3 | Page selected collections without repeating whole preparations | 6 | F2 |
 | F4 | Resume inventory work within an honest provider budget | 5 | F2 |
@@ -404,7 +405,7 @@ they need not wait for Fountain installation or connected GitHub qualification.
 | F6 | Let the Fountain connection own consent, admission and grant watching | 4 | None |
 | F7 | Remove native Fountain egress with no consumers | 1 | None |
 | F8 | Journal feedback delivery and bound legacy receipt searches | 1 | None |
-| Leave as is | Preserve necessary protocol, recovery and auxiliary boundaries | 11 | — |
+| Leave as is | Preserve necessary protocol, recovery and auxiliary boundaries | 13 | — |
 
 ### F1 — Put shared connector contracts below both providers
 
@@ -429,8 +430,9 @@ envelope nor a descriptor grants execution or provider permissions.
 Do not reserialize captured commands or change their digest interpretation.
 Preserve exact old encodings through the existing known-version decoder; unknown
 versions remain unavailable. Current schema or target state never gives a
-historical command new authority. Shared DTOs exclude provider-only fields rather
-than making GitHub reject Fountain extensions after accepting a generic shape.
+historical command new authority. Legacy flat mutation DTOs retain their exact
+fields and provider-specific admission fences; do not add a second mutation
+protocol merely to remove those compatibility checks (P17/P32 below).
 
 **Done when:** Fountain no longer imports semantic contracts from the GitHub
 implementation; adding a shared read has one native metadata owner and one
@@ -441,9 +443,7 @@ agree; retained hashes/receipts and known-prior decoding remain unchanged.
 - [hidden] **P01** `gp/reads.rs:25` and `gp/transport.rs:363` manually share semantic diagnostic names; additions can fall into `other` without exposing the new read kind.
 - [hidden] **P08** `rt/native_product_observations.go:148,204`, semantic emitters and Rust read enum manually share operation-kind vocabulary across IPC dispatch.
 - [hidden] **P16** `gp/git_fetch.rs:54,75,80` and `fp/product.rs:235,244,249` independently own four fixed setup filenames and their union with up to64 selected paths (`gp/request.rs:386`), so setup vocabulary changes alter both provider network plans.
-- [hidden] **P17** `fp/issues.rs:33,197` and `rt/native_fountain_issues.go:35,61` independently encode issue-operation receipt/protocol assumptions across callback boundary.
 - [needless] **P27** `fp/product.rs:4`, `fp/publication.rs:7`, `fp/issues.rs:4` import shared semantic types/outcomes from GitHub implementation namespace, binding providers that change for different reasons.
-- [special] **P32** `gp/merges.rs:278` and `gp/git_publish.rs:236` reject Fountain-only fields in shared operation structures; provider vocabulary leaks into peer validation.
 - [special] **P38** `rt/native_collaboration.go:275` selects16s IPC budgets for three read kinds versus9s ordinarily; deadline names must track native selectors.
 - [special] **P39** `rt/native_collaboration.go:305` gives source bundles separate size handling; inline-preparation has its own bounded envelope at `:262`.
 
@@ -723,11 +723,13 @@ a second durable state machine or F6's watch service.
 
 ### Leave as is
 
-These11 entries are real requirements or deliberately separate traffic owners.
+These13 entries are real requirements or deliberately separate traffic owners.
 They remain visible acceptance constraints for the refactor; leaving them does
 not mean the product is verified. No broad retry policy or generic transport
 will erase the distinctions.
 
+- [hidden] **P17** `fp/issues.rs:33,197` and `rt/native_fountain_issues.go:35,61` independently encode issue-operation receipt/protocol assumptions across callback boundary. **Reason:** This is a real cross-language trust boundary: Rust validates host effect/provenance while Go validates the captured canonical intent and receipt. Keep the frozen explicit binding and independent checks; a second write/receipt protocol solely to remove five literals adds migration risk without reducing calls.
+- [special] **P32** `gp/merges.rs:278` and `gp/git_publish.rs:236` reject Fountain-only fields in shared operation structures; provider vocabulary leaks into peer validation. **Reason:** Known-prior flat mutation captures must retain their original bytes and provider-only fields. Preserve the fail-closed provider fence before admission; the new read envelope does not authorize rewriting historical mutation captures.
 - [special] **P30** `gp/review_request_effect.rs:133,136` must add reviewers through GraphQL and remove through REST with distinct actor payloads. **Reason:** GitHub's supported add/remove reviewer APIs genuinely differ; hide the difference inside its connector, with no transport unification.
 - [special] **P31** `gp/merges.rs:91` and `gp/mod.rs:76` bind result verification to an API-version-dependent GraphQL merged-commit convention. **Reason:** Keep exact reviewed-candidate versus resulting-commit verification under the configured API version; no evidence supports removing it.
 - [special] **P33** `gp/evidence.rs:208` and `gp/protection.rs:43` preserve403/404 as unknown protection evidence rather than absence; authority concealment must remain fail-closed. **Reason:** Concealed/unknown protection must stay unknown and block unsupported merge behavior.
@@ -790,26 +792,23 @@ builds, apps or provider requests in this design phase.
   Next phase: untangle-refactor, beginning F1/F2 or an explicitly independent
   ready fix; preserve original receipts and prove wire counts locally first.
 
-- Phase3 ACTIVE / F1 INCOMPLETE on main, starting55cbcce. Verified checkpoint:
-  shared native selector/command DTOs, validation and outcomes moved below both
-  providers; setup vocabulary unified; semantic read names derive from the
-  serialized selector; opted-in version1 read envelopes use one payload, with
-  frozen known-prior decoding. Captured mutation JSON/digests stay unchanged.
-  Unknown/mixed envelopes refuse; native unknown-version validation precedes
-  dispatch. Writes retain9s outer timeout; reads share16s without selector lists.
-  Baseline backend/harness builds, native Rust check and both realPG cases pass
-  in fresh pg3/pg4 profiles. F1 runtime/native-check compile, existing native
-  source-bundle-contract check, and affected realPG progress/external checks pass
-  (pg5/pg6). Independent review found workflow/diff field mismatches; corrected
-  mappings and catalogue projection are covered by the existing contract check;
-  final reviewer found no further checkpoint regression. Runtime has no new
-  warnings; the check binary's pre-existing unused local-field warning remains.
-  Evidence/builds: /home/vince/Projects/factory-provider-audit-20261112/refactor/
-  (baseline-*-socket.log, f1-rust-final.log, f1-native-contract.log,
-  f1-progress-pg.log, f1-external-pg.log). Earlier pg1/pg2 profiles retain the
-  sandbox-only socket failures; no original profile was changed.
-  F1 remaining: issue-receipt protocol binding (P17), provider-specific mutation
-  extension binding (P32), review envelope-limit ownership (P39). F2–F8 pending;
-  no fix is marked complete. No running checks, apps, uncertain remote effects
-  or inference. Next executable action: finish these F1 bindings under preserved
-  prior encodings, then qualify the defining fix and continue operation budgets.
+- Phase3 ACTIVE, F1 COMPLETE in two checkpoints (core c7a417d plus current
+  envelope-limit change). Shared native DTOs/validation/outcomes are below both
+  providers; setup vocabulary and read limits have defining contract owners.
+  Semantic names derive from serde tags. Version1 uses one payload; known prior
+  read shapes and all captured mutation bytes/digests remain intact. Unknown
+  versions, mixed payloads and excess native response size refuse.
+  Baseline backend/harness and native compile plus progress/external realPG
+  cases pass in fresh pg3/pg4 profiles. Core checks: f1-rust-final.log,
+  f1-native-contract.log, f1-progress-pg.log (legacy/v1/future/mixed and closing
+  withdrawal), f1-external-pg.log. Limit bindings: f1-limits-build.log,
+  f1-limits-go.log, f1-limits-contract-final.log (actual encoder refuses oversized payload),
+  f1-limits-build-final.log. All under
+  /home/vince/Projects/factory-provider-audit-20261112/refactor/.
+  Independent review caught two field mappings, corrected and added to the
+  existing check; final source recheck found no further checkpoint issue.
+  Plan refinement: retain P17/P32 as required legacy receipt/provider boundaries;
+  removing those mappings/fences would change captured write semantics for no
+  request reduction. 40 entries remain assigned to fixes,13 retained with reasons.
+  F2–F8 pending. No live provider/model effects; original profiles and uncertain
+  outcomes untouched. No running checks. Next: implement F2 observation ownership and actual send accounting.

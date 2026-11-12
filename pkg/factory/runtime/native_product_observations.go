@@ -12,6 +12,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 var errNativeRead = errors.New("native collaboration observation unavailable")
@@ -54,6 +55,18 @@ type nativeRead struct {
 	Attempt              string                      `json:"attempt,omitempty"`
 	RunPage              uint32                      `json:"run_page,omitempty"`
 }
+
+func (q nativeRead) envelopeLimits() (int, int) {
+	request, response := 8192, 2<<20
+	if q.Kind == "inline_preparation" {
+		request = 64 << 10
+	}
+	if q.Kind == "source_bundle" {
+		response = project.MaxSourceWire
+	}
+	return request, response
+}
+
 type nativeReadEffect struct {
 	Version uint8      `json:"version"`
 	Kind    string     `json:"kind"`

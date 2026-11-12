@@ -1393,7 +1393,7 @@ async fn dispatch(
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
     let effect = Operation::from(call.call);
     let descriptor_limit = match &effect {
-        Operation::Read(Read::InlinePreparation { .. }, _) => 64 * 1024,
+        Operation::Read(query, _) => query.request_limit(),
         _ => 8192,
     };
     if !matches!(
