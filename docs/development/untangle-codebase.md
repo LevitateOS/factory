@@ -931,6 +931,21 @@ three-phase controlled-role/restart/WAL checks pass (`request70-*`), with no
 provider/model calls. Matching installed qualification and original causal
 no-send recovery remain next; preserve original deadline/receipt/charge and do
 not replay inference. Full GitHub goal remains INCOMPLETE.
+Actual installed70/sourcefeaac61 passes exact-prior69 upgrade/integrity/Ready with
+original profile/budget/UI/helpers preserved. At10:25:28Z its real cancellation
+owner captures human commandcaee4a0abd8dd9481ec6601e2844362d before preparation,
+then settles its unclaimed journal complete/not_committed/cancelled with
+cancelled_before_dispatch. Original31019ff6 withdraws revision6 with unchanged
+intent/paid generation/deadline; status proves0 wire/semantic reads and the exact
+734/3d348082 allowance remains245 minutes with0 active/unsettled runs. Quit's
+lost reply resolves through complete process/socket retirement. Exact evidence:
+package70-*, native70-inputs.json, goal70-expired-merge-recovery.json outside Git.
+No app/guard/check/model remains. Compound connected counts/full fork merge remain
+INCOMPLETE. Preserve372 original debits; all expire11:01:12Z on2026-11-12. Next
+after11:02Z: one installed70 launch/account/fixture selection, fresh normal Work-UI
+confirmed-no-send preparation and one bounded original-candidate journey. No old
+authority renewal or inference replay. Source withdrawal/provider-side revocation
+keep their independent remaining gates.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;

@@ -1907,6 +1907,26 @@ qualification. Next: install matching native/backend assets once, recover the
 original operation through its causal cancellation owner before any fresh merge
 preparation, then measure the bounded connected path. Never renew its old deadline
 or replay the paid decision. Installed withdrawal/user-side revocation remain open.
+Installed70/sourcefeaac61effd6006ddc1a3d6016347e51856cca28 passes exact-prior69
+upgrade, full inventory integrity and Ready with original UI/helpers/profile and
+budget bytes preserved. At10:25:28Z its real cancellation owner records human
+command `caee4a0abd8dd9481ec6601e2844362d` as unclaimed, complete/not_committed/
+cancelled, reason cancelled_before_dispatch, with cancelled_before_preparation
+capture. Original merge31019ff6 withdraws revision6 with unchanged work, paid
+generation and10:05:31Z deadline. This is causal no-send evidence. Status proves
+0 wire/semantic reads; repository734/source3d348082 remains245 charged minutes
+with0 active/unsettled runs. Quit action goal70-local-recovery-stop-1 loses its
+reply; complete process/socket retirement resolves it. Exact inputs/readbacks:
+`package70-*`, `native70-inputs.json`, `goal70-expired-merge-recovery.json` outside
+Git. **Recovery, INCOMPLETE:** no app, guard, check, model or uncertain new effect
+remains running; no owned edits after commit. Compound connected request counts/
+full fork merge remain unverified. Preserve all372 original debits rather than
+run another partial pass against only228 remaining requests. All debits expire
+11:01:12Z (12:01:12 Brussels) on2026-11-12. Next after11:02Z: launch installed70
+once, select the retained account/fixture once, recover fresh confirmed-no-send
+merge preparation through the normal Work UI, then measure one bounded journey.
+Use a new explicit command/generation; never renew original authority or repeat
+the paid ready decision. Source withdrawal/provider-side revocation remain open.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation
