@@ -17,8 +17,14 @@ import (
 // an older pass. Missing evidence and blocking reviews wait for a later
 // pass; permanently refused or misidentified candidates fail. The bound
 // intent is persisted before any submit.
-func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Publication, m *factory.Merge, work factory.MergeWork, policy factory.RepositoryPolicy, revision int64, report *MergeReport) bool {
-	observation, err := c.Merges.ObserveMerge(ctx, work)
+func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Publication, m *factory.Merge, work factory.MergeWork, policy factory.RepositoryPolicy, revision int64, report *MergeReport, observe DeliveryMergeObservation) bool {
+	var observation factory.MergeObservation
+	var err error
+	if observe != nil {
+		observation, err = observe(work)
+	} else {
+		observation, err = c.Merges.ObserveMerge(ctx, work)
+	}
 	if err != nil {
 		var refused *factory.PublicationRefusal
 		// A blocking independent review leaves the shared attempt open

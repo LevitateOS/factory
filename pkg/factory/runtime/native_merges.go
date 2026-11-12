@@ -129,6 +129,10 @@ func (p NativeMerges) LookupOp(ctx context.Context, id string) (factory.Operatio
 }
 
 func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (factory.MergeObservation, error) {
+	return p.observeMerge(ctx, w, p.observeProviderMerge)
+}
+
+func (p NativeMerges) observeMerge(ctx context.Context, w factory.MergeWork, provider func(context.Context, factory.MergeWork, *nativeProductAccount) (factory.MergeObservation, error)) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
 	fail := func(stage string, cause error) (factory.MergeObservation, error) {
 		class, code, status := "owner", "", 0
@@ -209,7 +213,7 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	if len(reviews.Items) != 1 || reviews.Items[0].Pull.ExternalID != strconv.FormatInt(w.PRID, 10) || int64(reviews.Items[0].Author.ID) != w.ReviewerID || reviews.Items[0].Commit != collaboration.CommitID(op.Work.HeadOID) || reviews.Items[0].State != expectedState {
 		return empty, &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
-	observed, err := p.observeProviderMerge(ctx, w, account)
+	observed, err := provider(ctx, w, account)
 	if err != nil {
 		return fail("provider_merge", err)
 	}

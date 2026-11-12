@@ -894,8 +894,23 @@ Native CI shares one fresh PR between projections within each paired snapshot,
 saving2 PR GETs per semantic check read. No cross-request cache or write-guard
 relaxation. Real native HTTP/PG count/subscription/withdrawal/empty/unknown cases
 and Rust/UI builds/checks pass offline (`request68-*`); no GitHub/model call.
-Matching installed qualification and original-budget quiet-volume measurement
-remain pending; this source pass does not claim connected completion.
+Installed68/source8d062767 passes exact-prior67 upgrade/integrity/Ready, with0 wire
+reads, unchanged original budget bytes and natural rolling expiry. Store confirms
+245 minutes/0 active and original merge31019ff6 at0 attempts/no operation; Quit
+retires all processes/socket. `goal68-installed-minimal-reads.json` and package68
+retain exact inputs/readbacks. Positive quiet-volume measurement remains pending.
+The targeted follow-up implements that immediate third provider projection's
+reuse via a request-owned typed handoff, saving5 semantic reads. It is single-use,
+captures the original context/deadline and exact stored publication/revision,
+source/fork/account, policy, target and native revision. Causal review/acceptance
+proof still runs after authorization; final pre-send observation stays fresh.
+Legacy hosts retain their path. Source review fixed missing synthetic PublicationID.
+`request69-funded-role-pg.log` passes three controlled-role/acceptance/restart/WAL
+phases plus actual native cancelled/stale-publication no-effect refusal;
+`request69-progress-pg.log` passes legacy gates. Go final backend builds; provider
+facts are declared and no model/network effect ran. Positive paired reuse and
+request savings still require the matching installed original merge, not another
+fixture or paid decision. App68/UI/helpers remain unchanged.
 No original operation or paid receipt changed.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.

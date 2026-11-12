@@ -80,10 +80,10 @@ func (c *Coordinator) recordCleanDeliveryAcceptance(ctx context.Context, publica
 // journaled clean acceptance after current authority and exact checks.
 // Previously driven operations keep their original provenance and
 // reconcile through the existing receipt path.
-func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *factory.Merge, publication *factory.Publication, nativeRevision int64) error {
+func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *factory.Merge, publication *factory.Publication, nativeRevision int64, observe *DeliveryMergeObservation) error {
 	if merge.Authorization.Bound() {
 		if merge.Authorization.Generation.AcceptanceKind == factory.AcceptanceJevAcceptance {
-			acceptance, decision, err := c.currentFundedDeliveryAcceptance(ctx, *publication)
+			acceptance, decision, err := c.currentFundedDeliveryAcceptance(ctx, *publication, observe)
 			if err != nil || acceptance == nil || acceptance.ID != merge.Authorization.Generation.AcceptanceID || decision.Answer.Fingerprint != merge.Authorization.Generation.Fingerprint {
 				return &factory.PublicationWait{Reason: "funded_delivery_changed"}
 			}
@@ -100,7 +100,7 @@ func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *fa
 	*publication = updated
 	decision := factory.DeliveryDecision{}
 	if acceptance == nil {
-		acceptance, decision, err = c.currentFundedDeliveryAcceptance(ctx, updated)
+		acceptance, decision, err = c.currentFundedDeliveryAcceptance(ctx, updated, observe)
 		if err != nil {
 			return &factory.PublicationWait{Reason: "funded_delivery_unavailable"}
 		}

@@ -5,18 +5,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/control"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
 var errNativeDeliveryMaterial = &factory.PublicationWait{Reason: "native_delivery_material_unavailable"}
+
+type nativeDeliveryMergeCapture struct {
+	account        *nativeProductAccount
+	policyRevision int64
+	observation    factory.MergeObservation
+}
 
 type nativeReviewOpinions struct {
 	Repository string  `json:"repository"`
@@ -63,6 +72,71 @@ func (s nativeCollaborationReads) readReviewOpinions(ctx context.Context, pull n
 // aggregate deadline covers both traversals; individual connector calls retain
 // their existing request/credential-lease deadlines.
 func (p NativeMerges) ReadDeliveryMaterial(ctx context.Context, w factory.MergeWork) (factory.DeliveryNativeMaterial, error) {
+	return p.readDeliveryMaterial(ctx, w, nil)
+}
+
+// ReadDeliveryMaterialForMerge retains only this read's final provider
+// projection. The continuation still performs the normal causal review and
+// accepted-input proof after authorization; submission always observes afresh.
+func (p NativeMerges) ReadDeliveryMaterialForMerge(ctx context.Context, publication factory.Publication, w factory.MergeWork) (factory.DeliveryNativeMaterial, control.DeliveryMergeObservation, error) {
+	var empty factory.DeliveryNativeMaterial
+	current, err := p.Store.PublicationByID(ctx, publication.ID)
+	if err != nil || publication.Validate() != nil || !reflect.DeepEqual(current, publication) || w.PublicationID != publication.ID || w.Repository != publication.Repository || w.Issue != publication.Issue || w.HeadOID != publication.Candidate || w.BaseOID != publication.PullTarget().BaseOID {
+		return empty, nil, errNativeDeliveryMaterial
+	}
+	// Retain the original aggregate deadline, never start a new allowance when
+	// the caller finishes local fingerprint/authorization work.
+	deadline := time.Now().Add(2 * time.Minute)
+	var capture nativeDeliveryMergeCapture
+	material, err := p.readDeliveryMaterial(ctx, w, &capture)
+	if err != nil {
+		return empty, nil, err
+	}
+	var used atomic.Bool
+	return material, func(work factory.MergeWork) (factory.MergeObservation, error) {
+		var none factory.MergeObservation
+		if !used.CompareAndSwap(false, true) || ctx.Err() != nil {
+			return none, errNativeDeliveryMaterial
+		}
+		bounded, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
+		// Collection has no journal generation. All provider, source and
+		// account facts must match; only these local journal keys differ.
+		bound := work
+		bound.MergeID, bound.OperationID, bound.AuthRevision = w.MergeID, w.OperationID, w.AuthRevision
+		if bound != w {
+			return none, errNativeDeliveryMaterial
+		}
+		current, err := p.Store.PublicationByID(bounded, publication.ID)
+		if err != nil || !reflect.DeepEqual(current, publication) {
+			return none, errNativeDeliveryMaterial
+		}
+		observed, err := p.observeMerge(bounded, work, func(ctx context.Context, _ factory.MergeWork, current *nativeProductAccount) (factory.MergeObservation, error) {
+			currentPolicy, err := p.Store.RepositoryPolicy(ctx, w.Repository)
+			if err != nil || currentPolicy.Revision != capture.policyRevision || !sameNativeAccount(current.identity, capture.account.identity) || !reflect.DeepEqual(current.binding, capture.account.binding) || !reflect.DeepEqual(current.repository, capture.account.repository) {
+				return none, errNativeDeliveryMaterial
+			}
+			return capture.observation, nil
+		})
+		if err != nil {
+			return none, err
+		}
+		current, err = p.Store.PublicationByID(bounded, publication.ID)
+		if err != nil || !reflect.DeepEqual(current, publication) || observed.NativeRev != material.Revision {
+			return none, errNativeDeliveryMaterial
+		}
+		currentPolicy, err := p.Store.RepositoryPolicy(bounded, w.Repository)
+		if err != nil || currentPolicy.Revision != capture.policyRevision {
+			return none, errNativeDeliveryMaterial
+		}
+		if factory.ValidID(publication.ID) {
+			log.Printf("native merge material observation reused publication=%q", publication.ID)
+		}
+		return observed, nil
+	}, nil
+}
+
+func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeWork, capture *nativeDeliveryMergeCapture) (factory.DeliveryNativeMaterial, error) {
 	var empty factory.DeliveryNativeMaterial
 	bounded, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -139,6 +213,9 @@ func (p NativeMerges) ReadDeliveryMaterial(ctx context.Context, w factory.MergeW
 				first.Blocker = "approvals"
 			}
 		}
+	}
+	if capture != nil {
+		*capture = nativeDeliveryMergeCapture{account: account, policyRevision: policy.Revision, observation: after}
 	}
 	return first, nil
 }

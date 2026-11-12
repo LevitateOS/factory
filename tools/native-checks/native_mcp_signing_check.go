@@ -2490,6 +2490,36 @@ func offlineFundedCommentMerge(ctx context.Context, db *store.Store, raw *sql.DB
 	if err = control.CheckFundedMergeReview(ctx, db, p, m, op); err != nil {
 		return fmt.Errorf("current bound findings refused: %w", err)
 	}
+	// Actual native compound collection must refuse before any connector is
+	// configured when its original context or stored publication is no longer
+	// current. This is a negative guard proof, not a provider/material fixture.
+	native := factoryruntime.NativeMerges{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Store: db}}}
+	work := factory.MergeWork{Method: policy.MergeMethod, PublicationID: p.ID, Repository: p.Repository, Issue: p.Issue, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, ReviewerID: w.ActorID, ActorID: policy.Merge.ActorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewEvent: w.Event}
+	if err := work.ValidateTarget(); err != nil {
+		return fmt.Errorf("controlled compound collection target: %w", err)
+	}
+	rows := `SELECT COALESCE((SELECT to_jsonb(p)::text FROM factory_publications p WHERE assignment=$1),''),COALESCE((SELECT to_jsonb(m)::text FROM factory_merges m WHERE publication=$2),''),COALESCE((SELECT to_jsonb(j)::text FROM factory_priority_judgments j WHERE snapshot=$3),'')`
+	var before, after [3]string
+	if err = raw.QueryRowContext(ctx, rows, p.AssignmentID, p.ID, fingerprint).Scan(&before[0], &before[1], &before[2]); err != nil {
+		return err
+	}
+	cancelled, cancelCollection := context.WithCancel(ctx)
+	cancelCollection()
+	changedPublication := p
+	changedPublication.Revision++
+	for _, capture := range []struct {
+		context     context.Context
+		publication factory.Publication
+	}{{cancelled, p}, {ctx, changedPublication}} {
+		material, observe, refusal := native.ReadDeliveryMaterialForMerge(capture.context, capture.publication, work)
+		var wait *factory.PublicationWait
+		if !errors.As(refusal, &wait) || wait.Reason != "native_delivery_material_unavailable" || observe != nil || !reflect.DeepEqual(material, factory.DeliveryNativeMaterial{}) {
+			return errors.New("cancelled or changed native compound capture supplied material/continuation")
+		}
+	}
+	if err = raw.QueryRowContext(ctx, rows, p.AssignmentID, p.ID, fingerprint).Scan(&after[0], &after[1], &after[2]); err != nil || before != after {
+		return fmt.Errorf("refused native compound capture changed original publication/merge/funded receipt rows: %v", err)
+	}
 	for _, change := range []struct {
 		name string
 		edit func(*factory.Publication, *factory.Merge, *factory.ReviewOperation)
@@ -2668,6 +2698,7 @@ func offlineFundedCommentMerge(ctx context.Context, db *store.Store, raw *sql.DB
 		return errors.New("funded acceptance changed the original Inspector verdict")
 	}
 	fmt.Println("PASS: shared coordinator/native gate admits the exact recorded funded findings COMMENT without changing its verdict/deadline; absent acceptance/cycle/receipt, changed fingerprint/diff base, native vote, uncertain review and unconfirmed resolutions refuse; actual PostgreSQL joins, declared judgment/native receipt, no inference/provider/merge send")
+	fmt.Println("PASS: actual native compound material entry refuses a pre-cancelled context or changed stored publication before any configured connector, returning neither material nor continuation and preserving exact publication/merge/funded-receipt rows; no provider or model, positive handoff remains installed qualification")
 	fmt.Println("PASS: genuine controlled Inspector→settled Fixer/current CI reaches proposed-fix Jev acceptance and merge on the corrected tuple using the original-head COMMENT; absent/pending causal correction, stale tuple, wrong Inspector and pending current-head review refuse; no replay or provider approval fabricated")
 	return nil
 }

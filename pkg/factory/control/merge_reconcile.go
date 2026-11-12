@@ -132,7 +132,8 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		mergeWait(report, m.ID, "merge_authorization_expired")
 		return
 	}
-	policy, revision, ok := c.admitMergeAuthority(ctx, &m, &p, op, report)
+	var observe DeliveryMergeObservation
+	policy, revision, ok := c.admitMergeAuthority(ctx, &m, &p, op, report, &observe)
 	if !ok {
 		return
 	}
@@ -141,7 +142,7 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		work.ReviewEvent = review.Work.Event
 	}
 	if op.Work == nil {
-		if !c.observeMergeEvidence(ctx, p, &m, work, policy, revision, report) {
+		if !c.observeMergeEvidence(ctx, p, &m, work, policy, revision, report, observe) {
 			return
 		}
 	}
@@ -231,7 +232,7 @@ func mergeRebaseMatches(m factory.Merge, p factory.Publication) bool {
 
 // admitMergeAuthority resolves the authority bracket and union gate
 // behind one open merge operation.
-func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge, p *factory.Publication, op *factory.MergeOperation, report *MergeReport) (factory.RepositoryPolicy, int64, bool) {
+func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge, p *factory.Publication, op *factory.MergeOperation, report *MergeReport, observe *DeliveryMergeObservation) (factory.RepositoryPolicy, int64, bool) {
 	var none factory.RepositoryPolicy
 	if p.Stage != factory.PublicationPublished {
 		c.finishMerge(ctx, *m, factory.MergeFailed, factory.MergeReasonInvalid, report)
@@ -259,7 +260,7 @@ func (c *Coordinator) admitMergeAuthority(ctx context.Context, m *factory.Merge,
 		return none, 0, false
 	}
 	revision := accepted.Revision
-	if err := c.authorizeCleanDeliveryMerge(ctx, m, p, revision); err != nil {
+	if err := c.authorizeCleanDeliveryMerge(ctx, m, p, revision, observe); err != nil {
 		c.mergeCallError(report, m.ID, err)
 		return none, 0, false
 	}

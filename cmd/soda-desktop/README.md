@@ -130,6 +130,11 @@ check also seals warnings when the Feed has no rows. Older hosts that omit the
 optional warning field retain their existing status-read behavior. A native CI
 snapshot shares one fresh PR between its review and check projections, removing
 two duplicate PR reads across the before/after snapshots without caching them.
+Funded merge admission reuses its completed material read's final provider
+projection once, under the original context/deadline and exact publication,
+source/account, policy and target binding. It still performs causal review and
+acceptance proof; the final send observes the provider afresh. This is not
+persisted authority, a retry permission, or a cross-request cache.
 
 ### Linux execution services
 

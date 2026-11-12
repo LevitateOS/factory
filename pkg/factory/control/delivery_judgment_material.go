@@ -19,6 +19,14 @@ type deliveryMaterialSource interface {
 	ReadDeliveryMaterial(context.Context, factory.MergeWork) (factory.DeliveryNativeMaterial, error)
 }
 
+// DeliveryMergeObservation finishes one material read's merge proof under its
+// original context. It is request-owned and supplies no send authority.
+type DeliveryMergeObservation func(factory.MergeWork) (factory.MergeObservation, error)
+
+type deliveryMergeMaterialSource interface {
+	ReadDeliveryMaterialForMerge(context.Context, factory.Publication, factory.MergeWork) (factory.DeliveryNativeMaterial, DeliveryMergeObservation, error)
+}
+
 type deliveryTextFile struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
@@ -225,7 +233,7 @@ func (m *deliveryJudgmentMaterial) validate() error {
 	return nil
 }
 
-func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publication, review ResolvedReviewVerdict, model string) (*deliveryJudgmentMaterial, factory.ReviewCycle, factory.RepositoryPolicy, error) {
+func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publication, review ResolvedReviewVerdict, model string, observe *DeliveryMergeObservation) (*deliveryJudgmentMaterial, factory.ReviewCycle, factory.RepositoryPolicy, error) {
 	var emptyCycle factory.ReviewCycle
 	var emptyPolicy factory.RepositoryPolicy
 	source, ok := c.Merges.(deliveryMaterialSource)
@@ -245,7 +253,7 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
-	merge := factory.Merge{Authority: p.Authority, ID: p.ID, ProjectID: p.ProjectID, AssignmentID: p.AssignmentID, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID, ReviewerID: policy.Review.ActorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID}
+	merge := factory.Merge{Authority: p.Authority, ID: p.ID, PublicationID: p.ID, ProjectID: p.ProjectID, AssignmentID: p.AssignmentID, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PullTarget().IssueID, PRAuthorID: p.PullTarget().AuthorID, ReviewerID: policy.Review.ActorID, HeadRef: p.PullTarget().HeadRef, BaseRef: p.PullTarget().BaseRef, HeadOID: p.Candidate, BaseOID: p.PullTarget().BaseOID}
 	if owner.RetainedPublication != nil {
 		merge, err = c.Store.MergeByPublication(ctx, p.ID)
 		if err != nil || merge.AssignmentID != owner.ID || merge.HeadOID != p.Candidate || merge.BaseOID != p.PullTarget().BaseOID {
@@ -322,7 +330,14 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
-	native, err := source.ReadDeliveryMaterial(ctx, c.mergeWork(merge, policy))
+	var native factory.DeliveryNativeMaterial
+	if paired, ok := source.(deliveryMergeMaterialSource); observe != nil && ok {
+		work := c.mergeWork(merge, policy)
+		work.ReviewEvent = basis.operation.Work.Event
+		native, *observe, err = paired.ReadDeliveryMaterialForMerge(ctx, p, work)
+	} else {
+		native, err = source.ReadDeliveryMaterial(ctx, c.mergeWork(merge, policy))
+	}
 	if err != nil || native.Revision != revision || native.PolicyRevision != 0 && native.PolicyRevision != policy.Revision {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}

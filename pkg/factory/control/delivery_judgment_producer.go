@@ -120,7 +120,7 @@ func (c *Coordinator) advisePublicationDelivery(ctx context.Context, p factory.P
 	if err != nil {
 		return factory.DeliveryDecision{}, "", ErrDeliveryUnavailable
 	}
-	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel())
+	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel(), nil)
 	if err != nil {
 		return factory.DeliveryDecision{}, "", err
 	}
@@ -253,7 +253,7 @@ func (c *Coordinator) reconcileDeliveryResolution(ctx context.Context, p *factor
 // currentFundedDeliveryAcceptance re-composes the same semantic evidence on
 // merge admission. Expected resolution effects may advance native revision;
 // any other change prevents reuse without another valid decision.
-func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication) (_ *factory.DeliveryAcceptance, _ factory.DeliveryDecision, resultErr error) {
+func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p factory.Publication, observe *DeliveryMergeObservation) (_ *factory.DeliveryAcceptance, _ factory.DeliveryDecision, resultErr error) {
 	stage, fingerprint, started := "acceptance", "", time.Now()
 	defer func() {
 		if resultErr != nil && factory.ValidID(p.ID) {
@@ -273,7 +273,8 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
 	stage = "material"
-	material, cycle, policy, err := c.deliveryMaterial(ctx, p, basis.review, chooser.DeliveryModel())
+	var paired DeliveryMergeObservation
+	material, cycle, policy, err := c.deliveryMaterial(ctx, p, basis.review, chooser.DeliveryModel(), &paired)
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, err
 	}
@@ -301,6 +302,9 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 		}
 		if !deliveryResolutionsConfirmed(p, acceptance) {
 			return nil, factory.DeliveryDecision{}, &factory.PublicationWait{Reason: "resolution_pending"}
+		}
+		if observe != nil {
+			*observe = paired
 		}
 		return &acceptance, receipt.Decision, nil
 	}

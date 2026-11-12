@@ -1857,9 +1857,31 @@ subscription, empty/advisory withdrawal, unknown refusal and compatibility cases
 with declared provider replies. `request68-native-check.log`, final UI typecheck,
 Lit and build logs pass offline. Backend `lean-feed-server` builds as
 SHA256a6c0f8f14ae3764d387418160b4750a0fbdfbfd63a0e624ebd0ae0f1704737a1.
-No GitHub/model/app action was needed for these checks. Matching installed assets
-and positive quiet-traffic qualification remain distinct requirements; preserve
-the original budget/receipts and the09:40Z retry boundary above.
+No GitHub/model/app action was needed for these checks. Installed68/source8d062767
+passes exact-prior67 upgrade/integrity/Ready with the unchanged2697 helpers, zero
+wire/semantic reads, unchanged original budget bytes and natural debit expiry.
+Local store confirms245 minutes,0 active/unsettled, original merge31019ff6 still
+open with0 attempts/no operation. Original Quit's lost reply resolves through
+joined app/backend/PG/Muse/socket retirement. Exact source/build/inventory and
+readbacks remain in `package68-*`, `goal68-installed-minimal-reads.json` outside Git.
+Positive quiet-traffic qualification remains separate; preserve original receipts
+and the09:40Z retry boundary above. The typed, request-owned handoff now reuses
+funded delivery material's final provider projection in merge admission, removing
+its immediately repeated5 semantic reads. The continuation is single-use under
+the original context/aggregate deadline, exact stored publication/revision,
+source/fork/account, policy, target and native revision. Existing causal review
+and acceptance proof still run after funded authorization; the final pre-send
+observation remains fresh. Legacy hosts retain their original path. Source review
+fixed the missing synthetic PublicationID before effectful qualification.
+`request69-funded-role-pg.log` passes all three controlled-role/paid-acceptance/
+restart/WAL phases plus actual native cancelled/stale-publication entry refusal
+with unchanged publication/merge/funded-receipt rows. `request69-progress-pg.log`
+passes legacy admission/race/cancellation gates; both use declared provider facts,
+no inference or provider effects. Backend final build passes, SHA256
+a7162e4acb38811d096cfc86fb7c08865d0a86aadf41d0db62ed8dd64dda8db3.
+These negative/legacy checks do not prove the positive new continuation: matching
+installed backend, original connected merge, safe reuse marker and actual request
+counts remain next. Reuse unchanged app68/UI/helpers; no model or send replay.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation
