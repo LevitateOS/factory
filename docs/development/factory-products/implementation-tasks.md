@@ -1784,10 +1784,33 @@ and the one-minute charge remain retained; total245. Evidence:
 `goal64-correction-ci-paid-delivery.json`.
 **Q17 remains INCOMPLETE:** original merge31019ff6 remains open/unbound with
 zero attempts/no operation; current funded-acceptance admission reports
-funded_delivery_unavailable despite the saved ready decision. Trace that join
-and reuse the original receipt, without another model call. Normal Quit64 resolves
-its lost reply through joined app/backend/PG/Muse/socket retirement. No role or
-check is running. Never renew an old send deadline or replay the Fixer. Installed56
+funded_delivery_unavailable despite the saved ready decision. Installed65/c5c46d9
+adds bounded admission-stage/fingerprint/context diagnostics, but its first
+identity request finds core quota exhausted (5000-used);62 further attempts are
+suppressed, not sent. This does not attribute all5000 requests to65. Normal
+Quit64/65 resolves lost replies through joined app/backend/PG/Muse/socket
+retirement; fixture team is restored to write/admin=false. Usage remains245.
+
+The owner's request-volume correction now gives production native transport a
+private, restart-preserved600-attempt rolling-hour ceiling for every wire kind,
+plus a provider20% reserve. No credential/request text enters its bounded journal;
+corrupt/missing retained state refuses, and an already-sent causal response remains
+readable if saving a hold fails. Local429 text identifies Factory's own limit.
+Passive bulk scans wait five minutes after completion while local worker/MCP/
+retirement observation keeps10 seconds; explicit commands and fresh settled
+results wake bulk work. Existing merges get budget before repeated child advice.
+The merge authority owner returns its existing validated acceptance, removing one
+duplicate full capture (at least7 wire requests) without cross-pass caching or
+relaxing later revision/permission/send checks. Go backend builds;
+`bounded-polling-progress-pg2.log` proves original merge lookup before checks and
+the existing cancellation/refusal gates. `bounded-polling-delivery-pg.log` passes
+all three controlled-role/paid-acceptance/restart/WAL phases without inference or
+provider effects. `request66-github-budget-final-build.log` and final-check.log
+pass the exact production budget's600/601, rolling expiry, provider reserve,
+competing/reopened owners, pending replacement and missing/corrupt refusal cases,
+using synthetic time/responses and no network/keyring/model. Matching installed
+qualification remains next; never
+renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation
 (`goal56-installed-revocation-positive.json`); account interaction is pending.
 Saved credentials remain. Exact release/check inputs are retained outside Git;

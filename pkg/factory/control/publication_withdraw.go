@@ -98,6 +98,9 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 			c.settleRun(bounded, run)
 		}
 	}
+	// Recorded merges get the shared pass budget before child delivery advice
+	// recomposes provider material. New acceptances advance on a later pass.
+	c.MergePass(bounded)
 	publication := c.publishPass(bounded, false)
 	_, children := c.checkPass(bounded)
 	publication.Waits = append(publication.Waits, children.Waits...)
@@ -131,7 +134,6 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 		}
 	}
 	c.observeDispatch(ctx, report)
-	c.MergePass(bounded)
 }
 
 // Withdrawal stays open while any cancellation or effect is unknown. Native

@@ -845,13 +845,30 @@ Its exact fingerprint657d3d427aef97cae74427424a1aa0c1860df6fffab3d94edad26a13a22
 binds original Inspector9c79, corrected tuple/complete material/checks/policy10.
 One original-source minute raises244→245; no planning/Builder/Inspector/Fixer
 replay occurs. `goal64-correction-ci-paid-delivery.json` retains exact inputs.
-**Next executable action:** trace original merge31019ff6's funded acceptance join.
+**Current action:** finish the owner's request-volume correction, then trace
+original merge31019ff6's funded acceptance join with the retained decision.
 It still reports funded_delivery_unavailable despite that receipt; it remains
 open/unbound, attempts0/no operation, so no merge send is claimed. Reuse the saved
 decision and candidate, never repeat inference or renew an old send deadline.
-Normal Quit64 joins app/backend/PG/Muse/socket retirement after0 active/unsettled
-runs and245 minutes. No check is running; current code5336f45 is clean/pushed.
-Owned edits are these current evidence updates; source diagnosis continues.
+Normal Quit64/65 joins app/backend/PG/Muse/socket retirement after0 active/unsettled
+runs and245 minutes. Installed65/c5c46d9 sends one identity read, receives the
+account's exhausted5000 quota, and suppresses62 subsequent requests. That header
+is account-wide, not proof65 sent5000. The defining transport now debits a private
+600-attempt rolling-hour budget before every wire send, persists it across restart,
+reserves the provider's last20%, and preserves an already-sent causal response if
+hold persistence fails. No token/request text is stored. A scoped status exposes
+budget facts. Existing progress owner keeps local recovery10s and passive bulk
+polling5min with explicit/terminal wake; existing merges run before child advice.
+The same accepted-evidence owner returns its validated capture, saving at least7
+wire calls per material without caching authority across passes. Go builds and
+bounded-polling-progress-pg2.log / bounded-polling-delivery-pg.log pass their
+declared phase-order/admission/refusal/restart/WAL scopes without inference or
+provider effects. The exact-production no-network budget check passes600/601,
+rolling expiry, competing/reopened owners, interrupted replacement and refusal;
+final zero-remaining-header compatibility also passes
+(`request66-github-budget-final-{build,check}.log`); installed66 qualification is next.
+All current working edits belong to this correction, including the new
+github_provider/traffic_budget.rs; no original operation or paid receipt changed.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;

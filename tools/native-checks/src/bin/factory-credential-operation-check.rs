@@ -16,6 +16,11 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::oneshot;
 
 type Result<T> = std::result::Result<T, Box<dyn StdError>>;
+#[allow(dead_code)]
+#[path = "../../../../lib/desktop-runtime/src/private_fs.rs"]
+mod private_fs;
+#[path = "../../../../lib/desktop-runtime/src/github_provider/traffic_budget.rs"]
+mod traffic_budget;
 #[path = "../native_github_comments.rs"]
 mod native_github_comments;
 #[path = "../native_github_edits.rs"]
@@ -1315,7 +1320,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     ensure(tip["publication"]["repository"]==grant.repository.id&&tip["publication"]["tip"]==source.commit,"native Fountain target/source binding changed")?;
     let setup=client.product_read(&grant.repository.id,&Read::SetupSource{repository:grant.repository.id.clone(),commit:source.commit.clone(),target_ref:target.clone(),paths:vec!["README.md".into()]}).await.map_err(|e|e.code)?;
     ensure(setup["publication"]["commit"]==source.commit&&setup["publication"]["target_ref"]==target&&setup["publication"]["files"].is_object()&&setup["publication"]["source_files"].is_object(),"native Fountain approved setup source scope changed")?;
-    let captured=client.product_read(&grant.repository.id,&Read::SourceBundle{repository:grant.repository.id.clone(),base:String::new(),commit:source.commit.clone(),target_ref:target.clone()}).await.map_err(|e|e.code)?;
+    let captured=client.product_read(&grant.repository.id,&Read::SourceBundle{repository:grant.repository.id.clone(),base:String::new(),expected_base:String::new(),commit:source.commit.clone(),target_ref:target.clone(),number:None,head_repository:String::new()}).await.map_err(|e|e.code)?;
     let bytes=base64::engine::general_purpose::STANDARD.decode(captured["publication"]["bundle"].as_str().ok_or("native Fountain source bundle absent")?)?;
     let bundle_digest:String=Sha256::digest(&bytes).iter().map(|b|format!("{b:02x}")).collect();
     ensure(!bytes.is_empty()&&captured["publication"]["sha256"]==bundle_digest&&captured["publication"]["commit"]==source.commit&&captured["publication"]["target"]==target,"native Fountain source digest/head/target changed")?;
@@ -2566,7 +2571,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     .await??;
             let completion=args[0]=="--github-merge-completion";
             let source=args[0]=="--github-source-bundle";
-            let query=if source { soda_desktop_runtime::github_provider::Read::SourceBundle {repository:field(2)?.into(),base:field(3)?.into(),commit:field(4)?.into(),target_ref:field(6)?.into()} }
+            let query=if source { soda_desktop_runtime::github_provider::Read::SourceBundle {repository:field(2)?.into(),base:field(3)?.into(),expected_base:String::new(),commit:field(4)?.into(),target_ref:field(6)?.into(),number:None,head_repository:String::new()} }
             else if completion { soda_desktop_runtime::github_provider::Read::MergeCompletion {repository:field(2)?.into(),number:field(3)?.parse()?} } else {
                 soda_desktop_runtime::github_provider::Read::AutomationInputs {repository:field(2)?.into(),number:field(3)?.parse()?,target_ref:field(4)?.into(),comments:args[6..].iter().map(|s|s.to_str().map(str::to_owned).ok_or("invalid selected comment")).collect::<std::result::Result<_,_>>()?}
             };
@@ -2596,6 +2601,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             else if completion { println!("PASS: actual native merged PR/base completion read; no write or product admission"); }
             else { println!("PASS: actual native GitHub bounded issue history, selected comments, dependencies and branch snapshot; no write or product admission"); }
             Ok(())
+        }
+        (Some("--github-budget-declared"), 2) => {
+            native_github_transport::run_budget_declared(Path::new(&args[1]))
         }
         (Some("--github-evidence-declared"), 4) => {
             native_github_transport::run_evidence_declared(

@@ -253,10 +253,11 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 		}
 	}
 	gate := MergeReport{}
-	policy, revision, valid := c.mergeAuthority(ctx, merge, &gate)
-	if !valid {
+	policy, accepted, valid := c.mergeAuthority(ctx, merge, &gate)
+	if !valid || accepted.Acceptance.ID != p.Acceptance {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
+	revision := accepted.Revision
 	checks, ok := c.currentChildCheckAssessment(ctx, p)
 	if !ok || checks == nil || checks.Verdict != factory.CheckPass {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
@@ -266,15 +267,11 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	if err != nil || !reviewerRun.Reconciled || reviewerRun.Outcome != factory.Succeeded {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
-	status, err := c.AcceptanceStatus(ctx, p.Repository, strconv.FormatInt(p.Issue, 10))
-	if err != nil || status.Acceptance == nil || !status.Valid || status.Acceptance.ID != p.Acceptance || status.Revision != revision {
-		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
-	}
 	deadline, err := c.Store.CapAttemptDeadline(ctx, owner.ID, time.Now().Add(30*time.Second).Unix())
 	if err != nil || deadline <= time.Now().Unix() {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
-	attempt := &attemptPlan{acceptance: *status.Acceptance, policy: policy, projectID: p.ProjectID, deadline: time.Unix(deadline, 0)}
+	attempt := &attemptPlan{acceptance: *accepted.Acceptance, policy: policy, projectID: p.ProjectID, deadline: time.Unix(deadline, 0)}
 	if wait, failed := readAttemptInputs(ctx, c.dispatchDeps(), attempt, p.Repository, p.Issue); wait != nil || failed != nil || attempt.inputs.Revision != revision {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}

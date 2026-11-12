@@ -13,6 +13,273 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+// The exact production budget and private-file owner are compiled into this
+// existing check. Synthetic monotonic seconds exercise admission without a
+// keyring, network request, provider response or wall-clock expiry wait.
+pub(super) fn run_budget_declared(profile: &Path) -> Result<()> {
+    use super::traffic_budget::Budget;
+    const NOW: u64 = 1_800_000_000;
+    ensure(
+        profile.is_absolute()
+            && profile.starts_with("/home")
+            && !profile.exists()
+            && profile.parent().is_some_and(Path::is_dir),
+        "fresh owned /home budget profile required",
+    )?;
+    super::private_fs::private_dir(profile)?;
+    let budget = Budget::memory();
+    for attempt in 0..600 {
+        // Responses deliberately remain unobserved: failed/unknown attempts
+        // must consume the same pre-send capacity as successful responses.
+        ensure(
+            budget.admit(NOW, attempt % 2 == 0)?.is_none(),
+            "local wire ceiling refused one of its first 600 attempts",
+        )?;
+    }
+    budget.observe(
+        NOW,
+        true,
+        Some(5000),
+        Some(4999),
+        Some(NOW + 3600),
+        None,
+        false,
+    )?;
+    let held = budget
+        .admit(NOW, false)?
+        .ok_or("601st wire attempt admitted")?;
+    let snapshot = budget.snapshot(NOW)?;
+    ensure(
+        snapshot.ceiling == 600
+            && snapshot.used == 600
+            && snapshot.reset == NOW + 3600
+            && held.reset == snapshot.reset
+            && snapshot.suppressed == 1,
+        "wire ceiling did not retain every attempt or its exact next slot",
+    )?;
+
+    let rolling = Budget::memory();
+    for now in [NOW, NOW + 10] {
+        for _ in 0..300 {
+            ensure(rolling.admit(now, true)?.is_none(), "rolling setup refused")?;
+        }
+    }
+    let partial = rolling.snapshot(NOW + 3600)?;
+    ensure(
+        partial.used == 300 && partial.reset == NOW + 3610,
+        "rolling expiry reset all attempts or retained expired attempts",
+    )?;
+    for _ in 0..300 {
+        ensure(
+            rolling.admit(NOW + 3600, true)?.is_none(),
+            "rolling expiry did not release only the elapsed capacity",
+        )?;
+    }
+    ensure(
+        rolling.admit(NOW + 3600, true)?.is_some() && rolling.snapshot(NOW + 3610)?.used == 300,
+        "rolling window exceeded its ceiling or used a fixed-hour reset",
+    )?;
+
+    let reserve = Budget::memory();
+    reserve.observe(
+        NOW,
+        true,
+        Some(5000),
+        Some(1001),
+        Some(NOW + 90),
+        None,
+        false,
+    )?;
+    ensure(
+        reserve.admit(NOW, true)?.is_none(),
+        "reserve held above 20 percent",
+    )?;
+    reserve.observe(
+        NOW + 1,
+        true,
+        Some(5000),
+        Some(1000),
+        Some(NOW + 90),
+        None,
+        false,
+    )?;
+    ensure(
+        reserve
+            .admit(NOW + 1, true)?
+            .is_some_and(|hold| hold.reset == NOW + 90)
+            && reserve.admit(NOW + 1, false)?.is_none()
+            && reserve.snapshot(NOW + 89)?.provider_reset == NOW + 90
+            && reserve.admit(NOW + 90, true)?.is_none()
+            && reserve.snapshot(NOW + 90)?.provider_reset == 0,
+        "authenticated provider reserve threshold, scope or expiry differed",
+    )?;
+    reserve.observe(NOW + 91, true, None, None, None, Some(12), true)?;
+    ensure(
+        reserve
+            .admit(NOW + 91, true)?
+            .is_some_and(|hold| hold.reset == NOW + 103)
+            && reserve.admit(NOW + 91, false)?.is_none()
+            && reserve.admit(NOW + 103, true)?.is_none(),
+        "provider Retry-After hold did not preserve its scope and deadline",
+    )?;
+    let unauthenticated = Budget::memory();
+    let exhausted = Budget::memory();
+    exhausted.observe(NOW, true, None, Some(0), Some(NOW + 30), None, false)?;
+    ensure(
+        exhausted.admit(NOW, true)?.is_some_and(|hold| hold.reset == NOW + 30),
+        "known exhausted provider quota did not hold without its limit header",
+    )?;
+    unauthenticated.observe(
+        NOW,
+        false,
+        Some(5000),
+        Some(0),
+        Some(NOW + 90),
+        Some(12),
+        true,
+    )?;
+    ensure(
+        unauthenticated.admit(NOW, true)?.is_none(),
+        "unauthenticated response acquired authenticated account authority",
+    )?;
+
+    let concurrent = profile.join("concurrent");
+    super::private_fs::private_dir(&concurrent)?;
+    // The full ceiling is exercised above in memory. Seed only this declared
+    // private history so the competing-owner proof needs two durable debits.
+    super::private_fs::write_bytes(
+        &concurrent.join("github-wire-budget.json"),
+        &serde_json::to_vec(&serde_json::json!({
+            "last": NOW, "attempts": vec![NOW; 598], "provider_until": 0
+        }))?,
+    )?;
+    fn available<T>(
+        until: Instant,
+        mut read: impl FnMut() -> std::io::Result<T>,
+    ) -> std::io::Result<T> {
+        loop {
+            match read() {
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::WouldBlock && Instant::now() < until =>
+                {
+                    std::thread::yield_now();
+                }
+                result => return result,
+            }
+        }
+    }
+    let until = Instant::now() + Duration::from_secs(15);
+    let (admitted, suppressed) = std::thread::scope(|scope| -> std::io::Result<(usize, u64)> {
+        let owners: Vec<_> = (0..2)
+            .map(|_| {
+                let concurrent = &concurrent;
+                scope.spawn(move || -> std::io::Result<(usize, u64)> {
+                    let owner = available(until, || Budget::retained(concurrent))?;
+                    let mut admitted = 0;
+                    for attempt in 0..2 {
+                        admitted += usize::from(
+                            available(until, || owner.admit(NOW, attempt % 2 == 0))?.is_none(),
+                        );
+                    }
+                    Ok((
+                        admitted,
+                        available(until, || owner.snapshot(NOW))?.suppressed,
+                    ))
+                })
+            })
+            .collect();
+        owners.into_iter().try_fold((0, 0), |sum, owner| {
+            owner
+                .join()
+                .map_err(|_| std::io::Error::other("budget owner panicked"))?
+                .map(|count| (sum.0 + count.0, sum.1 + count.1))
+        })
+    })?;
+    let reopened = Budget::retained(&concurrent)?;
+    let snapshot = reopened.snapshot(NOW)?;
+    ensure(
+        admitted == 2 && snapshot.used == 600 && suppressed == 2,
+        "independent profile owners or reopen multiplied the wire allowance",
+    )?;
+    // There is no token/account parameter in the profile journal: reopening
+    // as a replacement credential owner cannot reset the captured attempts.
+    ensure(
+        reopened.admit(NOW, true)?.is_some()
+            && Budget::retained(&concurrent)?.snapshot(NOW)?.used == 600
+            && reopened.admit(NOW + 3600, true)?.is_none(),
+        "profile restart reset capacity or rolling expiry remained fenced",
+    )?;
+    let interrupted = profile.join("interrupted");
+    super::private_fs::private_dir(&interrupted)?;
+    let original = Budget::retained(&interrupted)?;
+    ensure(
+        original.admit(NOW, true)?.is_none(),
+        "interrupted setup refused",
+    )?;
+    original.observe(
+        NOW,
+        true,
+        Some(5000),
+        Some(1000),
+        Some(NOW + 30),
+        None,
+        false,
+    )?;
+    let journal = interrupted.join("github-wire-budget.json");
+    super::private_fs::write_bytes(
+        &interrupted.join("github-wire-budget.json.pending"),
+        &super::private_fs::read_bytes(&journal, 24 * 1024)?,
+    )?;
+    fs::remove_file(&journal)?;
+    let recovered = Budget::retained(&interrupted)?;
+    let recovered_state = recovered.snapshot(NOW)?;
+    ensure(
+        recovered_state.used == 1
+            && recovered_state.provider_reset == NOW + 30
+            && recovered.admit(NOW, true)?.is_some()
+            && !interrupted.join("github-wire-budget.json.pending").exists(),
+        "interrupted journal replacement lost its original debit or provider hold",
+    )?;
+    fs::remove_file(&journal)?;
+    ensure(
+        Budget::retained(&interrupted).is_err(),
+        "initialized profile with a missing journal received fresh authority",
+    )?;
+    let failed_hold = profile.join("failed-hold");
+    super::private_fs::private_dir(&failed_hold)?;
+    let owner = Budget::retained(&failed_hold)?;
+    ensure(
+        owner.admit(NOW, true)?.is_none(),
+        "hold-failure setup refused",
+    )?;
+    let pending = failed_hold.join("github-wire-budget.json.pending");
+    super::private_fs::write_bytes(&pending, b"{not-json")?;
+    ensure(
+        owner
+            .observe(NOW, true, None, None, None, Some(30), true)
+            .is_err()
+            && owner.admit(NOW, true).is_err(),
+        "failed provider-hold persistence retained send authority",
+    )?;
+    // Remove only this injected fault: the original owner must remain fenced
+    // even when its unchanged canonical journal becomes readable again.
+    fs::remove_file(&pending)?;
+    let fenced = owner.snapshot(NOW)?;
+    ensure(
+        !fenced.available && fenced.used == 1 && owner.admit(NOW, true).is_err(),
+        "persistence failure did not retain the owner's unavailable status",
+    )?;
+    let malformed = profile.join("malformed");
+    super::private_fs::private_dir(&malformed)?;
+    super::private_fs::write_bytes(&malformed.join("github-wire-budget.json"), b"{not-json")?;
+    ensure(
+        Budget::retained(&malformed).is_err(),
+        "malformed retained budget silently reset wire authority",
+    )?;
+    println!("PASS: exact production GitHub budget admits 600 total attempts, holds the 601st, counts unobserved attempts, expires individual rolling slots, enforces authenticated 20-percent/Retry-After holds, and preserves one private profile ceiling across competing owners/reopen/interrupted replacement; failed hold persistence fences the owner, and missing/malformed journals refuse. Cross-owner history starts from 598 declared debits. Synthetic time and responses; no keyring, network, provider, model or mutation effects.");
+    Ok(())
+}
+
 // Bounded provider producer check. This uses only dummy credentials and the
 // launcher's process-local, no-forwarding HTTPS fixture. No product capability,
 // durable reconciliation or actual GitHub mutation qualification is implied.

@@ -167,49 +167,50 @@ func (c *Coordinator) persistMergeIntent(ctx context.Context, m *factory.Merge, 
 	return c.storeMerge(ctx, m, report)
 }
 
-// mergeAuthority validates Soda policy and accepted input at the native
-// revision that the later merge observation must match.
-func (c *Coordinator) mergeAuthority(ctx context.Context, m factory.Merge, report *MergeReport) (factory.RepositoryPolicy, int64, bool) {
+// mergeAuthority returns the freshly validated policy and acceptance. Its
+// native revision must still match the later input and merge observations.
+func (c *Coordinator) mergeAuthority(ctx context.Context, m factory.Merge, report *MergeReport) (factory.RepositoryPolicy, AcceptanceValidity, bool) {
 	var empty factory.RepositoryPolicy
+	var unavailable AcceptanceValidity
 	effective, err := c.EffectiveAuthority(ctx, m.Repository)
 	if err != nil {
 		mergeError(report, m.ID, "store_unavailable")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	if !effective.Effective {
 		mergeWait(report, m.ID, "authority_ineffective")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	policy, err := c.Store.RepositoryPolicy(ctx, m.Repository)
 	if err != nil {
 		mergeError(report, m.ID, "store_unavailable")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	current := effective.Authority
 	current.RequirementsID, err = c.Store.RequirementHead(ctx, m.ProjectID)
 	if err != nil {
 		mergeError(report, m.ID, "store_unavailable")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	current.ApprovalID, err = c.Store.ApprovalHead(ctx, m.ProjectID)
 	if err != nil {
 		mergeError(report, m.ID, "store_unavailable")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	if !current.SameGrants(m.Authority) || policy.TargetBranch != m.BaseRef || policy.Review.ActorID != m.ReviewerID {
 		mergeWait(report, m.ID, "authority_changed")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	status, err := c.AcceptanceStatus(ctx, m.Repository, strconv.FormatInt(m.Issue, 10))
 	if err != nil {
 		mergeWait(report, m.ID, "accepted_inputs_unavailable")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
 	if !status.Valid || status.Acceptance == nil || status.Acceptance.ID != m.Acceptance {
 		mergeWait(report, m.ID, "accepted_inputs_changed")
-		return empty, 0, false
+		return empty, unavailable, false
 	}
-	return policy, status.Revision, true
+	return policy, status, true
 }
 
 func (c *Coordinator) mergeWork(m factory.Merge, policy factory.RepositoryPolicy) factory.MergeWork {

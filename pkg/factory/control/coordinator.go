@@ -109,6 +109,9 @@ type Coordinator struct {
 	dispatchObservation atomic.Pointer[DispatchObservation]
 	progressCancel      context.CancelFunc
 	progressDone        chan struct{}
+	// The progress gate protects passive provider polling separately from
+	// local worker observation. Explicit commands still reconcile immediately.
+	nextPassiveProgress time.Time
 	// ownerMu also protects the bounded child-result recovery cursor.
 	publicationChildCursor string
 	// The progress gate protects the bounded recovery and verification cursors below.
@@ -187,20 +190,21 @@ func (c *Coordinator) Start(ctx context.Context, lockPath string) error {
 	if c.CommentDrive != nil {
 		c.CommentDrive(ctx)
 	}
+	if c.Merges != nil {
+		c.MergePass(ctx)
+	}
 	if c.Publication != nil {
 		c.publishPass(ctx, c.Checks == nil)
 	}
 	if c.Checks != nil {
 		c.CheckPass(ctx)
 	}
-	if c.Merges != nil {
-		c.MergePass(ctx)
-	}
 	_ = c.RecoverIntentGraphs(ctx)
 	_ = c.recoverCreations(ctx)
 	if ownsPass {
 		_, _ = c.drainReadinessWork(ctx, "")
 	}
+	c.nextPassiveProgress = time.Now().Add(passiveProgressInterval)
 	c.startProgress(lifetime)
 	c.requestGate.RUnlock()
 	return nil

@@ -11,6 +11,7 @@ import (
 )
 
 const progressInterval = 10 * time.Second
+const passiveProgressInterval = 5 * time.Minute
 
 const closedIssuePollInterval = time.Minute
 
@@ -173,6 +174,11 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	c.observeProgressStage("settlement")
 	c.stopRevokedRuns(ctx, 0)
 	budget := readinessBudgetFrom(ctx)
+	terminalObserved := false
+	settle := func(run factory.Run) {
+		result := c.settleRun(ctx, run)
+		terminalObserved = terminalObserved || result.Confirmed
+	}
 	runs, err := c.Store.FactoryUnsettledRuns(ctx, MaxDispatchRecovery)
 	if err != nil {
 		return
@@ -188,7 +194,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 			if !budget.reserveNativeRPC(5) {
 				break
 			}
-			c.settleRun(ctx, run)
+			settle(run)
 			continue
 		}
 		if !budget.reserveNativeRPC(2) {
@@ -214,7 +220,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 				if !budget.reserveNativeRPC(5) {
 					break
 				}
-				c.settleRun(ctx, run)
+				settle(run)
 				continue
 			}
 			if importErr == nil && drained {
@@ -225,7 +231,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 					if !budget.reserveNativeRPC(5) {
 						break
 					}
-					c.settleRun(ctx, run)
+					settle(run)
 					continue
 				}
 			}
@@ -238,21 +244,32 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 			if !budget.reserveNativeRPC(5) {
 				break
 			}
-			c.settleRun(ctx, run)
+			settle(run)
 		}
 	}
 	// Recorded MCP terminals settle after run settlement and before
 	// dispatch, so receipts behind run-finished assignments advance in
 	// this pass and fresh typed finishes can advance downstream.
-	_ = c.settleMCPTerminals(ctx)
+	if c.settleMCPTerminals(ctx) > 0 {
+		terminalObserved = true
+	}
+	c.observeProgressStage("standing_preparation")
+	c.observeStandingPreparations(ctx, standingPreparationCursor)
+	// Local retirement, checkpoints and withdrawal stay responsive. Passive
+	// provider discovery and delivery do not re-read unchanged repositories on
+	// every worker tick; a terminal or explicit command wakes them immediately.
+	if standingPreparationCursor != nil && !terminalObserved && time.Now().Before(c.nextPassiveProgress) {
+		c.observeProgressStage("retry_preparation")
+		_ = c.reconcileRetryPreparations(ctx)
+		return
+	}
+	defer func() { c.nextPassiveProgress = time.Now().Add(passiveProgressInterval) }()
 	// Durable comment requests advance with the service, one bounded
 	// page per pass, independently of any browser request.
 	c.observeProgressStage("comments")
 	if c.CommentDrive != nil {
 		c.CommentDrive(ctx)
 	}
-	c.observeProgressStage("standing_preparation")
-	c.observeStandingPreparations(ctx, standingPreparationCursor)
 	c.observeProgressStage("intent_graphs")
 	_ = c.RecoverIntentGraphs(ctx)
 	c.observeProgressStage("creations")

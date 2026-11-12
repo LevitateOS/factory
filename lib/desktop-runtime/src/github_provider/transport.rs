@@ -1,8 +1,10 @@
+use super::traffic_budget::{Budget, Snapshot as BudgetSnapshot};
 use super::{Failure, Result, API_VERSION};
 use reqwest::{header, redirect, Client as Http};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -25,6 +27,7 @@ pub struct TrafficSnapshot {
     requests: BTreeMap<&'static str, BTreeMap<&'static str, TrafficCounts>>,
     semantic_reads: BTreeMap<&'static str, u64>,
     rate_limits: BTreeMap<&'static str, RateLimit>,
+    local_budget: Option<BudgetSnapshot>,
 }
 #[derive(Clone, Default, serde::Serialize)]
 struct TrafficCounts {
@@ -129,11 +132,6 @@ struct Wire {
     headers: header::HeaderMap,
     bytes: Zeroizing<Vec<u8>>,
 }
-struct RateHold {
-    until: Instant,
-    failure: Failure,
-}
-type RateHolds = Mutex<BTreeMap<String, RateHold>>;
 type ProviderRequest = Box<dyn FnOnce(&Http) -> Result<(reqwest::RequestBuilder, usize)> + Send>;
 
 enum Request {
@@ -174,6 +172,7 @@ pub struct Client {
     slots: Arc<Semaphore>,
     alive: Arc<AtomicBool>,
     traffic: Arc<Traffic>,
+    budget: Arc<Budget>,
     pub(super) mutations: Arc<tokio::sync::Mutex<Instant>>,
 }
 /// Headless owner. Stop/drop cancels and joins outstanding provider requests.
@@ -183,9 +182,15 @@ pub struct Owner {
 }
 impl Owner {
     pub fn start() -> Result<Self> {
-        Self::start_with_alive(Arc::new(AtomicBool::new(true)))
+        Self::start_with_budget(Arc::new(AtomicBool::new(true)), Budget::memory())
     }
-    pub(crate) fn start_with_alive(alive: Arc<AtomicBool>) -> Result<Self> {
+    pub(crate) fn start_with_alive(alive: Arc<AtomicBool>, profile: &Path) -> Result<Self> {
+        Self::start_with_budget(
+            alive,
+            Budget::retained(profile).map_err(|_| Failure::unavailable())?,
+        )
+    }
+    fn start_with_budget(alive: Arc<AtomicBool>, budget: Budget) -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -205,7 +210,7 @@ impl Owner {
                 .map_err(|_| Failure::unavailable())
         })?;
         let (requests, mut inbox) = mpsc::channel::<Job>(MAX_REQUESTS);
-        let rate_holds = Arc::new(RateHolds::new(BTreeMap::new()));
+        let budget = Arc::new(budget);
         let traffic = Arc::new(Traffic::new(TrafficSnapshot::default()));
         let (retired, mut retirement) = watch::channel(false);
         let handle = Client {
@@ -214,6 +219,7 @@ impl Owner {
             slots: Arc::new(Semaphore::new(MAX_REQUESTS)),
             alive: alive.clone(),
             traffic: traffic.clone(),
+            budget: budget.clone(),
             mutations: Arc::new(tokio::sync::Mutex::new(Instant::now())),
         };
         let thread = thread::Builder::new().name("factory-github-session".into()).spawn(move || {
@@ -223,7 +229,7 @@ impl Owner {
                     tokio::select! {
                         biased;
                         _ = retirement.changed() => break,
-                        Some(job) = inbox.recv() => { tasks.spawn(run(job, http.clone(), alive.clone(), rate_holds.clone(), traffic.clone())); }
+                        Some(job) = inbox.recv() => { tasks.spawn(run(job, http.clone(), alive.clone(), budget.clone(), traffic.clone())); }
                         _ = tasks.join_next(), if !tasks.is_empty() => {}
                     }
                 }
@@ -361,7 +367,11 @@ impl Client {
         }
     }
     pub fn traffic_snapshot(&self) -> Option<TrafficSnapshot> {
-        self.traffic.lock().ok().map(|snapshot| snapshot.clone())
+        self.traffic.lock().ok().map(|snapshot| {
+            let mut snapshot = snapshot.clone();
+            snapshot.local_budget = epoch().ok().and_then(|now| self.budget.snapshot(now).ok());
+            snapshot
+        })
     }
     pub(super) async fn git_request(
         &self,
@@ -612,14 +622,20 @@ impl Client {
         tokio::select! { biased; _ = retirement.changed() => Err(Failure::unavailable()), _ = tokio::time::sleep(duration) => self.current() }
     }
 }
-async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>, rate_holds: Arc<RateHolds>, traffic: Arc<Traffic>) {
+async fn run(
+    mut job: Job,
+    http: Http,
+    alive: Arc<AtomicBool>,
+    budget: Arc<Budget>,
+    traffic: Arc<Traffic>,
+) {
     let result = if !alive.load(Ordering::SeqCst) {
         Err(Failure::unavailable())
     } else {
         tokio::select! {
             biased;
             _ = job.cancelled.changed() => Err(Failure::unavailable()),
-            value = wire(&http, job.request, &rate_holds, &traffic) => value,
+            value = wire(&http, job.request, &budget, &traffic) => value,
         }
     };
     let result = if alive.load(Ordering::SeqCst) {
@@ -632,7 +648,13 @@ async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>, rate_holds: Arc<R
         _permit: job.permit,
     });
 }
-async fn wire(http: &Http, request: Request, rate_holds: &RateHolds, traffic: &Traffic) -> Result<Wire> {
+fn epoch() -> Result<u64> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .map_err(|_| Failure::unavailable())
+}
+async fn wire(http: &Http, request: Request, budget: &Budget, traffic: &Traffic) -> Result<Wire> {
     let (request, limit) = match request {
         Request::Provider(build) => build(http)?,
         Request::Api { path, query, token } => {
@@ -663,22 +685,26 @@ async fn wire(http: &Http, request: Request, rate_holds: &RateHolds, traffic: &T
     };
     let request = request.build().map_err(network_failure)?;
     let category = traffic_category(&request);
-    // Repeated authenticated GETs honor the provider's read-quota hold. Retain
-    // only a credential fingerprint and host; OAuth and mutation transport keep
-    // their existing admission and causal-response paths.
-    let rate_key = request.headers().get(header::AUTHORIZATION)
-        .filter(|_| request.method() == reqwest::Method::GET)
-        .map(|value| format!("{}:{}", request.url().host_str().unwrap_or(""), sha256(value.as_bytes())));
-    if let Some(key) = &rate_key {
-        let mut holds = rate_holds.lock().map_err(|_| Failure::unavailable())?;
-        let now = Instant::now();
-        holds.retain(|_, hold| hold.until > now);
-        if let Some(hold) = holds.get(key) {
-            let mut failure = hold.failure.clone();
-            failure.retry_after = Some(hold.until.duration_since(now).as_secs().saturating_add(1));
-            count_traffic(traffic, category, TrafficEvent::RateHold);
-            return Err(failure);
-        }
+    // The profile ceiling covers every actual wire attempt, including failed
+    // transport, OAuth and mutations. Debit durably before execute; a refusal
+    // sends nothing and does not classify any earlier operation's outcome.
+    let authenticated = request.headers().contains_key(header::AUTHORIZATION);
+    let now = epoch()?;
+    if let Some(hold) = budget
+        .admit(now, authenticated)
+        .map_err(|_| Failure::unavailable())?
+    {
+        count_traffic(traffic, category, TrafficEvent::RateHold);
+        return Err(Failure {
+            status: 429,
+            code: if hold.local {
+                "github_request_budget"
+            } else {
+                "github_rate_limited"
+            },
+            retry_after: Some(hold.reset.saturating_sub(now)),
+            reset: Some(hold.reset),
+        });
     }
     count_traffic(traffic, category, TrafficEvent::Attempt);
     let mut response = http.execute(request).await.map_err(network_failure)?;
@@ -696,6 +722,24 @@ async fn wire(http: &Http, request: Request, rate_holds: &RateHolds, traffic: &T
     }
     let status = response.status().as_u16();
     let headers = response.headers().clone();
+    // Reserve the provider's last fifth before any further authenticated send.
+    // Observe headers even if the response body is later lost or malformed.
+    // If persisting a provider hold fails, the budget fences later sends. Keep
+    // receiving this already-sent request's causal response, especially writes.
+    match epoch() {
+        Ok(now) => {
+            let _ = budget.observe(
+                now,
+                authenticated,
+                integer(&headers, "x-ratelimit-limit"),
+                integer(&headers, "x-ratelimit-remaining"),
+                integer(&headers, "x-ratelimit-reset"),
+                integer(&headers, "retry-after"),
+                status == 429 || status == 403 && headers.contains_key("retry-after"),
+            );
+        }
+        Err(_) => budget.fence(),
+    }
     let mut bytes = Zeroizing::new(Vec::new());
     while let Some(chunk) = response.chunk().await.map_err(network_failure)? {
         if bytes.len() + chunk.len() > limit {
@@ -708,25 +752,21 @@ async fn wire(http: &Http, request: Request, rate_holds: &RateHolds, traffic: &T
         headers,
         bytes,
     };
-    if let Some(key) = rate_key {
-        let exhausted = integer(&wire.headers, "x-ratelimit-remaining") == Some(0);
-        let failure = if exhausted || matches!(wire.status, 403 | 429) { Some(provider_failure(&wire)) } else { None };
-        if let Some(mut failure) = failure.filter(|failure| exhausted || failure.code == "github_rate_limited") {
-            let epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-            let seconds = failure.retry_after.or_else(|| failure.reset.map(|reset| reset.saturating_sub(epoch))).unwrap_or(60).clamp(1, 86400);
-            failure.status = 429;
-            failure.code = "github_rate_limited";
-            let mut holds = rate_holds.lock().map_err(|_| Failure::unavailable())?;
-            holds.retain(|_, hold| hold.until > Instant::now());
-            if holds.len() >= 256 && !holds.contains_key(&key) {
-                if let Some(oldest) = holds.iter().min_by_key(|(_, hold)| hold.until).map(|(key, _)| key.clone()) {
-                    holds.remove(&oldest);
-                }
+    if matches!(wire.status, 403 | 429) {
+        let failure = provider_failure(&wire);
+        match epoch() {
+            Ok(now) => {
+                let _ = budget.observe(
+                    now,
+                    authenticated,
+                    integer(&wire.headers, "x-ratelimit-limit"),
+                    integer(&wire.headers, "x-ratelimit-remaining"),
+                    failure.reset,
+                    failure.retry_after,
+                    failure.code == "github_rate_limited",
+                );
             }
-            let until = Instant::now() + Duration::from_secs(seconds);
-            if holds.get(&key).is_none_or(|previous| previous.until < until) {
-                holds.insert(key, RateHold { until, failure });
-            }
+            Err(_) => budget.fence(),
         }
     }
     Ok(wire)

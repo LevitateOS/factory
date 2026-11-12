@@ -14044,9 +14044,11 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 		return err
 	}
 	lookups := 0
+	var phaseOrder []string
 	c := control.NewCoordinator(db, nil, nil)
 	c.Merges = progressMergeObserver{lookup: func(id string) (factory.OperationOutcome, error) {
 		lookups++
+		phaseOrder = append(phaseOrder, "merge")
 		if id != m.Operation.OperationID {
 			return factory.OperationOutcome{}, errors.New("lookup changed the original merge identity")
 		}
@@ -14165,6 +14167,18 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	}
 	if report := c.MergePass(ctx); len(report.Errors) != 1 || lookups != 1 {
 		return fmt.Errorf("recorded merge lookup was suppressed: %+v lookups=%d", report, lookups)
+	}
+	if _, err := raw.ExecContext(ctx, `DELETE FROM factory_assignments WHERE id=$1`, newer.ID); err != nil {
+		return err
+	}
+	phaseOrder = nil
+	c.Checks = progressCheckObserver(func(context.Context, factory.CheckTarget, int64) (factory.ObservedChecks, error) {
+		phaseOrder = append(phaseOrder, "checks")
+		return factory.ObservedChecks{}, errors.New("declared check observation unavailable")
+	})
+	c.Dispatch(ctx)
+	if len(phaseOrder) != 2 || phaseOrder[0] != "merge" || phaseOrder[1] != "checks" {
+		return fmt.Errorf("recorded merge did not receive budget before passive checks: %v", phaseOrder)
 	}
 	fmt.Println("PASS: real PG holds a pristine superseded merge and a findings COMMENT without a funded acceptance before provider inputs without changing original journals; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
 	return nil

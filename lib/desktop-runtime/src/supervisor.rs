@@ -180,7 +180,7 @@ impl NativeSupervisor {
                     }
                 }
                 let mut github =
-                    match crate::github_provider::Owner::start_with_alive(owner_alive.clone()) {
+                    match crate::github_provider::Owner::start_with_alive(owner_alive.clone(), &profile) {
                         Ok(github) => github,
                         Err(_) => {
                             let _ = started.send(Err("native GitHub owner could not start".into()));
