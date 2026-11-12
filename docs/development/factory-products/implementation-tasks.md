@@ -1952,8 +1952,8 @@ requests than intended: local status reaches509, then the original retained budg
 reaches600 (16 login +584 installed-session attempts) before normal Quit joins all
 owners. No new merge/model command or charge; fixture admin was never enabled.
 The next defining correction removes the separate identity read before an already
-authenticated selected-repository observation, saving3 wire calls per GitHub HTTP
-admission. Read-only Work inner callbacks share their request's repository proof;
+authenticated selected-repository observation, avoiding that duplicate GitHub read
+in each HTTP admission. Read-only Work inner callbacks share their request's repository proof;
 outer visibility and all writers remain fresh. A finalized exact-target merge now
 holds background child advice before material reads, while native retirement and
 original merge reconciliation remain live. `request72-progress-pg.log` proves0
@@ -1966,6 +1966,11 @@ fork merge qualification remains INCOMPLETE. Preserve the600-debit journal and a
 old command/decision/deadline receipts. All debits expire12:53:29Z on2026-11-12;
 resume at12:54Z with one correct issue57 Work journey and a fresh explicit merge
 command only. Guest disk was grown40→64GiB without removing any release/profile.
+**Installed72 follow-up (2026-11-12), INCOMPLETE:** natural expiry preserved the original600-debit journal. Installed72 reached correct issue57 directly and admitted fresh merge-only command `6dd5095cffa74daaac6e778c85d1edcb`, preserving original31019ff6 cancellation/generation exactly. Its13:01:11Z→13:06:11Z authority expired before allocation because progress waited behind the five-minute passive poll. Last saved row is open/revision0/attempts0, not a committed merge; source734/3d348082 remains245. Normal Quit joins all owners; fixture team is restored to write/admin=false. Navigation used161 calls; session ended with513 retained calls, no new model. This is still excessive and does not qualify volume or full fork delivery.
+
+The follow-up wakes the running coordinator on its next ten-second tick after a newly saved merge-only command, without waking on replay; the existing real PG external-preparation check proves that behavior and unchanged history/allowance. Passive CI now excludes finalized exact candidates until fresh preparation; the real progress-gate check passes this and existing withdrawal/scope guards (`request73-{external,progress}-pg.log`). GitHub delivery discussions share their Go-only read preflight across the two bounded traversals; native reads still authenticate/read the repository, final provider recheck and write admission stay fresh. Backend/harness builds pass; positive installed discussion/request savings remain unverified.
+
+**Current recovery:** build/package the verified follow-up preserving app71/UI/helpers, original profile and513-debit journal; originals fully expire14:07:33Z on2026-11-12. After14:08Z, launch once, recover the same expired unallocated command before any fresh effect, select correct issue57, use one fresh normal Work-UI merge-only command under the bounded fixture admin guard and restore write. Preserve both prior commands/deadlines, the original candidate and paid decision; no inference replay or budget reset. Fork merge, acceptable request volume, installed source withdrawal and actual user-side provider revocation remain open. No app, check or guard is running; owned edits are the follow-up source/harness and these existing evidence records.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation

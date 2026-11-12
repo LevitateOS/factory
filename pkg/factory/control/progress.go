@@ -258,7 +258,8 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	// Local retirement, checkpoints and withdrawal stay responsive. Passive
 	// provider discovery and delivery do not re-read unchanged repositories on
 	// every worker tick; a terminal or explicit command wakes them immediately.
-	if standingPreparationCursor != nil && !terminalObserved && time.Now().Before(c.nextPassiveProgress) {
+	requested := c.progressRequested.Swap(false)
+	if standingPreparationCursor != nil && !terminalObserved && !requested && time.Now().Before(c.nextPassiveProgress) {
 		c.observeProgressStage("retry_preparation")
 		_ = c.reconcileRetryPreparations(ctx)
 		return

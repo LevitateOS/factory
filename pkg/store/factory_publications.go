@@ -869,7 +869,22 @@ func (s *Store) ActivePublishedPublications(ctx context.Context, limit int) ([]f
 // refresh CI observations while their inference root remains closed; child
 // dispatch deliberately keeps the narrower active-allowance enumeration.
 func (s *Store) CheckablePublications(ctx context.Context, limit int) ([]factory.Publication, error) {
-	return s.activePublishedPublications(ctx, limit, true)
+	publications, err := s.activePublishedPublications(ctx, limit, true)
+	if err != nil {
+		return nil, err
+	}
+	out := publications[:0]
+	for _, p := range publications {
+		m, err := s.MergeByPublication(ctx, p.ID)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+		if err == nil && (m.Stage == factory.MergeWithdrawn || m.Stage == factory.MergeFailed) && !factory.MergeTargetChanged(m, p) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }
 
 func (s *Store) activePublishedPublications(ctx context.Context, limit int, mergeOnly bool) ([]factory.Publication, error) {

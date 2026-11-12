@@ -971,6 +971,7 @@ retirement and original receipt recovery. Existing real PG HTTP/progress checks
 prove0 separate identity reads,3 fresh Work repository reads with final withdrawal
 refusal and actual PublishPass's zero-material terminal hold; three-phase typed
 role/restart/WAL checks pass (`request72-*`) without provider/model effects.
+Installed72 then preserved natural budget expiry and admitted fresh merge-only command6dd5095c under correct issue57. A missing scheduler wake consumed its five-minute send window before allocation; original cancellation/paid receipt stay exact, usage245, normal Quit joins owners and fixture write is restored. Actual traffic still totals513 calls, so volume/full fork merge remain INCOMPLETE. The follow-up wakes only newly saved merge preparation on the next ten-second tick (existing real PG external-preparation proof), excludes finalized exact candidates from passive CI (existing progress proof), and shares GitHub discussion read preflight only within the bounded two traversals; native authentication/repository reads and final provider/write admission remain fresh. `request73-*` retains builds and scoped checks; connected savings remain unverified. Original513 debits fully expire14:07:33Z; do not reset the journal or replay any model/send.
 Connected counts/full fork merge remain INCOMPLETE; preserve all600 debits until
 12:53:29Z (2026-11-12), then resume once after12:54Z. Disposable guest storage grew
 40→64GiB while retaining all installed payloads, profiles, credentials and receipts.

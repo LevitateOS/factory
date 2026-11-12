@@ -246,7 +246,7 @@ type nativeProductAccount struct {
 	binding    collaboration.ConnectionBinding
 	repository *collaboration.RepositoryRef
 	controller *nativeControllerGrant
-	// Set only on read-only status/access, Work and Feed diagnostic callbacks.
+	// Set only within read-only HTTP or bounded delivery-material traversals.
 	readAdmission *NativeRepository
 }
 

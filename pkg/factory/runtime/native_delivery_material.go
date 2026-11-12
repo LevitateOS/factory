@@ -166,11 +166,24 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if err != nil {
 		return empty, nativeDeliveryReadFailure(bounded, "provider readiness", err)
 	}
-	first, err := nativeDeliveryDiscussion(bounded, nativeCollaborationReads{account}, w)
+	reads := nativeCollaborationReads{account}
+	if account.binding.Host.Provider == collaboration.GitHub {
+		// Each native discussion read authenticates and reads this repository
+		// itself. Share only its Go read preflight within these two traversals;
+		// the provider recheck and subsequent write admission remain fresh.
+		observed, err := account.repositoryObservation(bounded, account.binding.Actor.ID, account.repository.ID)
+		if err != nil {
+			return empty, nativeDeliveryReadFailure(bounded, "discussion admission", err)
+		}
+		view := *account
+		view.readAdmission = &observed
+		reads.nativeProductAccount = &view
+	}
+	first, err := nativeDeliveryDiscussion(bounded, reads, w)
 	if err != nil {
 		return empty, nativeDeliveryReadFailure(bounded, "first discussion traversal", err)
 	}
-	second, err := nativeDeliveryDiscussion(bounded, nativeCollaborationReads{account}, w)
+	second, err := nativeDeliveryDiscussion(bounded, reads, w)
 	if err != nil {
 		return empty, nativeDeliveryReadFailure(bounded, "second discussion traversal", err)
 	}

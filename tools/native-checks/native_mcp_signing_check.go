@@ -14574,9 +14574,12 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	if len(publicationReport.Errors) != 0 || reads.acceptance != 0 || reads.dispatch != 0 || len(publicationReport.Waits) != 1 || publicationReport.Waits[0].Reason != "merge_preparation_required" {
 		return fmt.Errorf("finalized merge repeated publication-child material reads: report=%+v reads=%+v", publicationReport, reads)
 	}
+	if checkable, err := db.CheckablePublications(ctx, 256); err != nil || len(checkable) != 0 {
+		return fmt.Errorf("finalized exact candidate remained in passive CI inventory: %v", err)
+	}
 	fmt.Println("PASS: real PG holds a pristine superseded merge and a findings COMMENT without a funded acceptance before provider inputs without changing original journals; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
 	fmt.Println("PASS: expired allocated merge cancels its original identity before provider/material reads; a declared reserved unknown stays open, and only its owner's confirmed no-send withdraws. Original work/deadline retained; no provider or inference.")
-	fmt.Println("PASS: actual PublishPass holds the finalized exact candidate before child delivery-material/acceptance reads, leaving original cancellation and allowance intact until a fresh explicit merge command. No provider/model.")
+	fmt.Println("PASS: actual PublishPass and passive CI inventory hold the finalized exact candidate, leaving original cancellation and allowance intact until a fresh explicit merge command. No provider/model.")
 	return nil
 }
 
@@ -15205,9 +15208,39 @@ func externalPreparationFixture() error {
 	if err != nil || !directOffer.RetryNoSend || directOffer.MergeID != directMerge.ID {
 		return fmt.Errorf("direct external owner merge-only preparation unavailable: %+v %v", directOffer, err)
 	}
-	if receipt, err := db.PrepareUnsentMerge(ctx, factory.NewID(), "declared-direct-merge", directOffer, time.Now()); err != nil || receipt.NotAfter <= time.Now().Unix() {
+	wakeCoordinator := control.NewCoordinator(db, discovery, discovery)
+	wakeCoordinator.Merges = progressMergeObserver{lookup: func(id string) (factory.OperationOutcome, error) {
+		if id != directMerge.Operation.OperationID {
+			return factory.OperationOutcome{}, errors.New("declared merge lookup unavailable")
+		}
+		o := directMerge.Operation
+		return factory.OperationOutcome{OperationID: o.OperationID, InstallationID: o.InstallationID, ActorID: o.ActorID, RepositoryID: o.RepositoryID, Kind: o.Kind, Effect: o.Effect, Cancellation: o.Cancellation, Completion: o.Completion, Reason: o.Reason}, nil
+	}}
+	woken := make(chan struct{}, 2)
+	wakeCoordinator.CommentDrive = func(context.Context) {
+		select {
+		case woken <- struct{}{}:
+		default:
+		}
+	}
+	if err = wakeCoordinator.Start(ctx, filepath.Join(lockDir, "coordinator.lock")); err != nil {
+		_ = wakeCoordinator.Close()
+		return err
+	}
+	defer wakeCoordinator.Close()
+	<-woken // startup completed before the fresh command
+	if receipt, err := wakeCoordinator.PrepareUnsentMerge(ctx, factory.NewID(), "declared-direct-merge", directOffer); err != nil || receipt.NotAfter <= time.Now().Unix() {
 		return fmt.Errorf("direct external owner finite merge-only preparation failed: %v", err)
 	}
+	select {
+	case <-woken:
+	case <-ctx.Done():
+		return errors.New("fresh merge-only command waited behind passive provider polling")
+	}
+	if err = wakeCoordinator.Close(); err != nil {
+		return err
+	}
+	fmt.Println("PASS: fresh merge-only command wakes the running coordinator on its next ten-second tick despite its five-minute passive hold; declared callback and causal no-send lookup, no provider/model.")
 	if after, err := db.Assignment(ctx, directID); err != nil || !reflect.DeepEqual(after, direct) || after.Run != "" || after.Connection != "" || after.Result != nil {
 		return errors.New("direct external merge preparation fabricated or changed an execution")
 	}

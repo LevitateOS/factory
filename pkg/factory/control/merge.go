@@ -242,7 +242,7 @@ func (c *Coordinator) fenceUnattributedMerge(ctx context.Context, m factory.Merg
 // the predecessor never allocated an operation. Native absence alone is not
 // authority. The normal merge pass still observes current review/CI/permission
 // facts before binding any send; preparing a row dispatches nothing.
-func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal string, r factory.MergePreparation) (factory.MergePreparationReceipt, error) {
+func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal string, r factory.MergePreparation) (receipt factory.MergePreparationReceipt, err error) {
 	empty := factory.MergePreparationReceipt{}
 	if c.Store == nil || c.Merges == nil || r.Validate() != nil {
 		return empty, store.ErrMergeConflict
@@ -255,6 +255,13 @@ func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, err
 	}
+	// A newly admitted five-minute send must not wait behind the five-minute
+	// passive poll. Replaying a saved command above does not wake another pass.
+	defer func() {
+		if err == nil {
+			c.progressRequested.Store(true)
+		}
+	}()
 	offer, err := c.Store.UnsentMergePreparation(ctx, r.Publication)
 	if err != nil {
 		return empty, err
