@@ -14,7 +14,125 @@ owner has authorized full GitHub verification; Fountain remains outside this
 pass. The [active recovery ledger](../untangle-codebase.md#retained-review-recovery-fix-2026-11-11)
 records current checks, installed state and original external-fixture receipts;
 Q17 below retains earlier scoped evidence. No whole product or
-security gate is closed by source checks.
+security gate is closed by source checks. Use the
+[consolidated GitHub/Muse todo](#githubmuse-consolidated-todo-2026-11-12)
+below as the current scoped continuation; dated Q prompts remain requirements
+and historical evidence, not a competing current status list.
+
+## GitHub/Muse consolidated todo (2026-11-12)
+
+Scope: finish the GitHub/Muse assembly line and its required installed recovery
+and update behavior. Fountain/appliance/parity work remains outstanding outside
+this pass. Its absence does not block independent GitHub work. Task numbers do
+not impose dependencies. This consolidation starts no checks or provider/model
+effects and does not claim that implementation is finished.
+
+**Evidence already available; reuse it.** Earlier real Muse runs establish
+Architect/Builder work, publication, genuine Inspector → Fixer → re-inspection,
+real app-bound CI and an allowed merge; a subsequent Architect/Builder succeeded
+at that merged result. PR61 has a retained merge. PR62 has actual fork adoption,
+Inspector/Fixer work, correction publication, real CI and a paid ready-to-merge
+decision; its final merge remains open. The latest204-request check uses declared
+role results and simulated GitHub responses: it establishes production merge
+contracts and zero-call receipt recovery after credential withdrawal/restart,
+not a new Muse Builder run or a new connected merge. Exact identities and
+artifacts remain in the [active evidence ledger](../untangle-codebase.md#retained-review-recovery-fix-2026-11-11).
+
+- [ ] **1. Qualify complete installed GitHub request volume.** Existing reductions
+  are implemented (`006b50a`, `72aa783`, `a6a2cc2`); the complete controlled native
+  merge/recovery check is `ad6dc4c`. Measure actual startup/navigation, funded
+  quiet operation, held/retried work and a successful merge using local traffic
+  counters. The simulated204-call journey and latest56-call navigation do not
+  establish acceptable full installed volume. Trace and fix concrete remaining
+  amplification before more live attempts. At the last stop the retained journal
+  had471/600 debits; no live operation was authorized on its insufficient
+  remaining capacity. Never wait for quota, reset journals or rotate accounts.
+  This admission requirement affects connected checks below, not local code work.
+
+- [ ] **2. Finish PR62's real paid-decision → merge → completion path (Q15/Q17).**
+  Recover current provider facts and original receipts first. The original
+  allocated merge `261f778c1a874f3c9e0cbbd1989249c4` is definitively cancelled
+  before dispatch, with its original work/deadline preserved. Use a fresh finite
+  explicit merge command for the retained corrected candidate and paid decision;
+  never renew that cancelled command. Prove one causal merge receipt, exact
+  reviewed head versus resulting commit, base containment, issue closure and
+  final UI/accounting reconciliation. Use the already authorized fixture-only
+  permission guard and restore write on success or failure. Reuse planning,
+  Builder, Inspector, Fixer and paid judgment; this item needs no new inference
+  while their evidence remains applicable. Changed material must hold rather
+  than silently spend again. Charge at last read:245 minutes,0 active runs.
+
+- [ ] **3. Close automatic own-issue intake through delivery (Q16/Q26).** Polling,
+  cursors, original creation/creator checks and pagination have scoped evidence;
+  do not implement a replacement poller. Join the retained eligible own-issue
+  acceptance to actual planning, Builder, publication, independent review,
+  checks, merge and exact source charges. Finish missing connected wake/restart
+  and withdrawal-during-I/O proof; show no duplicate dispatch, Factory-origin
+  recursion or unauthorized spend. Reuse qualifying delivery evidence from
+  item2 and earlier real runs. Repair only a concrete missing join or failure.
+
+- [ ] **4. Close external PR adoption and automatic discovery (Q17).** Combine
+  PR61's same-repository evidence and PR62's fork correction evidence, completing
+  item2. The automatic-discovery implementation is present and default-off;
+  its connected opt-in entry still needs qualification, distinct from a manual
+  Inspect action. Prove exact repository/actor/issue/head/base, current policy
+  and explicit fork-execution consent; ordinary updated/stale/withdrawn refusal,
+  corrected-head deduplication and retained restart must prevent another launch.
+  A new model run is justified only by an uncovered required real boundary,
+  not by the existence of this checklist. Hacking-like adversarial fork checks
+  remain separately named for a user-started Daybreak session.
+
+- [ ] **5. Finish installed authority, custody and recovery composition (Q26).**
+  Reuse installed login/keyring, real keyboard/window/second-launch,
+  Quit/restart/wake, physical execution Retry and earlier standalone recovery
+  evidence within their exact scopes. Remaining proof includes actual installed
+  provider-side revocation/refusal and re-consent; source/role withdrawal during
+  provider/worker I/O; account/repository changes while work is pending; and the
+  required worker crash/reboot/retirement reconciliation not already covered.
+  Verify no future spend/send under withdrawn authority, exact settled charges,
+  preserved candidates/receipts and no replay of unknown outcomes. Local account
+  removal and simulated revocation do not replace provider-side revocation.
+  Preserve human drafts/text and verify selected-repository policy/action states
+  through the installed shared UI. Provider revocation needs account interaction;
+  finish sends requiring that account before deliberately revoking its grant.
+
+- [ ] **6. Finish installed upgrades and update activation (Q28).** Retained-store
+  migration/refusal, inactive exact-prior upgrades and scoped uninstall have
+  evidence; reuse it. Qualify the remaining active-worker app/backend/provider
+  upgrade with its captured old executable retained, and current dependency/
+  Muse download, integrity, failure/status and activation behavior. Demonstrate
+  interrupted activation/reopen and safe uninstall preserve original profiles,
+  keyrings, drafts, pending effects, candidates and causal receipts. Use disposable
+  copies for migration/uninstall work; never use schema/current target state as
+  historical send authority. Do not replay a failed paid judgment just to supply
+  missing active-run update evidence.
+
+- [ ] **7. Reconcile GitHub release inputs and ordinary security evidence (Q30).**
+  Check exact source/build/install revisions, current dependencies, notices/
+  licenses, installer inputs and dependency-job publication against retained
+  receipts. Historical source-job runs do not qualify current installed update
+  delivery. For gates1–4 and the GitHub portions of gates6–12, identify and close
+  each missing ordinary installed workflow/auth/IPC, isolation/tool, proxy,
+  MCP/signer and retirement obligation using its existing owner/check. These
+  gates are still Open; component evidence is not whole-gate closure. Record
+  only exact hacking-like checks as Daybreak work; do not start Daybreak or
+  silently defer ordinary gaps. Fountain-only gates5/13 remain outside this pass.
+
+- [ ] **8. Close the scoped completion ledger.** Map each required role/handoff
+  and enabled GitHub entry path to its actual evidence, distinguishing real
+  Muse execution, controlled results and source-only coverage. Reconcile Q15,
+  Q16, Q17, Q26 and the relevant Q28/Q30 records; retain historical failures and
+  uncertain effects verbatim. Report GitHub/Muse complete only after the above
+  ordinary requirements pass. Do not present the latest simulated check as a
+  fresh end-to-end Muse journey, or GitHub-only completion as all Factory/Q30
+  completion. No blanket repeat of successful model runs is required.
+
+Current checkout is main; no owned app/check/permission guard was left running
+at the last recovery checkpoint. Inspect actual process/journal state before
+resuming. The next connected action is item2 only after item1's request admission
+and original-operation recovery; independent missing installed/update work can
+proceed without that merge. Record concrete regressions as implementation work
+under the affected item rather than declaring all remaining work verification.
 
 **Earlier implementation-only snapshot (2026-11-10).** Q15–Q17,
 Q19 and Q21–Q29 remain outstanding. Source-only changes do not qualify these
