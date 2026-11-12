@@ -1606,6 +1606,20 @@ one-minute passive retry bound; success still requires fresh native admission.
 Normal Quit52 confirms process/socket retirement. Next: exact-prior53 install
 and resume correction eeaeff3a under original root6aac and review finding5a2;
 connected correction remains unqualified. No model, receipt or deadline replay.
+Installed53 verifies that fork refs now reach authenticated PR/source reads.
+Preparationf47379049226bb2adfa2433d2 retains first deadline1794455702, with no
+Fixer/run or charge (235). A single read-only source query reports429; it does
+not establish the earlier fetch failures. Normal Quit53 retires processes/socket.
+Source review also finds the shared native retired-recipe predicate still
+excluding Coder SourcePull, contrary to desktop/backend admission. It now admits
+exactly one of SourceRun/SourceMerge/SourcePull, preserving all native source,
+bundle, approval and deadline checks; its extracted predicate check passes
+(goal53-retired-source-pull-check.log). The existing negative retry clock also
+covers preparation failures before repeated input/bundle reads. Native54 and
+backend builds plus existing realPG progress-gate pass (request54-progress-pg.log).
+Next: install54, inspect the original preparation's retirement/expiry, then
+resume only valid original authority or an explicit fresh bounded continuation.
+Never renew f473's first deadline or replay completed planning/review.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

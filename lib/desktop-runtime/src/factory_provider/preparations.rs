@@ -65,9 +65,11 @@ struct DerivedSource {
 fn refreshed_source(request: &Value) -> bool {
     let input = &request["input"];
     match input["preparation"]["role"].as_str() {
-        Some("soda-coder") => input["source_pull"].is_null() && matches!(
-            (&input["source_run"], &input["source_merge"]),
-            (Value::Object(_), Value::Null) | (Value::Null, Value::Object(_))
+        Some("soda-coder") => matches!(
+            (&input["source_run"], &input["source_merge"], &input["source_pull"]),
+            (Value::Object(_), Value::Null, Value::Null)
+                | (Value::Null, Value::Object(_), Value::Null)
+                | (Value::Null, Value::Null, Value::Object(_))
         ),
         // The current publication admission owns the exact reviewer head.
         // A retired recipe supplies approved bytes, never a live checkout.

@@ -18,18 +18,20 @@ import (
 
 const publicationChildLimit = 256
 
-type forkSourceRetryInput struct {
+type childAdmissionRetryInput struct {
 	target     factory.PublicationPullTarget
 	origin     factory.ExternalPublicationOrigin
 	authority  factory.AuthorityRef
 	acceptance string
 	child      string
+	role       string
 	policy     int64
 	dispatch   int64
 }
 
-type forkSourceFailure struct {
-	input     forkSourceRetryInput
+type childAdmissionFailure struct {
+	input     childAdmissionRetryInput
+	reason    string
 	notBefore int64
 }
 
@@ -52,9 +54,9 @@ func (c *Coordinator) producePublishedChildren(ctx context.Context, report *Publ
 	for _, p := range publications {
 		active[p.ID] = true
 	}
-	for id, failure := range c.forkSourceFailures {
+	for id, failure := range c.childAdmissionFailures {
 		if !active[id] || failure.notBefore <= time.Now().Unix() {
-			delete(c.forkSourceFailures, id)
+			delete(c.childAdmissionFailures, id)
 		}
 	}
 	logNew := func(waits, failures int) {
@@ -456,7 +458,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		return nil, "", execution.PreparationRecord{}, true
 	}
 	plan.gateRev = gate
-	if c.forkSourceRetryHeld(p, role, plan, childID, report) {
+	if c.childAdmissionRetryHeld(p, role, plan, childID, report) {
 		return nil, "", execution.PreparationRecord{}, true
 	}
 	if c.publicationChildPreparationHeld(ctx, p, owner, plan, expectedPrepID, childID, report) {
@@ -504,6 +506,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		}
 		prep, ready, prepErr := c.prepareReviewCandidate(ctx, p, owner, plan, report, expectedPrepID, childID)
 		if prepErr != nil {
+			c.holdChildAdmissionRetry(p, role, plan, childID, "review_preparation_unavailable")
 			report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "review_preparation_unavailable", Detail: prepErr.Error()})
 			return nil, "", execution.PreparationRecord{}, true
 		}
@@ -788,47 +791,59 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 	return correctionPlan, false
 }
 
-func forkSourceRetryScope(p factory.Publication, plan *attemptPlan, child string) forkSourceRetryInput {
-	return forkSourceRetryInput{target: p.PullTarget(), origin: *p.External, authority: plan.effective.Authority,
-		acceptance: p.Acceptance, child: child, policy: plan.policy.Revision, dispatch: plan.gateRev}
+func childAdmissionRetryScope(p factory.Publication, role string, plan *attemptPlan, child string) childAdmissionRetryInput {
+	input := childAdmissionRetryInput{target: p.PullTarget(), authority: plan.effective.Authority,
+		acceptance: p.Acceptance, child: child, role: role, policy: plan.policy.Revision, dispatch: plan.gateRev}
+	if p.External != nil {
+		input.origin = *p.External
+	}
+	return input
 }
 
 // Only a prior denial can delay passive retries. Local admission has already
 // checked withdrawal and current grants; this record can never authorize work.
-func (c *Coordinator) forkSourceRetryHeld(p factory.Publication, role string, plan *attemptPlan, child string, report *PublishReport) bool {
-	failure, found := c.forkSourceFailures[p.ID]
+func (c *Coordinator) childAdmissionRetryHeld(p factory.Publication, role string, plan *attemptPlan, child string, report *PublishReport) bool {
+	failure, found := c.childAdmissionFailures[p.ID]
 	if !found {
 		return false
 	}
 	now := time.Now().Unix()
-	if role != project.RoleCoder || p.External == nil || p.PullTarget().HeadRepository == p.Repository ||
-		failure.input != forkSourceRetryScope(p, plan, child) || failure.notBefore <= now || failure.notBefore > now+int64(passiveCheckInterval/time.Second) {
-		delete(c.forkSourceFailures, p.ID)
+	if role != project.RoleCoder && role != project.RoleReviewer ||
+		failure.input != childAdmissionRetryScope(p, role, plan, child) || failure.notBefore <= now || failure.notBefore > now+int64(passiveCheckInterval/time.Second) {
+		delete(c.childAdmissionFailures, p.ID)
 		return false
 	}
-	publicationWait(report, p.ID, "fork_correction_unavailable")
+	publicationWait(report, p.ID, failure.reason)
 	return true
+}
+
+func (c *Coordinator) holdChildAdmissionRetry(p factory.Publication, role string, plan *attemptPlan, child, reason string) {
+	if reason != "fork_correction_unavailable" && reason != "review_preparation_unavailable" {
+		return
+	}
+	if c.childAdmissionFailures == nil {
+		c.childAdmissionFailures = make(map[string]childAdmissionFailure)
+	}
+	c.childAdmissionFailures[p.ID] = childAdmissionFailure{input: childAdmissionRetryScope(p, role, plan, child),
+		reason: reason, notBefore: time.Now().Add(passiveCheckInterval).Unix()}
 }
 
 func (c *Coordinator) refuseUnavailableForkCorrection(ctx context.Context, p factory.Publication, role string, plan *attemptPlan, child string, report *PublishReport) bool {
 	if role != project.RoleCoder || p.External == nil || p.PullTarget().HeadRepository == p.Repository {
 		return false
 	}
-	if c.forkSourceRetryHeld(p, role, plan, child, report) {
+	if c.childAdmissionRetryHeld(p, role, plan, child, report) {
 		return true
 	}
 	source, ok := c.Publication.(interface {
 		AdmitCorrectionSource(context.Context, factory.Publication) error
 	})
 	if !ok || source.AdmitCorrectionSource(ctx, p) != nil {
-		if c.forkSourceFailures == nil {
-			c.forkSourceFailures = make(map[string]forkSourceFailure)
-		}
-		c.forkSourceFailures[p.ID] = forkSourceFailure{input: forkSourceRetryScope(p, plan, child), notBefore: time.Now().Add(passiveCheckInterval).Unix()}
+		c.holdChildAdmissionRetry(p, role, plan, child, "fork_correction_unavailable")
 		publicationWait(report, p.ID, "fork_correction_unavailable")
 		return true
 	}
-	delete(c.forkSourceFailures, p.ID)
+	delete(c.childAdmissionFailures, p.ID)
 	return false
 }
 
