@@ -264,10 +264,22 @@ impl Reader<'_> {
 
     pub(super) async fn protection(&self, q: &Value) -> Result<Value> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
-        let before = self.protection_binding(&self.raw_subject(true, number).await?)?;
+        let pull = self.raw_subject(true, number).await?;
+        let before = self.protection_binding(&pull)?;
         if q["head"] != "" && q["head"] != before["head"] {
             return Err(Failure::new(409, "github_checks_changed"));
         }
+        let captured = self.protection_snapshot_for_pull(&pull).await?;
+        let pull = self.raw_subject(true, number).await?;
+        if self.protection_snapshot_for_pull(&pull).await? != captured {
+            return Err(Failure::new(409, "github_checks_changed"));
+        }
+        self.recheck().await?;
+        Ok(captured)
+    }
+
+    pub(super) async fn protection_snapshot_for_pull(&self, pull: &Value) -> Result<Value> {
+        let before = self.protection_binding(pull)?;
         // Encode this as one path segment; branch slashes must not select a
         // different endpoint or introduce query parameters.
         let mut url = url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
@@ -281,18 +293,6 @@ impl Reader<'_> {
             self.protection_sources(&branch_target, encoded)
         )?;
         let captured_branch = branch_identity(&branch.value, r::text(&before, "branch")?)?;
-        let (sources, pull, branch) = tokio::try_join!(
-            self.protection_sources(&branch_target, encoded),
-            self.raw_subject(true, number),
-            self.get(&branch_target, &[])
-        )?;
-        if sources != (classic.clone(), rules.clone())
-            || self.protection_binding(&pull)? != before
-            || captured_branch != branch_identity(&branch.value, r::text(&before, "branch")?)?
-        {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
-        self.recheck().await?;
         let summary = super::protection::summarize(
             &captured_branch["protected"],
             classic.as_ref(),

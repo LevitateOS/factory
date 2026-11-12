@@ -182,34 +182,83 @@ impl Reader<'_> {
         let observe = async || -> Result<Value> {
             let repository = self.get("", &[]).await?.value;
             let pull = self.raw_subject(true, number.into()).await?;
-            if r::id(&repository["id"])? != self.repository
-                || repository["full_name"] != self.name
-                || r::id(&pull["base"]["repo"]["id"])? != self.repository
-                || pull["number"].as_u64() != Some(number.into())
-                || !r::text(&repository, "node_id").is_ok_and(node_id)
-                || !r::text(&pull, "node_id").is_ok_and(node_id)
-                || !r::text(&pull["head"], "sha").is_ok_and(commit)
-                || !r::text(&pull["base"], "sha").is_ok_and(commit)
-            {
-                return Err(Failure::protocol());
-            }
-            Ok(
-                json!({"repository":self.repository,"name":self.name,"repository_node_id":repository["node_id"],
-                "pull_id":r::id(&pull["id"])?,"pull_node_id":pull["node_id"],"number":number,
-                "head":pull["head"]["sha"],"base":pull["base"]["sha"],"state":r::text(&pull,"state")?,
-                "draft":r::boolean(&pull,"draft")?,"merged":r::boolean(&pull,"merged")?,
-                "mergeable":r::boolean(&pull,"mergeable")?,"mergeable_state":r::string(&pull,"mergeable_state")?,
-                "archived":r::boolean(&repository,"archived")?,"disabled":r::boolean(&repository,"disabled")?,
-                "push":r::boolean(&repository["permissions"],"push")?,
-                "methods":{"merge":r::boolean(&repository,"allow_merge_commit")?,"squash":r::boolean(&repository,"allow_squash_merge")?,"rebase":r::boolean(&repository,"allow_rebase_merge")?},
-                "head_condition":"expected_head_oid","base_condition":"bounded_preflight"}),
-            )
+            self.merge_preparation_for_pull(number, &repository, &pull)
         };
         let facts = observe().await?;
         if observe().await? != facts {
             return Err(Failure::new(409, "github_merge_inputs_changed"));
         }
         Ok(facts)
+    }
+
+    fn merge_preparation_for_pull(&self, number: u32, repository: &Value, pull: &Value) -> Result<Value> {
+        if r::id(&repository["id"])? != self.repository
+            || repository["full_name"] != self.name
+            || r::id(&pull["base"]["repo"]["id"])? != self.repository
+            || pull["number"].as_u64() != Some(number.into())
+            || !r::text(&repository, "node_id").is_ok_and(node_id)
+            || !r::text(&pull, "node_id").is_ok_and(node_id)
+            || !r::text(&pull["head"], "sha").is_ok_and(commit)
+            || !r::text(&pull["base"], "sha").is_ok_and(commit)
+        {
+            return Err(Failure::protocol());
+        }
+        Ok(
+            json!({"repository":self.repository,"name":self.name,"repository_node_id":repository["node_id"],
+            "pull_id":r::id(&pull["id"])?,"pull_node_id":pull["node_id"],"number":number,
+            "head":pull["head"]["sha"],"base":pull["base"]["sha"],"state":r::text(&pull,"state")?,
+            "draft":r::boolean(&pull,"draft")?,"merged":r::boolean(&pull,"merged")?,
+            "mergeable":r::boolean(&pull,"mergeable")?,"mergeable_state":r::string(&pull,"mergeable_state")?,
+            "archived":r::boolean(&repository,"archived")?,"disabled":r::boolean(&repository,"disabled")?,
+            "push":r::boolean(&repository["permissions"],"push")?,
+            "methods":{"merge":r::boolean(&repository,"allow_merge_commit")?,"squash":r::boolean(&repository,"allow_squash_merge")?,"rebase":r::boolean(&repository,"allow_rebase_merge")?},
+            "head_condition":"expected_head_oid","base_condition":"bounded_preflight"}),
+        )
+    }
+
+    // These projections belong to one exact PR snapshot. Standalone readers
+    // keep their own brackets; this compound read pairs the entire result so
+    // repeated PR/repository/CI reads do not multiply those same brackets.
+    pub(super) async fn merge_readiness(&self, number: u32, head: &str, base: &str) -> Result<Value> {
+        let before = self.merge_readiness_snapshot(number, head, base).await?;
+        if self.merge_readiness_snapshot(number, head, base).await? != before {
+            return Err(Failure::new(409, "github_merge_inputs_changed"));
+        }
+        self.recheck().await?;
+        Ok(before.0)
+    }
+
+    async fn merge_readiness_snapshot(&self, number: u32, head: &str, base: &str) -> Result<(Value, Value)> {
+        let (repository, pull) = tokio::try_join!(self.get("", &[]), self.raw_subject(true, number.into()))?;
+        if pull["head"]["sha"] != head || pull["base"]["sha"] != base {
+            return Err(Failure::new(409, "github_merge_inputs_changed"));
+        }
+        let preparation = self.merge_preparation_for_pull(number, &repository.value, &pull)?;
+        let ((binding, evaluation, sources), (review, protection), capabilities, opinions) = tokio::try_join!(
+            async {
+                let binding = self.check_evaluation_for_pull(number.into(), &pull).await?;
+                let (evaluation, sources) = self.evaluation_sources(&binding).await?;
+                Ok((binding, evaluation, sources))
+            },
+            async {
+                let protection = self.protection_snapshot_for_pull(&pull).await?;
+                let review = self.automation_review_with_base_tip(number.into(), &pull, Some(r::text(&protection, "branch_commit")?)).await?;
+                Ok((review, protection))
+            },
+            self.write_capabilities_for_repository(&repository.value, Some(number), true),
+            self.delivery_opinions_for_pull(number.into(), &repository.value, &pull)
+        )?;
+        if review["head_tip"] != binding["head"] || review["base_tip"] != binding["base"]
+            || capabilities["subject"]["external_id"] != preparation["pull_id"]
+            || capabilities["subject"]["head"] != head || capabilities["subject"]["base"] != base
+        {
+            return Err(Failure::new(409, "github_merge_inputs_changed"));
+        }
+        let required = self.required_check_projection(&binding, &protection, &evaluation, Some(&sources))?;
+        let checks = self.check_snapshot_projection(review, &evaluation, &sources)?;
+        // Include the complete test-merge binding in the private comparison,
+        // even when CI evaluation falls back to the head commit.
+        Ok((json!({"preparation":preparation,"required_checks":required,"checks":checks,"capabilities":capabilities,"opinions":opinions}), binding))
     }
 }
 impl Client {

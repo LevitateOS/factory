@@ -87,7 +87,10 @@ impl Reader<'_> {
         let pull = self.raw_subject(true, number).await?;
         self.automation_review_for_pull(number, &pull).await
     }
-    async fn automation_review_for_pull(&self, number: u64, pull: &Value) -> Result<Value> {
+    pub(super) async fn automation_review_for_pull(&self, number: u64, pull: &Value) -> Result<Value> {
+        self.automation_review_with_base_tip(number, pull, None).await
+    }
+    pub(super) async fn automation_review_with_base_tip(&self, number: u64, pull: &Value, captured_base_tip: Option<&str>) -> Result<Value> {
         let head = r::nonempty(&pull["head"], "sha")?;
         let base = r::nonempty(&pull["base"], "sha")?;
         let head_ref = r::nonempty(&pull["head"], "ref")?;
@@ -117,7 +120,13 @@ impl Reader<'_> {
         let (issue, head_tip, base_tip) = tokio::try_join!(
             self.raw_subject(false, number),
             head_reader.automation_branch_tip(head_ref),
-            self.automation_branch_tip(base_ref)
+            async {
+                match captured_base_tip {
+                    Some(tip) if commit(tip) => Ok(tip.to_owned()),
+                    Some(_) => Err(Failure::protocol()),
+                    None => self.automation_branch_tip(base_ref).await,
+                }
+            }
         )?;
         if issue["pull_request"]["url"] != self.url(&format!("/pulls/{number}")) {
             return Err(Failure::protocol());
@@ -234,7 +243,7 @@ impl Reader<'_> {
         let raw = self.raw_subject(true, number).await?;
         self.check_evaluation_for_pull(number, &raw).await
     }
-    async fn check_evaluation_for_pull(&self, number: u64, raw: &Value) -> Result<Value> {
+    pub(super) async fn check_evaluation_for_pull(&self, number: u64, raw: &Value) -> Result<Value> {
         let mut binding = self.protection_binding(raw)?;
         let query = "query FactoryCheckEvaluation($pull:ID!){node(id:$pull){__typename ... on PullRequest{id number repository{id} headRefOid baseRefOid potentialMergeCommit{oid parents(first:2){nodes{oid}}}}}}";
         let token = zeroize::Zeroizing::new(self.token.to_vec());
@@ -274,7 +283,7 @@ impl Reader<'_> {
         // Both projections bind the same fresh PR; automation_checks still
         // repeats the complete snapshot after its repository permission check.
         let pull = self.raw_subject(true, number).await?;
-        let (mut snapshot, (binding, evaluation, sources)) = tokio::try_join!(
+        let (snapshot, (binding, evaluation, sources)) = tokio::try_join!(
             self.automation_review_for_pull(number, &pull),
             async {
                 let binding = self.check_evaluation_for_pull(number, &pull).await?;
@@ -285,8 +294,11 @@ impl Reader<'_> {
         if snapshot["head_tip"] != binding["head"] || snapshot["base_tip"] != binding["base"] {
             return Err(Failure::new(409,"github_checks_changed"));
         }
+        self.check_snapshot_projection(snapshot, &evaluation, &sources)
+    }
+    pub(super) fn check_snapshot_projection(&self, mut snapshot: Value, evaluation: &str, sources: &[Value]) -> Result<Value> {
         let mut contexts = BTreeMap::<String, String>::new();
-        for source in &sources {
+        for source in sources {
             let context = r::nonempty(source, "context")?;
             let state = r::nonempty(source, "state")?;
             if context.len() > 256 || context.chars().any(char::is_control) {

@@ -491,11 +491,30 @@ func (p NativeMerges) ObserveCompletion(ctx context.Context, w factory.MergeWork
 
 // observeProviderMerge reads provider facts without asserting a registered
 // Factory review. Workflow admission remains in ObserveMerge and the coordinator.
+type nativeMergeReadiness struct {
+	Preparation    nativeMergeFacts            `json:"preparation"`
+	RequiredChecks nativeRequiredCheckEnvelope `json:"required_checks"`
+	Checks         nativeCheckSnapshot         `json:"checks"`
+	Capabilities   nativeCapabilityFacts       `json:"capabilities"`
+	Opinions       nativeReviewOpinions        `json:"opinions"`
+}
+
 func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeWork, account *nativeProductAccount) (factory.MergeObservation, error) {
 	var empty factory.MergeObservation
 	var facts nativeMergeFacts
-	if err := account.read(ctx, nativeRead{Kind: "merge_preparation", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber)}, &facts); err != nil {
-		return empty, err
+	var paired nativeMergeReadiness
+	if account.binding.Host.Provider == collaboration.GitHub {
+		if err := account.read(ctx, nativeRead{Kind: "merge_readiness", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber), Head: &w.HeadOID, Base: &w.BaseOID}, &paired); err != nil {
+			return empty, err
+		}
+		facts = paired.Preparation
+		if facts.Repository != account.repository.ExternalID || facts.Number != uint32(w.PRNumber) {
+			return empty, errNativeRead
+		}
+	} else {
+		if err := account.read(ctx, nativeRead{Kind: "merge_preparation", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber)}, &facts); err != nil {
+			return empty, err
+		}
 	}
 	if facts.PullID != strconv.FormatInt(w.PRID, 10) || facts.Head != w.HeadOID || facts.Base != w.BaseOID {
 		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
@@ -515,7 +534,11 @@ func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeW
 			HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent, ProviderComplete: *facts.ProviderComplete, ProviderEligible: *facts.ProviderComplete && *facts.ProviderEligible}, nil
 	}
 	reads := nativeCollaborationReads{account}
-	gate, err := reads.readRequiredChecks(ctx, account.repository.ID, nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}, collaboration.CommitID(w.HeadOID), collaboration.CommitID(w.BaseOID), w.BaseRef[len("refs/heads/"):])
+	if err := reads.admitRead(ctx, account.binding.Actor.ID, account.repository.ID, factoryservice.ErrCapabilitiesMissing); err != nil {
+		return empty, err
+	}
+	pull := nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}
+	gate, err := reads.requiredCheckProjection(ctx, account.repository.ID, pull, collaboration.CommitID(w.HeadOID), collaboration.CommitID(w.BaseOID), w.BaseRef[len("refs/heads/"):], paired.RequiredChecks)
 	if err != nil {
 		return empty, fmt.Errorf("merge provider rules: %w", err)
 	}
@@ -526,18 +549,18 @@ func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeW
 			complete = complete && flag != nil && !*flag
 		}
 	}
-	checks, err := p.ObserveChecks(ctx, factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, w.ActorID)
+	checks, err := p.observeCheckSnapshot(ctx, factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, account, paired.Checks)
 	if err != nil {
 		return empty, err
 	}
-	caps, err := reads.ReadCapabilities(ctx, account.binding.Actor.ID, account.repository.ID, factoryservice.CapabilityQuery{Subject: "pull", Number: w.PRNumber})
+	caps, err := reads.capabilityProjection(account.binding.Actor.ID, account.repository.ID, factoryservice.CapabilityQuery{Subject: "pull", Number: w.PRNumber}, paired.Capabilities)
 	if err != nil {
 		return empty, fmt.Errorf("merge capabilities: %w", err)
 	}
 	if caps.Pull == nil || caps.Pull.ExternalID != facts.PullID || caps.Head == nil || string(*caps.Head) != w.HeadOID || caps.Base == nil || string(*caps.Base) != w.BaseOID || checks.HeadTip != w.HeadOID || checks.BaseTip != w.BaseOID {
 		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 	}
-	opinions, err := reads.readReviewOpinions(ctx, nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}, w.HeadOID, w.BaseOID)
+	opinions, err := reads.reviewOpinionProjection(paired.Opinions, pull, w.HeadOID, w.BaseOID)
 	if err != nil {
 		return empty, err
 	}

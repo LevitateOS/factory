@@ -237,7 +237,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	timeout := 9 * time.Second
 	if read, ok := effect.(nativeReadEffect); ok {
 		switch read.Query.Kind {
-		case "pull_required_checks", "automation_checks":
+		case "pull_required_checks", "automation_checks", "merge_readiness":
 			timeout = 16 * time.Second
 		}
 	}

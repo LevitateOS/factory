@@ -760,6 +760,7 @@ async fn background_read(
                     | Read::PullReviews { .. }
                     | Read::PullThreads { .. }
                     | Read::MergePreparation { .. }
+                    | Read::MergeReadiness { .. }
                     | Read::MergeCompletion { .. }
                     | Read::PullRequiredChecks { .. }
                     | Read::WriteCapabilities { .. }

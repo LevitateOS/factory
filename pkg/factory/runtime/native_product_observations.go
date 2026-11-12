@@ -147,6 +147,7 @@ func (b *nativeProductAccount) read(ctx context.Context, query nativeRead, body 
 }
 func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body any) (NativeIdentity, error) {
 	var envelope struct {
+		MergeReadiness         json.RawMessage             `json:"merge_readiness"`
 		RequiredChecks         json.RawMessage             `json:"required_checks"`
 		DeliveryOpinions       json.RawMessage             `json:"delivery_opinions"`
 		AutomationReview       json.RawMessage             `json:"automation_review"`
@@ -190,6 +191,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	fields := []json.RawMessage{envelope.ExternalPullCandidates, envelope.DeliveryOpinions, envelope.RequiredChecks, envelope.AutomationReview, envelope.AutomationChecks, envelope.Inputs, envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Commits, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.ReviewerLookup, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
 	var selected json.RawMessage
 	count := 0
+	fields = append(fields, envelope.MergeReadiness)
 	for _, field := range fields {
 		if len(field) > 0 {
 			count++
@@ -209,6 +211,9 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	}
 	if query.Kind == "external_pull_candidates" {
 		expected = envelope.ExternalPullCandidates
+	}
+	if query.Kind == "merge_readiness" {
+		expected = envelope.MergeReadiness
 	}
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead

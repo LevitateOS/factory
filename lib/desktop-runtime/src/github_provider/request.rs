@@ -115,6 +115,12 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    MergeReadiness {
+        repository: String,
+        number: u32,
+        head: String,
+        base: String,
+    },
     MergeCompletion {
         repository: String,
         number: u32,
@@ -324,7 +330,7 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     pub(crate) fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_secs(match self {
-            Self::PullRequiredChecks { .. } | Self::AutomationChecks { .. } => 15,
+            Self::PullRequiredChecks { .. } | Self::AutomationChecks { .. } | Self::MergeReadiness { .. } => 15,
             _ => 8,
         })
     }
@@ -402,6 +408,11 @@ impl Read {
         }
         if let Self::PullRequiredChecks { head, base, .. } = self {
             if !commit(head) || !commit(base) {
+                return Err(Failure::invalid());
+            }
+        }
+        if let Self::MergeReadiness { number, head, base, .. } = self {
+            if *number > i32::MAX as u32 || !commit(head) || !commit(base) || head == base {
                 return Err(Failure::invalid());
             }
         }

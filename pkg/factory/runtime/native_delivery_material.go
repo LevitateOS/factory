@@ -47,6 +47,10 @@ func (s nativeCollaborationReads) readReviewOpinions(ctx context.Context, pull n
 	if err := s.read(ctx, nativeRead{Kind: "delivery_opinions", Repository: s.repository.ExternalID, Number: uint32(pull.Number)}, &opinions); err != nil {
 		return opinions, err
 	}
+	return s.reviewOpinionProjection(opinions, pull, head, base)
+}
+
+func (s nativeCollaborationReads) reviewOpinionProjection(opinions nativeReviewOpinions, pull nativeSubjectRef, head, base string) (nativeReviewOpinions, error) {
 	if opinions.Repository != s.repository.ExternalID || opinions.PullID != pull.ExternalID || opinions.Number != pull.Number || opinions.Head != head || opinions.Base != base || opinions.Items == nil || len(opinions.Items) > 256 {
 		return opinions, errNativeRead
 	}

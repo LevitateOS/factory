@@ -14,9 +14,22 @@ const QUERY: &str = "query FactoryDeliveryOpinions($pull:ID!,$after:String){node
 impl Reader<'_> {
     pub(super) async fn delivery_opinions(&self, number: u64) -> Result<Value> {
         let pull = self.raw_subject(true, number).await?;
+        let repository = self.get("", &[]).await?.value;
+        let projected = self.delivery_opinions_for_pull(number, &repository, &pull).await?;
+        let current = self.raw_subject(true, number).await?;
+        if current["id"] != pull["id"]
+            || current["node_id"] != pull["node_id"]
+            || current["head"]["sha"] != pull["head"]["sha"]
+            || current["base"]["sha"] != pull["base"]["sha"]
+        {
+            return Err(Failure::new(409, "github_delivery_opinions_changed"));
+        }
+        self.recheck().await?;
+        Ok(projected)
+    }
+    pub(super) async fn delivery_opinions_for_pull(&self, number: u64, repository: &Value, pull: &Value) -> Result<Value> {
         let pull_id = r::id(&pull["id"])?;
         let pull_node = r::nonempty(&pull, "node_id")?.to_owned();
-        let repository = self.get("", &[]).await?.value;
         let repository_node = r::nonempty(&repository, "node_id")?;
         let head = r::nonempty(&pull["head"], "sha")?;
         let base = r::nonempty(&pull["base"], "sha")?;
@@ -115,15 +128,6 @@ impl Reader<'_> {
                 break;
             }
         }
-        let current = self.raw_subject(true, number).await?;
-        if current["id"] != pull["id"]
-            || current["node_id"] != pull_node
-            || current["head"]["sha"] != head
-            || current["base"]["sha"] != base
-        {
-            return Err(Failure::new(409, "github_delivery_opinions_changed"));
-        }
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"pull_id":pull_id,"number":number,"head":head,"base":base,"decision":decision.unwrap_or(Value::Null),"items":items}),
         )

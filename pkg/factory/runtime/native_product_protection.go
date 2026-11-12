@@ -18,27 +18,29 @@ type nativeRequiredChecks struct {
 	MissingRequired, InvalidRequired []string
 }
 
+type nativeRequiredCheckEnvelope struct {
+	Protection struct {
+		Repository   string                         `json:"repository"`
+		Name         string                         `json:"name"`
+		Pull         nativeSubjectRef               `json:"pull"`
+		Head         collaboration.CommitID         `json:"head"`
+		Base         collaboration.CommitID         `json:"base"`
+		Branch       string                         `json:"branch"`
+		BranchCommit collaboration.CommitID         `json:"branch_commit"`
+		Protected    *bool                          `json:"protected"`
+		Classic      json.RawMessage                `json:"classic"`
+		Rules        json.RawMessage                `json:"rules"`
+		Summary      collaboration.BranchProtection `json:"summary"`
+	} `json:"protection"`
+	EvaluationCommit collaboration.CommitID `json:"evaluation_commit"`
+	StatusGate       string                 `json:"status_gate"`
+	MissingRequired  []string               `json:"missing_required"`
+	InvalidRequired  []string               `json:"invalid_required"`
+}
+
 func (s nativeCollaborationReads) readRequiredChecks(ctx context.Context, repo collaboration.RepositoryID, pull nativeSubjectRef, head, base collaboration.CommitID, branch string) (nativeRequiredChecks, error) {
 	var empty nativeRequiredChecks
-	var envelope struct {
-		Protection struct {
-			Repository   string                         `json:"repository"`
-			Name         string                         `json:"name"`
-			Pull         nativeSubjectRef               `json:"pull"`
-			Head         collaboration.CommitID         `json:"head"`
-			Base         collaboration.CommitID         `json:"base"`
-			Branch       string                         `json:"branch"`
-			BranchCommit collaboration.CommitID         `json:"branch_commit"`
-			Protected    *bool                          `json:"protected"`
-			Classic      json.RawMessage                `json:"classic"`
-			Rules        json.RawMessage                `json:"rules"`
-			Summary      collaboration.BranchProtection `json:"summary"`
-		} `json:"protection"`
-		EvaluationCommit collaboration.CommitID `json:"evaluation_commit"`
-		StatusGate       string                 `json:"status_gate"`
-		MissingRequired  []string               `json:"missing_required"`
-		InvalidRequired  []string               `json:"invalid_required"`
-	}
+	var envelope nativeRequiredCheckEnvelope
 	pin, basePin := string(head), string(base)
 	if err := s.read(ctx, nativeRead{Kind: "pull_required_checks", Repository: s.identity.SelectedRepository, Number: uint32(pull.Number), Head: &pin, Base: &basePin}, &envelope); err != nil {
 		var failure *NativePortError
@@ -52,6 +54,11 @@ func (s nativeCollaborationReads) readRequiredChecks(ctx context.Context, repo c
 		}
 		return empty, nativeMissing(err, factoryservice.ErrChecksMissing)
 	}
+	return s.requiredCheckProjection(ctx, repo, pull, head, base, branch, envelope)
+}
+
+func (s nativeCollaborationReads) requiredCheckProjection(ctx context.Context, repo collaboration.RepositoryID, pull nativeSubjectRef, head, base collaboration.CommitID, branch string, envelope nativeRequiredCheckEnvelope) (nativeRequiredChecks, error) {
+	var empty nativeRequiredChecks
 	raw := envelope.Protection
 	if raw.Base != base || raw.Branch != branch {
 		return empty, factoryservice.ErrChecksChanged

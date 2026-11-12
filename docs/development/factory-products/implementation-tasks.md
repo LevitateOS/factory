@@ -1882,6 +1882,31 @@ a7162e4acb38811d096cfc86fb7c08865d0a86aadf41d0db62ed8dd64dda8db3.
 These negative/legacy checks do not prove the positive new continuation: matching
 installed backend, original connected merge, safe reuse marker and actual request
 counts remain next. Reuse unchanged app68/UI/helpers; no model or send replay.
+Installed69/source878390313b88552218f61fd7411774475c623f94 proves the positive
+single-use handoff at10:00:40Z on2026-11-12, reusing the original paid ready
+decision without inference. Settled navigation uses45 wire requests; two quiet
+minutes add1 scheduled background request. The resumed merge nevertheless reaches
+372 total attempts and times out in the final fresh provider observation before
+native merge preparation. Original merge31019ff6 is now allocated once:
+operation `soda-2a2ae20a06be4623917f1204ec96f3c1-merge-1`, deadline10:05:31Z;
+no merge effect or no-send proof is claimed. Normal Quit retires all app/backend/
+PG/Muse/socket owners by10:05:58Z. Fixture admin restores write/admin=false;
+245 charged minutes/0 active runs and the original372-debit journal remain.
+The next correction consolidates those five merge-readiness projections in the
+native connector: one authenticated reader, shared raw PR/repository/base branch
+and CI sources per snapshot, two complete snapshots including private test-merge
+binding, final authority recheck and unchanged fresh pre-send observation. No
+cross-request cache, extra send authority or longer deadline. Expired allocated
+intents now go directly to their original cancellation/receipt owner, avoiding
+another material/permission traversal. `request70-native-check.log` and backend/
+harness builds pass; `request70-progress-pg.log` proves expired unknown remains
+open and only causal confirmed no-send withdraws, preserving original intent and
+deadline with zero provider/material reads. All three controlled-role/restart/WAL
+phases pass in `request70-role-pg.log`. These are offline checks, not installed
+qualification. Next: install matching native/backend assets once, recover the
+original operation through its causal cancellation owner before any fresh merge
+preparation, then measure the bounded connected path. Never renew its old deadline
+or replay the paid decision. Installed withdrawal/user-side revocation remain open.
 Never
 renew an old send deadline or replay the Fixer/paid decision. Installed56
 authenticated browsing passed before remote revocation

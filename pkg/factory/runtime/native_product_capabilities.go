@@ -7,6 +7,38 @@ import (
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
+type nativeCapabilityFacts struct {
+	IssuesOnly   bool   `json:"issues_only"`
+	Repository   string `json:"repository"`
+	Name         string `json:"name"`
+	Archived     bool   `json:"archived"`
+	Disabled     bool   `json:"disabled"`
+	Issues       bool   `json:"issues_enabled"`
+	CreateIssues bool   `json:"can_create_issues"`
+	Writer       bool   `json:"writer"`
+	Merge        bool   `json:"merge"`
+	Squash       bool   `json:"squash"`
+	Rebase       bool   `json:"rebase"`
+	Subject      *struct {
+		Kind          string                  `json:"kind"`
+		ExternalID    string                  `json:"external_id"`
+		Number        int64                   `json:"number"`
+		State         string                  `json:"state"`
+		Locked        bool                    `json:"locked"`
+		CanUpdate     bool                    `json:"can_update"`
+		CanClose      bool                    `json:"can_close"`
+		CanReopen     bool                    `json:"can_reopen"`
+		Own           bool                    `json:"own"`
+		Draft         bool                    `json:"draft"`
+		Merged        bool                    `json:"merged"`
+		Head          *collaboration.CommitID `json:"head"`
+		Base          *collaboration.CommitID `json:"base"`
+		InlinePublish *bool                   `json:"inline_publish"`
+		DraftReview   *bool                   `json:"draft_review"`
+		MergeReady    bool                    `json:"merge_ready"`
+	} `json:"subject"`
+}
+
 // These are current presentation facts. Every command independently prepares
 // its exact target and rechecks admission before a provider effect.
 func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, q factoryservice.CapabilityQuery) (collaboration.Capabilities, error) {
@@ -17,42 +49,18 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 	if err := s.admitRead(ctx, actor, repo, factoryservice.ErrCapabilitiesMissing); err != nil {
 		return result, err
 	}
-	var facts struct {
-		IssuesOnly   bool   `json:"issues_only"`
-		Repository   string `json:"repository"`
-		Name         string `json:"name"`
-		Archived     bool   `json:"archived"`
-		Disabled     bool   `json:"disabled"`
-		Issues       bool   `json:"issues_enabled"`
-		CreateIssues bool   `json:"can_create_issues"`
-		Writer       bool   `json:"writer"`
-		Merge        bool   `json:"merge"`
-		Squash       bool   `json:"squash"`
-		Rebase       bool   `json:"rebase"`
-		Subject      *struct {
-			Kind          string                  `json:"kind"`
-			ExternalID    string                  `json:"external_id"`
-			Number        int64                   `json:"number"`
-			State         string                  `json:"state"`
-			Locked        bool                    `json:"locked"`
-			CanUpdate     bool                    `json:"can_update"`
-			CanClose      bool                    `json:"can_close"`
-			CanReopen     bool                    `json:"can_reopen"`
-			Own           bool                    `json:"own"`
-			Draft         bool                    `json:"draft"`
-			Merged        bool                    `json:"merged"`
-			Head          *collaboration.CommitID `json:"head"`
-			Base          *collaboration.CommitID `json:"base"`
-			InlinePublish *bool                   `json:"inline_publish"`
-			DraftReview   *bool                   `json:"draft_review"`
-			MergeReady    bool                    `json:"merge_ready"`
-		} `json:"subject"`
-	}
+	var facts nativeCapabilityFacts
 	pull := q.Subject == "pull"
 	query := nativeRead{Kind: "write_capabilities", Repository: s.identity.SelectedRepository, Number: uint32(q.Number), WritePull: &pull}
 	if err := s.read(ctx, query, &facts); err != nil {
 		return result, nativeMissing(err, factoryservice.ErrCapabilitiesMissing)
 	}
+	return s.capabilityProjection(actor, repo, q, facts)
+}
+
+func (s nativeCollaborationReads) capabilityProjection(actor collaboration.ActorID, repo collaboration.RepositoryID, q factoryservice.CapabilityQuery, facts nativeCapabilityFacts) (collaboration.Capabilities, error) {
+	var result collaboration.Capabilities
+	pull := q.Subject == "pull"
 	if facts.Repository != s.identity.SelectedRepository || facts.Name == "" || (q.Subject == "repository") != (facts.Subject == nil) {
 		return result, errNativeRead
 	}

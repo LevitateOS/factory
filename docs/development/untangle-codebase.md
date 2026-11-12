@@ -912,6 +912,25 @@ facts are declared and no model/network effect ran. Positive paired reuse and
 request savings still require the matching installed original merge, not another
 fixture or paid decision. App68/UI/helpers remain unchanged.
 No original operation or paid receipt changed.
+Installed69/source878390313b88552218f61fd7411774475c623f94 later proves the
+positive handoff at10:00:40Z on2026-11-12 with the original paid ready decision.
+Navigation settles at45 wire calls; two quiet minutes add1 scheduled request.
+The full pass still uses372 attempts and times out during final fresh provider
+observation. Original merge31019ff6 is now allocated once as
+`soda-2a2ae20a06be4623917f1204ec96f3c1-merge-1`, deadline10:05:31Z; no effect or
+definitive no-send is inferred. Quit joins app/backend/PG/Muse/socket retirement
+by10:05:58Z; fixture team returns to write/admin=false, usage stays245 with0 active
+runs and the private372-debit journal is preserved. This concrete amplification
+is addressed in the existing connector with one compound merge-readiness read:
+shared PR/repository/base branch and CI sources per snapshot, complete paired
+snapshots including full test-merge binding, final fresh authority recheck and
+unchanged pre-send freshness. Expired allocated intents use their original
+cancellation/receipt owner before new provider/material I/O; unknown outcomes
+remain open. Native/backend/harness builds and existing real PG progress and
+three-phase controlled-role/restart/WAL checks pass (`request70-*`), with no
+provider/model calls. Matching installed qualification and original causal
+no-send recovery remain next; preserve original deadline/receipt/charge and do
+not replay inference. Full GitHub goal remains INCOMPLETE.
 Credentials/profile/original uncertain outcomes stay exact. Remaining installed
 source withdrawal and user-side remote revocation keep their existing scopes.
 Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;

@@ -37,6 +37,7 @@ impl Client {
             Read::DeliveryOpinions { .. } => "delivery_opinions",
             Read::PullRequiredChecks { .. } => "pull_required_checks",
             Read::MergePreparation { .. } => "merge_preparation",
+            Read::MergeReadiness { .. } => "merge_readiness",
             Read::MergeCompletion { .. } => "merge_completion",
             Read::PullFiles { .. } => "pull_files",
             Read::PullComments { .. } => "pull_comments",
@@ -185,6 +186,12 @@ impl Client {
                                 )
                                 .await?,
                         ),
+                        "merge_readiness" => {
+                            let Read::MergeReadiness { number, head, base, .. } = query else {
+                                return Err(Failure::invalid());
+                            };
+                            ("merge_readiness", reader.merge_readiness(*number, head, base).await?)
+                        }
                         "inline_preservation" => {
                             let Read::InlinePreservation {
                                 number,

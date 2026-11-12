@@ -13729,6 +13729,7 @@ type progressGraphObserver struct {
 type progressMergeObserver struct {
 	factoryruntime.NativeMerges
 	lookup func(string) (factory.OperationOutcome, error)
+	cancel func(string) (factory.OperationOutcome, error)
 }
 
 type progressClosedIssueReads struct {
@@ -13752,6 +13753,13 @@ func (r *progressClosedIssueReads) ReadDispatchInputs(context.Context, string, s
 
 func (m progressMergeObserver) LookupOp(_ context.Context, id string) (factory.OperationOutcome, error) {
 	return m.lookup(id)
+}
+
+func (m progressMergeObserver) CancelOp(ctx context.Context, id string) (factory.OperationOutcome, error) {
+	if m.cancel != nil {
+		return m.cancel(id)
+	}
+	return m.NativeMerges.CancelOp(ctx, id)
 }
 
 func (g progressGraphObserver) GraphActor(context.Context, int64, int64) (int64, error) {
@@ -14497,7 +14505,45 @@ func progressMergeAttemptFixture(ctx context.Context, db *store.Store, raw *sql.
 	if len(phaseOrder) != 2 || phaseOrder[0] != "merge" || phaseOrder[1] != "checks" {
 		return fmt.Errorf("recorded merge did not receive budget before passive checks: %v", phaseOrder)
 	}
+	// An expired allocated intent must use its causal cancellation owner before
+	// any new material/permission traversal. Missing lookup alone proves nothing.
+	for _, definitive := range []bool{false, true} {
+		expired := m
+		work := *m.Operation.Work
+		work.NotAfter = time.Now().Unix() - 1
+		expired.Operation.Work = &work
+		if err := writeMerge(expired); err != nil {
+			return err
+		}
+		cancelled := 0
+		c.AcceptanceReads = reads
+		c.Merges = progressMergeObserver{
+			lookup: func(id string) (factory.OperationOutcome, error) {
+				return factory.OperationOutcome{OperationID: id, NotObserved: true}, nil
+			},
+			cancel: func(id string) (factory.OperationOutcome, error) {
+				cancelled++
+				if id != work.OperationID {
+					return factory.OperationOutcome{}, errors.New("expired merge cancellation changed original identity")
+				}
+				o := factory.OperationOutcome{OperationID: id, InstallationID: "declared", Kind: factory.OpMerge, ActorID: 7, RepositoryID: 7, Effect: factory.OpEffectIndeterminate, Cancellation: factory.OpCancelIndeterminate, Completion: factory.OpCompletionNeedsIntervention, Reason: "dispatch_reserved"}
+				if definitive {
+					o.Effect, o.Cancellation, o.Completion, o.Reason = factory.OpEffectNotCommitted, factory.OpCancelCancelled, factory.OpCompletionComplete, "cancelled_before_dispatch"
+				}
+				return o, nil
+			},
+		}
+		report := c.MergePass(ctx)
+		stored, err := db.MergeByPublication(ctx, p.ID)
+		if err != nil || len(report.Errors) != 0 || cancelled != 1 || reads.acceptance != 0 || reads.dispatch != 0 || !stored.WithdrawRequested || !reflect.DeepEqual(stored.Operation.Work, &work) {
+			return fmt.Errorf("expired merge did not preserve original cancellation: definitive=%v cancelled=%d reads=%+v report=%+v error=%v", definitive, cancelled, reads, report, err)
+		}
+		if definitive && (stored.Stage != factory.MergeWithdrawn || stored.Operation.Effect != factory.OpEffectNotCommitted) || !definitive && (stored.Stage != factory.MergeOpen || stored.Operation.Effect != factory.OpEffectIndeterminate) {
+			return fmt.Errorf("expired merge confused missing lookup with confirmed no-send: definitive=%v stage=%s effect=%s", definitive, stored.Stage, stored.Operation.Effect)
+		}
+	}
 	fmt.Println("PASS: real PG holds a pristine superseded merge and a findings COMMENT without a funded acceptance before provider inputs without changing original journals; current-root child reaches standing authority, closed ordinary root withdraws locally, finite merge-only continuation preserves its closed inference root, and allocated original operation still looks up after supersession. Histories declared; no provider or inference.")
+	fmt.Println("PASS: expired allocated merge cancels its original identity before provider/material reads; a declared reserved unknown stays open, and only its owner's confirmed no-send withdraws. Original work/deadline retained; no provider or inference.")
 	return nil
 }
 

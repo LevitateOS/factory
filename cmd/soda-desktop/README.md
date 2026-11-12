@@ -135,6 +135,12 @@ projection once, under the original context/deadline and exact publication,
 source/account, policy and target binding. It still performs causal review and
 acceptance proof; the final send observes the provider afresh. This is not
 persisted authority, a retry permission, or a cross-request cache.
+Within a GitHub merge-readiness read, the five projections share raw PR,
+repository, branch and CI facts. Two complete snapshots still compare protection,
+checks, current reviews and permissions, including the full test-merge binding;
+the final authority recheck remains fresh. Expired allocated merge intents go to
+their original cancellation journal before new material reads. Missing lookup
+alone cannot establish that a write was never sent.
 
 ### Linux execution services
 

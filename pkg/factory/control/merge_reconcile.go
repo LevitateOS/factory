@@ -132,6 +132,13 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		mergeWait(report, m.ID, "merge_authorization_expired")
 		return
 	}
+	// An allocated intent whose send window expired needs its original
+	// cancellation/receipt owner, not another expensive permission/material
+	// traversal. Cancellation preserves unknown or committed outcomes.
+	if op.Work != nil && time.Now().Unix() >= op.Work.NotAfter {
+		c.withdrawMerge(ctx, &m, report)
+		return
+	}
 	var observe DeliveryMergeObservation
 	policy, revision, ok := c.admitMergeAuthority(ctx, &m, &p, op, report, &observe)
 	if !ok {

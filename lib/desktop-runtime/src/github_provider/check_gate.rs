@@ -69,6 +69,15 @@ impl Reader<'_> {
         if after? != before {
             return Err(Failure::new(409, "github_checks_changed"));
         }
+        let projected = self.required_check_projection(&before, &protection, &evaluation, sources.as_deref())?;
+        self.recheck().await?;
+        Ok(projected)
+    }
+
+    pub(super) fn required_check_projection(&self, before: &Value, protection: &Value, evaluation: &str, sources: Option<&[Value]>) -> Result<Value> {
+        let number = before["pull"]["number"].as_u64().ok_or_else(Failure::protocol)?;
+        let head = r::text(before, "head")?;
+        let base = r::text(before, "base")?;
         if protection["repository"] != self.repository
             || protection["pull"] != before["pull"]
             || protection["pull"]["number"] != number
@@ -132,7 +141,6 @@ impl Reader<'_> {
                 }
             }
         }
-        self.recheck().await?;
         Ok(
             json!({"protection":protection,"evaluation_commit":evaluation,"status_gate":gate,"missing_required":missing,"invalid_required":invalid}),
         )

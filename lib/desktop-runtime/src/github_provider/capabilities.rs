@@ -13,6 +13,16 @@ impl Reader<'_> {
         pull: bool,
     ) -> Result<Value> {
         let repository = self.get("", &[]).await?.value;
+        let projected = self.write_capabilities_for_repository(&repository, number, pull).await?;
+        self.recheck().await?;
+        Ok(projected)
+    }
+    pub(super) async fn write_capabilities_for_repository(
+        &self,
+        repository: &Value,
+        number: Option<u32>,
+        pull: bool,
+    ) -> Result<Value> {
         let repo = r::text(&repository, "node_id")?;
         if r::id(&repository["id"])? != self.repository || !node_id(repo) {
             return Err(Failure::protocol());
@@ -81,7 +91,6 @@ impl Reader<'_> {
         } else {
             Value::Null
         };
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"name":self.name,"archived":r::boolean(raw,"isArchived")?,"disabled":r::boolean(raw,"isDisabled")?,"issues_enabled":r::boolean(raw,"hasIssuesEnabled")?,"can_create_issues":r::boolean(raw,"viewerCanCreateIssues")?,"writer":matches!(raw["viewerPermission"].as_str(),Some("WRITE"|"MAINTAIN"|"ADMIN")),"merge":r::boolean(raw,"mergeCommitAllowed")?,"squash":r::boolean(raw,"squashMergeAllowed")?,"rebase":r::boolean(raw,"rebaseMergeAllowed")?,"subject":target}),
         )
