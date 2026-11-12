@@ -16544,6 +16544,112 @@ func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sq
 		return errors.New("invalid progress pages reached provider visibility")
 	}
 	fmt.Println("PASS: local recorded work page projects distinct item/plan states behind one opening/closing visibility bracket; invalid pages fail before provider I/O")
+	newFeedback := func(key string, legacy bool) (factory.PostFeedbackIntent, error) {
+		id, revision, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: repository, Body: "Retained human feedback", IdempotencyKey: key}, "1", "Human", time.Now().Unix())
+		if err != nil {
+			return factory.PostFeedbackIntent{}, err
+		}
+		if err = db.RecordPostIntake(ctx, id, revision); err != nil {
+			return factory.PostFeedbackIntent{}, err
+		}
+		pipe, err := db.PostIntake(ctx, id)
+		if err != nil {
+			return factory.PostFeedbackIntent{}, err
+		}
+		next := pipe
+		next.Judgment = factory.PostJudgmentApplied
+		next.Route = factory.PostRouteExistingWork
+		next.Issue = 3
+		if err = db.AdvancePostIntake(ctx, pipe, next); err != nil {
+			return factory.PostFeedbackIntent{}, err
+		}
+		if legacy {
+			if _, err = raw.ExecContext(ctx, `UPDATE factory_post_intakes SET data=data-'feedback_version' WHERE post=$1`, id); err != nil {
+				return factory.PostFeedbackIntent{}, err
+			}
+		}
+		marker := "<!-- soda-feed:" + id + ":r0 -->"
+		body := "Retained human feedback"
+		return factory.PostFeedbackIntent{Host: strings.Repeat("a", 32), SourcePost: id, Revision: revision, Repository: repository, Issue: 3, Actor: 1, Marker: marker, Body: body, Digest: factory.PostFeedbackDigest(marker + "\n" + body)}, nil
+	}
+	intent, err := newFeedback("feedback-fresh", false)
+	if err != nil {
+		return err
+	}
+	type permit struct {
+		delivery factory.PostFeedbackDelivery
+		send     bool
+		err      error
+	}
+	permits := make(chan permit, 2)
+	for n := 0; n < 2; n++ {
+		go func() { d, send, e := db.BeginPostFeedback(ctx, intent); permits <- permit{d, send, e} }()
+	}
+	sends := 0
+	var original factory.PostFeedbackDelivery
+	for n := 0; n < 2; n++ {
+		result := <-permits
+		if result.err != nil {
+			return result.err
+		}
+		if result.send {
+			sends++
+		}
+		original = result.delivery
+	}
+	if sends != 1 || original.Legacy || original.NotBefore <= time.Now().Unix() {
+		return errors.New("feedback journal granted duplicate dispatch or lost first-send recovery hold")
+	}
+	if _, err = db.EditFeedPost(ctx, intent.SourcePost, "1", "Concurrent human edit", 0, time.Now().Unix()); err != nil {
+		return err
+	}
+	confirmed := original
+	confirmed.Receipt = "12"
+	confirmed.Complete = true
+	if err = db.SavePostFeedback(ctx, original, confirmed); err != nil {
+		return err
+	}
+	if saved, e := db.PostFeedback(ctx, intent.SourcePost, 0); e != nil || saved != confirmed {
+		return errors.New("original feedback receipt did not survive source edit")
+	}
+	if post, e := db.FeedPost(ctx, intent.SourcePost); e != nil || post.Body != "Concurrent human edit" {
+		return errors.New("feedback settlement rewrote human text")
+	}
+	legacy, err := newFeedback("feedback-legacy", true)
+	if err != nil {
+		return err
+	}
+	old, send, err := db.BeginPostFeedback(ctx, legacy)
+	if err != nil || send || !old.Legacy {
+		return errors.New("legacy marker history gained dispatch authority")
+	}
+	progressed := old
+	progressed.Cursor = 3
+	progressed.NotBefore = time.Now().Add(5 * time.Minute).Unix()
+	if err = db.SavePostFeedback(ctx, old, progressed); err != nil {
+		return err
+	}
+	stale := old
+	stale.Cursor = 5
+	if err = db.SavePostFeedback(ctx, old, stale); err == nil {
+		return errors.New("concurrent lookup replaced retained cursor")
+	}
+	absent := progressed
+	absent.Complete = true
+	absent.Attention = "not_found"
+	if err = db.SavePostFeedback(ctx, progressed, absent); err != nil {
+		return err
+	}
+	if _, send, e := db.BeginPostFeedback(ctx, legacy); e != nil || send {
+		return errors.New("completed legacy absence authorized another send")
+	}
+	late := absent
+	late.Receipt = "13"
+	late.Attention = ""
+	if err = db.SavePostFeedback(ctx, absent, late); err != nil {
+		return err
+	}
+	fmt.Println("PASS: realPG source effect journal grants one concurrent fresh send, defers recovery, preserves original receipt through human edits, CAS-resumes lookup-only legacy cursors, and never turns absence into send authority")
 	fmt.Println("PASS: real PG paged completion retains8-step prefix across coordinator restart, rejects changed confirming inventory, and seals only two whole equal20-issue observations; no provider/model/effects")
 	return nil
 }

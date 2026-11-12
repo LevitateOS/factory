@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 )
@@ -70,4 +72,93 @@ func (s *Store) AutomaticIssueOrigin(ctx context.Context, repository, issue int6
 	 OR EXISTS(SELECT 1 FROM created_tasks c WHERE state IN ('pending','committed') AND NOT EXISTS(
 	 SELECT 1 FROM factory_intent_tasks t WHERE t.revision=c.revision AND t.task=c.key))`, repository, issue).Scan(&generated, &pending)
 	return
+}
+
+// BeginPostFeedback atomically allocates the only possible POST. A lost caller
+// receives the retained record, never another send permit. Older rows begin in
+// lookup-only mode because their old marker lookup may already have sent.
+func (s *Store) BeginPostFeedback(ctx context.Context, intent factory.PostFeedbackIntent) (factory.PostFeedbackDelivery, bool, error) {
+	var empty factory.PostFeedbackDelivery
+	if err := intent.Validate(); err != nil {
+		return empty, false, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return empty, false, err
+	}
+	defer tx.Rollback()
+	var raw []byte
+	var version string
+	err = tx.QueryRowContext(ctx, `SELECT p.data,COALESCE(i.data->>'feedback_version','') FROM factory_feed_posts p JOIN factory_post_intakes i ON i.post=p.id
+ WHERE p.id=$1 AND p.repository=$2 AND p.revision=$3 AND i.revision=$3 AND i.issue=$4 AND i.route='existing_work' AND i.judgment='applied'
+ AND NOT COALESCE((p.data->>'deleted')::boolean,false) AND NOT COALESCE((p.data->>'revoked')::boolean,false) FOR UPDATE OF p`, intent.SourcePost, intent.Repository, intent.Revision, intent.Issue).Scan(&raw, &version)
+	if err != nil {
+		return empty, false, err
+	}
+	var data map[string]json.RawMessage
+	if err = json.Unmarshal(raw, &data); err != nil {
+		return empty, false, err
+	}
+	entries := map[string]factory.PostFeedbackDelivery{}
+	if saved := data["feedback_deliveries"]; len(saved) > 0 {
+		if err = json.Unmarshal(saved, &entries); err != nil {
+			return empty, false, err
+		}
+	}
+	key := strconv.FormatInt(intent.Revision, 10)
+	if saved, ok := entries[key]; ok {
+		if saved.Validate() != nil || saved.Intent != intent {
+			return empty, false, ErrStaleRevision
+		}
+		return saved, false, tx.Commit()
+	}
+	delivery := factory.PostFeedbackDelivery{Intent: intent, Legacy: version != "1", Cursor: 1}
+	if !delivery.Legacy {
+		delivery.NotBefore = time.Now().Add(5 * time.Minute).Unix()
+	}
+	entries[key] = delivery
+	encoded, err := json.Marshal(entries)
+	if err != nil {
+		return empty, false, err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE factory_feed_posts SET data=jsonb_set(data,'{feedback_deliveries}',$2::jsonb) WHERE id=$1`, intent.SourcePost, string(encoded))
+	if err != nil {
+		return empty, false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return empty, false, err
+	}
+	return delivery, !delivery.Legacy, nil
+}
+
+// SavePostFeedback can settle the original record after a source edit/revocation.
+// CAS preserves competing recovery, all other revisions and human text.
+func (s *Store) SavePostFeedback(ctx context.Context, expected, next factory.PostFeedbackDelivery) error {
+	if expected.Validate() != nil || next.Validate() != nil || expected.Intent != next.Intent || expected.Legacy != next.Legacy || next.Cursor < expected.Cursor || expected.Complete && next != expected && !(expected.Receipt == "" && expected.Attention == "not_found" && next.Receipt != "") && !(expected.Receipt != "" && next.Receipt == expected.Receipt && next.Attention == "content_changed") {
+		return ErrStaleRevision
+	}
+	before, err := json.Marshal(expected)
+	if err != nil {
+		return err
+	}
+	after, err := json.Marshal(next)
+	if err != nil {
+		return err
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE factory_feed_posts SET data=jsonb_set(data,ARRAY['feedback_deliveries',$2::text],$4::jsonb)
+ WHERE id=$1 AND data->'feedback_deliveries'->$2::text=$3::jsonb`, expected.Intent.SourcePost, strconv.FormatInt(expected.Intent.Revision, 10), string(before), string(after))
+	return checkGrantRowsAffected(result, err, "feedback recovery changed")
+}
+
+func (s *Store) PostFeedback(ctx context.Context, post string, revision int64) (factory.PostFeedbackDelivery, error) {
+	var delivery factory.PostFeedbackDelivery
+	var raw []byte
+	err := s.db.QueryRowContext(ctx, `SELECT data->'feedback_deliveries'->$2::text FROM factory_feed_posts WHERE id=$1 AND data->'feedback_deliveries' ? $2::text`, post, strconv.FormatInt(revision, 10)).Scan(&raw)
+	if err != nil {
+		return delivery, err
+	}
+	if err = json.Unmarshal(raw, &delivery); err != nil {
+		return delivery, err
+	}
+	return delivery, delivery.Validate()
 }

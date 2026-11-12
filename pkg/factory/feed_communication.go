@@ -425,3 +425,59 @@ type PostResponse struct {
 	ExistingIssue int64       `json:"existing_issue,omitempty"`
 	Source        *PostSource `json:"source,omitempty"`
 }
+
+// PostFeedbackIntent captures one append-only effect on one source revision.
+// It is retained before dispatch; current state can never authorize its replay.
+type PostFeedbackIntent struct {
+	Host       string `json:"host"`
+	SourcePost string `json:"post"`
+	Revision   int64  `json:"revision"`
+	Repository int64  `json:"repository"`
+	Issue      int64  `json:"issue"`
+	Actor      int64  `json:"actor"`
+	Marker     string `json:"marker"`
+	Body       string `json:"body"`
+	Digest     string `json:"digest"`
+}
+
+func PostFeedbackDigest(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return hex.EncodeToString(sum[:])
+}
+func (i PostFeedbackIntent) Validate() error {
+	if !ValidID(i.Host) || !ValidID(i.SourcePost) || i.Revision < 0 || i.Repository < 1 || i.Issue < 1 || i.Actor < 1 || i.Marker != "<!-- soda-feed:"+i.SourcePost+":r"+strconv.FormatInt(i.Revision, 10)+" -->" || len(i.Body) > 65536 || strings.TrimSpace(i.Body) == "" || strings.ContainsRune(i.Body, 0) || i.Digest != PostFeedbackDigest(i.Marker+"\n"+i.Body) {
+		return errors.New("invalid feedback intent")
+	}
+	return nil
+}
+
+// PostFeedbackDelivery lives inside the existing source effect journal. Legacy
+// records have no proven dispatch boundary and therefore permit lookup only.
+type PostFeedbackDelivery struct {
+	Intent    PostFeedbackIntent `json:"intent"`
+	Legacy    bool               `json:"legacy"`
+	Receipt   string             `json:"receipt,omitempty"`
+	Cursor    int                `json:"cursor"`
+	NotBefore int64              `json:"not_before,omitempty"`
+	Complete  bool               `json:"complete"`
+	Attention string             `json:"attention,omitempty"`
+}
+
+func (d PostFeedbackDelivery) Validate() error {
+	if err := d.Intent.Validate(); err != nil {
+		return err
+	}
+	if d.NotBefore < 0 || d.Cursor < 1 || d.Cursor > 1000000 || len(d.Attention) > 128 {
+		return errors.New("invalid feedback progress")
+	}
+	if d.Receipt != "" {
+		n, err := strconv.ParseInt(d.Receipt, 10, 64)
+		if err != nil || n <= 0 || strconv.FormatInt(n, 10) != d.Receipt || !d.Complete || (d.Attention != "" && d.Attention != "content_changed") {
+			return errors.New("invalid feedback receipt")
+		}
+	}
+	if d.Complete && d.Receipt == "" && d.Attention == "" {
+		return errors.New("unconfirmed feedback completion")
+	}
+	return nil
+}

@@ -233,7 +233,15 @@ func drivePostFeedback(ctx context.Context, st *store.Store, creator PostIssueCr
 		return false, nil
 	}
 	if err = writer.DeliverPostFeedback(ctx, detail, pipe.Issue); err != nil {
-		_ = st.NotePostProgress(ctx, pipe.SourcePost, "Could not confirm delivery to the issue discussion. Check repository access and refresh before retrying.")
+		if errors.Is(err, ErrPostFeedbackPending) {
+			_ = st.NotePostProgress(ctx, pipe.SourcePost, "Feedback is awaiting confirmation from the issue discussion. Its original delivery is preserved.")
+			return false, nil
+		}
+		if errors.Is(err, ErrPostEffectReceipt) {
+			_ = st.NotePostProgress(ctx, pipe.SourcePost, "The issue comment changed. Its current text and original delivery have been preserved.")
+		} else {
+			_ = st.NotePostProgress(ctx, pipe.SourcePost, "Could not confirm delivery to the issue discussion. Check repository access and refresh before retrying.")
+		}
 		return false, notePostFailure(ctx, st, pipe, false)
 	}
 	next := pipe

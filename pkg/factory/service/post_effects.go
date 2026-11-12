@@ -223,6 +223,18 @@ func (s *PostIssueEffects) LookupPostIssue(ctx context.Context, repository int64
 	return issue, nil
 }
 
+type postFeedbackJournal interface {
+	PostFeedback(context.Context, string, int64) (factory.PostFeedbackDelivery, error)
+	BeginPostFeedback(context.Context, factory.PostFeedbackIntent) (factory.PostFeedbackDelivery, bool, error)
+	SavePostFeedback(context.Context, factory.PostFeedbackDelivery, factory.PostFeedbackDelivery) error
+}
+type postFeedbackWriter interface {
+	FeedbackHost() collaboration.HostID
+	DeliverIssueFeedback(context.Context, factory.PostFeedbackDelivery, bool, func(context.Context) error) (factory.PostFeedbackDelivery, error)
+}
+
+var ErrPostFeedbackPending = errors.New("feedback receipt lookup remains pending")
+
 func (s *PostIssueEffects) DeliverPostFeedback(ctx context.Context, comment store.FeedPostDetail, issue int64) error {
 	post, _, err := s.source(ctx, comment.Record.Repository, comment.Record.ID)
 	if err != nil {
@@ -231,16 +243,117 @@ func (s *PostIssueEffects) DeliverPostFeedback(ctx context.Context, comment stor
 	if issue <= 0 || post.Record != comment.Record || post.Body != comment.Body {
 		return ErrPostEffectSource
 	}
-	writer, ok := s.Graph.(interface {
-		DeliverIssueFeedback(context.Context, int64, int64, int64, string, string) error
-	})
+	writer, ok := s.Graph.(postFeedbackWriter)
 	if !ok {
 		return ErrPostEffectUnavailable
 	}
-	if _, err := s.current(ctx, post, nil); err != nil {
-		return err
+	journal, ok := s.Store.(postFeedbackJournal)
+	if !ok {
+		return ErrPostEffectUnavailable
 	}
 	marker := "<!-- soda-feed:" + post.Record.ID + ":r" + strconv.FormatInt(post.Record.Revision, 10) + " -->"
 	body := "Feedback from @" + post.AuthorName + " in the project feed:\n\n" + post.Body
-	return writer.DeliverIssueFeedback(ctx, post.Record.Repository, issue, s.Actor, marker, body)
+	intent := factory.PostFeedbackIntent{Host: string(writer.FeedbackHost()), SourcePost: post.Record.ID, Revision: post.Record.Revision, Repository: post.Record.Repository, Issue: issue, Actor: s.Actor, Marker: marker, Body: body, Digest: factory.PostFeedbackDigest(marker + "\n" + body)}
+	prior, priorErr := journal.PostFeedback(ctx, intent.SourcePost, intent.Revision)
+	if priorErr == nil {
+		if prior.Intent != intent {
+			return ErrPostEffectReceipt
+		}
+		if prior.Complete {
+			if prior.Attention == "content_changed" {
+				return ErrPostEffectReceipt
+			}
+			if prior.Receipt != "" {
+				return nil
+			}
+			return ErrPostEffectUnknown
+		}
+		if prior.NotBefore > time.Now().Unix() {
+			return ErrPostFeedbackPending
+		}
+	} else if !errors.Is(priorErr, store.ErrNotFound) {
+		return priorErr
+	}
+	if _, err = s.current(ctx, post, nil); err != nil {
+		if priorErr == nil {
+			next := prior
+			next.NotBefore = time.Now().Add(5 * time.Minute).Unix()
+			if saved := journal.SavePostFeedback(ctx, prior, next); saved != nil {
+				return saved
+			}
+			return ErrPostFeedbackPending
+		}
+		return err
+	}
+	delivery, send, err := journal.BeginPostFeedback(ctx, intent)
+	if err != nil {
+		return err
+	}
+	if delivery.Complete {
+		if delivery.Attention == "content_changed" {
+			return ErrPostEffectReceipt
+		}
+		if delivery.Receipt != "" {
+			return nil
+		}
+		return ErrPostEffectUnknown
+	}
+	if !send {
+		if delivery.NotBefore > time.Now().Unix() {
+			return ErrPostFeedbackPending
+		}
+		claimed := delivery
+		claimed.NotBefore = time.Now().Add(5 * time.Minute).Unix()
+		if err = journal.SavePostFeedback(ctx, delivery, claimed); err != nil {
+			if errors.Is(err, store.ErrStaleRevision) {
+				return ErrPostFeedbackPending
+			}
+			return err
+		}
+		delivery = claimed
+	}
+	before := func(ctx context.Context) error {
+		latest, _, err := s.source(ctx, post.Record.Repository, post.Record.ID)
+		if err != nil {
+			return err
+		}
+		if latest.Record != post.Record || latest.Body != post.Body {
+			return ErrPostEffectSource
+		}
+		return ctx.Err()
+	}
+	observed, err := writer.DeliverIssueFeedback(ctx, delivery, send, before)
+	if !observed.Complete {
+		observed.NotBefore = time.Now().Add(5 * time.Minute).Unix()
+	}
+	if observed.Validate() == nil && observed.Intent == delivery.Intent {
+		if saveErr := journal.SavePostFeedback(ctx, delivery, observed); saveErr != nil {
+			if observed.Receipt != "" && errors.Is(saveErr, store.ErrStaleRevision) {
+				latest, lookupErr := journal.PostFeedback(ctx, intent.SourcePost, intent.Revision)
+				if lookupErr == nil && latest.Intent == intent && latest.Receipt == "" && latest.Attention == "not_found" {
+					observed.Cursor = max(observed.Cursor, latest.Cursor)
+					return journal.SavePostFeedback(ctx, latest, observed)
+				}
+			}
+			return saveErr
+		}
+	} else if err == nil {
+		return ErrPostEffectReceipt
+	}
+	if observed.Attention == "content_changed" {
+		return ErrPostEffectReceipt
+	}
+	if err != nil {
+		if !observed.Complete {
+			return ErrPostFeedbackPending
+		}
+		return err
+	}
+	if observed.Receipt != "" && observed.Complete {
+		return nil
+	}
+	if observed.Complete {
+		return ErrPostEffectUnknown
+	}
+	return ErrPostFeedbackPending
 }

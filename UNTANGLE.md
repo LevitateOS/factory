@@ -942,3 +942,20 @@ builds, apps or provider requests in this design phase.
   withdrawal against the no-forwarding peer. Fresh source review found no stale
   consumers or unsafe recovery. F6 companion is SodaOS947b2997 / Factorya55a9d4.
   F8 and final independent audit/baseline comparison remain outstanding.
+
+- F8 COMPLETE: the existing post row retains exact host/source revision/actor/
+  repository/issue/content and one atomic send permit. New dispatch makes one
+  POST without scanning history; uncertain outcomes become lookup-only, held
+  locally for five minutes between bounded recovery batches. Original receipts
+  settle through source edits. Legacy markers search at most two50-comment
+  pages per step; absence never renews dispatch. Exact native issue/comment/
+  author/content validation preserves edited human text for attention. Existing
+  post records are migrated by behavior, without rewriting old authority.
+  SodaOS companion697636ce returns native receipts and enforces the local source
+  reread immediately before POST. Evidence in existing refactor scratch:
+  f8-journal-pg.log (concurrent permit, CAS cursor, late receipt, human edit),
+  f8-feedback-pg.log (real Go service+PG+local HTTP, one lost-reply POST,
+  restarted-service adoption, zero-I/O due hold, bounded legacy recovery,
+  absence/human-text/source-change refusal); backend/adapter/harness builds pass.
+  No live host, model or original retained state used. Final independent review
+  and baseline comparison are active; this is not connected qualification.

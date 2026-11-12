@@ -399,9 +399,9 @@ func (s *Store) RecordIssueMakerIntake(ctx context.Context, postID string, revis
 }
 
 func (s *Store) recordPostIntake(ctx context.Context, postID string, revision int64, issueMaker bool) error {
-	data := "{}"
+	data := `{"feedback_version":1}`
 	if issueMaker {
-		data = `{"issue_maker_version":1}`
+		data = `{"issue_maker_version":1,"feedback_version":1}`
 	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO factory_post_intakes(post,revision,intake,judgment,route,draft,effect,issue,attempts,data)
 		VALUES($1,$2,'recorded','pending','', 'pending','pending',0,0,$3::jsonb) ON CONFLICT(post) DO NOTHING`, postID, revision, data)
@@ -937,7 +937,7 @@ func retryFeedPostTx(ctx context.Context, tx *sql.Tx, id, author string, expecte
 		 data=data || jsonb_build_object('edited',true,'at',$3::bigint,'history',(CASE WHEN jsonb_typeof(data->'history')='array' THEN data->'history' ELSE '[]'::jsonb END) || jsonb_build_array(jsonb_build_object('revision',revision,'body',body))) WHERE id=$1`, id, body, at)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `UPDATE factory_post_intakes SET revision=$2,judgment='pending',route='',draft='pending',effect='pending',issue=0,attempts=0,
-			 data=jsonb_build_object('history',(CASE WHEN jsonb_typeof(data->'history')='array' THEN data->'history' ELSE '[]'::jsonb END) || jsonb_build_array(jsonb_build_object('revision',revision,'judgment',judgment,'route',route,'issue',issue))) || CASE WHEN $3 THEN '{"issue_maker_version":1}'::jsonb ELSE '{}'::jsonb END WHERE post=$1`, id, expected+1, issueMaker || previousMaker)
+			 data=jsonb_build_object('feedback_version',1,'history',(CASE WHEN jsonb_typeof(data->'history')='array' THEN data->'history' ELSE '[]'::jsonb END) || jsonb_build_array(jsonb_build_object('revision',revision,'judgment',judgment,'route',route,'issue',issue))) || CASE WHEN $3 THEN '{"issue_maker_version":1}'::jsonb ELSE '{}'::jsonb END WHERE post=$1`, id, expected+1, issueMaker || previousMaker)
 		}
 	}
 	if err != nil {
