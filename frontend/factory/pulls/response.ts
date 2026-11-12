@@ -1,6 +1,6 @@
 import {check, id, object} from '../api/models.js';
 import type {PullRequest, PullRef} from '../api/collaboration.js';
-import type {ChangedFile, ReviewAnchor, ReviewLocation} from '../api/collaboration.js';
+import type {BranchProtection, ChangedFile, ReviewAnchor, ReviewLocation} from '../api/collaboration.js';
 import {parseChangedFile, parseReviewAnchor} from '../api/collaboration-response.js';
 
 export type PullItem = Pick<
@@ -142,7 +142,21 @@ export function pullChecks(value: unknown, repository: string, number: string, h
   }, cursor);
   const evaluationCommit = result.evaluation_commit === undefined ? '' : commit(result.evaluation_commit);
   check(evaluationCommit !== null);
-  return {gate: gate as string, evaluationCommit, ...page};
+  let protection: Pick<BranchProtection, 'requirements_complete' | 'classic_visible' | 'rules_visible' | 'unknown_rule_kinds'> | null = null;
+  if (kind === 'status' && result.protection !== undefined && result.protection !== null) {
+    const raw = object(result.protection);
+    check(raw.repository === repository);
+    protection = {};
+    for (const field of ['requirements_complete', 'classic_visible', 'rules_visible'] as const) {
+      const value = raw[field];
+      check(value === undefined || typeof value === 'boolean');
+      if (value !== undefined) protection[field] = value as boolean;
+    }
+    const rules = raw.unknown_rule_kinds;
+    check(rules === undefined || Array.isArray(rules) && rules.length <= 100);
+    protection.unknown_rule_kinds = rules === undefined ? [] : (rules as unknown[]).map(rule => text(rule, 1024));
+  }
+  return {gate: gate as string, evaluationCommit, protection, ...page};
 }
 
 export function pullReviews(value: unknown, repository: string, number: string, cursor = '') {

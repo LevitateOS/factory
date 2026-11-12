@@ -32,6 +32,15 @@ export interface PullDetailContext {
   openLink(url: string, signal: AbortSignal): void | Promise<void>;
 }
 export type PullTab = 'conversation' | 'commits' | 'reviews' | 'threads' | 'files' | 'checks';
+function protectionStatus(protection: ReturnType<typeof pullChecks>['protection']) {
+  if (!protection) return 'Branch protection requirements are unavailable.';
+  const reasons: string[] = [];
+  if (protection.classic_visible === false) reasons.push('Classic branch protection is not visible to this account.');
+  if (protection.rules_visible === false) reasons.push('Branch rules are not visible to this account.');
+  if (protection.unknown_rule_kinds?.length) reasons.push(`Unsupported branch rules: ${protection.unknown_rule_kinds.join(', ')}.`);
+  if (!reasons.length && protection.requirements_complete !== true) reasons.push('Branch protection requirements are incomplete.');
+  return reasons.join(' ');
+}
 const empty = () => ({
   busy: false, message: '', pull: undefined as PullItem | undefined,
   files: [] as readonly ChangedFile[], threads: [] as readonly PullThreadView[],
@@ -39,6 +48,7 @@ const empty = () => ({
   comments: [] as ReturnType<typeof pullComments>['items'],
   reviews: [] as ReturnType<typeof pullReviews>['items'],
   checks: [] as ReturnType<typeof pullChecks>['items'], gate: '', evaluationCommit: '',
+  protection: null as ReturnType<typeof pullChecks>['protection'],
   next: '', threadNext: '', threadMessage: '', threadBusy: false,
   diff: undefined as {base: string; head: string} | undefined,
   head: null as string | null,
@@ -172,7 +182,7 @@ export class SodaFactoryPull extends LitElement {
         const suffix = kind === 'job' ? '/checks/jobs?' : '/checks?';
         const page = pullChecks(await getJSON(context.transport, path + suffix + query, signal), context.repository, context.pull, head, kind, cursor);
         if (!this.live(context, serial)) return;
-        this.view = {...baseView, checks: page.items, gate: page.gate, evaluationCommit: page.evaluationCommit, next: page.next};
+        this.view = {...baseView, checks: page.items, gate: page.gate, evaluationCommit: page.evaluationCommit, protection: page.protection, next: page.next};
       } else if (tab === 'conversation') {
         const raw = await getJSON(context.transport, path + '/comments?' + query, signal);
         if (!this.live(context, serial)) return;
@@ -308,6 +318,7 @@ export class SodaFactoryPull extends LitElement {
           ${this.view.threadNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadMoreThreads(this.view.threadNext)}>Load more inline discussions</button>` : ''}
         </section>` : this.tab === 'checks' ? html`<section aria-label="Checks">
           <p>Status gate: ${this.view.gate || 'unavailable'}</p>
+          ${this.checkKind === 'status' && protectionStatus(this.view.protection) ? html`<p role="status">${protectionStatus(this.view.protection)}</p>` : ''}
           ${this.view.evaluationCommit ? html`<p>Required checks evaluated on <code>${this.view.evaluationCommit}</code>.</p>` : ''}
           <nav aria-label="Check types"><button type="button" aria-current=${this.checkKind === 'status' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.selectChecks('status')}>Statuses</button><button type="button" aria-current=${this.checkKind === 'job' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.selectChecks('job')}>Jobs</button></nav>
           <ul>${this.view.checks.map(row => html`<li><strong>${row.name}</strong> · ${row.state} · ${row.conclusion}${row.required ? ' · Required' : ''}<p>${row.workflow ? row.workflow + ' · ' : ''}${row.description}</p></li>`)}</ul>
