@@ -37,28 +37,33 @@ type passiveCheckFailure struct {
 // pass can never ride through. While no check assessor is wired, the
 // pass reports unavailable instead of guessing.
 func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
+	report, _ := c.checkPass(ctx)
+	return report
+}
+
+func (c *Coordinator) checkPass(ctx context.Context) (CheckReport, PublishReport) {
+	children := PublishReport{}
 	ctx, unlock, err := c.progressPass(ctx)
 	if err != nil {
 		report := CheckReport{Assessed: []CheckLink{}}
 		checkError(&report, "", "progress_pass_cancelled")
-		return report
+		return report, children
 	}
 	defer unlock()
 	ctx, _, cancelPass := c.readinessPass(ctx)
 	defer cancelPass()
 	report := CheckReport{Assessed: []CheckLink{}}
 	if c.Checks == nil {
-		children := PublishReport{}
 		c.producePublishedChildren(ctx, &children)
 		report.Unavailable = true
-		return report
+		return report, children
 	}
 	// A recorded merge can still be waiting for fresh policy/check evidence.
 	// Its existence must not remove the active candidate from assessment.
 	pubs, err := c.Store.CheckablePublications(ctx, reviewCyclePassLimit)
 	if err != nil {
 		checkError(&report, "", "store_unavailable")
-		return report
+		return report, children
 	}
 	// Retry metadata belongs only to this bounded active page. It records no
 	// native verdict and cannot keep settled or superseded candidates alive.
@@ -101,9 +106,8 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 			c.mergeOne(ctx, p, &merges)
 		}
 	}
-	children := PublishReport{}
 	c.producePublishedChildren(ctx, &children)
-	return report
+	return report, children
 }
 
 // Passive polling reuses a recent nonpassing observation only for its exact
@@ -170,8 +174,6 @@ func (c *Coordinator) progressAfterPublish(ctx context.Context, assignmentID str
 			}
 		}
 	}
-	children := PublishReport{}
-	c.producePublishedChildren(ctx, &children)
 	if fresh, err := c.Store.PublicationByAssignment(ctx, assignmentID); err == nil {
 		p = fresh
 	}

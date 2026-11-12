@@ -187,7 +187,7 @@ func (c *Coordinator) Start(ctx context.Context, lockPath string) error {
 		c.CommentDrive(ctx)
 	}
 	if c.Publication != nil {
-		c.PublishPass(ctx)
+		c.publishPass(ctx, c.Checks == nil)
 	}
 	if c.Checks != nil {
 		c.CheckPass(ctx)

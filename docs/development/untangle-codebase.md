@@ -618,6 +618,22 @@ SHA96338b2a94545ec5bd83c61e9f8ff576904afe0e7d8dd2f394917a33b6398633).
 No new fixture is invented for three predicates; retained SourcePull admission
 evidence is reused and the actual connected Fixer remains the required next check.
 
+Installed50 preserves the original root/Inspector and235-minute charge; its
+reconnect fails during core quota exhaustion, with893 local wire attempts and
+no new Fixer. Normal Quit retires all processes/socket with0active/unsettled/held.
+goal50-quota-held-original-state.json records that outcome. The active correction
+aligns publication-child readiness with exact current review/recipe authority,
+moves local holds before provider I/O, and removes duplicate child sweeps while
+retaining fresh checks before preparation/launch and existing Work hold reasons.
+The native catalog connection also propagates its existing bounded429 message.
+Native51 compiles once offline (native-build51.log; appddc9f2e5); UI is unchanged.
+Combined backend build passes (correction-handoff-cadence-server,
+SHA35b242626c00fd33013815bda661e4b294669859cdee34dc3b0998dbef616463).
+Existing finite progress-gate and external-preparation realPG checks pass with
+clean shutdown; request51-{progress,external}-pg.json retains exact commands and
+results. Exact-prior51 installation and actual original Fixer qualification are
+next; no new adoption, authority renewal or inference replay.
+
 The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
 (retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits
 complete independent CLEAR to create clean_review without an extra paid opinion.

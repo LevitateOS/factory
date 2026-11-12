@@ -74,6 +74,12 @@ type PublishReport struct {
 // Each phase has one immutable native authorization; a terminal refusal never
 // changes identity or erases its receipt.
 func (c *Coordinator) PublishPass(ctx context.Context) PublishReport {
+	return c.publishPass(ctx, true)
+}
+
+// A combined publication/check pass produces children after fresh check and
+// completed child results are adopted. Direct publication passes still advance.
+func (c *Coordinator) publishPass(ctx context.Context, produceChildren bool) PublishReport {
 	ctx, unlock, err := c.progressPass(ctx)
 	if err != nil {
 		report := PublishReport{Published: []PublishLink{}}
@@ -120,8 +126,10 @@ func (c *Coordinator) PublishPass(ctx context.Context) PublishReport {
 	for _, a := range assignments {
 		c.publishOne(ctx, a, &report)
 	}
-	c.producePublishedChildren(ctx, &report)
 	c.consumePublicationChildren(ctx, &report)
+	if produceChildren {
+		c.producePublishedChildren(ctx, &report)
+	}
 	// Optional lifecycle recovery: bounded drain of journaled actions
 	// left pending/uncertain by finished completions.
 	return report

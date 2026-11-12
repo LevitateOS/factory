@@ -13661,7 +13661,29 @@ func progressClosedIssueFixture(ctx context.Context, db *store.Store, raw *sql.D
 	if _, _, err := c.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: "declared-open-issue", Repository: p.Repository, Issue: p.Issue}); err != nil {
 		return err
 	}
+	// This disposable queued observation has no effective local grants. Neither
+	// direct entry nor the combined background pass may fetch provider inputs.
+	localHold, err := db.IssueControl(ctx, p.Repository, p.Issue)
+	if err != nil {
+		return err
+	}
+	localHold.Readiness, localHold.Reason = factory.ReadinessQueued, factory.ReasonEligible
+	localHold.Blockers = nil
+	localHold.Fingerprint = factory.MCPInputDigest([]byte("declared-locally-held-publication-child"))
+	if _, _, err := db.RecordIssueAssessment(ctx, localHold, time.Now()); err != nil {
+		return err
+	}
+	reads.acceptance, reads.dispatch = 0, 0
+	c.PublishPass(ctx)
+	c.CheckPass(ctx)
+	c.Dispatch(ctx)
+	if reads.acceptance != 0 || reads.dispatch != 0 {
+		return fmt.Errorf("locally held child fetched native inputs: %+v", reads)
+	}
 	reads.closed, reads.acceptance = true, 0
+	if _, _, err := c.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: "declared-closed-issue", Repository: p.Repository, Issue: p.Issue}); err != nil {
+		return err
+	}
 	first := c.PublishPass(ctx)
 	closed, err := db.IssueControl(ctx, p.Repository, p.Issue)
 	if err != nil || !closed.HoldsClosedIssue() || reads.acceptance != 1 || reads.dispatch != 0 {

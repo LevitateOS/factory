@@ -98,7 +98,10 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 			c.settleRun(bounded, run)
 		}
 	}
-	publication := c.PublishPass(bounded)
+	publication := c.publishPass(bounded, false)
+	_, children := c.checkPass(bounded)
+	publication.Waits = append(publication.Waits, children.Waits...)
+	publication.Errors = append(publication.Errors, children.Errors...)
 	// Keep publication holds in the same bounded, scope-filtered diagnostic as
 	// dispatch. The projector whitelists reason codes and never exposes Detail.
 	// This local copy never changes the dispatch report used by scheduling.
@@ -128,7 +131,6 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 		}
 	}
 	c.observeDispatch(ctx, report)
-	c.CheckPass(bounded)
 	c.MergePass(bounded)
 }
 

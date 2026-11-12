@@ -54,6 +54,14 @@ func (c *Coordinator) progressPass(ctx context.Context) (context.Context, func()
 // evidence; an unchanged acceptance keeps its semantic revision and allowance.
 // Store authority can reopen without advancing the native revision.
 func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.IssueControl) (factory.IssueControl, error) {
+	return c.refreshReadinessForAuthority(ctx, control, nil)
+}
+
+func (c *Coordinator) refreshReadinessForAuthority(ctx context.Context, control factory.IssueControl, publicationAuthority func(context.Context, int64) (factory.EffectiveAuthority, error)) (factory.IssueControl, error) {
+	readAuthority := c.EffectiveAuthority
+	if publicationAuthority != nil {
+		readAuthority = publicationAuthority
+	}
 	// A recent closed observation only denies new work. Explicit intake and
 	// direct assessments still read immediately; passive polling checks again
 	// after one minute so an ordinary reopen cannot remain hidden indefinitely.
@@ -70,19 +78,19 @@ func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.Issu
 			if !reserved {
 				return factory.IssueControl{}, ErrReadinessPassPending
 			}
-			observed, err := c.assessOne(ctx, control.Repository, control.Issue)
+			observed, err := c.assessOneForAuthority(ctx, control.Repository, control.Issue, readAuthority)
 			return observed.control, err
 		}
 		return control, nil
 	}
 	authorityChanged := false
-	if control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing && !control.HoldsClosedIssue() {
-		authority, err := c.EffectiveAuthority(ctx, control.Repository)
+	if publicationAuthority != nil || control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing && !control.HoldsClosedIssue() {
+		authority, err := readAuthority(ctx, control.Repository)
 		if err != nil {
 			return factory.IssueControl{}, err
 		}
 		authorityChanged = factory.AuthorityFingerprint(authority) != control.Authority
-		if !authorityChanged {
+		if !authorityChanged && control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing {
 			return control, nil
 		}
 	}
@@ -107,7 +115,7 @@ func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.Issu
 	if !reserved {
 		return factory.IssueControl{}, ErrReadinessPassPending
 	}
-	observed, err := c.assessOne(ctx, control.Repository, control.Issue)
+	observed, err := c.assessOneForAuthority(ctx, control.Repository, control.Issue, readAuthority)
 	return observed.control, err
 }
 

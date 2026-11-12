@@ -1569,6 +1569,19 @@ retired recipe for phase correct under its committed-review parent, then admits
 a fresh exact-SourcePull workspace; native entry/callback retain current grants,
 source equality and new bounded deadline. One backend build passes; its actual
 Fixer execution is still unqualified and is next. No model or review is replayed.
+Installed50 retains the same root/Inspector and235-minute charge, but reconnect
+hits exhausted provider quota before any Fixer launch. Its local counters show
+893 wire attempts; duplicate background child sweeps perform fork/input reads
+before local holds. Normal Quit confirms zero active/unsettled/held work and
+process/socket retirement. Recovery evidence is goal50-quota-held-original-state.json.
+The active correction now also aligns child authority/readiness with fresh
+candidate preparation, moves local holds before provider reads, and preserves
+one post-check child sweep plus its existing Work diagnostics. Native repository
+connection now reports the provider429 instead of a malformed-catalog error.
+Combined backend/native builds and the existing finite progress-gate and
+external-preparation PostgreSQL checks pass (request51-{progress,external}-pg.json).
+Actual installed51 correction remains unqualified: resume original root6aac,
+finding5a2 and the remaining bounded correction/review without new planning.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

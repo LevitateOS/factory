@@ -160,6 +160,13 @@ func readinessDeliverySourceID(delivery string) string {
 // or over-bound evidence) record an explicit verdict; transient failures
 // report an error without recording.
 func (c *Coordinator) assessOne(ctx context.Context, repository, issue int64) (assessOutcome, error) {
+	return c.assessOneForAuthority(ctx, repository, issue, c.EffectiveAuthority)
+}
+
+// Publication children assess the same issue evidence after inspecting their
+// exact approved recipe. Their bound authority callback revalidates that
+// publication's preparation-only exception; ordinary intake keeps the global gate.
+func (c *Coordinator) assessOneForAuthority(ctx context.Context, repository, issue int64, readAuthority func(context.Context, int64) (factory.EffectiveAuthority, error)) (assessOutcome, error) {
 	bounded, stop := context.WithTimeout(ctx, 2*time.Minute)
 	defer stop()
 	if c.AcceptanceReads == nil {
@@ -170,7 +177,7 @@ func (c *Coordinator) assessOne(ctx context.Context, repository, issue int64) (a
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return assessOutcome{}, err
 	}
-	authority, err := c.EffectiveAuthority(bounded, repository)
+	authority, err := readAuthority(bounded, repository)
 	if err != nil {
 		return assessOutcome{}, err
 	}

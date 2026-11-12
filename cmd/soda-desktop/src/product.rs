@@ -176,6 +176,16 @@ fn registry(value: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
+fn provider_rate_limit(reply: &Reply) -> Result<(), String> {
+    if reply.status == 429 && reply.body["error"]["code"] == "provider_rate_limited" {
+        return Err(reply.body["error"]["message"]
+            .as_str()
+            .filter(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
+            .unwrap_or("The provider is rate limited. Wait before reconnecting.")
+            .to_owned());
+    }
+    Ok(())
+}
 fn product_caller(window: &WebviewWindow) -> Result<(), String> {
     caller(window)?;
     if !window.is_visible().map_err(|_| "window is unavailable")? {
@@ -247,13 +257,7 @@ pub(super) async fn factory_connect(
         // selection is installed so closure either refuses or cancels it.
         product_caller(&window)?;
         let reply = call(&desktop, &selection, "GET", "/api/factory/identity", &[]).await?;
-        if reply.status == 429 && reply.body["error"]["code"] == "provider_rate_limited" {
-            return Err(reply.body["error"]["message"]
-                .as_str()
-                .filter(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
-                .unwrap_or("The provider is rate limited. Wait before reconnecting.")
-                .to_owned());
-        }
+        provider_rate_limit(&reply)?;
         if reply.status != 200
             || !canonical(&reply.body["actor"])
             || !reply.body["host"].as_str().is_some_and(registry)
@@ -277,6 +281,7 @@ pub(super) async fn factory_connect(
                 &[],
             )
             .await?;
+            provider_rate_limit(&catalog)?;
             let items = catalog.body["items"]
                 .as_array()
                 .ok_or("invalid selected repository")?;

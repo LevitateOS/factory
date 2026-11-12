@@ -373,7 +373,7 @@ func loadAttemptPlanBasis(ctx context.Context, deps DispatchDeps, plan *attemptP
 	return policy, nil, nil
 }
 
-func prepareAttemptInputs(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, plan *attemptPlan, role, preparation string, repository, issue int64, control factory.IssueControl) (*planWait, *planWait) {
+func prepareAttemptSource(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, plan *attemptPlan, role, preparation string) (*planWait, *planWait) {
 	if wait, failed := checkLimits(ctx, deps, occupancy, plan); failed != nil || wait != nil {
 		return wait, failed
 	}
@@ -384,12 +384,6 @@ func prepareAttemptInputs(ctx context.Context, deps DispatchDeps, occupancy *pas
 	plan.effective.Authority.ApprovalID = plan.approval
 	if wait := checkHarnessFor(ctx, deps, plan, role); wait != nil {
 		return wait, nil
-	}
-	if wait, failed := readAttemptInputs(ctx, deps, plan, repository, issue); failed != nil || wait != nil {
-		return wait, failed
-	}
-	if plan.inputs.Revision != control.NativeRev {
-		return waitFor(WaitInputsChanged, "readiness observation changed before dispatch"), nil
 	}
 	return nil, nil
 }
@@ -489,24 +483,48 @@ func renderAttemptPrompt(ctx context.Context, deps DispatchDeps, plan *attemptPl
 }
 
 func planAttemptForRole(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, repository, issue int64, head string, control factory.IssueControl, freshAttempt bool, role, preparation string, recordedPrompt bool, retryID string, lineage attemptLineage) (*attemptPlan, *planWait, *planWait) {
-	if control.Validate() != nil || control.Readiness != factory.ReadinessQueued || control.Repository != repository || control.Issue != issue || control.Acceptance != head {
+	if control.Readiness != factory.ReadinessQueued {
+		return nil, waitFor(WaitInputsChanged, "queued readiness changed during dispatch"), nil
+	}
+	plan, wait, failed := planAttemptSource(ctx, deps, occupancy, repository, issue, head, control, freshAttempt, role, preparation, recordedPrompt, lineage)
+	if failed != nil || wait != nil {
+		return nil, wait, failed
+	}
+	return finishAttemptPlan(ctx, deps, plan, role, recordedPrompt, retryID)
+}
+
+// Local holds precede accepted-input reads. Publication children refresh their
+// readiness only after these same source, allowance and capacity checks pass.
+func planAttemptSource(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, repository, issue int64, head string, control factory.IssueControl, freshAttempt bool, role, preparation string, recordedPrompt bool, lineage attemptLineage) (*attemptPlan, *planWait, *planWait) {
+	if control.Validate() != nil || control.Repository != repository || control.Issue != issue || control.Acceptance != head {
 		return nil, waitFor(WaitInputsChanged, "queued readiness changed during dispatch"), nil
 	}
 	plan := &attemptPlan{control: control, freshAttempt: freshAttempt, phase: lineage.phase, parent: lineage.parent, advancePlan: lineage.advancePlan, externalPlanning: lineage.externalPlanning}
 	if wait, failed := admitAttemptLineage(plan, lineage, role, recordedPrompt, issue, head); failed != nil || wait != nil {
 		return nil, wait, failed
 	}
-	policy, wait, failed := loadAttemptPlanBasis(ctx, deps, plan, repository, role, head)
+	_, wait, failed := loadAttemptPlanBasis(ctx, deps, plan, repository, role, head)
 	if failed != nil || wait != nil {
 		return nil, wait, failed
 	}
-	if wait, failed := prepareAttemptInputs(ctx, deps, occupancy, plan, role, preparation, repository, issue, control); failed != nil || wait != nil {
+	if wait, failed := prepareAttemptSource(ctx, deps, occupancy, plan, role, preparation); failed != nil || wait != nil {
 		return nil, wait, failed
+	}
+	return plan, nil, nil
+}
+
+func finishAttemptPlan(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role string, recordedPrompt bool, retryID string) (*attemptPlan, *planWait, *planWait) {
+	repository, issue, head := plan.control.Repository, plan.control.Issue, plan.control.Acceptance
+	if wait, failed := readAttemptInputs(ctx, deps, plan, repository, issue); failed != nil || wait != nil {
+		return nil, wait, failed
+	}
+	if plan.inputs.Revision != plan.control.NativeRev {
+		return nil, waitFor(WaitInputsChanged, "readiness observation changed before dispatch"), nil
 	}
 	if wait, failed := confirmAttemptPreparation(ctx, deps, plan, role, recordedPrompt, retryID); failed != nil || wait != nil {
 		return nil, wait, failed
 	}
-	if wait, failed := renderAttemptPrompt(ctx, deps, plan, policy, role, repository, issue, head, recordedPrompt); failed != nil || wait != nil {
+	if wait, failed := renderAttemptPrompt(ctx, deps, plan, plan.policy, role, repository, issue, head, recordedPrompt); failed != nil || wait != nil {
 		return nil, wait, failed
 	}
 	open, gateRev, _, err := deps.Store.DispatchState(ctx, repository)

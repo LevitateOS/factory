@@ -349,11 +349,17 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		return nil, "", execution.PreparationRecord{}, true
 	}
 	*occupancy = occupancySnapshot
+	nativeChild := (role == project.RoleReviewer && lineage.phase == project.ExecutionReview && lineage.parent == owner.ID ||
+		role == project.RoleCoder && lineage.phase == project.ExecutionCorrect && lineage.parent != "") &&
+		owner.NativeTool != nil && owner.Validate() == nil && owner.PublicationAssignment == owner.ID &&
+		owner.Repository == p.Repository && owner.Issue == p.Issue && owner.Acceptance == p.Acceptance && owner.ProjectID == p.ProjectID
 	control, err := deps.Store.IssueControl(ctx, p.Repository, p.Issue)
-	if err == nil {
+	preparationOnly := nativeChild && control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing &&
+		len(control.Blockers) == 1 && control.Blockers[0].Code == factory.BlockerAuthorityMissing && control.Blockers[0].Detail == factory.MissingPreparation
+	if err == nil && control.Readiness != factory.ReadinessQueued && !preparationOnly {
 		control, err = c.refreshReadiness(ctx, control)
 	}
-	if err != nil || control.Readiness != factory.ReadinessQueued || control.Acceptance != p.Acceptance {
+	if err != nil || control.Readiness != factory.ReadinessQueued && !preparationOnly || control.Acceptance != p.Acceptance {
 		publicationWait(report, p.ID, "issue_readiness_not_current")
 		return nil, "", execution.PreparationRecord{}, true
 	}
@@ -361,13 +367,11 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 	if role == project.RoleCoder {
 		exactPreparation = owner.Preparation
 	}
-	if role == project.RoleReviewer && lineage.phase == project.ExecutionReview && lineage.parent == owner.ID &&
-		owner.NativeTool != nil && owner.Validate() == nil && owner.PublicationAssignment == owner.ID &&
-		owner.Repository == p.Repository && owner.Issue == p.Issue && owner.Acceptance == p.Acceptance && owner.ProjectID == p.ProjectID {
+	if nativeChild {
 		standingAuthority := deps.Authority
 		deps.Authority = func(ctx context.Context, repository int64, selectedRole string) (factory.EffectiveAuthority, error) {
 			effective, err := standingAuthority(ctx, repository, selectedRole)
-			if err != nil || repository != p.Repository || selectedRole != project.RoleReviewer ||
+			if err != nil || repository != p.Repository || selectedRole != role ||
 				len(effective.Missing) != 1 || effective.Missing[0] != factory.MissingPreparation {
 				return effective, err
 			}
@@ -381,13 +385,43 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 				current.PullTarget() != p.PullTarget() || !reflect.DeepEqual(current.Tuple, p.Tuple) {
 				return effective, nil
 			}
-			// Only this published review may proceed to independent candidate
-			// setup. Selection and its atomic admission still prove the recipe.
+			if role == project.RoleCoder {
+				reviewer, ok := c.currentReviewerForCorrection(ctx, current, owner)
+				if !ok || reviewer.ID != lineage.parent {
+					return effective, nil
+				}
+			}
+			// Only this published child may proceed to fresh candidate setup.
+			// Selection and atomic admission still prove the exact recipe.
 			effective.Missing, effective.Effective = []string{}, true
 			return effective, nil
 		}
 	}
-	plan, wait, failed := planAttemptForRole(ctx, deps, occupancy, p.Repository, p.Issue, p.Acceptance, control, false, role, exactPreparation, true, "", lineage)
+	plan, wait, failed := planAttemptSource(ctx, deps, occupancy, p.Repository, p.Issue, p.Acceptance, control, false, role, exactPreparation, true, lineage)
+	if failed != nil {
+		publicationWait(report, p.ID, failed.Reason)
+		return nil, "", execution.PreparationRecord{}, true
+	}
+	if wait != nil {
+		publicationWait(report, p.ID, wait.Reason)
+		return nil, "", execution.PreparationRecord{}, true
+	}
+	if c.publicationChildPreparationHeld(ctx, p, owner, plan, expectedPrepID, childID, report) {
+		return nil, "", execution.PreparationRecord{}, true
+	}
+	if nativeChild && plan.prep.Native != nil {
+		control, err = c.refreshReadinessForAuthority(ctx, control, func(ctx context.Context, repository int64) (factory.EffectiveAuthority, error) {
+			return deps.Authority(ctx, repository, role)
+		})
+	} else {
+		control, err = c.refreshReadiness(ctx, control)
+	}
+	if err != nil || control.Readiness != factory.ReadinessQueued || control.Acceptance != p.Acceptance {
+		publicationWait(report, p.ID, "issue_readiness_not_current")
+		return nil, "", execution.PreparationRecord{}, true
+	}
+	plan.control = control
+	plan, wait, failed = finishAttemptPlan(ctx, deps, plan, role, true, "")
 	if failed != nil {
 		publicationWait(report, p.ID, failed.Reason)
 		return nil, "", execution.PreparationRecord{}, true
@@ -412,6 +446,9 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 				return nil, "", execution.PreparationRecord{}, true
 			}
 		}
+		if c.refuseUnavailableForkCorrection(ctx, p, role, report) {
+			return nil, "", execution.PreparationRecord{}, true
+		}
 		prep, ready, prepErr := c.prepareReviewCandidate(ctx, p, owner, plan, report, expectedPrepID, childID)
 		if prepErr != nil {
 			report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "review_preparation_unavailable", Detail: prepErr.Error()})
@@ -434,6 +471,46 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		plan.prep = contextPreparation
 	}
 	return plan, preparationID, contextPreparation, false
+}
+
+// An already admitted preparation owns its original observation/recovery path.
+// While it is running or refused, fresh provider inputs cannot launch a child.
+func (c *Coordinator) publicationChildPreparationHeld(ctx context.Context, p factory.Publication, owner factory.Assignment, plan *attemptPlan, preparationID, childID string, report *PublishReport) bool {
+	if plan.prep.Native == nil {
+		return false
+	}
+	_, prep, err := buildReviewCandidatePrep(plan, p, preparationID)
+	if err != nil {
+		publicationWait(report, p.ID, "review_preparation_unavailable")
+		return true
+	}
+	prior, err := c.Store.CandidatePreparation(ctx, preparationID)
+	if errors.Is(err, store.ErrNotFound) {
+		return false
+	}
+	if err != nil || prior.Admission.PublicationID != p.ID || prior.Admission.OwnerAssignment != owner.ID || prior.Admission.ChildAssignment != childID || prior.Admission.AttemptRoot != owner.AttemptRoot {
+		publicationWait(report, p.ID, "review_preparation_unavailable")
+		return true
+	}
+	if err := c.verifyStoredReviewCandidatePrep(ctx, p, prep, prior.Preparation, report); err != nil || prior.Stopped || prior.Retirement == "confirmed" {
+		publicationWait(report, p.ID, "review_preparation_unavailable")
+		return true
+	}
+	if !prior.Preparation.State.Ready && prior.NotAfter <= time.Now().Unix() {
+		c.fenceChildPublication(ctx, p, report)
+		publicationWait(report, p.ID, "review_preparation_unavailable")
+		return true
+	}
+	_, ready, err, proceed := c.reconcileStoredReviewCandidatePrep(ctx, p, prep, prior.Preparation, false, report)
+	if err != nil {
+		publicationWait(report, p.ID, "review_preparation_unavailable")
+		return true
+	}
+	if !ready && !proceed {
+		publicationWait(report, p.ID, "review_preparation_pending")
+		return true
+	}
+	return false
 }
 
 // A finished native implementation/review/correction still owns its candidate preparation.
@@ -719,9 +796,6 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 		return
 	}
 	role := in.role
-	if c.refuseUnavailableForkCorrection(ctx, p, role, report) {
-		return
-	}
 	policyReview := in.policyReview
 	wire, stop := c.resolvePublicationChildWire(ctx, p, owner, in, report)
 	if stop {
