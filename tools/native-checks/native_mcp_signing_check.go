@@ -14761,6 +14761,12 @@ func externalPreparationFixture() error {
 	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,'finished',0,$5)`, handoffOwner, handoffOwner.ID, handoffOwner.Repository, handoffOwner.Issue, handoffOwner.Run); err != nil {
 		return err
 	}
+	if err = db.SaveInvestigationPlan(ctx, handoffPlan); err != nil {
+		return err
+	}
+	if err = db.AdvancePlanHead(ctx, handoffOwner.ID, "", handoffPlan.ID); err != nil {
+		return err
+	}
 	handoffRunNative := *finishedRun.Native
 	handoffRunNative.Provenance.WorktreeID = handoffOwner.Preparation
 	handoffRunNative.Intent, handoffRunNative.Provenance.BrokerRun = "", factory.NewID()
@@ -15103,6 +15109,9 @@ func externalPreparationFixture() error {
 	if err = db.StageMCPCapability(ctx, correctorCapability); err != nil {
 		return err
 	}
+	if err = db.SaveInvestigationPlan(ctx, correctionPlan); err != nil {
+		return err
+	}
 	currentCorrector, err := db.FactoryCurrentContext(ctx, correctorCapability, time.Now())
 	if err != nil || currentCorrector.Evidence.Availability != "complete" || currentCorrector.Role.Plan == nil || currentCorrector.Role.Plan.CurrentPlanHead == nil || currentCorrector.Role.Plan.CurrentPlanHead.PlanID != correctionPlan.ID || currentCorrector.Role.Review == nil || currentCorrector.Role.Review.External == nil {
 		return fmt.Errorf("fresh Corrector required current context incomplete: %+v %v", currentCorrector.Evidence, err)
@@ -15110,6 +15119,34 @@ func externalPreparationFixture() error {
 	var syntheticPlanHead bool
 	if err = raw.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_plan_heads WHERE attempt_root=$1)`, freshOwner.ID).Scan(&syntheticPlanHead); err != nil || syntheticPlanHead {
 		return errors.New("correction context fabricated an Architect plan head")
+	}
+	// Declare capability activation only. Task admission must reach the live
+	// inspector for this fresh owner without executing the retired source or
+	// requiring a fabricated Architect result/head on the continuation root.
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_mcp_capabilities SET state='active' WHERE id=$1`, correctorCapability.ID); err != nil {
+		return err
+	}
+	activeCorrectorCapability := correctorCapability
+	activeCorrectorCapability.State = factory.MCPCapabilityActive
+	probeObserved := errors.New("declared live-observation boundary")
+	inspections, commands := 0, 0
+	taskProbe := factoryservice.WorkerTasks{Store: db,
+		Inspect: func(context.Context, execution.RunAddress) (execution.RunObservation, error) {
+			inspections++
+			return execution.RunObservation{}, probeObserved
+		},
+		Command: func(context.Context, execution.TaskRequest) (execution.TaskReceipt, error) {
+			commands++
+			return execution.TaskReceipt{}, errors.New("unexpected native task send")
+		}}
+	if _, err = taskProbe.Execute(ctx, activeCorrectorCapability, "start_task", "correct"); !errors.Is(err, probeObserved) || inspections != 1 || commands != 0 {
+		return fmt.Errorf("fresh correction task admission did not reach observation: %v", err)
+	}
+	if _, err = taskProbe.Workspace(ctx, activeCorrectorCapability, project.FactoryNativeTaskArguments{TaskID: "correct", Operation: "read", Path: "native-task.txt", Limit: 64}); !errors.Is(err, probeObserved) || inspections != 2 || commands != 0 {
+		return fmt.Errorf("fresh correction workspace admission did not reach observation: %v", err)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_mcp_capabilities SET state='staged' WHERE id=$1`, correctorCapability.ID); err != nil {
+		return err
 	}
 	for _, row := range originalRows {
 		var after string
@@ -15239,6 +15276,141 @@ func externalPreparationFixture() error {
 	if after, err := db.FactoryRun(ctx, pendingRun.ID); err != nil || !reflect.DeepEqual(after, retiredPending) {
 		return errors.New("fresh funding rewrote the original no-start run")
 	}
+	// Declare a later, fully accounted failed Corrector on the next explicit
+	// root. Its partial workspace remains retained; no report or publication
+	// operation has accepted a replacement for the still-published head.
+	failedPublication, err := db.PublicationByID(ctx, nextCommand)
+	if err != nil {
+		return err
+	}
+	failedChild := corrector
+	failedChild.ID, failedChild.Run = factory.NewID(), factory.NewID()
+	failedChild.AttemptRoot, failedChild.PublicationAssignment = nextCommand, nextCommand
+	failedChild.RunHistory = []string{failedChild.Run}
+	failedChild.Stage, failedChild.Outcome, failedChild.Reason, failedChild.FinishedUnix = factory.AssignmentFinished, factory.Failed, factory.AssignReasonRunFailed, time.Now().Unix()
+	failedCycle := correctionCycle
+	failedCycle.PublicationID, failedCycle.AttemptRoot, failedCycle.CorrectionAssignment = nextCommand, nextCommand, failedChild.ID
+	failedCycle.ID = factory.ReviewCycleID(nextCommand, nextCommand, failedCycle.Round, failedCycle.Phase)
+	failedContext := *corrector.ReviewContext
+	failedContext.External, failedContext.Publication, failedContext.Cycle = failedPublication.External, factory.CurrentPublicationContext{ID: nextCommand, AssignmentID: nextCommand}, failedCycle
+	failedChild.ReviewContext = &failedContext
+	failedChild.Result = &factory.AssignmentResult{AssignmentID: failedChild.ID, RunID: failedChild.Run, Phase: project.ExecutionCorrect, Status: "failed", Summary: "Declared missing native task binding", RecordedUnix: failedChild.FinishedUnix}
+	if err = failedChild.Validate(); err != nil {
+		return fmt.Errorf("declared failed Corrector: %w", err)
+	}
+	failedRun := retiredPending
+	failedRun.ID, failedRun.ContextPending, failedRun.Outcome = failedChild.Run, false, factory.Failed
+	failedNative := *retiredPending.Native
+	failedRun.Native = &failedNative
+	failedIntent, err := execution.ParseNativeIntent(failedNative.Intent)
+	if err != nil {
+		return err
+	}
+	failedIntent.Run, failedIntent.Native.BrokerRun = failedRun.ID, factory.NewID()
+	failedNative.Provenance.BrokerRun = failedIntent.Native.BrokerRun
+	failedPlan := correctionPlan
+	failedPlan.ID, failedPlan.AttemptRoot = factory.NewID(), nextCommand
+	failedPlan.Digest, err = factory.PlanDigest(failedPlan)
+	if err != nil {
+		return err
+	}
+	failedPlanBytes, _ := json.Marshal(failedPlan)
+	failedManifest, err := project.ParseExecutionManifest(failedRun.ExecutionManifest)
+	if err != nil {
+		return err
+	}
+	failedManifest.Plan, failedManifest.PlanDigest, failedManifest.Run, failedManifest.Invocation = failedPlanBytes, project.PlanDigest(failedPlanBytes), failedRun.ID, failedIntent.Native.BrokerRun
+	failedRun.ExecutionManifest, err = project.MarshalExecutionManifest(failedManifest)
+	if err != nil {
+		return err
+	}
+	failedIntent.ManifestDigest = project.ExecutionManifestDigest(failedRun.ExecutionManifest)
+	failedNative.Intent, err = failedIntent.Encode()
+	if err != nil {
+		return err
+	}
+	failedAdmission := *retiredPending.Admission
+	failedAdmission.Native = &failedIntent.Native
+	failedRun.Admission = &failedAdmission
+	failedStop := failedRun.Started.Add(time.Second)
+	failedExit := 1
+	failedNative.Provenance.Isolation = &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 1001}
+	failedNative.Provenance.Process = &execution.NativeProcess{InvocationID: factory.NewID(), SystemInstance: "12345678-1234-1234-1234-123456789abc", StartIdentity: "1", PID: 123, StartedAt: failedRun.Started, StoppedAt: &failedStop, Executable: tool.Executable, ExecutableSHA256: tool.SHA256, ExitCode: &failedExit}
+	if err = failedRun.Validate(); err != nil {
+		return fmt.Errorf("declared failed Corrector custody: %w", err)
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,'finished',0,$5)`, failedChild, failedChild.ID, failedChild.Repository, failedChild.Issue, failedChild.Run); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_runs(id,active,settled,data) VALUES($1,false,true,$2)`, failedRun, failedRun.ID); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: failedRun.ID, Repository: failedChild.Repository, Issue: failedChild.Issue, Attempt: failedChild.ID}); err != nil {
+		return err
+	}
+	failedUsage := factory.Usage{RunID: failedRun.ID, Repository: failedChild.Repository, Connection: failedChild.Connection, Minutes: 1, StartedAt: failedRun.Started, EndedAt: failedStop}
+	if err = db.RecordRunUsage(ctx, failedUsage); err != nil {
+		return err
+	}
+	failedPublication.ReviewCycles = []factory.ReviewCycle{failedCycle}
+	failedPublication.Stage, failedPublication.Outcome, failedPublication.Reason, failedPublication.FinishedUnix = factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, time.Now().Unix()
+	if err = failedPublication.Validate(); err != nil {
+		return err
+	}
+	if err = write(`UPDATE factory_publications SET data=$2 WHERE assignment=$1`, failedPublication, nextCommand); err != nil {
+		return err
+	}
+	failedAllowance, err := db.AttemptAllowance(ctx, failedChild.Repository, failedChild.Issue)
+	if err != nil {
+		return err
+	}
+	failedAllowance.Corrections = []string{failedChild.ID}
+	failedAllowance.Revision++
+	if err = write(`UPDATE factory_attempt_allowances SET data=$2,revision=revision+1 WHERE root_assignment=$1`, failedAllowance, nextCommand); err != nil {
+		return err
+	}
+	if closed, err := db.CloseAttempt(ctx, nextCommand); err != nil || !closed {
+		return fmt.Errorf("close failed Corrector allowance: %v", err)
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET settled=false WHERE id=$1`, failedRun.ID); err != nil {
+		return err
+	}
+	if _, err = db.RetainedCandidateFundingOffer(ctx, nextCommand); err == nil {
+		return errors.New("unsettled failed Corrector offered fresh funding")
+	}
+	if _, err = raw.ExecContext(ctx, `UPDATE factory_runs SET settled=true WHERE id=$1`, failedRun.ID); err != nil {
+		return err
+	}
+	unknownPublication := failedPublication
+	unknownIntent := factory.PublicationIntent{OperationID: factory.PublicationOperationID(nextCommand, factory.OpRefPublish, 2), AuthRevision: factory.AuthRevisionFor(nextCommand, nextCommand, failedPublication.Revision), TargetBranch: failedPublication.TargetBranch, Candidate: strings.Repeat("1", 40), ExpectedOld: failedPublication.Candidate, ComparisonRef: failedPublication.TargetBranch, ComparisonOID: failedPublication.BaseSHA, PRTitle: "Declared uncertain correction", Repository: failedPublication.Repository, ActorID: failedChild.ActorID, NativeRev: 1, NotAfter: time.Now().Add(time.Minute).Unix(), CorrectionNumber: failedPublication.PRNumber, CorrectionAuthor: failedPublication.PullTarget().AuthorID}
+	unknownPublication.Corrections = factory.CorrectionOps{{Kind: factory.OpRefPublish, RunID: failedRun.ID, Work: &unknownIntent, OperationID: unknownIntent.OperationID, Attempts: 1, UpdatedUnix: time.Now().Unix()}}
+	if err = unknownPublication.Validate(); err != nil {
+		return err
+	}
+	if err = write(`UPDATE factory_publications SET data=$2 WHERE assignment=$1`, unknownPublication, nextCommand); err != nil {
+		return err
+	}
+	if _, err = db.RetainedCandidateFundingOffer(ctx, nextCommand); err == nil {
+		return errors.New("uncertain failed-Corrector publication offered replacement authority")
+	}
+	if err = write(`UPDATE factory_publications SET data=$2 WHERE assignment=$1`, failedPublication, nextCommand); err != nil {
+		return err
+	}
+	failedOffer, err := db.RetainedCandidateFundingOffer(ctx, nextCommand)
+	if err != nil || failedOffer.CarryUnused {
+		return fmt.Errorf("accounted failed Corrector did not offer fresh finite funding: %v", err)
+	}
+	retryCommand, retryOrigin := factory.NewID(), *failedPublication.External
+	retryOrigin.CommandID, retryOrigin.ForkConsent, retryOrigin.ObservedUnix = retryCommand, retryCommand, time.Now().Unix()
+	if _, err = db.FundRetainedCandidateObserved(ctx, retryCommand, "declared-failed-corrector-continuation", failedOffer, &retryOrigin, time.Now()); err != nil {
+		return fmt.Errorf("explicit fresh funding after failed Corrector: %w", err)
+	}
+	if after, err := db.FactoryRun(ctx, failedRun.ID); err != nil || !reflect.DeepEqual(after, failedRun) {
+		return errors.New("failed-Corrector funding rewrote retained workspace/capture/deadline")
+	}
+	if after, err := db.RunUsage(ctx, failedRun.ID); err != nil || !reflect.DeepEqual(after, failedUsage) {
+		return errors.New("failed-Corrector funding changed its original charge")
+	}
 	if err = db.Close(); err != nil {
 		return err
 	}
@@ -15253,10 +15425,11 @@ func externalPreparationFixture() error {
 	if after, err := reopened.FactoryRun(ctx, pendingRun.ID); err != nil || !reflect.DeepEqual(after, retiredPending) {
 		return errors.New("reopen renewed the original no-start authority")
 	}
-	if after, err := reopened.UsageTotal(ctx, handoffOwner.Repository, handoffOwner.Connection); err != nil || after != usageBefore {
+	if after, err := reopened.UsageTotal(ctx, handoffOwner.Repository, handoffOwner.Connection); err != nil || after != usageBefore+failedUsage.Minutes {
 		return errors.New("no-start recovery/reopen changed settled exact-source charges")
 	}
 	fmt.Println("PASS: exact pending-context no-start acknowledgement preserves intent/deadline/manifest/source, retires with zero charge and resumes interrupted capability retirement; cleared marker/acquisition/changed intent/missing zero usage refuse, while a fresh explicit bounded funding command preserves the spent correction identity without model replay. Native absence acknowledgement declared; actual Store/accounting transactions.")
+	fmt.Println("PASS: task/workspace admission follows the authentic original Architect head and current-root retained correction singleton; a settled nonreported failed Corrector with an exact retained charge permits a fresh explicit finite command without unused-budget transfer, while unsettled execution or uncertain publication refuse. Activation/process facts declared; native task calls stop at the observation boundary, no inference or send.")
 	fmt.Println("PASS: closed external Architect/committed Inspector history with a retired expired unlaunched correction admits one explicit same-source bounded continuation and fresh Corrector using the original Inspector; spent reviews/charges and old rows/deadlines/receipts remain exact, replay never renews authority, and changed source/head/base or unrelated historical parent refuse. Role/native/provider facts declared; no inference or host send.")
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")

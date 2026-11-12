@@ -744,15 +744,36 @@ and provider polling. Native supervisor now checks its existing readiness before
 the first Go start; it preserves account/product/recovery reads without polling.
 Combined native59 compiles and is the release input; backend57/UI are reused. Normal Quit57
 retires all app/backend/PostgreSQL/socket processes; no model/send occurred.
-**Next executable action:** exact-prior57-to59 install and actual e814 no-start
-adoption/zero accounting, then one fresh bounded fork continuation under standing
-permission, reusing the original Architect/Inspector. Never renew old authority.
-Actual fork Fixer/judgment/reinspection/CI remains unqualified. Original evidence:
-goal55-external-continuation.json, goal55-current-context-result.log and
-goal55-original-native-observation.log. Installed56 authenticated reads pass in
-goal56-installed-revocation-positive.json; user-side GitHub revocation is pending.
-Package59 build/installation is the only owned work; credentials/profile/original
-unsettled row are preserved. No role is running.
+Installed59/source0b6345a actually recovers e814: cancelled/reconciled, retired/
+sealed, no process/acquisition, zero original-source charge, consumed reservation
+and revoked capability; its first deadline remains04:47:17Z. c72 closes without
+erasing the spent identity. Normal-UI fresh command3662c6cf509a4e9186eeba318c77a47d
+funds15 minutes/run, two reviews/one correction on the same source. Genuine
+Fixer8146a66f/run f1da22e5 executes05:44:53–05:45:30Z, then reports blocked:
+WorkerTasks demands an Architect result/head on the non-executing fresh owner.
+Its task/workspace calls never reach the native command owner. Retired/sealed/
+reconciled failure, one-minute charge, context judgment and total237 remain exact;
+no candidate or publication send exists. Evidence: goal59-original-recovery-and-fixer.json
+and its original private terminal log. This is an orchestration defect.
+
+WorkerTasks now authenticates the original plan through PublicationExecutionOwner
+and validates the current-root singleton. Remaining completion/checkpoint paths
+already use that singleton; the remaining publication head gate is Builder-only.
+Explicit fresh finite funding after this failed Corrector requires a closed old
+allowance, no reported/final candidate or operation/journal, exact usage and fully
+retired native custody. It preserves old partial workspace/captures and spent
+counts; CarryUnused refuses any spent correction. Unknown sends stay fenced.
+Backend correction-task-server SHAa21c8ddce46f8fed8f480962e423d670de0c3027c66b85561e7ec828e0c419b4
+and existing request60-external-pg.log pass: task/workspace admission reaches a
+declared Inspect sentinel, fresh funding/refusal/accounting cases pass, clean PG
+shutdown joins. No native command, model or provider send is fabricated.
+**Next executable action:** install backend-only60 over59, reusing native59/UI,
+then one fresh bounded fork continuation using original Architect/Inspector and
+finding. Actual successful Fixer/judgment/reinspection/CI stays unqualified.
+Normal Quit59 confirms app/backend/PG/socket retirement; no role/check is running.
+Package60 installation is next; saved credentials/profile/original receipts stay.
+Installed56 authenticated reads pass in goal56-installed-revocation-positive.json;
+user-side GitHub revocation is pending. Earlier55 evidence remains preserved.
 The existing initial-intake fixture additionally passes creator withdrawal
 inside evidence I/O with no retained admission and fresh authorized recovery
 (request55-intake-creator-io-pg.log); provider facts are declared. Existing policy

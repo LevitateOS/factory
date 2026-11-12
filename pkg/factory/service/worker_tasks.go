@@ -80,19 +80,31 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 		return empty, errors.New("native task plan differs from assigned attempt")
 	}
 	expected := &plan
+	expectedRoot := a.AttemptRoot
 	if phase == project.ExecutionCorrect {
 		owner, err := s.Store.Assignment(ctx, a.PublicationAssignment)
 		if err != nil || a.ReviewContext == nil || a.ReviewContext.Cycle.CorrectionAssignment != a.ID ||
-			owner.AttemptRoot != a.AttemptRoot || owner.Result == nil || owner.Result.PhaseResult == nil ||
-			owner.Result.PhaseResult.Output == nil || owner.Result.PhaseResult.Output.Plan == nil {
+			owner.AttemptRoot != a.AttemptRoot || !owner.PublicationOwnerReady() {
+			return empty, ErrWorkerBinding
+		}
+		publication, err := s.Store.PublicationByAssignment(ctx, owner.ID)
+		if err != nil || publication.Stage != factory.PublicationPublished || publication.WithdrawRequested ||
+			publication.Candidate != a.SourceCommit || a.ReviewContext.Cycle.Head != publication.Candidate ||
+			a.ReviewContext.Cycle.BaseOID != publication.PullTarget().BaseOID {
+			return empty, ErrWorkerBinding
+		}
+		origin, err := s.Store.PublicationExecutionOwner(ctx, publication, owner)
+		if err != nil || origin.Result == nil || origin.Result.PhaseResult == nil ||
+			origin.Result.PhaseResult.Output == nil || origin.Result.PhaseResult.Output.Plan == nil {
 			return empty, ErrWorkerBinding
 		}
 		// Corrections retain their controller-derived singleton without
-		// replacing the investigation head. Its original source plan must
-		// still be current; the singleton itself must match retained bytes.
-		expected = owner.Result.PhaseResult.Output.Plan
+		// replacing the investigation head. Explicit continuation owners bind
+		// that real source plan under its original root, not their fresh root.
+		expected = origin.Result.PhaseResult.Output.Plan
+		expectedRoot = origin.AttemptRoot
 	}
-	head, generation, err := s.Store.PlanHead(ctx, a.AttemptRoot)
+	head, generation, err := s.Store.PlanHead(ctx, expectedRoot)
 	if err != nil {
 		return empty, err
 	}

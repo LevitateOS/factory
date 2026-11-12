@@ -1692,13 +1692,35 @@ the supervisor now refuses coordinator startup during its already-known global
 execution/recovery hold, before any Go start/provider polling. Product/account
 and retained reads stay available. Native59 compiles with both fixes; backend/UI are
 unchanged. Normal Quit57 confirms all app/backend/PostgreSQL/socket retirement.
-**Q17 remains INCOMPLETE:** install59 and observe actual original no-start
-recovery, then continue the fork under one explicit fresh bounded command.
-Preserve e814's first deadline04:47:17Z and all original results/receipts. Actual
-fork Fixer/judgment/reinspection/CI remains required. Installed56 authenticated
-browsing passed before remote revocation (`goal56-installed-revocation-positive.json`);
-the user account interaction is pending; saved credentials remain. No role is
-running. Package59 build/installation is the only owned work.
+Installed59/source0b6345a proves actual original e814 no-start recovery:
+cancelled/reconciled, sealed/retired, no process/acquisition, zero same-source
+charge, consumed reservation and revoked capability. The original04:47:17Z
+deadline stays exact; c72's allowance closes with its spent correction identity.
+Fresh normal-UI command3662c6cf509a4e9186eeba318c77a47d funds15 minutes/run,
+two reviews/one correction on the same source, without carrying old budget.
+Actual Fixer8146a66f/run f1da22e5 uses original Inspector9c79 and executes
+05:44:53–05:45:30Z. It stops blocked: task-start/workspace admission wrongly
+requires the non-executing fresh owner to have its own Architect result/head.
+All resources retire; exact usage235→237 includes this one-minute run and its
+context judgment. No candidate or publication send is produced. Original facts
+and tool log are retained in `goal59-original-recovery-and-fixer.json`.
+
+Task admission now resolves the authenticated original Architect head plus the
+current-root correction singleton, preserving current capability, cycle, target,
+source and process checks. A separate explicit fresh funding command may follow
+a failed nonreported Corrector only after closed allowance, exact accounting and
+sealed retirement; typed/final candidates, journals and uncertain sends still
+refuse. Spent corrections cannot transfer unused budget. Backend build and the
+existing real-PG `request60-external-pg.log` pass, including actual task/workspace
+admission to the declared observation boundary, fresh funding, refusal and
+unchanged original captures. This does not claim native task execution.
+**Q17 remains INCOMPLETE:** exact-prior59-to60 install, then one fresh bounded
+fork correction using the preserved original Architect/Inspector and finding.
+Actual successful Fixer/judgment/reinspection/CI remains required. Installed56
+authenticated browsing passed before remote revocation
+(`goal56-installed-revocation-positive.json`); account interaction is pending.
+Normal Quit59 confirms all process/socket retirement; saved credentials remain.
+No role/check is running; package60 installation is the next owned work.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

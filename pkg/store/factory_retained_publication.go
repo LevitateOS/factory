@@ -641,6 +641,7 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	}
 	children := 0
 	unusedCorrection := false
+	failedCorrection := false
 	for rows.Next() {
 		var raw, runData, usageData []byte
 		var child factory.Assignment
@@ -671,6 +672,22 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 				unusedCorrection = true
 				continue
 			}
+			if prior.Closed && !prior.Active && retainedFailedCorrection(child, runData, usageData) {
+				// A fresh explicit command can fund the still-published head.
+				// A report, journal or publication intent owns its candidate and
+				// must never disappear behind this failed-run continuation.
+				bound := false
+				for _, op := range p.Corrections {
+					bound = bound || op.RunID == child.Run
+				}
+				for _, journal := range p.CorrectionJournals {
+					bound = bound || journal.RunID == child.Run
+				}
+				if !bound {
+					failedCorrection = true
+					continue
+				}
+			}
 			bound := false
 			for _, op := range p.Corrections {
 				if op.RunID == child.Run && op.Work != nil && op.Work.Candidate == child.Result.Candidate {
@@ -699,6 +716,21 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	if (!prior.Closed || prior.Active) && !changedSetup && !unusedCorrection {
 		return ErrRetainedPublicationIneligible
 	}
+	if failedCorrection {
+		var accounted bool
+		if err = tx.QueryRowContext(ctx, `SELECT NOT EXISTS(
+ SELECT 1 FROM factory_runs r JOIN factory_run_views v ON v.run=r.id JOIN factory_assignments a ON a.id=v.attempt
+ LEFT JOIN factory_usage u ON u.run=r.id
+ WHERE a.data->>'attempt_root'=$1 AND (u.run IS NULL OR u.repository<>a.repository OR u.connection<>(a.data->>'connection')
+ OR NULLIF(r.data->'native','null'::jsonb) IS NULL OR r.data#>>'{native,retirement}' IS DISTINCT FROM 'retired'
+ OR r.data#>>'{native,sealed}' IS DISTINCT FROM 'true' OR COALESCE(r.data#>>'{native,provenance,custody,state}','') NOT IN ('released','not_acquired')))
+`, a.ID).Scan(&accounted); err != nil {
+			return err
+		}
+		if !accounted {
+			return ErrAttemptRunsPending
+		}
+	}
 	var pending bool
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_merges WHERE publication=$1 AND COALESCE((data#>>'{operation,attempts}')::int,1)>0)`, p.ID).Scan(&pending); err != nil {
 		return err
@@ -707,6 +739,42 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 		return ErrRetainedPublicationIneligible
 	}
 	return nil
+}
+
+// This is fresh funding for a known failed attempt, never replay authority or
+// an unused-budget transfer. Partial workspace/custody remains on the old run;
+// an accepted report or completed final candidate must use its original owner.
+func retainedFailedCorrection(child factory.Assignment, runData, usageData []byte) bool {
+	result := child.Result
+	if result.Reported || result.Candidate != "" || result.Review != nil || len(result.Findings) != 0 || result.PhaseResult != nil && result.PhaseResult.Output != nil {
+		return false
+	}
+	var outcome factory.Outcome
+	switch {
+	case child.Outcome == factory.Failed && child.Reason == factory.AssignReasonRunFailed:
+		outcome = factory.Failed
+	case child.Outcome == factory.Cancelled && child.Reason == factory.AssignReasonCancelled:
+		outcome = factory.Cancelled
+	case child.Outcome == factory.NeedsHuman && child.Reason == factory.AssignReasonNoReport:
+		outcome = factory.Succeeded
+	default:
+		return false
+	}
+	var run factory.Run
+	var usage factory.Usage
+	if json.Unmarshal(runData, &run) != nil || run.Validate() != nil || run.ID != child.Run || run.ProjectID != child.ProjectID || run.Role != child.Role || run.InputSHA != child.SourceCommit || !run.Reconciled || run.Outcome != outcome || run.Native == nil || !run.Native.Settled() || run.FinalCheckpoint != nil && run.FinalCheckpoint.Status == "committed" {
+		return false
+	}
+	end := run.Started
+	if process := run.Native.Provenance.Process; process != nil {
+		if process.StoppedAt == nil {
+			return false
+		}
+		end = run.UsageEnd(*process.StoppedAt)
+	} else if run.HasExecutionIdentity() {
+		return false
+	}
+	return json.Unmarshal(usageData, &usage) == nil && usage.Validate() == nil && usage.RunID == run.ID && usage.Repository == child.Repository && usage.Connection == child.Connection && usage.StartedAt.Equal(run.Started) && usage.EndedAt.Equal(end)
 }
 
 // Only the existing definitive-unused native shape and its original zero
@@ -740,7 +808,7 @@ func retainedUnusedReviewBudgetTx(ctx context.Context, tx *sql.Tx, p factory.Pub
 			return false, err
 		}
 	}
-	eligible := len(prior.Reviews) > 0 && len(prior.Reviews) < prior.Limits.ReviewRounds &&
+	eligible := len(prior.Corrections) == 0 && len(prior.Reviews) > 0 && len(prior.Reviews) < prior.Limits.ReviewRounds &&
 		noEffects &&
 		prior.Limits.ActiveMinutes <= bounds.ActiveMinutes && prior.Limits.ReviewRounds <= bounds.ReviewRounds && prior.Limits.CorrectionCycles <= bounds.CorrectionCycles
 	if !eligible {
