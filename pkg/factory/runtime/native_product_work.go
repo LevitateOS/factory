@@ -19,7 +19,7 @@ import (
 func (b *nativeProductAccount) bindWork(application service.Application) (factoryhttp.Work, factoryhttp.Runs) {
 	c := application.Coordinator
 	access := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
-		if err := b.localResourceAccess(ctx, actor, repository); err != nil {
+		if err := b.localOwnerAccess(ctx, actor); err != nil {
 			return err
 		}
 		return b.writeAccess(ctx, actor, int64(repository))
