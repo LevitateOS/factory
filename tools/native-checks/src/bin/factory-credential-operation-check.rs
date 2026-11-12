@@ -1814,6 +1814,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
         return fountain_enrollment(Path::new(&args[1]), args[2].to_str().ok_or("origin invalid")?, args[3].to_str().ok_or("application invalid")?).await;
     }
     match (args.first().and_then(|arg| arg.to_str()), args.len()) {
+        (Some("--github-assembly-budget-declared"), 4) => {
+            native_github_transport::run_assembly_budget_declared(Path::new(&args[1]), Path::new(&args[2]), Path::new(&args[3])).await
+        }
         (Some("--native-publication-history"),6) => {
             let runtime=soda_desktop_runtime::supervisor::NativeSupervisor::start(Path::new(&args[2]),Path::new(&args[1]),Path::new(&args[3]))?;
             let instance=runtime.health()?.instance;

@@ -13,6 +13,139 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+pub(super) async fn run_assembly_budget_declared(
+    production: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_fixture::{call, set_mode};
+    use serde_json::json;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    set_mode(&io, "assembly-positive")?;
+    let attempts = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("attempts"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    ensure(attempts()? == 0, "unselected startup contacted provider")?;
+    let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "assembly fixture requires empty custody",
+    )?;
+    let saved = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "321")?,
+            Token::new(b"factory-declared-thread".to_vec())?,
+        )
+        .await?;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &saved.connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "assembly catalogue refused")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?;
+    let mut stages = Vec::new();
+    for target in [
+        format!("/api/repositories/{repository}/factory"),
+        format!("/api/repositories/{repository}/factory/access"),
+        format!("/api/repositories/{repository}/factory/issues/progress?issues=1,2"),
+        format!("/api/factory/feed?repositories={repository}"),
+    ] {
+        let before = attempts()?;
+        let reply = call(&runtime, &store, &saved.connection, "GET", &target, &[]).await?;
+        ensure(
+            reply.0 == 200,
+            &format!(
+                "assembly navigation refused {target}: {} {}",
+                reply.0, reply.1
+            ),
+        )?;
+        stages.push(json!({"path":target,"attempts":attempts()? - before}));
+    }
+    let navigation = attempts()?;
+    ensure(
+        navigation <= 60,
+        "startup/navigation exceeded declared request bound",
+    )?;
+    tokio::time::sleep(Duration::from_secs(21)).await;
+    ensure(
+        attempts()? == navigation,
+        "unfunded idle runtime polled provider",
+    )?;
+    for scenario in [
+        "assembly-positive",
+        "assembly-fork",
+        "assembly-head-change",
+        "assembly-withdrawn",
+    ] {
+        set_mode(&io, scenario)?;
+        let before = attempts()?;
+        let result = runtime
+            .github_read(
+                &store,
+                &store.capability(&saved.connection).await?,
+                Read::MergeReadiness {
+                    repository: "123".into(),
+                    number: 7,
+                    head: "a".repeat(40),
+                    base: "b".repeat(40),
+                },
+            )
+            .await?;
+        let count = attempts()? - before;
+        ensure(
+            count <= 64,
+            "merge compound read exceeded one native operation",
+        )?;
+        if matches!(scenario, "assembly-positive" | "assembly-fork") {
+            ensure(
+                result.status == 200,
+                &format!(
+                    "merge compound refused {scenario}: {} {}",
+                    result.status, result.body
+                ),
+            )?;
+            ensure(
+                result.body["payload"]["preparation"]["head"] == "a".repeat(40)
+                    || result.body["merge_readiness"]["preparation"]["head"] == "a".repeat(40),
+                "merge compound lost exact head",
+            )?;
+        } else {
+            ensure(
+                matches!(result.status, 403 | 409),
+                "changed/withdrawn merge exposed material",
+            )?;
+        }
+        stages.push(json!({"phase":scenario,"attempts":count,"status":result.status}));
+    }
+    store.withdraw(&saved.connection).await?;
+    runtime.stop()?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "assembly peer saw undeclared request",
+    )?;
+    fs::write(
+        root.join("assembly-budget.json"),
+        serde_json::to_vec_pretty(
+            &json!({"stages":stages,"navigation_attempts":navigation,"idle_seconds":21,"idle_attempts":0,"declared_no_forwarding":true,"policy_or_funding_granted":false,"live_merge_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: native/keyring/Go/PG startup/navigation, idle and paired merge-readiness physical-send transcript; no live provider, inference or effect");
+    Ok(())
+}
+
 // The exact production budget and private-file owner are compiled into this
 // existing check. Synthetic monotonic seconds exercise admission without a
 // keyring, network request, provider response or wall-clock expiry wait.

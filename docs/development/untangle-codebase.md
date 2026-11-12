@@ -5555,3 +5555,22 @@ support their actual scope only. The final independent pass must revisit every
 section and resolve worthwhile remaining findings. Completion requires preserved
 intended behavior; missing features and original provider/installed/security
 qualification remain explicitly unfinished in their owning product plan.
+
+### GitHub/Muse installed continuation (2026-11-12, active)
+
+Current ready slice: recover the original corrected fork PR62 and paid judgment,
+then finish merge and installed withdrawal/revocation using existing receipts.
+No initial role/inference replay. Refactor sourceb4dc55c is built as stage76;
+exact-prior74 installation passes and preserves the original GitHub wire journal
+byte for byte. App/UI/backend are current; helpers/provider/PostgreSQL/notices and
+all original releases/profile/keyring remain unchanged. Native wire preflight
+uses the existing credential integration harness with dummy custody, real Go/PG
+and a no-forwarding TLS peer: startup/navigation18 sends; unfunded idle0 over two
+scheduler ticks; same-repository/fork paired merge-readiness27/29; changed head4
+and withdrawn access2 refuse. This does not qualify a funded idle sweep or live
+merge. Evidence: factory-real-cycle-20261110/request76-budget-local.log and
+fc-github-assembly4/{assembly-budget.json,transcript.jsonl}; failed disposable
+fixtures1–3 remain, with no live send or inference. package76-* records exact
+source/inventory/asset/install inputs. Installed live continuation is now starting
+once using guest child76.sh, with fresh logs and original profile/commands. Do not
+renew expired6dd5095c or predecessor31019ff6; new explicit current authority only.
