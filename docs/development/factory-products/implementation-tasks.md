@@ -1682,13 +1682,23 @@ reopen, fresh funding and refusal cases), `request57-progress-pg.log`, and
 `request57-delivery-full3-pg.log` (controlled roles, causal funded acceptance,
 refusals, restart/WAL recovery). Earlier logs retain fixture type/observation/
 monotonicity mistakes; no production guard was weakened and no model replayed.
-**Q17 remains INCOMPLETE:** install57 and observe actual original no-start
+Installed57 reaches browsing readiness but the retained Muse scan refuses after
+64 historical services; this profile has182. Original e814 stays positively
+unlaunched and unsettled, usage235. The scan now streams retained history with
+the same private-file, exact-binding and duplicate refusal checks. The extracted
+production check passes182-history absence/match and duplicate/conflict/malformed
+refusals (`request58-retained-process-check.log`); native58 compiles. Separately,
+the supervisor now refuses coordinator startup during its already-known global
+execution/recovery hold, before any Go start/provider polling. Product/account
+and retained reads stay available. Native59 compiles with both fixes; backend/UI are
+unchanged. Normal Quit57 confirms all app/backend/PostgreSQL/socket retirement.
+**Q17 remains INCOMPLETE:** install59 and observe actual original no-start
 recovery, then continue the fork under one explicit fresh bounded command.
 Preserve e814's first deadline04:47:17Z and all original results/receipts. Actual
 fork Fixer/judgment/reinspection/CI remains required. Installed56 authenticated
 browsing passed before remote revocation (`goal56-installed-revocation-positive.json`);
-the user account interaction is pending. Normal Quit56 confirms process/socket
-retirement; saved credentials remain. No role/check is running.
+the user account interaction is pending; saved credentials remain. No role is
+running. Package59 build/installation is the only owned work.
 Manual PR56 and own-issue PR58 deliveries retain their completed scopes; neither
 substitutes for this automatic/fork requirement.
 

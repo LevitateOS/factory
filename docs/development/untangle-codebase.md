@@ -733,15 +733,26 @@ delivery-full3-pg.log passes all controlled roles, causal corrected-tuple funded
 acceptance/refusals, clean restart and abrupt WAL recovery. Failed logs preserve
 fixture type, missing declared reconciliation and attempted regression mistakes;
 production guards stayed strict. No new inference or provider write occurred.
-**Next executable action:** exact-prior57 install and actual e814 no-start
+Installed57's actual recovery stops at the history-wide64-service scan cutoff;
+the preserved profile has182 services, no e814 binding, and the original run
+remains ContextPending/unsettled with235 minutes unchanged. The native receipt
+owner now streams history while keeping per-file bounds, exact binding,
+ownership and duplicate refusal. Extracted production scan qualification passes
+(`request58-retained-process-check.log`); native58 compiles and is retained,
+unpackaged. The same startup hold also incorrectly started the Go coordinator
+and provider polling. Native supervisor now checks its existing readiness before
+the first Go start; it preserves account/product/recovery reads without polling.
+Combined native59 compiles and is the release input; backend57/UI are reused. Normal Quit57
+retires all app/backend/PostgreSQL/socket processes; no model/send occurred.
+**Next executable action:** exact-prior57-to59 install and actual e814 no-start
 adoption/zero accounting, then one fresh bounded fork continuation under standing
 permission, reusing the original Architect/Inspector. Never renew old authority.
 Actual fork Fixer/judgment/reinspection/CI remains unqualified. Original evidence:
 goal55-external-continuation.json, goal55-current-context-result.log and
 goal55-original-native-observation.log. Installed56 authenticated reads pass in
 goal56-installed-revocation-positive.json; user-side GitHub revocation is pending.
-Normal Quit56 confirms app/backend/PG/socket retirement. No owned process/check
-remains running; credentials/profile/original unsettled row are preserved.
+Package59 build/installation is the only owned work; credentials/profile/original
+unsettled row are preserved. No role is running.
 The existing initial-intake fixture additionally passes creator withdrawal
 inside evidence I/O with no retained admission and fresh authorized recovery
 (request55-intake-creator-io-pg.log); provider facts are declared. Existing policy

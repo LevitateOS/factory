@@ -301,10 +301,10 @@ pub(super) fn retained_process(
     };
     super::muse::private(&root)?;
     let mut found = None;
-    for (index, entry) in entries.enumerate() {
-        if index >= 64 {
-            return Err(denied());
-        }
+    // This directory retains historical execution and judgment services, not
+    // just live sessions. Stream every binding so age never makes absence or
+    // duplicate-run proof incomplete; each individual file remains bounded.
+    for entry in entries {
         let entry = entry?;
         let name = entry.file_name().to_str().ok_or_else(denied)?.to_owned();
         super::muse::private(&entry.path())?;

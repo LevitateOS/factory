@@ -312,6 +312,18 @@ impl NativeSupervisor {
                     if !alive.load(Ordering::SeqCst) {
                         return Err("native coordinator startup owner retired".into());
                     }
+                    // A known startup recovery hold cannot make progress through
+                    // provider polling. Product/account and retained reads remain
+                    // available without starting the execution coordinator.
+                    let readiness_error = {
+                        let readiness = execution_error
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+                        readiness.error().map(str::to_owned)
+                    };
+                    if let Some(error) = readiness_error {
+                        return Err(error);
+                    }
                     // Go retains one startup under its original native instance.
                     // A pending/lost reply is polled, never another startup owner.
                     match products.start_coordinator().await {
