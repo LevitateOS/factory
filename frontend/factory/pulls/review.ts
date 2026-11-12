@@ -7,7 +7,7 @@ import {getJSON} from '../api/read.js';
 import {commandOutcome} from '../api/command-response.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {JournalCommand} from '../shared/journal-command.js';
-import {pullItem, pullRef, pullReview} from './response.js';
+import {type PullDisplayRead, pullItem, pullRef, pullReview} from './response.js';
 import {
   emptyReviewWriting, readReviewWriting, reloadReviewWriting, reviewRecordKey,
   sameReviewPending, saveReviewWriting, validReviewBody,
@@ -18,6 +18,7 @@ export interface PullReviewContext extends ReviewAddress {
   readonly transport: FactoryTransport;
   readonly parent: PullRef;
   readonly head: string;
+  readonly display?: PullDisplayRead;
   commandScope(signal: AbortSignal): Promise<string>;
 }
 export type PullReviewPorts = Omit<PullReviewContext, 'parent' | 'head'>;
@@ -42,6 +43,7 @@ export class SodaFactoryPullReview extends LitElement {
   private writing = emptyReviewWriting();
   private allowed = allDenied();
   private busy = false;
+  private opened = false;
   private message = '';
 
   constructor() { super(); this.version = 0; }
@@ -56,7 +58,8 @@ export class SodaFactoryPullReview extends LitElement {
       check(context.parent.kind === 'pull' && context.parent.repository === context.repository && context.parent.number === context.pull);
       check(!!context.parent.external_id.trim() && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(context.head));
       this.journal.attach(context);
-      this.restore(context); void this.refresh();
+      this.restore(context);
+      this.opened = false;
     }
     this.touch();
   }
@@ -71,15 +74,16 @@ export class SodaFactoryPullReview extends LitElement {
   private path(context: PullReviewContext) {
     return `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
   }
-  private async admit(context: PullReviewContext, signal: AbortSignal) {
+  private async admit(context: PullReviewContext, signal: AbortSignal, refresh = false) {
     this.allowed = allDenied();
     await this.journal.identity(context, signal);
-    const [raw, caps] = await Promise.all([
+    const display = context.display ? await context.display(signal, refresh) : undefined;
+    const [raw, caps] = display ? [display.pull, display.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
-    const pull = pullItem(raw, context.host, context.repository, context.pull);
+    const pull = display ? display.pull : pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id &&
       (pull.head.commit === null || pull.head.commit === context.head) && pull.state === 'open');
     this.allowed = {
@@ -104,7 +108,7 @@ export class SodaFactoryPullReview extends LitElement {
         await this.journal.identity(context, signal);
         await this.deliver(context, signal, 'lookup');
       }
-      await this.admit(context, signal);
+      await this.admit(context, signal, true);
       if (!this.writing.pending && !this.saved.blocked) this.message = Object.values(this.allowed).some(Boolean)
         ? this.saved.durable ? '' : 'Review writing is only saved in this window.'
         : 'Review actions are unavailable for this account.';
@@ -207,6 +211,7 @@ export class SodaFactoryPullReview extends LitElement {
     this.restore(context, true); this.touch(); void this.refresh();
   }
   async loadDraft(externalID: string) {
+    this.opened = true;
     const context = this.journal.context, signal = this.journal.signal;
     if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.journal.live(context, signal)) return;
     this.busy = true; this.message = ''; this.touch();
@@ -230,6 +235,7 @@ export class SodaFactoryPullReview extends LitElement {
   render() {
     const context = this.journal.context;
     if (!context) return html``;
+    if (!this.opened) return html`<button type="button" @click=${() => { this.opened = true; this.touch(); void this.refresh(); }}>Write review</button>`;
     const pending = this.writing.pending;
     return html`<section class="soda-pull-review" aria-label="Write pull request review" aria-busy=${this.busy}>
       <h3>Review</h3><p role="status">${this.message}</p>

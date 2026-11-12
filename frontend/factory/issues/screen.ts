@@ -128,6 +128,7 @@ export function mountIssueScreen(
   };
   return {
     element,
+    refresh() { return view.refresh(); },
     dispose() {
       view.context = undefined;
       facts.context = undefined;

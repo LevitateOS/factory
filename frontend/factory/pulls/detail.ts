@@ -16,7 +16,7 @@ import './reviewers.js';
 import '../issues/comment.js';
 import '../issues/editor.js';
 import type {DiffThread} from '../review/diff.js';
-import {pullItem, pullFiles, pullCommits, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
+import {pullItem, pullFiles, pullCommits, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView, type PullDisplay} from './response.js';
 
 export interface PullDetailContext {
   readonly transport: FactoryTransport;
@@ -67,6 +67,8 @@ export class SodaFactoryPull extends LitElement {
   private previous: string[] = [];
   private lifetime = new AbortController();
   private read = new AbortController();
+  private displayRead: Promise<PullDisplay> | undefined;
+  private displaySettled = false;
 
   constructor() {
     super();
@@ -102,6 +104,7 @@ export class SodaFactoryPull extends LitElement {
   private retire() {
     this.lifetime.abort(); this.read.abort();
     this.lifetime = new AbortController(); this.read = new AbortController();
+    this.displayRead = undefined;
     this.serial++; this.current = undefined; this.binding = ''; this.cursor = ''; this.previous = [];
     this.tab = 'conversation'; this.checkKind = 'status'; this.view = empty();
   }
@@ -119,6 +122,10 @@ export class SodaFactoryPull extends LitElement {
       catch { if (this.live(context)) this.view = {...this.view, message: 'This pull request section could not be opened.'}; }
       return;
     }
+    this.selectTab(tab);
+  }
+  selectTab(tab: PullTab) {
+    if (tab === this.tab || this.view.busy) return;
     this.tab = tab; this.cursor = ''; this.previous = [];
     void this.load();
   }
@@ -130,7 +137,9 @@ export class SodaFactoryPull extends LitElement {
   private async load() {
     const context = this.current;
     if (!context || !this.live(context)) return;
+    if (this.view.busy) return;
     this.read.abort(); this.read = new AbortController();
+    this.displayRead = undefined;
     const serial = ++this.serial, signal = AbortSignal.any([this.lifetime.signal, this.read.signal]);
     const cursor = this.cursor, tab = this.tab;
     const path = `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
@@ -148,6 +157,7 @@ export class SodaFactoryPull extends LitElement {
           check(candidate === null || typeof candidate === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(candidate));
           pullActionAllowed(caps, context.repository, context.actor, pull.ref, candidate as string | null, 'pull.review.comment');
           selectedHead = candidate as string | null;
+          this.displayRead = Promise.resolve({pull, capabilities: caps});
         } catch {
           if (!this.live(context, serial)) return;
         }
@@ -201,9 +211,27 @@ export class SodaFactoryPull extends LitElement {
       }
     } catch (error) {
       if (!this.live(context, serial)) return;
+      if (document.hidden) { this.view = {...this.view, busy: false}; return; }
       const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
       this.view = {...empty(), message: hidden ? 'This pull request is not available to this account.' : error instanceof FactoryReadError && error.status === 409 ? 'This pull request changed. Refresh to read the current revision.' : 'Pull request details could not be loaded. Try again.'};
     }
+  }
+  private async display(signal: AbortSignal, refresh = false): Promise<PullDisplay> {
+    const context = this.current, serial = this.serial, pull = this.view.pull;
+    check(context && pull && !this.view.busy && this.live(context, serial));
+    if (refresh && this.displaySettled) this.displayRead = undefined;
+    if (!this.displayRead) {
+      this.displaySettled = false;
+      const joined = AbortSignal.any([this.lifetime.signal, this.read.signal]);
+      this.displayRead = getJSON(context.transport,
+        `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}/capabilities`, joined)
+        .then(capabilities => { check(this.live(context, serial)); this.displaySettled = true; return {pull, capabilities}; })
+        .catch(error => { if (this.live(context, serial)) this.displayRead = undefined; throw error; });
+    }
+    const observed = await this.displayRead;
+    signal.throwIfAborted();
+    check(this.live(context, serial));
+    return observed;
   }
   private async loadMoreThreads(cursor: string) {
     const context = this.current, serial = this.serial;
@@ -269,7 +297,7 @@ export class SodaFactoryPull extends LitElement {
         ${context.commandScope ? html`<soda-factory-pull-editor
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, issue: context.pull, kind: 'pull' as const, scope: context.scope,
-            parent: pull.ref, commandScope: context.commandScope}}
+            parent: pull.ref, commandScope: context.commandScope, display: (signal: AbortSignal, refresh?: boolean) => this.display(signal, refresh)}}
           @pull-edit-saved=${() => void this.refresh()}
         ></soda-factory-pull-editor>` : ''}
         <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href), `pull-${pull.ref.external_id}`)) : html`<p>No description provided.</p>`}</article>
@@ -359,13 +387,13 @@ export class SodaFactoryPull extends LitElement {
         ${context.commandScope && head ? html`<soda-factory-pull-review
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, head, commandScope: context.commandScope}}
+            parent: pull.ref, head, commandScope: context.commandScope, display: (signal: AbortSignal) => this.display(signal)}}
           @pull-review-saved=${() => void this.refresh()}
         ></soda-factory-pull-review>` : ''}
         ${context.commandScope && head ? html`<soda-factory-pull-merge
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, head, commandScope: context.commandScope}}
+            parent: pull.ref, head, commandScope: context.commandScope, display: (signal: AbortSignal) => this.display(signal)}}
           @pull-merge-saved=${() => void this.refresh()}
         ></soda-factory-pull-merge>` : ''}
       ` : ''}

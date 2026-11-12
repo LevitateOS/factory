@@ -194,7 +194,7 @@ function ageText(assessedUnix: number, nowUnix: number): string {
 // only: a lone eligible issue needs no consultation, while several
 // eligible issues await a recorded priority comparison.
 export function describeWhyNext(
-  issues: readonly FactoryIssueDetail[],
+  issues: readonly Pick<FactoryIssueDetail, 'issue' | 'readiness'>[],
   links: FactoryWorkLinks | undefined,
   nowUnix: number
 ): WhyNextModel {
@@ -228,7 +228,7 @@ export interface PrerequisiteModel {
 // recorded readiness. Planning records do not exist in this read, so
 // the plan note says exactly that instead of inventing freshness.
 export function describePrerequisites(
-  issues: readonly FactoryIssueDetail[],
+  issues: readonly Pick<FactoryIssueDetail, 'issue' | 'readiness'>[],
   links: FactoryWorkLinks | undefined
 ): PrerequisiteModel[] {
   return issues.map((issue) => {

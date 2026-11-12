@@ -6,7 +6,7 @@ import {pullActionAllowed} from '../api/capability-response.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {JournalCommand} from '../shared/journal-command.js';
-import {pullItem} from './response.js';
+import {type PullDisplayRead, pullItem} from './response.js';
 import {mergeRecord, mergeRecordKey, noMergeMessage, validMergeMessage, type MergeAddress, type MergeMethod, type PendingMerge} from './merge-record.js';
 
 const mergeMethods: readonly MergeMethod[] = ['merge', 'squash', 'rebase', 'rebase-merge', 'fast-forward-only'];
@@ -29,6 +29,7 @@ export interface PullMergeContext extends MergeAddress {
   readonly transport: FactoryTransport;
   readonly parent: PullRef;
   readonly head: string;
+  readonly display?: PullDisplayRead;
   commandScope(signal: AbortSignal): Promise<string>;
 }
 
@@ -51,6 +52,7 @@ export class SodaFactoryPullMerge extends LitElement {
   private allowed = false;
   private methods: MergeMethod[] = [];
   private busy = false;
+  private opened = false;
   private method: MergeMethod = 'merge';
   private message = '';
   private status = '';
@@ -66,7 +68,8 @@ export class SodaFactoryPullMerge extends LitElement {
       check(context.parent.kind === 'pull' && context.parent.repository === context.repository && context.parent.number === context.pull);
       check(!!context.parent.external_id.trim() && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(context.head));
       this.journal.attach(context);
-      this.restore(context); void this.refresh();
+      this.restore(context);
+      this.opened = false;
     }
     this.touch();
   }
@@ -80,15 +83,16 @@ export class SodaFactoryPullMerge extends LitElement {
   private path(context: PullMergeContext) {
     return `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
   }
-  private async admit(context: PullMergeContext, signal: AbortSignal) {
+  private async admit(context: PullMergeContext, signal: AbortSignal, refresh = false) {
     this.allowed = false; this.methods = [];
     await this.journal.identity(context, signal);
-    const [raw, caps] = await Promise.all([
+    const display = context.display ? await context.display(signal, refresh) : undefined;
+    const [raw, caps] = display ? [display.pull, display.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
-    const pull = pullItem(raw, context.host, context.repository, context.pull);
+    const pull = display ? display.pull : pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id);
     const current = pull.state === 'open' && pull.draft === false &&
       (pull.head.commit === null || pull.head.commit === context.head) &&
@@ -102,7 +106,7 @@ export class SodaFactoryPullMerge extends LitElement {
     this.busy = true; this.touch();
     try {
       if (this.journal.pending && !this.journal.blocked) { await this.journal.identity(context, signal); await this.deliver(context, signal, 'lookup'); }
-      await this.admit(context, signal);
+      await this.admit(context, signal, true);
       if (!this.journal.pending && !this.methods.includes(this.method) && this.methods.length) this.method = this.methods[0]!;
       if (!this.journal.pending && !this.journal.blocked && !this.status) this.status = this.allowed ? '' : 'Merging is unavailable for this pull request.';
     } catch {
@@ -163,6 +167,7 @@ export class SodaFactoryPullMerge extends LitElement {
   }
   render() {
     if (!this.journal.context) return html``;
+    if (!this.opened) return html`<button type="button" @click=${() => { this.opened = true; this.touch(); void this.refresh(); }}>Prepare merge</button>`;
     return html`<section class="soda-pull-merge" aria-label="Merge pull request" aria-busy=${this.busy}>
       <h3>Merge</h3><p role="status">${this.status}</p>
       ${this.journal.pending ? html`<p>Saved ${this.journal.pending.method} merge command. Check its outcome before starting another.</p>

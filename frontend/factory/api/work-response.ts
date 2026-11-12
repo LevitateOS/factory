@@ -330,7 +330,7 @@ export function issueBlocker(value: unknown): IssueBlocker {
     ...(typeof raw.endpoint_issue === 'string' ? {endpoint_issue: raw.endpoint_issue} : {}),
   };
 }
-function issueReadiness(value: unknown): IssueReadiness {
+export function issueReadiness(value: unknown): IssueReadiness {
   const raw = record(value);
   return {
     readiness: member(READINESS, raw.readiness),

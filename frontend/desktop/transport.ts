@@ -68,6 +68,8 @@ export class DesktopTransport implements FactoryTransport {
   readonly assetBase = '';
   readonly generation: string;
   private lifetime = new AbortController();
+  private suspended = false;
+  private retired = false;
   constructor(
     private core: Core,
     readonly selected: Binding,
@@ -76,9 +78,12 @@ export class DesktopTransport implements FactoryTransport {
     this.generation = `${profile}:${selected.generation}:${selected.session}`;
   }
   retire() {
-    this.lifetime.abort();
+    this.retired = true; this.suspend();
   }
+  suspend() { this.suspended = true; this.lifetime.abort(); }
+  resume() { check(!this.retired); this.lifetime = new AbortController(); this.suspended = false; }
   async request(input: string, init: RequestInit = {}): Promise<Response> {
+    check(!this.retired && !this.suspended);
     const path = input.startsWith('/api/') ? input : '/api/' + input.replace(/^\//, '');
     check(path.startsWith('/api/factory/') || path.startsWith('/api/repositories/'));
     const method = init.method ?? 'GET';

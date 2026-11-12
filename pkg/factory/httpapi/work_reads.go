@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
@@ -120,5 +122,32 @@ func (s Work) recordedReadError(w http.ResponseWriter, err error) {
 		writeError(w, 400, "invalid_request", "Recorded work query is invalid.")
 	default:
 		writeError(w, 503, "store_unavailable", "Could not read recorded work.")
+	}
+}
+
+func (s Work) progress(w http.ResponseWriter, r *http.Request) {
+	repository, ok := positiveID(r.PathValue("repositoryID"))
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if !ok || err != nil || len(r.URL.RawQuery) > 512 || len(values) != 1 || len(values["issues"]) != 1 || r.URL.ForceQuery {
+		writeError(w, 400, "invalid_request", "Use a page of 1..20 distinct issue numbers.")
+		return
+	}
+	parts := strings.Split(values.Get("issues"), ",")
+	issues := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		issue, valid := positiveID(part)
+		if !valid {
+			writeError(w, 400, "invalid_request", "Invalid issue number.")
+			return
+		}
+		issues = append(issues, issue)
+	}
+	view, err := s.Reads.Progress(r.Context(), s.Actor, collaboration.RepositoryID(repository), issues)
+	if err != nil {
+		s.recordedReadError(w, err)
+		return
+	}
+	if s.current(w, r) {
+		writeJSON(w, 200, view)
 	}
 }

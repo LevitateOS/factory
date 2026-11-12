@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"time"
@@ -85,6 +86,17 @@ func (s WorkReads) Priority(ctx context.Context, actor collaboration.ActorID, re
 	if err := s.visible(ctx, actor, repository, issue); err != nil {
 		return nil, err
 	}
+	view, err := s.priority(ctx, repository, issue, cursor, limit)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.visible(ctx, actor, repository, issue); err != nil {
+		return nil, err
+	}
+	return view, nil
+}
+
+func (s WorkReads) priority(ctx context.Context, repository collaboration.RepositoryID, issue int64, cursor store.PriorityComparisonCursor, limit int) (*IssuePriorityView, error) {
 	receipts, more, err := s.Store.PriorityReceiptsForIssue(ctx, int64(repository), issue, cursor, limit)
 	if err != nil {
 		return nil, err
@@ -98,8 +110,78 @@ func (s WorkReads) Priority(ctx context.Context, actor collaboration.ActorID, re
 		trailing := receipts[len(receipts)-1]
 		view.NextBeforeUnix, view.NextBeforeSnapshot = trailing.CreatedUnix, trailing.Snapshot
 	}
-	if err := s.visible(ctx, actor, repository, issue); err != nil {
+	return view, nil
+}
+
+// Progress projects only retained plan/readiness facts under one current repository
+// visibility bracket. It performs no per-issue provider or command admission.
+type WorkProgressItem struct {
+	Issue     string             `json:"issue"`
+	State     string             `json:"state"`
+	Readiness *readinessView     `json:"readiness,omitempty"`
+	Plan      *IssuePriorityView `json:"plan,omitempty"`
+	PlanState string             `json:"plan_state"`
+}
+type WorkProgressPage struct {
+	Repository string             `json:"repository"`
+	Items      []WorkProgressItem `json:"items"`
+	Next       int                `json:"next"`
+}
+
+func (s WorkReads) Progress(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, issues []int64) (*WorkProgressPage, error) {
+	if len(issues) == 0 || len(issues) > 20 {
+		return nil, ErrWorkReadQuery
+	}
+	seen := map[int64]bool{}
+	for _, issue := range issues {
+		if issue < 1 || seen[issue] {
+			return nil, ErrWorkReadQuery
+		}
+		seen[issue] = true
+	}
+	if err := s.visible(ctx, actor, repository, issues[0]); err != nil {
 		return nil, err
 	}
-	return view, nil
+	page := &WorkProgressPage{Repository: strconv.FormatInt(int64(repository), 10), Items: []WorkProgressItem{}}
+	byteCount := 0
+	for _, issue := range issues {
+		item := WorkProgressItem{Issue: strconv.FormatInt(issue, 10), State: "available", PlanState: "available"}
+		recorded, err := s.Store.IssueControl(ctx, int64(repository), issue)
+		if err == nil {
+			if recorded.Repository != int64(repository) || recorded.Issue != issue {
+				return nil, ErrWorkJourneyScope
+			}
+			item.Readiness = &readinessView{Blockers: recorded.Blockers, Acceptance: recorded.Acceptance, Readiness: recorded.Readiness, Reason: recorded.Reason, Revision: recorded.Revision, Assessed: recorded.AssessedUnix}
+		} else if !errors.Is(err, store.ErrNotFound) {
+			item.State = "unavailable"
+		}
+		item.Plan, err = s.priority(ctx, repository, issue, store.PriorityComparisonCursor{}, 5)
+		if err != nil {
+			item.PlanState = "unavailable"
+		}
+		encoded, encodeErr := json.Marshal(item)
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		if len(encoded) > 2*1024*1024-16384 {
+			item.Plan = nil
+			item.PlanState = "unavailable"
+			encoded, _ = json.Marshal(item)
+			if len(encoded) > 2*1024*1024-16384 {
+				item.Readiness = nil
+				item.State = "unavailable"
+				encoded, _ = json.Marshal(item)
+			}
+		}
+		if byteCount+len(encoded) > 2*1024*1024-16384 && len(page.Items) > 0 {
+			break
+		}
+		byteCount += len(encoded)
+		page.Items = append(page.Items, item)
+		page.Next++
+	}
+	if err := s.visible(ctx, actor, repository, issues[0]); err != nil {
+		return nil, err
+	}
+	return page, nil
 }

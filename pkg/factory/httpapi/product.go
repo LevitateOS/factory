@@ -200,6 +200,7 @@ func NewProductRoutes() *ProductRoutes {
 	mux.Handle(base+"/", productRepositories)
 	mux.Handle(base+"/actions", productRuns)
 	issue := base + "/issues/{issueID}"
+	mux.Handle(base+"/issues/progress", productWork)
 	mux.Handle(issue, productWork)
 	mux.Handle(issue+"/", productWork)
 	mux.Handle(issue+"/acceptance-preview", productAcceptances)

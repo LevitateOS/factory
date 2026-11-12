@@ -16511,6 +16511,39 @@ func progressPagedInventoryFixture(ctx context.Context, db *store.Store, raw *sq
 	if err != nil || saved.Cycle.State != factory.ReassessmentDeciding || saved.EvidenceIssues != 20 || reads != 40 || traversals != 2 || len(saved.CollectorProgress) != 0 {
 		return fmt.Errorf("two full paged inventories did not seal: reads=%d traversals=%d state=%s reason=%s err=%v", reads, traversals, saved.Cycle.State, saved.WaitReason, err)
 	}
+
+	visibilityReads := 0
+	work := factoryhttpapi.Work{Host: collaboration.HostID(strings.Repeat("a", 32)), Actor: 1, Current: func(http.ResponseWriter, *http.Request) bool { return true }, Reads: factoryservice.WorkReads{Store: db, Visibility: func(_ context.Context, _ collaboration.ActorID, selected collaboration.RepositoryID) error {
+		visibilityReads++
+		if int64(selected) != repository {
+			return errors.New("wrong progress scope")
+		}
+		return nil
+	}}}
+	request := httptest.NewRequest(http.MethodGet, "/api/repositories/"+strconv.FormatInt(repository, 10)+"/factory/issues/progress?issues=1,2,3", nil)
+	response := httptest.NewRecorder()
+	work.Handler().ServeHTTP(response, request)
+	var page factoryservice.WorkProgressPage
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &page) != nil || len(page.Items) != 3 || visibilityReads != 2 {
+		return fmt.Errorf("recorded progress did not use one visibility bracket: status=%d visibility=%d body=%s", response.Code, visibilityReads, response.Body.String())
+	}
+	for _, item := range page.Items {
+		if item.State != "available" || item.Plan == nil {
+			return errors.New("recorded progress omitted item state or plan")
+		}
+	}
+	visibilityReads = 0
+	for _, query := range []string{"issues=1,1", "issues=0", "issues=1&issues=2", "issues=1&other=2"} {
+		response = httptest.NewRecorder()
+		work.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/repositories/"+strconv.FormatInt(repository, 10)+"/factory/issues/progress?"+query, nil))
+		if response.Code != 400 {
+			return fmt.Errorf("invalid progress page accepted: %s", query)
+		}
+	}
+	if visibilityReads != 0 {
+		return errors.New("invalid progress pages reached provider visibility")
+	}
+	fmt.Println("PASS: local recorded work page projects distinct item/plan states behind one opening/closing visibility bracket; invalid pages fail before provider I/O")
 	fmt.Println("PASS: real PG paged completion retains8-step prefix across coordinator restart, rejects changed confirming inventory, and seals only two whole equal20-issue observations; no provider/model/effects")
 	return nil
 }

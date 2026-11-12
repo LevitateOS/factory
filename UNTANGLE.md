@@ -886,3 +886,22 @@ builds, apps or provider requests in this design phase.
   passes native callback pagination, unordered whole-set sealing and existing
   realPG progress/recovery gates. f4-batch-native-final.log builds the connector.
   Independent batch review found no substantive issue. F5–F8 remain pending. No live provider/model/writes or original retained state touched.
+
+- F5 COMPLETE: mounted pull owns one lazy, shared capability observation; review,
+  merge, edit and comment admission begins only when opened. Commands retain
+  backend current-authority admission. Refresh preserves writing and original
+  command keys; hide aborts transport I/O and makes the retained view inert.
+  Current account/profile/generation and local identity must pass before resume;
+  ordinary hide/show no longer disconnects or remounts. Scope changes still retire.
+  Recorded work/readiness+plans use local bounded pages, one visibility bracket
+  per page, explicit item/plan unavailable states and byte-bound continuation.
+  Allowance read failures remain visible. Existing actual-host browser drivers
+  now open the explicit controls; they were not run against a live host here.
+  Evidence in the existing refactor scratch: f5-ui-browser-final.log (production
+  Lit, declared transport: conversation2, shared capabilities1,64 issues4pages,
+  drafts retained; actual account/connection event wiring keeps one mount and
+  admission with zero disconnects); f5-progress-pg.log (local API visibility,
+  invalid-page refusal and existing realPG recovery checks); f5-typecheck-final.log,
+  f5-harness-build.log and f5-sodaos-build.log. Source review caught the missing
+  merge binding, second visibility listener teardown and aggregate reply-size
+  risk; all corrected. Controlled checks qualify this refactor only. F6–F8 pending.

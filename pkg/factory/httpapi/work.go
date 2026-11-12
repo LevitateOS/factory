@@ -41,6 +41,7 @@ func (s Work) Handler() http.Handler {
 		})
 	}
 	base := "/api/repositories/{repositoryID}/factory/issues/{issueID}"
+	register("/api/repositories/{repositoryID}/factory/issues/progress", s.progress)
 	register(base, s.issue)
 	register(base+"/assignment", s.assignment)
 	register(base+"/plan", s.priority)

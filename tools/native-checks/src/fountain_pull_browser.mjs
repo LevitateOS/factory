@@ -40,6 +40,7 @@ try {
     await original.locator('details.thread').filter({hasText: 'Original thread'}).filter({hasText: 'Outdated'}).first().waitFor();
     stage = 'merge';
     const control = detail.locator('soda-factory-pull-merge');
+    await control.getByRole('button', {name: 'Prepare merge', exact: true}).click();
     await control.getByRole('combobox', {name: 'Merge method'}).selectOption('merge');
     await control.getByRole('textbox', {name: 'Merge message'}).fill('Merge reviewed native code');
     await control.getByRole('button', {name: 'Merge pull request'}).click();
@@ -113,6 +114,7 @@ try {
   await detail.locator('section[aria-label="Checks"]').waitFor();
   stage = 'comment review';
   const review = detail.locator('soda-factory-pull-review');
+  await review.getByRole('button', {name: 'Write review', exact: true}).click();
   await review.getByRole('textbox', {name: 'Review Markdown'}).fill('Submitted comment review from shared browser');
   await review.getByRole('button', {name: 'Submit comment'}).click();
   await review.getByText('Review submitted.', {exact: true}).waitFor();

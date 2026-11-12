@@ -5,7 +5,7 @@ import type {IssueRef, PullRef} from '../api/collaboration.js';
 import {issueDetail} from '../api/issue-response.js';
 import {issueCommentAllowed} from '../api/comment-response.js';
 import {pullActionAllowed} from '../api/capability-response.js';
-import {pullItem} from '../pulls/response.js';
+import {type PullDisplayRead, pullItem} from '../pulls/response.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {getJSON} from '../api/read.js';
 import {JournalCommand} from '../shared/journal-command.js';
@@ -22,6 +22,7 @@ import type {CommentAddress, CommentSaved, CommentWriting, PendingComment} from 
 
 export interface IssueCommentContext extends CommentAddress {
   readonly transport: FactoryTransport;
+  readonly display?: PullDisplayRead;
   readonly parent: IssueRef | PullRef;
   /** Fresh host-admitted account custody, matching the captured stable scope. */
   commandScope(signal: AbortSignal): Promise<string>;
@@ -64,6 +65,7 @@ export class SodaFactoryIssueComment extends LitElement {
   private writing = emptyCommentWriting();
   private allowed = false;
   private busy = false;
+  private opened = false;
   private message = '';
   private noEffect = '';
   constructor() {
@@ -79,6 +81,7 @@ export class SodaFactoryIssueComment extends LitElement {
   set context(context: IssueCommentContext | undefined) {
     if (!this.journal.rebind(context)) return;
     this.allowed = false;
+    this.opened = false;
     this.busy = false;
     this.message = '';
     this.noEffect = '';
@@ -98,7 +101,7 @@ export class SodaFactoryIssueComment extends LitElement {
       );
       this.journal.attach(context);
       this.restore(context);
-      void this.refresh();
+
     }
     this.touch();
   }
@@ -124,13 +127,14 @@ export class SodaFactoryIssueComment extends LitElement {
   private async admit(context: IssueCommentContext, signal: AbortSignal) {
     this.allowed = false;
     await this.journal.identity(context, signal);
-    const [value, capabilities] = await Promise.all([
+    const display = context.kind === 'pull' && context.display ? await context.display(signal) : undefined;
+    const [value, capabilities] = display ? [display.pull, display.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
     if (context.parent.kind === 'pull') {
-      const pull = pullItem(value, context.host, context.repository, context.issue);
+      const pull = display ? display.pull : pullItem(value, context.host, context.repository, context.issue);
       check(pull.ref.external_id === context.parent.external_id);
       this.allowed = pullActionAllowed(capabilities, context.repository, context.actor, context.parent, pull.head.commit, 'pull.comment');
     } else {
@@ -327,6 +331,7 @@ export class SodaFactoryIssueComment extends LitElement {
   }
   render() {
     if (!this.journal.context) return html``;
+    if (!this.opened) return html`<button type="button" @click=${() => { this.opened = true; this.touch(); void this.refresh(); }}>Write comment</button>`;
     const pending = this.writing.pending,
       blocked = this.saved.blocked;
     const body = pending?.body ?? this.writing.draft.body;

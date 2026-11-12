@@ -7,6 +7,8 @@ export type PullItem = Pick<
   PullRequest,
   'ref' | 'title' | 'body' | 'state' | 'draft' | 'author' | 'base' | 'head' | 'created_at' | 'updated_at' | 'merged_at'
 >;
+export interface PullDisplay { readonly pull: PullItem; readonly capabilities: unknown; }
+export type PullDisplayRead = (signal: AbortSignal, refresh?: boolean) => Promise<PullDisplay>;
 export type PullPage<T> = {items: T[]; next: string; complete: boolean};
 
 const text = (value: unknown, max: number): string => {

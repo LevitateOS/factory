@@ -163,6 +163,7 @@ try {
     await editor.getByRole('textbox', {name: 'Edit issue Markdown'}).inputValue() === 'Unsent native Markdown draft 茶',
   'unsent issue draft lost after browser restart');
   stage = 'write';
+  await composer.getByRole('button', {name: 'Write comment', exact: true}).click();
   await composer.getByRole('textbox', {name: 'Comment Markdown'}).fill('Written through the shared issue composer.');
   await composer.getByRole('button', {name: 'Post comment', exact: true}).click();
   await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();

@@ -4,7 +4,7 @@ import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef, PullRef} from '../api/collaboration.js';
 import {pullActionAllowed} from '../api/capability-response.js';
 import {issueDetail} from '../api/issue-response.js';
-import {pullItem} from '../pulls/response.js';
+import {type PullDisplayRead, pullItem} from '../pulls/response.js';
 import {issueEditAllowed, editBodyDigest, sameEditOriginal, scalarEditText} from '../api/issue-edit-response.js';
 import type {EditOriginal} from '../api/issue-edit-response.js';
 import {factoryCommandId} from '../api/run-response.js';
@@ -24,6 +24,7 @@ import type {EditorAddress, EditorSaved, EditorWriting, EditorDraft, PendingEdit
 
 export interface IssueEditorContext extends EditorAddress {
   readonly transport: FactoryTransport;
+  readonly display?: PullDisplayRead;
   readonly parent: IssueRef | PullRef;
   commandScope(signal: AbortSignal): Promise<string>;
 }
@@ -103,7 +104,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       );
       this.journal.attach(context);
       this.restore(context);
-      void this.refresh();
+
     }
     this.touch();
   }
@@ -131,13 +132,14 @@ export class SodaFactoryIssueEditor extends LitElement {
   private async readCurrent(context: IssueEditorContext, signal: AbortSignal) {
     this.allowed = false;
     await this.journal.identity(context, signal);
-    const [value, capabilities] = await Promise.all([
+    const display = context.kind === 'pull' && context.display ? await context.display(signal) : undefined;
+    const [value, capabilities] = display ? [display.pull, display.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
     const issue = context.kind === 'pull'
-      ? pullItem(value, context.host, context.repository, context.issue)
+      ? (display ? display.pull : pullItem(value, context.host, context.repository, context.issue))
       : issueDetail(value, context.host, context.repository, context.issue);
     check(
       issue.ref.external_id === context.parent.external_id &&
@@ -430,7 +432,7 @@ export class SodaFactoryIssueEditor extends LitElement {
     const subject = this.subjectLabel();
     if (!this.opened)
       return html`<section class="soda-issue-editor" aria-label=${`${subject} editor`} aria-busy=${this.busy}>
-        <button type="button" ?disabled=${this.busy || !this.allowed} @click=${this.begin}>Edit ${subject}</button>
+        <button type="button" ?disabled=${this.busy} @click=${this.begin}>Edit ${subject}</button>
         <p role="status">${this.message}</p>
       </section>`;
     const pending = this.writing.pending,

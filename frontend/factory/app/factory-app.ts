@@ -79,6 +79,8 @@ export class SodaFactoryApp extends LitElement {
   private current: FactoryAppContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
+  private refreshScreen: (() => unknown) | undefined;
+  refresh() { return this.refreshScreen?.(); }
   private disposeScreen: (() => void) | undefined;
 
   constructor() {
@@ -143,10 +145,13 @@ export class SodaFactoryApp extends LitElement {
   private clearScreen() {
     const dispose = this.disposeScreen;
     this.disposeScreen = undefined;
+    this.refreshScreen = undefined;
     this.screen = undefined;
     dispose?.();
   }
-  private own<T extends HTMLElement>(view: T, retire: () => void): T {
+  private own<T extends HTMLElement>(view: T, retire: () => void, refresh?: () => unknown): T {
+    const readable = view as HTMLElement & {refresh?: () => unknown};
+    this.refreshScreen = refresh ?? (typeof readable.refresh === 'function' ? () => readable.refresh!() : undefined);
     // A resolved view can be retired before Lit has connected it. Explicitly
     // clear its binding rather than depending solely on disconnectedCallback.
     this.disposeScreen = () => {
@@ -285,7 +290,7 @@ export class SodaFactoryApp extends LitElement {
           ports.editor,
           ports.editor
         );
-        return this.own(screen.element, screen.dispose);
+        return this.own(screen.element, screen.dispose, () => screen.refresh());
       }
       case 'feed': {
         check(

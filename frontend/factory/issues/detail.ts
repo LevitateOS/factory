@@ -138,8 +138,7 @@ export class SodaFactoryIssue extends LitElement {
       signal = AbortSignal.any([this.lifetime.signal, this.read.signal]);
     const cursor = this.cursor,
       path = `factory/collaboration/repositories/${context.repository}/issues/${context.issue}`;
-    this.view = {...empty(), busy: true};
-    this.notify(false);
+    this.view = {...this.view, busy: true};
     try {
       const issue = issueDetail(
         await getJSON(context.transport, path, signal),
@@ -162,6 +161,8 @@ export class SodaFactoryIssue extends LitElement {
       this.notify(true);
     } catch (error) {
       if (!this.live(context, serial)) return;
+      if (document.hidden) { this.view = {...this.view, busy: false}; return; }
+      this.notify(false);
       const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
       this.view = {
         ...empty(),

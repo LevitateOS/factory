@@ -110,6 +110,7 @@ export class SodaFactoryFeed extends LitElement {
     confirmedUnix: number;
     postBusy: string[];
     allowance: AllowanceHold[];
+    allowanceUnavailable: string[];
   };
   private current: FactoryFeedContext | undefined;
   private lifetime = new AbortController();
@@ -166,6 +167,7 @@ export class SodaFactoryFeed extends LitElement {
       pagedBack: false,
       confirmedUnix: 0,
       allowance: [],
+      allowanceUnavailable: [],
       postBusy: [],
     };
   }
@@ -526,8 +528,7 @@ export class SodaFactoryFeed extends LitElement {
   }
 
   // readAllowance names a coder-time allowance hold on the followed
-  // repositories above the posts. The status read is owner/admin only; any
-  // failure leaves no notice.
+  // repositories above the posts. The status read is owner/admin only.
   private async readAllowance(serial: number) {
     const context = this.current;
     if (!context) return;
@@ -542,6 +543,7 @@ export class SodaFactoryFeed extends LitElement {
     this.view = {
       ...this.view,
       allowance: settled.flatMap((result) => (result.status === 'fulfilled' ? result.value : [])),
+      allowanceUnavailable: settled.flatMap((result, index) => result.status === 'rejected' ? [String(this.scopeRepositories().slice(0, 8)[index])] : []),
     };
   }
 
@@ -1451,6 +1453,9 @@ export class SodaFactoryFeed extends LitElement {
           : ''
       }
       <p data-feed-message aria-live="polite">${this.view.message}</p>
+      ${
+        this.view.allowanceUnavailable.length > 0 ? html`<p role="status">Allowance status is unavailable for ${this.view.allowanceUnavailable.length} selected repositories.</p>` : ''
+      }
       ${
         this.view.allowance.length > 0
           ? html`<p class="soda-feed-brief soda-feed-alert" role="alert" data-feed-allowance>

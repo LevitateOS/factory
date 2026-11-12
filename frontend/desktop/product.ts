@@ -46,6 +46,13 @@ export class DesktopProduct {
     this.lifetime.abort();
     this.transport.retire();
   }
+  suspend() { this.transport.suspend(); }
+  async resume() {
+    this.lifetime.signal.throwIfAborted();
+    this.transport.resume();
+    try { await this.commandScope(this.lifetime.signal); }
+    catch (error) { this.transport.suspend(); throw error; }
+  }
   context(route: FactoryRoute): FactoryAppContext {
     admitFactoryRoute(route);
     if (route.kind === 'feed' && !route.repository && this.selected.repository)

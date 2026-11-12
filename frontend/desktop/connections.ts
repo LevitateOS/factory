@@ -119,13 +119,14 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       const view =
         context.route.kind === 'issue'
           ? routeURL({kind: 'issue', repository: context.route.repository, issue: context.route.issue})
-          : hash;
+          : context.route.kind === 'pull' ? routeURL({kind: 'pull', repository: context.route.repository, pull: context.route.pull}) : hash;
       fragmentObserver?.disconnect();
       fragmentObserver = undefined;
       if (mounted !== view) {
         mounted = view;
         app.context = context;
       }
+      if (context.route.kind === 'pull') app.querySelector<import('../factory/pulls/detail.js').SodaFactoryPull>('soda-factory-pull')?.selectTab(context.route.tab ?? 'conversation');
       if (location.hash !== hash) history.pushState(null, '', hash);
       if (context.route.kind === 'issue' && context.route.fragment) {
         const target = context.route,
@@ -169,6 +170,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   }
   async function choose(account: string, remote = '', enrolled = '') {
     resumeRequested = false;
+    app.inert = false;
     const captured = ++serial;
     const previousRepository = selected?.repository?.external_id;
     clear();
@@ -340,7 +342,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     if (document.hidden) {
       resumeRequested = !!connection;
       ++serial;
-      clear();
+      product?.suspend();
+      app.inert = true;
       busy = false;
       message = connection ? 'Connection suspended while Factory is hidden.' : 'Choose a saved account to connect.';
       render();
@@ -372,7 +375,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       accountsCurrent = values !== undefined;
       if (values === undefined) {
         ++serial;
-        clear();
+        if (product) { product.suspend(); app.inert = true; } else clear();
         busy = false;
         resumeRequested = !!connection;
         message =
@@ -405,7 +408,16 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
                 : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
       if (resumeRequested && ready && !document.hidden && !busy && account?.state === 'stored') {
-        void choose(connection, wanted, fountainRepository);
+        if (product && selected?.generation === epoch) {
+          const current = product, captured = ++serial;
+          busy = true; resumeRequested = false;
+          void current.resume().then(() => {
+            if (!live(captured) || product !== current) return;
+            app.inert = false; message = 'Connected.'; void app.refresh();
+          }).catch(() => {
+            if (live(captured) && product === current) { resumeRequested = true; clear(); message = 'Connection changed. Reconnect to continue. Saved drafts are kept.'; }
+          }).finally(() => { if (serial === captured) {busy = false; render();} });
+        } else void choose(connection, wanted, fountainRepository);
         return;
       }
       render();

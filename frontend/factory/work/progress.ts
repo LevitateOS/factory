@@ -2,10 +2,10 @@ import {LitElement, html} from 'lit';
 import {SodaFactoryRoleSettings} from './role-settings.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
-import {check, id} from '../api/models.js';
+import {check, id, object} from '../api/models.js';
 import {decisionID, intentRevision} from '../api/request-response.js';
 import type {IntentRevision} from '../api/request-response.js';
-import {factoryIssueDetail, factoryRepositorySummary} from '../api/work-response.js';
+import {issueReadiness, factoryRepositorySummary} from '../api/work-response.js';
 import type {FactoryIssueDetail, FactoryRepositorySummary} from '../api/work-response.js';
 import {getJSON, failureInput, FactoryReadError} from '../api/read.js';
 import {ScopedRead, errorReason, readReason, readValue} from '../shared/read-state.js';
@@ -223,7 +223,7 @@ interface RecordedPlanEntry {
 }
 
 interface PlanRead {
-  readonly details: FactoryIssueDetail[];
+  readonly details: Pick<FactoryIssueDetail, 'issue' | 'readiness'>[];
   readonly recorded: RecordedPlanEntry[];
   readonly unread: string[];
 }
@@ -267,9 +267,7 @@ export class SodaFactoryWorkPlan extends LitElement {
     await this.read.run(
       async (signal) => {
         const context = this.read.current!;
-        const details = await readPlanIssues(context, signal);
-        const recorded = await readRecordedPlans(context, signal);
-        return {details: details.issues, recorded, unread: details.unread};
+        return readPlanPage(context, signal);
       },
       {policy: 'drop', failure: (error) => ({keep: true, reason: errorReason(error, 'Work plan is unavailable.')})}
     );
@@ -301,56 +299,28 @@ export class SodaFactoryWorkPlan extends LitElement {
 }
 customElements.define('soda-factory-work-plan', SodaFactoryWorkPlan);
 
-// readRecordedPlans reads each issue's H-R plan independently. A
-// missing route or unreadable plan leaves that issue to the
-// readiness-based fallback; it never blocks the other issues.
-async function readRecordedPlans(context: WorkPlanContext, signal: AbortSignal): Promise<RecordedPlanEntry[]> {
-  const settled = await Promise.allSettled(
-    context.issues.map((issue) =>
-      getJSON(context.transport, `repositories/${context.repository}/factory/issues/${issue}/plan?limit=5`, signal)
-    )
-  );
-  const entries: RecordedPlanEntry[] = [];
-  settled.forEach((result, index) => {
-    const issue = context.issues[index] ?? '';
-    if (result.status !== 'fulfilled' || issue === '') return;
+async function readPlanPage(context: WorkPlanContext, signal: AbortSignal): Promise<PlanRead> {
+  const result: {details: Pick<FactoryIssueDetail, 'issue' | 'readiness'>[]; recorded: RecordedPlanEntry[]; unread: string[]} = {details: [], recorded: [], unread: []};
+  const unique = [...new Set(context.issues)];
+  for (let offset = 0; offset < unique.length;) {
+    const issues = unique.slice(offset, offset + 20);
     try {
-      const plan = issuePlan(result.value, context.repository, issue);
-      entries.push({
-        issue,
-        plan,
-      });
-    } catch {
-      return;
-    }
-  });
-  return entries;
-}
-
-async function readPlanIssues(
-  context: WorkPlanContext,
-  signal: AbortSignal
-): Promise<{issues: FactoryIssueDetail[]; unread: string[]}> {
-  const issues: FactoryIssueDetail[] = [];
-  const unread: string[] = [];
-  const settled = await Promise.allSettled(
-    context.issues.map((issue) =>
-      getJSON(context.transport, `repositories/${context.repository}/factory/issues/${issue}`, signal)
-    )
-  );
-  settled.forEach((result, index) => {
-    const issue = context.issues[index] ?? '';
-    if (result.status === 'fulfilled' && issue !== '') {
-      try {
-        issues.push(factoryIssueDetail(result.value, context.repository, issue));
-      } catch {
-        unread.push(issue);
+      const page = object(await getJSON(context.transport, `repositories/${context.repository}/factory/issues/progress?issues=${issues.join(',')}`, signal));
+      check(page.repository === context.repository && Array.isArray(page.items) && page.items.length > 0 && page.items.length <= issues.length && page.next === page.items.length);
+      for (let n = 0; n < page.items.length; n++) {
+        const issue = issues[n]!, row = object(page.items[n]);
+        check(row.issue === issue && ['available', 'unavailable'].includes(String(row.state)));
+        try {
+          if (row.state !== 'available') { result.unread.push(issue); continue; }
+          result.details.push({issue, ...(row.readiness ? {readiness: issueReadiness(row.readiness)} : {})});
+          if (row.plan_state === 'available' && row.plan) result.recorded.push({issue, plan: issuePlan(row.plan, context.repository, issue)});
+          else result.unread.push(issue);
+        } catch { result.unread.push(issue); }
       }
-    } else if (issue !== '') {
-      unread.push(issue);
-    }
-  });
-  return {issues, unread};
+      offset += page.items.length;
+    } catch { signal.throwIfAborted(); result.unread.push(...issues); offset += issues.length; }
+  }
+  return result;
 }
 
 export interface DirectionRevisionContext {
