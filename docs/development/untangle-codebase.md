@@ -7,7 +7,7 @@ INCOMPLETE. Fountain and user-started Daybreak are excluded. Completed below:
 retained genuine Inspector → Fixer → re-inspection → current-CI/allowed-merge
 journey. The actual next Architect/Builder also succeeded at that merged result.
 Remaining: paid pre-merge delivery
-judgment/acceptance, connected automatic PR/fork adoption, required installed
+judgment/acceptance, connected fork adoption, required installed
 withdrawal/revocation/I/O and remaining update activation/retirement composition.
 Reuse valid scoped evidence; a second forced correction cycle is unnecessary.
 
@@ -548,8 +548,29 @@ external-preparation-pending-ui-2.log retains that scope; the initial broad harn
 attempt failed an unrelated obsolete merge-label assertion before this case.
 Installed47 normally Quits; no app/backend/native/Muse process or developer socket
 remains. Original setup deadline1794447102, zero new runs and usage220 are retained.
-Next: install backend-only48, observe original setup retirement and admit the fork
-through the corrected normal UI, preserving the old unlaunched identity.
+aa61da37651b862676714a720fae6a156ca5b2ae is pushed on main. Backend-only48
+inventorya442c5ee3cce9a64e78ea2091a8d537a82f7d3c16fb1890676dae6eb0ca9322d
+installs exact-prior47 and reaches Ready in instance38ae728c782351bc2df5c3d542838db1,
+session20438dceb52542cebe3aaf19168f6e6b. Backendda194459 retains native/UI/helpers.
+Original47 preparation is now stopped/retirement confirmed in the product ledger,
+with its original deadline unchanged and no command/assignment/charge. Its actual
+native retired.json is preserved before/after install (package48-space-retirement.log).
+Normal48 setup prepares both roles at the same actual merged source. Fresh explicit
+fork command6aac8384eed84a6fb5616856e9fa6992 first returns pending and remains
+retained in the real UI (Inspect disabled, Recover original adoption enabled).
+Normal recovery reuses preparationffe86d1a51d6409d8631c1c1d and first deadline
+1794448173; the original origin9480/1794447570/consent/source/limits are unchanged.
+It records exactly one Architect27e955b40cd9bd5e6f7c80ef2a896bac at01:40:19Z,
+with no initial Builder. The role is running, usage222; recover the original
+receipt and result before any further action. No replacement command or inference.
+
+The canonical D07/D08/T41 contract in SodaOS factory-workflow-contracts.md
+(retained source590f35f217fcb8e30a07640bf1f66b0425f96302) explicitly permits
+complete independent CLEAR to create clean_review without an extra paid opinion.
+Two conflicting Go comments are corrected; runtime behavior is unchanged and
+requires no rebuild. The real paid premerge alternate requires genuine optional,
+disputed or repetitive findings; never fabricate findings or force a settled
+Inspector to repeat solely for coverage. No mandatory provider fallback is added.
 Paid premerge, fork and installed withdrawal/update composition remain open.
 The ordinary GitHub goal is INCOMPLETE; no full Q17/request-efficiency closure.
 All original installed payloads/profiles/captures remain; only byte-verified

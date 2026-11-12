@@ -35,8 +35,9 @@ var _ DeliveryFunding = (*store.Store)(nil)
 // semantic evidence; ReviewsFit reports whether another review fits the
 // remaining allowance; ObservedNativeRevision is the raw native revision
 // kept beside the receipt for mutation guards. Callers check deterministic
-// evidence/authority/check prerequisites first, and a clean first review
-// still consults through this same path with its empty finding set.
+// evidence/authority/check prerequisites first. Optional, disputed or repetitive
+// feedback uses this decision; an explicit complete clear uses clean_review
+// acceptance without a delivery call.
 type DeliveryAdvice struct {
 	Input                  factory.DeliveryFingerprintInput
 	State                  any

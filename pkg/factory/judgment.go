@@ -448,8 +448,8 @@ type DeliveryFingerprintInput struct {
 
 // Validate checks the fingerprint inputs. Request state always carries
 // the finding digest scope, proposed fixes, diff, checks and tree
-// evidence: a clean first review consults with its empty finding set,
-// never by skipping the call.
+// evidence for a funded delivery decision. Explicit complete clear reviews use
+// clean_review acceptance without creating a delivery judgment request.
 func (in DeliveryFingerprintInput) validateScope() error {
 	if !ValidID(in.AttemptRoot) || !ValidID(in.PublicationID) || in.Round < 1 {
 		return errors.New("invalid delivery fingerprint scope")
