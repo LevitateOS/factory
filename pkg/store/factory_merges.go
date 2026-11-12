@@ -613,8 +613,19 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1 FOR UPDATE`, p.AssignmentID).Scan(&raw); err != nil {
 		return fail(err)
 	}
-	if json.Unmarshal(raw, &a) != nil || a.Validate() != nil || a.RetainedPublication != nil || a.ID != a.AttemptRoot || a.PublicationAssignment != a.ID || a.Role != p.Role || !a.Succeeded() || a.ProjectID != p.ProjectID || a.Repository != p.Repository || a.Issue != p.Issue || a.Acceptance != p.Acceptance {
+	if json.Unmarshal(raw, &a) != nil || a.Validate() != nil || a.RetainedPublication != nil || a.ID != a.AttemptRoot || a.PublicationAssignment != a.ID || a.Role != p.Role || !a.PublicationOwnerReady() || a.ProjectID != p.ProjectID || a.Repository != p.Repository || a.Issue != p.Issue || a.Acceptance != p.Acceptance {
 		return fail(ErrMergeConflict)
+	}
+	connection := a.Connection
+	if a.ExternalPublication != nil {
+		origin, err := publicationExecutionOwner(ctx, tx, p, a)
+		if err != nil {
+			return fail(err)
+		}
+		if settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, origin.AttemptRoot); err != nil || !settled {
+			return fail(errors.Join(ErrAttemptRunsPending, err))
+		}
+		connection = a.ExternalPublication.Connection
 	}
 	owner, err := currentAttemptOwnerTx(ctx, tx, p.Repository, p.Issue, a.AttemptRoot)
 	if err != nil || owner != a.ID {
@@ -627,7 +638,7 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 	if !accepted {
 		return fail(ErrAdmissionChanged)
 	}
-	g, err = loadAdmissionGrantsTx(ctx, tx, p.Repository, a.Connection)
+	g, err = loadAdmissionGrantsTx(ctx, tx, p.Repository, connection)
 	if err != nil {
 		return fail(err)
 	}
@@ -638,7 +649,9 @@ func mergePreparationScopeTx(ctx context.Context, tx *sql.Tx, id string) (factor
 	if err = tx.QueryRowContext(ctx, `SELECT decision FROM project_approval_heads WHERE project_id=$1 FOR UPDATE`, a.ProjectID).Scan(&a.Authority.ApprovalID); err != nil {
 		return fail(err)
 	}
-	if err = checkAssignmentStandingAuthorityTx(ctx, tx, a.Authority, a, g); err != nil {
+	admission := a
+	admission.Connection = connection
+	if err = checkAssignmentStandingAuthorityTx(ctx, tx, a.Authority, admission, g); err != nil {
 		return fail(err)
 	}
 	return p, a, g, nil

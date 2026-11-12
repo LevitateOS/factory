@@ -14437,9 +14437,58 @@ func externalPreparationFixture() error {
 	if replay, err := db.PrepareUnsentMerge(ctx, mergeCommand, "declared-merge-only", offer, time.Now()); err != nil || replay != preparedMerge {
 		return fmt.Errorf("external merge-only command did not replay: %v", err)
 	}
+	// Declare a separate retained direct-adoption receipt using the same real
+	// fixture Architect provenance. This owner never had a Builder or model run.
+	directID := factory.NewID()
+	directOrigin := *promoted.External
+	directOrigin.CommandID, directOrigin.Automatic = directID, false
+	directOrigin.Target.HeadOID = strings.Repeat("d", 40)
+	direct := factory.Assignment{ID: directID, AttemptRoot: directID, PublicationAssignment: directID, ProjectID: stored.ProjectID, Role: stored.Role, Authority: stored.Authority, ActorID: stored.ActorID, Acceptance: stored.Acceptance, Preparation: stored.Preparation, SourceCommit: stored.SourceCommit, Stage: factory.AssignmentRetained, Repository: stored.Repository, Issue: stored.Issue, NativeRev: stored.NativeRev, CreatedUnix: time.Now().Unix(), Subject: stored.Subject, ExternalPublication: &factory.ExternalPublicationOwner{PlanAssignment: stored.ID, Connection: stored.Connection, Origin: directOrigin}}
+	directPublication := promoted
+	directPublication.ID, directPublication.AssignmentID, directPublication.External = directID, directID, &directOrigin
+	directPublication.PRNumber, directPublication.PRID, directPublication.Candidate = 4, 14, directOrigin.Target.HeadOID
+	if direct.Validate() != nil || directPublication.Validate() != nil {
+		return errors.New("declared direct external owner or publication is invalid")
+	}
+	if err = write(`INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'','retained',0,$4)`, direct, directID, direct.Repository, direct.Issue); err != nil {
+		return err
+	}
+	if err = write(`INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'','published',0,$4)`, directPublication, directID, direct.Repository, direct.Issue); err != nil {
+		return err
+	}
+	directAllowance := factory.AttemptAllowance{RootAssignment: directID, Repository: direct.Repository, Issue: direct.Issue, Limits: request.Limits, CheckpointUnix: time.Now().Unix(), Closed: true}
+	if err = write(`INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,$2,$3,0,$4)`, directAllowance, direct.Repository, direct.Issue, directID); err != nil {
+		return err
+	}
+	directMerge := merge
+	directMerge.ID, directMerge.PublicationID, directMerge.AssignmentID = factory.NewID(), directID, directID
+	directMerge.PRNumber, directMerge.PRID, directMerge.HeadOID, directMerge.Authorization = directPublication.PRNumber, directPublication.PRID, directPublication.Candidate, factory.MergeAuthorization{}
+	if err = db.RecordMerge(ctx, directMerge); err != nil {
+		return err
+	}
+	directMerge.Authorization = merge.Authorization
+	directMerge.Authorization.Generation.PublicationID, directMerge.Authorization.Generation.AttemptRoot = directID, directID
+	directMerge.Authorization.Generation.NativeOperationID, directMerge.Authorization.Generation.Head = factory.MergeGenerationOperationID(directID, 1), directMerge.HeadOID
+	if err = write(`UPDATE factory_merges SET data=$2 WHERE publication=$1`, directMerge, directID); err != nil {
+		return err
+	}
+	directOffer, err := db.UnsentMergePreparation(ctx, directID)
+	if err != nil || !directOffer.RetryNoSend || directOffer.MergeID != directMerge.ID {
+		return fmt.Errorf("direct external owner merge-only preparation unavailable: %+v %v", directOffer, err)
+	}
+	if receipt, err := db.PrepareUnsentMerge(ctx, factory.NewID(), "declared-direct-merge", directOffer, time.Now()); err != nil || receipt.NotAfter <= time.Now().Unix() {
+		return fmt.Errorf("direct external owner finite merge-only preparation failed: %v", err)
+	}
+	if after, err := db.Assignment(ctx, directID); err != nil || !reflect.DeepEqual(after, direct) || after.Run != "" || after.Connection != "" || after.Result != nil {
+		return errors.New("direct external merge preparation fabricated or changed an execution")
+	}
+	if after, err := db.AttemptAllowance(ctx, direct.Repository, direct.Issue); err != nil || !reflect.DeepEqual(after, directAllowance) {
+		return errors.New("direct external merge preparation renewed inference allowance")
+	}
 	fmt.Println("PASS: real standalone PG admits external-command-owned source setup after a settled closed root; unsettled predecessor, withdrawn policy and changed principal refuse; replay preserves first origin/native address/deadline, expiry refuses, old or future check time cannot admit a packet, and a fresh same-origin packet preserves preparation authority and the old allowance. Native/provider/process facts and elapsed capture are declared; no host send or model.")
 	fmt.Println("PASS: completed declared external Architect promotes with its exact retained ready source after setup expiry/confirmed retirement; another unsettled same-root preparation refuses, original publication receipt replays, and preparation/allowance remain unchanged. Result/plan/opinion/process observations declared; no inference or native send.")
 	fmt.Println("PASS: ordinary startup discovery skips a retained automatic PR/head command before fresh offer/authority reads, while a changed head reaches a fresh offer; original assignment and publication remain unchanged. Discovery facts declared; no provider, model or native send.")
 	fmt.Println("PASS: external Architect publication offers and admits an explicit five-minute merge-only command after a declared unallocated generation expires; original authorization/operation are retained, command replay is idempotent, and assignment/publication/source preparation/inference allowance remain unchanged. Expired merge/review binding declared; no inference or native send.")
+	fmt.Println("PASS: declared non-executing direct external publication reuses exact completed Architect provenance for finite merge-only preparation without a Builder run or changing its closed inference allowance. Original adoption/expired merge receipts declared; no inference or native send.")
 	return nil
 }
