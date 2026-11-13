@@ -755,6 +755,7 @@ async fn background_read(
                     | Read::IssueCreatorPermission { .. }
                     | Read::Repository { .. }
                     | Read::AutomationInputs { .. }
+                    | Read::CompletionIssues { .. }
                     | Read::AutomationChecks { .. }
                     | Read::AutomationReview { .. }
                     | Read::DeliveryOpinions { .. }

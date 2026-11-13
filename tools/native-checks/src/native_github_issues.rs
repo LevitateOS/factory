@@ -946,6 +946,11 @@ async fn callback_refusals(runtime: &NativeSupervisor, profile: &Path) -> Result
             "native_background_read_unavailable",
         ),
         (
+            json!({"kind":"read","query":{"kind":"completion_issues","repository":"123","target_ref":"refs/heads/main","limit":50,"cursor":""}}),
+            401,
+            "native_account_owner_unavailable",
+        ),
+        (
             json!({"kind":"edit_discussion","command_id":"1".repeat(32),"digest":"a".repeat(64),"not_after":1,"edit":{"repository":"123","subject":"pull","subject_id":"700","number":7,"title":"Exact title","body":null,"original_title":"Before","original_body_sha256":"a".repeat(64)}}),
             403,
             "native_background_read_unavailable",
@@ -1008,8 +1013,8 @@ async fn callback_refusals(runtime: &NativeSupervisor, profile: &Path) -> Result
         (
             execution,
             json!({"operation":"cancel","intent":"invalid"}),
-            503,
-            "native_execution_unavailable",
+            400,
+            "invalid_native_read",
         ),
         (
             execution,
