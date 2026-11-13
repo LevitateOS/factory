@@ -22,6 +22,50 @@ if (!values.check && !(await Bun.file(resolve(payload, 'COPYRIGHT')).exists()))
   throw Error('Native PostgreSQL payload must retain its source COPYRIGHT notice');
 if (values.check && await Bun.file(resolve(out, 'install.sh')).exists())
   throw Error('Check builds require a separate stage without an app installer');
+async function capture(args: string[]) {
+  const child = Bun.spawn(args, {cwd: root, stdout: 'pipe', stderr: 'inherit'});
+  const [status, result] = await Promise.all([child.exited, new Response(child.stdout).text()]);
+  if (status !== 0) throw Error('Build input identity unavailable: ' + args[0]);
+  return result.trim();
+}
+// A successful compile with an old local toolchain is not a fresh release.
+// Resolve official selections before creating a stage or starting a build.
+const toolSources = {
+  go: 'https://go.dev/dl/?mode=json',
+  rust: 'https://static.rust-lang.org/dist/channel-rust-stable.toml',
+  bun: 'https://registry.npmjs.org/bun/latest',
+};
+async function toolMetadata(url: string) {
+  const response = await fetch(url, {signal: AbortSignal.timeout(15_000)});
+  if (!response.ok) throw Error('Official toolchain metadata unavailable: ' + url);
+  return response;
+}
+const [goResponse, rustResponse, bunResponse, go, rust, cargo] = await Promise.all([
+  toolMetadata(toolSources.go), toolMetadata(toolSources.rust), toolMetadata(toolSources.bun),
+  capture(['go', 'version']), capture(['rustc', '--version']), capture(['cargo', '--version']),
+]);
+const goReleases: unknown = await goResponse.json();
+const upstreamGo = Array.isArray(goReleases) && goReleases.find(release => release?.stable === true)?.version;
+const upstreamRust = /\[pkg\.rust\]\s+version = "(\d+\.\d+\.\d+)\s/.exec(await rustResponse.text())?.[1];
+const bunRelease: unknown = await bunResponse.json();
+const upstreamBun = bunRelease && typeof bunRelease === 'object' && 'name' in bunRelease && bunRelease.name === 'bun'
+  && 'version' in bunRelease && typeof bunRelease.version === 'string' ? bunRelease.version : undefined;
+if (typeof upstreamGo !== 'string' || !/^go\d+\.\d+\.\d+$/.test(upstreamGo)
+    || !upstreamRust || !upstreamBun || !/^\d+\.\d+\.\d+$/.test(upstreamBun))
+  throw Error('Invalid official stable toolchain metadata');
+for (const [name, actual, selected] of [
+  ['Go', /^go version (go\d+\.\d+\.\d+)\s/.exec(go)?.[1], upstreamGo],
+  ['Rust', /^rustc (\d+\.\d+\.\d+)\s/.exec(rust)?.[1], upstreamRust],
+  ['Bun', Bun.version, upstreamBun],
+]) {
+  if (actual !== selected) throw Error(`${name} build tool must match official current stable ${selected}; selected ${actual ?? 'unknown'}`);
+}
+const toolchainSelection = {
+  checked_at: new Date().toISOString(),
+  go: {source: toolSources.go, version: upstreamGo},
+  rust: {source: toolSources.rust, version: upstreamRust},
+  bun: {source: toolSources.bun, version: upstreamBun},
+};
 // Packaging selects a new payload; it never upgrades an existing profile here.
 const versionsResponse = await fetch('https://www.postgresql.org/versions.json', {signal: AbortSignal.timeout(15_000)});
 if (!versionsResponse.ok) throw Error('Official PostgreSQL release metadata unavailable');
@@ -43,17 +87,10 @@ const postgresSelection = {checked_at: new Date().toISOString(), source: version
 await buildDesktopUI(resolve(root, '.artifacts/desktop-ui'));
 await mkdir(resolve(out, 'factory-runtime'), {recursive: true});
 await writeFile(resolve(out, 'factory-runtime/postgresql-selection.json'), JSON.stringify(postgresSelection) + '\n');
-async function capture(args: string[]) {
-  const child = Bun.spawn(args, {cwd: root, stdout: 'pipe', stderr: 'inherit'});
-  const [status, result] = await Promise.all([child.exited, new Response(child.stdout).text()]);
-  if (status !== 0) throw Error('Build input identity unavailable: ' + args[0]);
-  return result.trim();
-}
 const buildInputs = {
   checked_at: new Date().toISOString(), source_commit: await capture(['git', 'rev-parse', 'HEAD']),
   source_changes: await capture(['git', 'status', '--porcelain']),
-  go: await capture(['go', 'version']), rust: await capture(['rustc', '--version']),
-  bun: Bun.version, postgresql: postgresSelection,
+  go, rust, cargo, bun: Bun.version, toolchain_selection: toolchainSelection, postgresql: postgresSelection,
   profile: values.check ? 'native-check' : 'release',
 };
 await writeFile(resolve(out, 'build-inputs.json'), JSON.stringify(buildInputs, null, 2) + '\n');

@@ -13,6 +13,12 @@ bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/f
 /home/USER/factory-stage/soda-desktop
 ```
 
+Packaging verifies Go, Rust and Bun against official current stable metadata
+before building, and records those selections with the actual compiler versions
+in `build-inputs.json`. The supplied PostgreSQL payload must also match official
+current stable. A stale or unavailable selection refuses before staging; the
+build command does not upgrade existing profiles or installed payloads.
+
 This stages an installable development bundle, not a qualified Linux distribution
 package. Run its `install.sh` as your desktop user to install under `$HOME/.local`,
 or pass `--prefix /absolute/location`. It installs the app/runtime, known notices,
