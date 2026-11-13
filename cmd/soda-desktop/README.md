@@ -191,9 +191,12 @@ sudo /home/USER/factory-stage/factory-runtime/execution/install.sh --user USER
 ```
 
 This writes helpers to `/usr/libexec`, renders the account/UID into units under
-`/etc/systemd/system`, and enables the broker socket. Existing installation
-files cause refusal before writes; retained-run-safe upgrades and uninstall are
-unfinished. Native readiness still checks execution dependencies after installation.
+`/etc/systemd/system`, and enables the broker socket. Changed installations require
+`--upgrade-from SHA256` of `/var/lib/soda-factory-install/manifest`; the installer
+retains that prior manifest and recovers only its captured old/new bytes after
+interruption. Quit Factory first: live apps/services and retained execution roots
+refuse replacement. App uninstall retains these services. Native readiness still
+checks execution dependencies after installation.
 
 For packaging inspection, create an empty image directory and pass
 `--root /absolute/image` with the same explicit `--user`. Image mode writes

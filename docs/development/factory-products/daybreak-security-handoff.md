@@ -1,6 +1,6 @@
 # Open security gates and Daybreak handoff
 
-Updated 2026-11-08. All broad security gates below remain open. This is the
+Updated 2026-11-13. All broad security gates below remain open. This is the
 current evidence register; the [implementation queue](implementation-tasks.md)
 is the single queue. Follow the [language allocation](language-allocation.md)
 and [owner decisions](standalone-assumptions-audit.md). Completed redesign
@@ -14,6 +14,41 @@ closure tasks are consolidated in the
 [central task list](implementation-tasks.md#unfinished-integration-and-qualification),
 including a [mapping of all 13 gates](implementation-tasks.md#security-closure-coverage).
 Keep this handoff as the evidence register; update task status/order there.
+
+## GitHub release and ordinary security reconciliation (2026-11-13)
+
+This supersedes dated absence/pending statements below only within the recorded
+scope. Current production candidate120 is source
+`537d8a7bf47238b8aa3a58fc3128edd7698dc17c`, inventory
+`5f46920e1ba56fc4ce0f8dcc8e6f18bc62bf7ba6527e37c1fb7487e8ba2ee436`.
+App/backend/helper activation and selected dependencies are recorded in the
+[release/security ledger](../untangle-codebase.md#release-inputs-and-ordinary-github-security-reconciliation-2026-11-13).
+No stable release, whole security gate or READY FOR DAYBREAK claim follows.
+
+| Gate | Current GitHub evidence | Exact remaining ordinary obligation |
+| --- | --- | --- |
+| 1 workflow/protection | Q11 real permission/rule/method races; installed protected PR61 merge and fork PR62 merge/closure/accounting. | Reuse those receipts; no new merge/model replay. Current release activation is separately scoped below, not a repeat of the complete workflow. |
+| 2 desktop auth/IPC | Installed login/Quit/reboot history; current119 actual401 bearer/stale-instance/malformed-operation,403 browser,503 absent-authority, foreign-UID denial;120 refuses119's UI scope before GitHub sign-in. | Pending account/repository changes with live work and item5's remaining authority/retirement composition. Idle backend/postmaster SIGKILL is already proved, not an active-worker crash. |
+| 3 GitHub custody/revocation | Actual installed provider revocation/re-consent111; current encrypted Linux grant expiry, withdrawal/replacement during I/O and cleanup. | Join the remaining installed in-flight authority cases in item5. The encrypted-grant driver uses declared local secrets; it does not replace the actual111 OAuth evidence. |
+| 4 standing automation | Completed Q16/Q17 connected delivery, automatic discovery, consent/current-head, no-recursion/deduplication/spending and retained restart scopes. | Shared installed active-worker withdrawal/owner-loss cases remain item5/gate6. No blanket redo of intake or paid delivery is required. |
+| 5 Fountain | Outside this GitHub pass. | Retain its own Q18–Q24/Q27 obligations; no current appliance exists. This is not a dependency of the local checks here. |
+| 6 native recovery | Q09 interrupted launch/lost replies; Q15 retained candidate/publication/merge recovery; installed idle backend/database crashes, reboot, Quit and update/uninstall. | Actual worker/owner loss during work, reboot/retirement and sealed candidate/accounting reconciliation without replay, where not already in the retained receipts. |
+| 7 isolated worker | Real Architect/Builder/Inspector/Fixer runs and candidates; ordinary existing UID/mount/role/root/file/process/keyring/session/network/resource probes remain scoped evidence. | Join actual admitted worker identity, denied access/cross-run/quota, withdrawal, bounded process/root retirement and durable settlement on the installed path. A synthetic capability or the Muse owner's desktop UID is not the isolated worker's identity proof. |
+| 8 role tools | Real Inspector→Fixer→re-inspection plus the eight canonical role catalogues; current Rust/Go catalogue and synthetic HTTP denial checks pass. | Retain actual allowed/denied tool-event and retirement evidence for each enabled role; controlled results are labelled, not substituted for a real provider run. |
+| 9 provider custody/proxy | Real Muse-owned login/tool/task receipts and source accounting; native custody checks. | Applicable real source/endpoint/withdrawal/owner-death/settlement composition remains with item5 and gate7. Token-task execution is still unavailable; dummy-key rejection does not establish successful token-lane custody. No alternate provider is required. |
+| 10 worker MCP | Real admitted Factory-tool tasks; current managed native/Go verification, all eight catalogues, bad/expired/revoked scope, retirement and restart checks. | Join exact current work/backend/instance, worker delivery and withdrawal/crash settlement with the remaining installed worker cases. The managed check explicitly uses synthetic capability records. |
+| 11 signer custody | Native persistent private key/identity marker, changed/missing-key refusal, interrupted-creation and restart checks; real worker MCP delivery history. | **Missing implementation:** authorized root-key rotation after admitted work, not merely restart. The same root also derives Fountain enrollment proofs; preserve those proofs while retiring old MCP authority. No production rotation command exists. Also finish actual isolated-worker root/shared-IPC denial and installed interruption composition. |
+| 12 other native boundaries | Existing bound broker/desktop/native HTTP checks plus current installed IPC refusal and exact helper-manifest activation. | Complete each activated path's in-flight cancellation/withdrawal and original retirement/recovery evidence; gates2/6/7/10 identify the shared cases. |
+| 13 issue-only Fountain | Outside this GitHub pass. | Retain separately authorized actual host and installed consumer requirements. |
+
+Current checks retain zero paid inference, commands, usage or GitHub product
+requests. Original profile/keyring/run/journal bytes remain unchanged; the
+connected profile stays stopped. Source-job publication/status and remaining
+release limitations belong to the linked release ledger, not inferred completion
+from a local build. Ordinary gaps above remain normal implementation/qualification
+work. Only the previously identified deliberately malicious fork escape,
+credential extraction and cross-run attacks are reserved for user-started
+Daybreak; do not start it or move the ordinary gaps there.
 
 2026-11-10 reconciliation: the [Q30 recovery/completion ledger](implementation-tasks.md#q30)
 supersedes the dated active/pending summaries below without replacing their

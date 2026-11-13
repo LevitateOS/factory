@@ -127,6 +127,15 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   ordinary security reconciliation remain item7; Fountain remains outside this pass.
 
 - [ ] **7. Reconcile GitHub release inputs and ordinary security evidence (Q30).**
+  **Active reconciliation (2026-11-13):** current production candidate120 records
+  clean source537d8a7, Go1.27.4/Rust1.100.0/Bun1.4.4/PostgreSQL18.7 and444
+  notice entries covering all367 compiled registry crates and15 Go modules.
+  Exact-prior app/helper activation, installed IPC refusal, native MCP/restart,
+  encrypted-grant custody and current Muse1.4.18 verification now have scoped
+  checks; no new paid inference or GitHub product call ran. Item7 remains open:
+  MCP root-key rotation after admitted work is an ordinary implementation gap,
+  and the active-worker withdrawal/crash cases shared with item5 remain required.
+  [Current evidence and precise gate gaps](daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13).
   Check exact source/build/install revisions, current dependencies, notices/
   licenses, installer inputs and dependency-job publication against retained
   receipts. Historical source-job runs do not qualify current installed update

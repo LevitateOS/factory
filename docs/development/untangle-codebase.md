@@ -6060,3 +6060,76 @@ remain consolidated item7; Fountain is outside this pass. This does not promote
 close whole Q28/Q30. Original connected profile remains stopped at its retained
 request ceiling with all44 runs settled and issue63 pending; item5's outstanding
 withdrawal/crash work is unchanged. No owned check or uncertain new effect remains.
+
+## Release inputs and ordinary GitHub security reconciliation (2026-11-13)
+
+Consolidated item7 is **INCOMPLETE**. The current defining source changes are
+`d7fb0b3` (official stable Go/Rust/Bun refusal and captured selections), `4ae2b2a`
+(compatible shipped dependency refresh), `44cf981` (independent native signer
+check deadlines) and `537d8a7` (private public-tool failure diagnostics). No
+verification boundary or old command deadline was extended. The successful
+ordinary/controlled cases do not close the broader gates in the updated
+[security register](factory-products/daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13).
+
+The actual prior118 composite remains immutable: app/UI aa244fa, backend b1adc27,
+CLI3d663cf, broker/preparer5336f45 and inherited helper receipts; its inventory is
+bd45abe4…b8c8df. Its Go1.27.0/Rust1.99.1/Bun1.4.2/PostgreSQL18.6 were stale against
+current official metadata. New production candidate120 is built from clean
+`537d8a7bf47238b8aa3a58fc3128edd7698dc17c` with Go1.27.4, Rust/Cargo1.100.0,
+Bun1.4.4 and PostgreSQL18.7 (official source archive checksum verified; same native
+configuration as18.6). `build-inputs.json` captures compiler strings, official
+selections/time and all compiler-reported Rust packages. Inventory
+`5f46920e1ba56fc4ce0f8dcc8e6f18bc62bf7ba6527e37c1fb7487e8ba2ee436`;
+app a0860b0a…9583a8, backend acdd46fa…d2ba9a. All444 notice entries/files/required
+covered source exist; every367 compiled registry crate and15 embedded Go module
+has its exact version represented. Architecture and full file/link hashes pass.
+Shipped pgx/text, marked, opener and compatible Rust/JS transitive inputs were
+refreshed. Secret Service5.2 requires a zbus5 Connection; the attempted6.2.1
+upgrade fails that typed contract. Retain5.19 for that SDK instead of splitting
+credential owner connections. Upstream-constrained transitive versions and
+unshipped development graphs are not represented as an all-input freshness claim.
+
+Actual installed guest: normal exact-prior118→119→120 app activation; privileged
+manifest2697ff1c…7c9c3→9963dab542585b7d080349a217bc922dc5481db4445bb058a802e528541231ea.
+Every installed target matches its manifest;120's privileged payload is identical
+to119. No live app/worker or retained root was overwritten. Current native/Go
+MCP/canonical-catalogue/refusal/restart checks pass against the actual new backend
+and18.7 bytes. The complete existing Go/PostgreSQL suite passes (store310.596s),
+with the fresh official disposable container joined; typecheck, required Lit,
+production UI/native bundle and ownership boundaries pass. These are actual
+current checks, not a fresh paid end-to-end journey.
+
+The new isolated installed profile passes actual encrypted-grant migration,
+malformed-format/revision refusal, access/refresh expiry during I/O, concurrent
+withdrawal/replacement/cancellation and complete keyring cleanup. Secrets are
+local declared fixtures; actual OAuth revocation/re-consent remains111's retained
+proof. Installed HTTP verifies401 missing/wrong bearer,401 stale instance and
+malformed operation,403 browser headers,503 absent account authority and foreign
+UID socket denial.120 rejects119's old UI scope before a GitHub sign-in handler.
+Current Muse1.4.18-R8587.1 is verified/selected in120 without inference. Preserve
+the failed fixture observations: missing secret-tool, strict fixed-bus guard,
+long socket path, over-shared check deadline, expected401 versus intended503,
+and copied cache parent775. The first mode correction expected755 and stopped
+before chmod; only the owned disposable parent was then set700. The product's
+refusal was correct; help/echo probes pass. Original118 and every failed receipt
+remain intact. No old inference/send was replayed or authority renewed.
+
+Private evidence: `/home/vince/Projects/factory-release-security-20261113` contains
+`release{119,120}.json`, official metadata/archive selections, `build{119,120}.log`,
+`go-pg-checks.log`, `boundaries-current.log`, `dependencies-{typecheck,lit,ui-build}.log`,
+`mcp-current-operation-deadlines.log`, `ipc-result119b.log`,
+`selected120-{tree,status}.json`, `stale119-on120.json` and `final-retirement120.log`.
+Guest originals/custody logs stay under `/home/factory/release-security119`.
+Both current app owners Quit and retire their backend/PG/control endpoints;
+original profile/keyring hashes remain exact. Zero new product commands, usage,
+paid inference or GitHub product requests. No Fountain verification or Daybreak ran.
+
+Remaining ordinary work is explicit in the security register: native MCP root-key
+rotation after admitted work preserving the existing enrollment proof; installed
+source/role withdrawal during real I/O; pending account/repository changes; active
+worker/owner crash/reboot and exact retirement/accounting/candidate reconciliation;
+and the corresponding real tool/custody/MCP/UID denial composition. These are
+not waived or reclassified as Daybreak. Historical source-job runs do not qualify
+this candidate's publication; source-job/current release promotion status must be
+recorded separately before claiming completion. Current120 is a qualified scoped
+installation candidate, not a promoted stable release or whole Q30 completion.

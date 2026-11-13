@@ -80,14 +80,18 @@ running apps and captured executables. Repeating the same upgrade resumes its
 retained capture; an unknown prior or changed installed file refuses activation.
 `--uninstall-from SHA256` removes only verified launch/menu/icon entries and can
 resume after interruption. It retains payloads, profiles, credentials and system
-execution services. Execution-service upgrades and payload retirement remain
-unfinished. Profiles and credentials stay outside installation.
+execution services. Execution-service upgrades use their own exact-prior manifest
+and require quiescence: live apps/services or retained execution roots refuse
+replacement. Profiles and credentials stay outside installation; uncertain
+payload ownership never authorizes cleanup.
 The separate privileged execution-service setup is described in
 [the desktop guide](cmd/soda-desktop/README.md#linux-execution-services).
 Production packaging builds release native executables and includes compiled
 dependency notices, required covered source, compiler/PostgreSQL notices,
 `build-inputs.json` and complete SHA-256/link inventories. A checksummed PostgreSQL
-payload matching official current stable is required. The current package has
+payload matching official current stable is required. Go, Rust and Bun are also
+checked against official stable metadata before staging, with selections captured
+beside actual compiler versions. The historical package has
 installed and reopened on Rocky Linux 10.2 x86_64 with developer tools and the
 source checkout hidden. Broader host, execution, upgrade and full provider journeys
 remain unqualified; this is not a qualified release. The desktop shell supports GitHub
