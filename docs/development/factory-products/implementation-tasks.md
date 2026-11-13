@@ -72,14 +72,18 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   Q15/Q17 retain their broader remaining gates. Do not issue another merge or
   model call for this already merged candidate.
 
-- [ ] **3. Close automatic own-issue intake through delivery (Q16/Q26).** Polling,
-  cursors, original creation/creator checks and pagination have scoped evidence;
-  do not implement a replacement poller. Join the retained eligible own-issue
-  acceptance to actual planning, Builder, publication, independent review,
-  checks, merge and exact source charges. Finish missing connected wake/restart
-  and withdrawal-during-I/O proof; show no duplicate dispatch, Factory-origin
-  recursion or unauthorized spend. Reuse qualifying delivery evidence from
-  item2 and earlier real runs. Repair only a concrete missing join or failure.
+- [x] **3. Close automatic own-issue intake through delivery (Q16/Q26).** Verified
+  2026-11-13 by joining original issue57/initial acceptance to its real
+  Architect → Builder → PR58 → Inspector → CI → merge/closure. Existing installed
+  pagination and physical wake evidence is reused. Installed109 reconnect keeps
+  cursor59 and the exact acceptance, assignment, run, command and usage journals;
+  no new model or charge. Connected native discovery plus disposable-PG policy
+  withdrawal/re-enrollment refuses late replies; positive creator/policy I/O
+  races and pre-spend authority/deduplication pass the existing real-PG checks.
+  Native account withdrawal and actual source cancellation reuse their retained
+  owner evidence. Exact scope, limitations and81-call total:
+  [intake completion](../untangle-codebase.md#automatic-github-issue-intake-completion-2026-11-13).
+  Broader installed revocation/worker-I/O obligations remain in item5.
 
 - [ ] **4. Close external PR adoption and automatic discovery (Q17).** Combine
   PR61's same-repository evidence and PR62's fork correction evidence, completing
@@ -369,7 +373,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q13 — contributions and priority](#q13) | Admitted contribution preflight/claim/live assessment/invitation/authenticated reply and 256-candidate grouped queue choices, eligibility/source fences, native dispatch and original-charge restart verified. Declared queue inventory/worker and cancelled worker outcome stay explicit; mixed funding remains unavailable. | Complete within ordinary contribution and queue-producer/dispatch scope |
 | [Q14 — Feed and graph authoring](#q14) | Approved append-only authoring, actual funded plan/review/graph, original-source charges and retained recovery verified. | **Complete within ordinary scope** |
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
-| [Q16 — automatic GitHub issues](#q16) | Add/qualify explicit-policy authenticated polling, cursors and wake reconciliation through the full journey, with no recursion, duplicate dispatch or unauthorized spending. | Pending |
+| [Q16 — automatic GitHub issues](#q16) | Explicit-policy authenticated polling, original issue delivery, cursors, wake/restart, withdrawal, deduplication and pre-spend admission. | Verified ordinary intake scope, 2026-11-13; broader installed gates remain Q26 |
 | [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
 | [Q18 — Fountain login](#q18) | Configured-host native OAuth/enrollment/refresh, old-format migration, expiry/withdrawal, lost-reply recovery and concurrent first reads verified; installed journeys remain Q27. | Complete within ordinary configured-host/native scope |
 | [Q19 — Fountain authority](#q19) | Complete central runtime placement, operation grants/journals/lookups and shared views; prove expiry/withdrawal and competing-controller refusal. Read enrollment grants no execution authority. | Pending |
@@ -1385,6 +1389,18 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q16"></a>
 
 ### Q16 — GitHub automatic own-issue intake
+
+**Ordinary automatic-intake scope VERIFIED (2026-11-13).** The original
+issue57 creation/initial acceptance joins to real planning, Builder, publication,
+independent review, CI, merge and original-issue closure. Current installed
+restart preserves all original product journals and adds no inference/charge.
+Policy withdrawal/re-enrollment at the connected discovery persistence boundary,
+positive creator/policy I/O races, recursion, deduplication and pre-spend refusal
+are covered by the existing owners/checks. Physical wake, paginated intake,
+native account withdrawal and real source cancellation reuse retained evidence;
+they were not replayed. See the [completion ledger](../untangle-codebase.md#automatic-github-issue-intake-completion-2026-11-13)
+for exact artifacts and limits. Broader Q26 provider-revocation/worker-I/O and
+security gates remain open; following checkpoints are historical.
 
 The existing initial-intake PostgreSQL harness now also revokes current creator
 permission during the evidence read. The final authority check refuses admission

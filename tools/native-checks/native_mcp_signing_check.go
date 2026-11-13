@@ -3337,6 +3337,9 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if action == "check-background-creation-policy-race" {
+		return connectedCreationPolicyRace(ctx, source, connection, repository)
+	}
 	if strings.HasPrefix(action, "check-background-creation") {
 		return connectedCreationFixture(ctx, source, int64(connection.Actor), connection.ID, repository, issue, profile, action)
 	}
@@ -5935,6 +5938,55 @@ func initialIntakeFixture() error {
 	if recovered, err := c.AdmitInitialAcceptance(ctx, hint); err != nil || recovered.ID != factory.InitialAcceptanceID(42, "105") {
 		return fmt.Errorf("fresh creator authority did not recover unconsumed original work: %v", err)
 	}
+	// Re-enrollment cannot renew a response captured by an older policy. Change
+	// real PostgreSQL policy while the controlled provider response is in flight.
+	for index, reenroll := range []bool{false, true} {
+		number := int64(6 + index)
+		source.view.ID, source.view.Index = strconv.FormatInt(100+number, 10), strconv.FormatInt(number, 10)
+		hint.NativeIssueID, hint.Issue = 100+number, number
+		var mutationErr error
+		source.duringRead = func() {
+			current, e := db.RepositoryPolicy(ctx, 42)
+			if e == nil {
+				current.Enabled = false
+				e = db.SaveRepositoryPolicy(ctx, current)
+			}
+			if e == nil && reenroll {
+				current, e = db.RepositoryPolicy(ctx, 42)
+				if e == nil {
+					current.Enabled = true
+					e = db.SaveRepositoryPolicy(ctx, current)
+				}
+			}
+			mutationErr = e
+		}
+		if _, err := c.AdmitInitialAcceptance(ctx, hint); mutationErr != nil || !errors.Is(err, store.ErrAdmissionChanged) {
+			return fmt.Errorf("in-flight policy withdrawal/re-enrollment admitted old response: mutation=%v admission=%v", mutationErr, err)
+		}
+		if _, err := db.AcceptanceHead(ctx, 42, number); !errors.Is(err, store.ErrNotFound) {
+			return errors.New("withdrawn policy retained an acceptance head")
+		}
+		if _, err := db.AcceptanceDecision(ctx, factory.InitialAcceptanceID(42, source.view.ID)); !errors.Is(err, store.ErrNotFound) {
+			return errors.New("withdrawn policy retained an acceptance decision")
+		}
+		current, err := db.RepositoryPolicy(ctx, 42)
+		if err != nil {
+			return err
+		}
+		if !current.Enabled {
+			current.Enabled = true
+			if err := db.SaveRepositoryPolicy(ctx, current); err != nil {
+				return err
+			}
+		}
+		if recovered, err := c.AdmitInitialAcceptance(ctx, hint); err != nil || recovered.ID != factory.InitialAcceptanceID(42, source.view.ID) {
+			return fmt.Errorf("fresh policy did not recover unconsumed original issue: %v", err)
+		}
+	}
+	if runs, err := db.FactoryRuns(ctx, 1); err != nil || len(runs) != 0 {
+		return errors.New("initial acceptance or its refused I/O race launched execution")
+	}
+	fmt.Println("PASS: actual PostgreSQL policy withdrawal and withdrawal/re-enrollment during declared evidence I/O refuse the old capture with no decision/head or model run; fresh authority recovers the same original issue")
 	// Exercise the real Feed/Post projection over these retained rows. Provider
 	// permission changes are declared at the initial/final observation boundary;
 	// no native request, inference or write authority is configured.
@@ -13349,6 +13401,111 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_GRAPH_REVISION") == "1" {
 		return nativeGraphRevisionFixture(ctx, graph, generation, detail.Record.Repository, profile)
 	}
+	return nil
+}
+
+// Reuse the installed owner's credential custody for real read-only discovery.
+// Only the disposable database's policy is changed; original product state,
+// credentials, funding and pending operations remain with the installed owner.
+func connectedCreationPolicyRace(ctx context.Context, original factoryruntime.NativeInputSource, connection collaboration.ConnectionRef, repository int64) error {
+	db, dsn, cleanup, err := store.OpenEphemeral(ctx, original.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	host, err := original.Store.CollaborationHost(ctx, connection.Host)
+	if err != nil {
+		return err
+	}
+	actor, err := original.Store.CollaborationActor(ctx, connection.Actor)
+	if err != nil {
+		return err
+	}
+	profile, err := original.Store.CollaborationProfile(ctx, connection.Profile)
+	if err != nil {
+		return err
+	}
+	repo, err := original.Store.CollaborationRepository(ctx, collaboration.RepositoryID(repository))
+	if err != nil {
+		return err
+	}
+	binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{Profile: profile, Provider: host.Provider, APIBase: host.APIBase, Connection: connection.ID, Account: actor.ExternalID, Login: actor.Login})
+	if err != nil {
+		return err
+	}
+	local, err := db.ObserveCollaborationConnectionRepository(ctx, binding.Connection, repo.ExternalID, repo.Name)
+	if err != nil {
+		return err
+	}
+	policy, err := original.Store.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return err
+	}
+	policy.Repository, policy.GrantedBy, policy.Revision = int64(local.ID), int64(binding.Actor.ID), 0
+	policy.Enabled, policy.Paused = true, false
+	for _, ref := range []*factory.ActorBindingRef{&policy.Publish, &policy.Create, &policy.Review, &policy.Merge} {
+		ref.ActorID = int64(binding.Actor.ID)
+	}
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	input := original
+	input.Store = db
+	after, err := original.Store.CreationRecoveryCursor(ctx, repository)
+	if err != nil {
+		return err
+	}
+	if err = db.EnqueueReadinessCreationPage(ctx, policy.Repository, 0, after, nil); err != nil {
+		return err
+	}
+	for _, reenroll := range []bool{false, true} {
+		captured, err := db.RepositoryPolicy(ctx, policy.Repository)
+		if err != nil {
+			return err
+		}
+		page, err := input.ReadCreations(ctx, policy.Repository, after, 16)
+		if err != nil || !page.ProvenanceComplete || page.SourceCursor == nil || len(page.Events) != 0 {
+			return fmt.Errorf("connected discovery requires a complete empty retained fixture page: %v", err)
+		}
+		// Hold this real reply at the coordinator's persistence boundary.
+		withdrawn := captured
+		withdrawn.Enabled = false
+		if err = db.SaveRepositoryPolicy(ctx, withdrawn); err != nil {
+			return err
+		}
+		withdrawn, err = db.RepositoryPolicy(ctx, policy.Repository)
+		if err != nil {
+			return err
+		}
+		if reenroll {
+			withdrawn.Enabled = true
+			if err = db.SaveRepositoryPolicy(ctx, withdrawn); err != nil {
+				return err
+			}
+		}
+		if err = db.EnqueueReadinessCreationScanPage(ctx, policy.Repository, after, page.NextPosition, nil, captured.Revision, page.ExpectedSourceCursor, *page.SourceCursor); !errors.Is(err, store.ErrAdmissionChanged) {
+			return fmt.Errorf("withdrawal/re-enrollment admitted original connected page: %v", err)
+		}
+		if cursor, err := db.CreationRecoveryCursor(ctx, policy.Repository); err != nil || cursor != after {
+			return errors.New("withdrawal consumed original connected cursor")
+		}
+		if !reenroll {
+			withdrawn.Enabled = true
+			if err = db.SaveRepositoryPolicy(ctx, withdrawn); err != nil {
+				return err
+			}
+		}
+	}
+	raw, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	var effects int
+	if err = raw.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM factory_runs)+(SELECT count(*) FROM factory_usage)+(SELECT count(*) FROM factory_assignments)+(SELECT count(*) FROM issue_acceptance_decisions)+(SELECT count(*) FROM factory_readiness_sources)`).Scan(&effects); err != nil || effects != 0 {
+		return fmt.Errorf("connected refused intake created execution, spending or work: count=%d err=%v", effects, err)
+	}
+	fmt.Println("PASS: real installed native GitHub empty discovery replies held at the persistence boundary are refused after actual disposable-PG policy withdrawal and withdrawal/re-enrollment; cursor unchanged, zero work/acceptances/runs/charges; original profile/policy/credentials untouched. Provider reads real, race timing controlled; positive original-issue admission races use the separate controlled check; no inference or remote write.")
 	return nil
 }
 

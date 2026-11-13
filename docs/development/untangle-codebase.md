@@ -5809,3 +5809,67 @@ remain preserved. This reconciliation made0 GitHub calls and0 model calls;
 no app restart, build or repeated connected check was necessary. Consolidated
 item2 is closed; automatic-discovery, installed recovery/update and broader
 security gates remain open in items3–8.
+
+### Automatic GitHub issue intake completion (2026-11-13)
+
+**VERIFIED within the ordinary automatic-intake scope; consolidated item3
+closed.** Original installed issue-create7422f819…3331 causally created
+issue57/native6332312961 with equal creation/update times. Its exact title/body
+digests match initial acceptance d8a29fb7a80198bb86a422c1b, original content0,
+creator1 and native revision6224. That acceptance owns real Architect
+eb2d5c2e…6dfc, Builder5ab04fdf…7294 and Inspector8d26a139…f6d2, all finished.
+Root14026a71…2350 published79685e2d…180f as PR58; app-bound CI43072593474
+passed, COMMENT5864159837 carries the clear, and original merge8a4872b0…2612
+committed609f18fe…2113 once, closing original issue57/occurrence4638.
+Private artifacts are goal21-next-issue-and-permissions.json,
+goal27-original-handoff.json, goal30-original-inspector.json and
+goal31-merged-original-issue57.json in factory-real-cycle-20261110. The later
+external PR61/62 histories are distinct work, not duplicate automatic intake.
+
+Reused installed evidence: current49's real 51-issue pagination/cursor recovery
+and unchanged spending (`q25-package/intake49-fixture/` and Q16); actual kernel
+s2idle/keyboard wake with unchanged app/session/accounting (goal-sleep-wake15-*).
+Native account withdrawal/restart refuses discovery and creator authorization
+while preserving acceptance (`/home/vince/tmp/fintake-gh16.6y6zMq/result.log`).
+Actual Muse source withdrawal after helper start, cancellation/one-time charge
+and refusal after reactivation reuse Q12's connected4 command3392588e…b208;
+no new source withdrawal or inference was needed. These are separate retained
+owner checks, not claims that a new provider revocation or worker-I/O race ran.
+
+Current production remains installed108/backendc4dba2a, inventory7ef75b6c…bbe0.
+The new109 app session bd1cb8f9…728b3 reopens its original profile and reconnects
+through normal semantic controls. Read-only before/after snapshots agree exactly
+on policy, original acceptance, both retained decisions, current head, cursor59,
+assignments,44 settled runs,217 commands and192 usage rows. The current head
+dd35489b…7b53 intentionally belongs to later external work; it does not erase or
+re-admit the original d8a29f… decision. GitHub usage remains245 minutes; the same
+connection's total253 includes the separate retained eight minutes. No new
+model call, command, source charge or remote write; no quota wait/reset/rotation.
+
+The existing native integration harness now exercises positive policy withdrawal
+and withdrawal/re-enrollment during controlled evidence I/O: old captures retain
+no decision/head; fresh authority recovers the same issue. Creator permission
+loss, same-account human admission, unresolved Factory-origin holds and recursion
+refusal also pass. Two real installed-native GitHub discovery reads then cross
+the same persistence boundary with actual policy withdrawal in disposable PG:
+old revisions refuse, cursor stays unchanged and work/acceptances/runs/charges
+remain zero. Those live pages are empty; positive admission/permission races
+use declared provider facts with the actual coordinator/PG, not fabricated live
+issues. Existing pre-spend packet tests pass stale/withdrawn policy, operator,
+source sponsorship, requirements, environment and acceptance refusal, plus
+atomic cursor rollback, durable-root reuse and matching-source redelivery.
+Current retained inventory corroboration/deletion-gap evidence is reused from
+request107-progress-pg.log; no completed paid run was replayed.
+
+Exact new artifacts: `/home/vince/Projects/factory-intake-close-20261113/`
+contains completion.json, before109.json/final109.json,
+policy-io-pg2.log, connected-policy-race109.log, dispatch-dedup-pg.log,
+final109-status.json and retirement109.log. Total81 GitHub calls (32 reconnect,
+49 connected checks/background),0 suppressed; retained budget534/600 at stop.
+The first local PG attempt was denied a Unix socket by the sandbox and is
+preserved in policy-io-pg.log; the authorized rerun passes and joins. Normal
+Quit lost its action reply; endpoint/database retirement confirms shutdown
+without repeating Quit. No owned app/check/worker remains. The changed code is
+verification in the existing harness; no production correction was required.
+Broader installed provider-revocation, worker-I/O, crash/update and security
+qualification remains in consolidated items5–8; automatic PR discovery is item4.
