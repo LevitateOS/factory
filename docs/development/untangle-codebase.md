@@ -6006,8 +6006,11 @@ imports the actual desktop product/transport: eight concurrent namespaces make
 zero IPC/provider requests; denied writes still invoke admission; failed/successful
 resume each probes identity; aborted, suspended, retired and changed accounts
 refuse or separate scopes. namespace-browser-check.log, namespace-typecheck.log,
-namespace-lit.log and namespace-release-build.log pass. This correction still
-needs packaging/install and affected connected qualification; it is not item5
-completion. Source/role withdrawal during real I/O, pending selection and active
+namespace-lit.log and namespace-release-build.log pass. Commit aa244fa is packaged and installed as118 through the normal exact-prior
+installer: inventory bd45abe45b8f8f3b2b2d9f7e9a944001eb5ff7e5860dfcaac8a9cf57d0b8c8df,
+app bbea7bf0…be0922c, backend b1adc27. package118-retention.json confirms only
+app/build-input changes, with byte-identical helpers/provider/PG/CLI/notices.
+install118.log confirms the installed digest and no app/database launch. Affected
+connected qualification is still pending; it is not item5 completion. Source/role withdrawal during real I/O, pending selection and active
 worker crash/reboot/retirement remain open. No quota wait/reset, account rotation,
 paid replay or replacement issue is permitted. Recover the existing queue first.

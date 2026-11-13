@@ -3387,14 +3387,21 @@ The correction uses the admitted local binding for that namespace; actual produc
 requests and reconnect remain freshly admitted. The production browser check
 proves eight consumers make0 identity requests; denied sends and suspended,
 retired, aborted and changed-account namespaces refuse correctly. TypeScript,
-Lit and release build pass; package/install this correction next.
+Lit and release build pass. Commit aa244fa is installed as118, inventory
+bd45abe45b8f8f3b2b2d9f7e9a944001eb5ff7e5860dfcaac8a9cf57d0b8c8df;
+backend b1adc27 and all other117 payload bytes remain exact. install118.log
+proves the normal exact-prior upgrade and matching app digest. It is not launched.
 
 **Recovery:** item5 remains INCOMPLETE. No live app, model or check remains.
 Source changes are owned on main; private evidence stays at
 `/home/vince/Projects/factory-installed-recovery-20261113/`. Preserve issue63,
 acceptance de38981d…295bf5, the stale manual acceptance and every original
-operation. Next use the corrected installed build, verify bounded remaining
-request admission before launch, then observe actual Muse I/O and withdraw its
+operation. Current blocking dependency for live recovery is insufficient retained request
+headroom for another full admission/navigation/preparation journey; no quota wait
+is authorized. The namespace correction passes controlled zero-call qualification,
+but its installed call reduction is still unmeasured. Next establish a bounded
+connected request plan for installed118 without resetting history, then observe
+actual Muse I/O and withdraw its
 source once through Work. Finish individual-role withdrawal, pending account/
 repository selection and active worker crash/reboot/retirement. Do not replay
 judgment302c6fe0 or re-create the issue to replace missing evidence.
