@@ -15336,6 +15336,8 @@ type externalDiscoveryFixture struct {
 	control.ReviewExecutor
 	selection             control.AutomaticExternalPullSelection
 	polls, offers, checks int
+	observation           *factory.ReviewObservation
+	observations          int
 }
 
 func (f *externalDiscoveryFixture) ReadAutomaticExternalPulls(context.Context, int64, string) (control.AutomaticExternalPullPage, error) {
@@ -15344,7 +15346,17 @@ func (f *externalDiscoveryFixture) ReadAutomaticExternalPulls(context.Context, i
 }
 func (f *externalDiscoveryFixture) CheckAutomaticExternalPull(context.Context, factory.ExternalPullAdoption) error {
 	f.checks++
+	if f.observation != nil {
+		return nil
+	}
 	return errors.New("declared discovery must not authorize a new launch")
+}
+func (f *externalDiscoveryFixture) ObserveReview(context.Context, factory.ReviewWork) (factory.ReviewObservation, error) {
+	f.observations++
+	if f.observation == nil {
+		return factory.ReviewObservation{}, errors.New("declared target observation unavailable")
+	}
+	return *f.observation, nil
 }
 func (f *externalDiscoveryFixture) ReadExternalPullTarget(context.Context, int64, int64) (factory.ReviewObservation, error) {
 	f.offers++
@@ -15484,6 +15496,49 @@ func externalPreparationFixture() error {
 		return err
 	}
 	request := factory.ExternalPullAdoption{Policy: policy.Revision, Repository: int64(repo.ID), Issue: 1, Acceptance: acceptance.ID, PRNumber: 3, PRID: 13, Connection: string(account.ID), Limits: policy.AttemptLimits, Automatic: true, Target: factory.PublicationPullTarget{AuthorID: int64(actor.ID) + 1, IssueID: 23, HeadRepository: int64(repo.ID), HeadRef: "refs/heads/external", BaseRef: policy.TargetBranch, HeadOID: strings.Repeat("c", 40), BaseOID: base}}
+	consentFork, err := db.ObserveCollaborationRepository(ctx, host.ID, "declared-external-fork", "fixture/fork")
+	if err != nil {
+		return err
+	}
+	var beforeAdmission int
+	countAdmission := `SELECT (SELECT count(*) FROM project_preparations)+(SELECT count(*) FROM factory_commands)+(SELECT count(*) FROM factory_assignments)+(SELECT count(*) FROM factory_runs)+(SELECT count(*) FROM factory_usage)`
+	if err = raw.QueryRowContext(ctx, countAdmission).Scan(&beforeAdmission); err != nil {
+		return err
+	}
+	for _, scenario := range []string{"missing-fork-consent", "automatic-fork", "consented-fork-head-changed", "automatic-head-changed", "automatic-base-changed"} {
+		captured := request
+		if strings.Contains(scenario, "fork") {
+			captured.Target.HeadRepository = int64(consentFork.ID)
+			captured.Automatic = scenario == "automatic-fork"
+			captured.ForkConsent = scenario != "missing-fork-consent"
+		}
+		observed := factory.ReviewObservation{PRNumber: captured.PRNumber, PRID: captured.PRID, IssueID: captured.Target.IssueID, PRAuthorID: captured.Target.AuthorID,
+			HeadRepository: captured.Target.HeadRepository, HeadRef: captured.Target.HeadRef, BaseRef: captured.Target.BaseRef,
+			HeadOID: captured.Target.HeadOID, BaseOID: captured.Target.BaseOID, NativeRev: 1, ObservedUnix: time.Now().Unix()}
+		if strings.HasSuffix(scenario, "head-changed") {
+			observed.HeadOID = strings.Repeat("d", 40)
+		} else if scenario == "automatic-base-changed" {
+			observed.BaseOID = strings.Repeat("e", 40)
+		}
+		reader := &externalDiscoveryFixture{observation: &observed}
+		coordinator := control.NewCoordinator(db, reader, reader)
+		coordinator.Reviews = reader
+		if _, err = coordinator.AdoptExternalPull(ctx, factory.NewID(), "declared-stale-adoption", captured); !errors.Is(err, store.ErrAdmissionChanged) {
+			return fmt.Errorf("external adoption admitted %s: %v", scenario, err)
+		}
+		wantedReads := 1
+		if scenario == "missing-fork-consent" || scenario == "automatic-fork" {
+			wantedReads = 0
+		}
+		if reader.observations != wantedReads {
+			return fmt.Errorf("external %s did not stop at its consent/closing-target boundary: reads=%d", scenario, reader.observations)
+		}
+		var afterAdmission int
+		if err = raw.QueryRowContext(ctx, countAdmission).Scan(&afterAdmission); err != nil || afterAdmission != beforeAdmission {
+			return fmt.Errorf("external %s retained setup, command, execution or spending: %v", scenario, err)
+		}
+	}
+	fmt.Println("PASS: actual coordinator external-adoption entry refuses missing fork consent and automatic fork execution before target reads; consented fork/automatic changed head and automatic changed base refuse at the closing observation before setup/command/run/spending. Provider observations declared; real PostgreSQL, no inference/send.")
 	commandSum := sha256.Sum256([]byte("automatic-external-pr\x00" + strconv.FormatInt(request.Repository, 10) + "\x00" + strconv.FormatInt(request.PRID, 10) + "\x00" + request.Target.HeadOID))
 	command := hex.EncodeToString(commandSum[:16])
 	revision, err := db.ObserveNativeReview(ctx, int64(repo.ID), request.PRNumber, strings.Repeat("f", 64))

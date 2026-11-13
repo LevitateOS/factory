@@ -5873,3 +5873,40 @@ without repeating Quit. No owned app/check/worker remains. The changed code is
 verification in the existing harness; no production correction was required.
 Broader installed provider-revocation, worker-I/O, crash/update and security
 qualification remains in consolidated items5–8; automatic PR discovery is item4.
+
+### External GitHub PR adoption completion (2026-11-13)
+
+**VERIFIED ordinary Q17 scope; consolidated item4 closed.** The earlier statement
+that connected opt-in discovery lacked evidence was incorrect. Retained PR61
+has principal `automatic-external-pr`, Automatic=true in request/origin and
+policy10. SHA-256 of `automatic-external-pr\0` + repository734 + `\0` +
+PR-ID5265848096 + `\0` + head6165f7c76de5609d08342ecb2bd1536254b1258a,
+truncated to32 hex characters, equals original command
+2e03e7af3f5cb85fa8c62350d268d460. Only the discovery owner supplies that
+principal; the HTTP/manual action uses the authenticated actor. No replacement
+PR, manual Inspect, paid replay or fresh opt-in was needed to recover this proof.
+
+| Boundary | Exact retained/current evidence |
+| --- | --- |
+| Real automatic entry and restart | `factory-real-cycle-20261110/goal41-original-external-adoption.json`: exact command above, real Architect720cfefa…3e2, source preparation and original publication adopted after installed restart. Branch/PR create attempts remain0; no invented Builder. Policy10's opt-in remains recorded in `factory-intake-close-20261113/before109.json`. |
+| Actual review/check/merge | `goal47-protected-merge-completed.json`: PR61's original publication, head6165f7c…258a/base609f18fe…2113, one committed merge todb730481aba37fb67fc596775add85d331374a34, original issue57 closure and restored fixture write permission. Q17 above retains real Inspector7ba2db94…cbf1/COMMENT5866320688 and app15368 CI43090799720. |
+| Exact fork execution consent and real correction | `goal49-fork-original-recovery.json`/`goal50-real-fork-review.json`: origin command6aac8384eed84a6fb5616856e9fa6992 equals its fork-consent ID; canonical head repository38523, actor1, issue57, head31fe14a…618c/base db730481…a34. Real Inspector finding joins original Fixer/candidate390aaf41…455e, app-bound CI and paid merge2513e1d6…4db through the PR62 completion ledger above. Fork execution stays explicit; automatic discovery never authorizes it. |
+| Current restart/charges | Installed109's before/final snapshots retain the exact44 settled runs,217 commands,192 usage rows, both issue57 acceptances and current external head. GitHub245 minutes/total connection253 are unchanged; original allowances, expired/cancelled commands and uncertain outcomes remain intact. |
+| Closing stale-target and consent refusal | Existing external-preparation harness now calls the actual coordinator adoption entry: absent fork consent and automatic fork refuse before target reads; consented fork changed head, automatic changed head and automatic changed base refuse at the closing observation with unchanged setup/command/assignment/run/usage counts. Provider observations declared, real PostgreSQL; no host or model call. |
+| Dedupe, withdrawal and recovery | Same current harness starts/closes ordinary discovery owners: consumed PR/head skips offer/authority reads; changed head needs a fresh offer; original assignment/publication remain exact. Existing source-setup/current-authority, expiration, finite continuation and paid-history preservation checks pass. Existing publication-origin PG check refuses Factory recursion, unknown creates and original/current/prior corrected heads even when fenced; same-account human work remains eligible. |
+
+New evidence is `/home/vince/Projects/factory-external-close-20261113/`:
+completion.json joins those retained identities; external-pg.log passes the
+focused coordinator/setup/recovery harness, and origin-dedup-pg.log passes the
+existing `TestRecordPublicationRoundTrip/fresh_retained_publication_preserves_uncertain_original_and_paid_work`.
+Both native PostgreSQL drivers join cleanly. The installed app/database remain
+retired (retained-retirement.log). This pass makes0 GitHub calls and0 model calls;
+no production correction was required, only missing verification coverage and
+evidence reconciliation. Default automatic discovery remains off for new policy.
+
+Only deliberately malicious-fork attempts to escape worker isolation or extract
+credentials/cross-run data are reserved here for a user-started Daybreak
+session; none ran. Ordinary permission/consent, changed-head/base, withdrawal
+and recovery checks are covered, not deferred as adversarial work. This closes
+Q17's ordinary scope, not Q26's remaining installed revocation/worker-I/O,
+upgrade/release work or whole-product security gates in items5–8.

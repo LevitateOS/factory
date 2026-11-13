@@ -85,16 +85,19 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   [intake completion](../untangle-codebase.md#automatic-github-issue-intake-completion-2026-11-13).
   Broader installed revocation/worker-I/O obligations remain in item5.
 
-- [ ] **4. Close external PR adoption and automatic discovery (Q17).** Combine
-  PR61's same-repository evidence and PR62's fork correction evidence, completing
-  item2. The automatic-discovery implementation is present and default-off;
-  its connected opt-in entry still needs qualification, distinct from a manual
-  Inspect action. Prove exact repository/actor/issue/head/base, current policy
-  and explicit fork-execution consent; ordinary updated/stale/withdrawn refusal,
-  corrected-head deduplication and retained restart must prevent another launch.
-  A new model run is justified only by an uncovered required real boundary,
-  not by the existence of this checklist. Hacking-like adversarial fork checks
-  remain separately named for a user-started Daybreak session.
+- [x] **4. Close external PR adoption and automatic discovery (Q17).** Verified
+  2026-11-13. PR61's retained principal `automatic-external-pr`, automatic origin
+  and exact repository/PR-ID/head command hash prove its policy10 discovery entry;
+  this was not a manual Inspect command. Its real Architect/review/CI/merge and
+  PR62's explicit fork consent/correction/CI/paid merge are joined to retained
+  restart. Current coordinator/PG checks refuse absent consent, automatic fork
+  execution and changed head/base before setup or spending; startup replay,
+  corrected-head deduplication and unknown-origin holds pass. No new provider
+  or model call was needed. The production default remains off; the fixture's
+  explicit opt-in was already on. Exact evidence and remaining boundaries:
+  [external adoption completion](../untangle-codebase.md#external-github-pr-adoption-completion-2026-11-13).
+  Deliberate malicious-fork escape/exfiltration checks remain for user-started
+  Daybreak; broader installed/security obligations remain in items5–8.
 
 - [ ] **5. Finish installed authority, custody and recovery composition (Q26).**
   Reuse installed login/keyring, real keyboard/window/second-launch,
@@ -374,7 +377,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q14 — Feed and graph authoring](#q14) | Approved append-only authoring, actual funded plan/review/graph, original-source charges and retained recovery verified. | **Complete within ordinary scope** |
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
 | [Q16 — automatic GitHub issues](#q16) | Explicit-policy authenticated polling, original issue delivery, cursors, wake/restart, withdrawal, deduplication and pre-spend admission. | Verified ordinary intake scope, 2026-11-13; broader installed gates remain Q26 |
-| [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
+| [Q17 — external GitHub PRs](#q17) | Automatic same-repository discovery and explicitly consented fork adoption through actual review/correction/CI/merge, exact head/base refusal and retained recovery. | Verified ordinary scope, 2026-11-13; hacking-like fork checks require user-started Daybreak |
 | [Q18 — Fountain login](#q18) | Configured-host native OAuth/enrollment/refresh, old-format migration, expiry/withdrawal, lost-reply recovery and concurrent first reads verified; installed journeys remain Q27. | Complete within ordinary configured-host/native scope |
 | [Q19 — Fountain authority](#q19) | Complete central runtime placement, operation grants/journals/lookups and shared views; prove expiry/withdrawal and competing-controller refusal. Read enrollment grants no execution authority. | Pending |
 | [Q20 — issue-only collaboration](#q20) | Explicit host capability, real issue-only PostgreSQL/SDK/API and production shared UI reads/writes, code/PR denial and restored permission verified. Installed desktop/appliance variants remain with their consumers. | Complete within ordinary host scope |
@@ -1619,13 +1622,23 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q17 — GitHub external PR adoption
 
+**Ordinary external-adoption scope VERIFIED (2026-11-13).** PR61's original
+automatic principal and discovery command hash establish actual opt-in entry,
+joined to its real Architect, Inspector, CI and merge. PR62 establishes explicit
+exact-command fork consent, real correction, CI and paid merge. Current real-PG
+coordinator checks cover missing consent, automatic-fork refusal, changed
+head/base, withdrawn authority, restart deduplication and preserved charges.
+See the [completion ledger](../untangle-codebase.md#external-github-pr-adoption-completion-2026-11-13)
+for exact retained receipts, controlled-check boundaries and the reserved
+malicious-fork checks. No new provider request or inference was needed. Broader
+installed/security gates remain open; following dated checkpoints are history.
+
 **PR62 fork journey (2026-11-13): VERIFIED.** Its real corrected fork candidate
 merged once to `2513e1d640756e2e79d99b9398d846f7de5784db`; original issue57 is
 closed, installed UI reports Delivered and accounting remains245/active0.
 The [completion ledger](../untangle-codebase.md#pr62-retained-completion-reconciliation-2026-11-13)
-joins the original receipts without another send or inference. Q17 remains
-INCOMPLETE for the broader automatic-discovery/refusal/restart qualification in
-consolidated item4; the following dated checkpoints are retained history.
+joins the original receipts without another send or inference. Its formerly
+pending discovery/refusal/restart reconciliation is now closed in item4 above.
 
 **Current installed automatic adoption (2026-11-12): same-repository journey
 VERIFIED; Q17 INCOMPLETE for the remaining fork journey.**
