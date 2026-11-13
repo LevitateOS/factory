@@ -1,13 +1,111 @@
 # Factory untangling decisions
 
+## Scoped GitHub/Muse completion ledger (2026-11-13)
+
+**Ledger reconciliation COMPLETE; GitHub/Muse product INCOMPLETE.** This is the
+current index for consolidated item8 and Q15/Q16/Q17/Q26/Q28/Q30. It supersedes
+dated pending/completion summaries only where the scoped receipts below do so;
+all original attempts and unknown outcomes remain unchanged. This pass reads
+retained artifacts and current owners: no app launch, inference, provider request,
+build or integration run. Evidence is reused, not represented as a new journey
+on candidate120. Fountain and Daybreak qualification are outside this pass.
+
+Evidence classes: **real Muse** means an original provider-backed run and its
+retained native/product result; **controlled** means declared role/provider
+results exercised through actual owners, often PostgreSQL/native processes;
+**installed** identifies an actual packaged app operation, which may involve no
+model; **source** alone establishes implementation, never journey completion.
+An installed fixture with declared provider facts remains controlled for those
+facts. A successful build, process exit or COMMENT does not imply product success,
+adequate outcome coverage or required human approval.
+
+### Roles and defining handoffs
+
+Current `pkg/factory/mcp_profile.go` declares eight profiles, mapped by subject
+and phase; two native coder/reviewer identities and the Coding/Review/Judgment
+funding selections are different concepts. Controlled `offline-role-handoffs`
+covers all eight profiles/nine terminal results, not eight paid role journeys.
+
+| Profile / handoff | Retained real Muse evidence | Qualification boundary |
+| --- | --- | --- |
+| Issue Maker: funded request → issue create/refinement | Q14 run b9fcc2ad2681f2021f203fdc98fb77e9, `q14-native-authoring/accounted-retained.log`: captured account/source, original process/charge, issue14 append-only refinement and issue15 creation. | Real connected authoring; preserves human bodies. Not a fresh installed120 authoring run. |
+| Product Lead: draft → candidate graph/walkthrough → accepted graph | Q14 run3b167d55c0fab4ae5d348b2c6f935a4c; `q14-native-authoring/graph-retained.log`: original graph receipts, six charged judgment minutes and both acceptances survive restart. | Real connected planning/graph evidence; graph acceptance and downstream execution remain separate operations. |
+| Architect: accepted issue/source → typed executable plan | Issue57 run eb2d5c2e11baac03801ad2b6c4c66dfc, `goal26-active-installed-update.json`/`goal27-original-handoff.json`. | Real installed Muse; next-source preparation at merged88d626a, original captured executable/deadline preserved across app upgrade. |
+| Builder: plan → task checkpoints → sealed candidate/publication | Issue57 run5ab04fdf873950c77ee5c61edd8c7294 → candidate79685e2d…180f/PR58; `goal27-original-handoff.json`, `goal31-merged-original-issue57.json`. Issue54's separate successful native checkpoint/finish trace is retained below. | Real installed Muse and publication. External PR adoption can reuse an existing candidate and has no invented initial Builder. |
+| Inspector: exact candidate/base/checks → findings or clear | PR56 re-inspection416cb8dab81879897a2fc09f64634b9c; issue57 Inspector8d26a139…f6d2/COMMENT5864159837; fork PR62 original review9c796952…806a. | Real independent Muse review. Agent typed APPROVED remains GitHub COMMENT; it never supplies required human approval. |
+| Fixer: findings → corrected candidate → re-inspection/delivery decision | PR56 Fixer2b2cd7780401ed59eb9cf6265ec17084 joins the real re-inspection above and merge88d626a. PR62 Fixer3a1d845cedb45bc790aace360c1e78ba produces390aaf4110b7a087d8d56b2665a20f4be079455e. | Real installed correction. PR62 continues through retained paid delivery judgment; do not invent another Inspector run there. The earlier trace audit's missing-live-Fixer statement is superseded by these later runs. |
+| Strategist: sealed stall/inventory → reassessment/repair → validated adoption | No qualifying live Muse Strategist worker found in this retained evidence set. | Controlled terminal/handoff and source implementation only. An automated completion judgment or release with no coder run is not this role. Live role journey remains unqualified. |
+| Test Pilot: integrated delivery/manifest → outcome-linked verification | No qualifying live Muse Test Pilot worker found in this retained evidence set. | Controlled typed verification/settlement and source implementation only. Real GitHub CI, native checks and developer UI inspection are not a Test Pilot model run. Live role journey remains unqualified. |
+
+Real-cycle filenames above are under
+`/home/vince/Projects/factory-real-cycle-20261110/`; Q14 filenames under
+`/home/vince/Projects/`. Original terminal/task receipts and failure attribution
+remain in the [retained trace audit](#retained-assembly-line-trace-audit-2026-11-10).
+That audit distinguishes model argument/instruction mistakes, missing executable
+mode tooling, contradictory plan/tool requirements and orchestration defects;
+unknown endings remain unknown. Its weak `grep --help` check is not promoted
+into outcome proof by a later successful merge.
+
+### Entry paths, delivery and completion decisions
+
+| Required path / record | Evidence and actual completion |
+| --- | --- |
+| Selected-source funding/judgment and queue admission | Reuse Q12's actual selected-source Begin, authenticated worker probability/choice/score receipts (`q12-worker2/result.log` and `execution-profile/connected-judgment-evidence.json`) and Q13's same-repository claim/contribution/queue evidence. These are real model consumers, separate from eight worker profiles. Mixed-repository payer selection remains unresolved/unavailable; no alternate-provider fallback is required. |
+| Planned issue → Builder → independent correction/re-inspection → CI/allowed merge (Q15) | Separate retained real journeys, not one fabricated uninterrupted run: issue54/PR55 supplies full initial planning/Builder; PR56 supplies the genuine Inspector → Fixer → re-inspection cycle. `goal20-merged-cycle.json` explicitly identifies PR56, reviewed e91506e9…ab9/base0954a2d9…28d, merge command1872ed53…156 →88d626ae…42c, one committed send and original issue closure. Generations1/2 remain expired/unsent. Next issue57 Architect/Builder succeeded at that resulting commit. |
+| Paid delivery acceptance and explicit fork correction/merge (Q15/Q17) | `goal62-real-fixer.json`/`goal64-correction-ci-paid-delivery.json`: original Fixer, app15368 CI43174849337 on390aaf41…455e, selected Muse model muse-spark-1.3-contributor, ready_to_merge/.92 with exact head/base/review fingerprint. `goal109-original-completion.json` joins original generation3 merge1bc6784b…bb6 →2513e1d6…4db and issue57 closure7404. Installed Delivered readback and restored fixture write permission are retained. This candidate's complete required journey passes; no new paid decision is needed. |
+| Original/unedited own issue → automatic funded delivery (Q16) | Issue57 create7422f819…3331 → acceptance d8a29fb7a80198bb86a422c1b → real Architect/Builder/Inspector → PR58 CI43072593474 → merge609f18fe…2113 and original issue closure. Installed pagination, physical wake and restart retain identity/accounting. Positive creator/policy races are controlled provider observations with real coordinator/PG; connected withdrawal checks use real empty pages. Ordinary intake scope passes; [exact split](#automatic-github-issue-intake-completion-2026-11-13). |
+| Opted-in automatic same-repository external PR (Q17) | `goal41-original-external-adoption.json`: PR61, automatic principal/command2e03e7af…460, policy10 and exact command hash. Real Architect720cfefa…3e2, Inspector, app-bound CI43090799720 and merge db730481…a34 are retained in goal47. Creates remain0. It is automatic adoption, not manual Inspect or new Builder work. |
+| Explicit external fork execution (Q17) | PR62 command6aac8384…992 equals its explicit consent identity and binds canonical repository/actor/issue/head/base. The real correction/paid merge above passes. Controlled current coordinator/PG covers absent consent, automatic-fork refusal, changed head/base, withdrawal, restart and no duplicate spend. Ordinary external scope passes; [exact split](#external-github-pr-adoption-completion-2026-11-13). |
+| Human/policy/rule restrictions and uncertain-send recovery | Reuse Q10/Q11 current authority, human veto/approval and supported method receipts within their recorded scopes; personal agent inspection remains COMMENT and unsupported rules unavailable. The204-send assembly check uses declared roles/GitHub responses through production owners, including zero-send recovery after credential withdrawal/restart. It is controlled evidence, not another real Muse cycle or live merge. No current state authorizes replay of an unknown original send. |
+| Installed call volume (item1) | Installed108 measured357 journey calls,458 including comparison/fixture guard,0 suppressed and one causal merge; only that single-repository scope passes. Later aa244fa's eight-concurrent-namespace/zero-provider-call production-component check is controlled evidence, not a completed installed navigation measurement. The earlier65-call observation includes New issue → issue63 → Work detail, not Work detail alone. No arbitrary-load or current multi-repository volume qualification is claimed. |
+| Installed GitHub desktop composition (Q26) | Real sign-in/UI/window/second launch, physical Retry/wake, provider-side OAuth revocation/refusal/re-consent, idle backend/database crash and reboot scopes pass. **INCOMPLETE:** actual source/role withdrawal during provider/worker I/O, pending account/repository changes and active-worker crash/reboot/retirement composition. Controlled role/CAS/namespace checks do not close these cases. [Current recovery evidence](#installed-authority-and-recovery-2026-11-13). |
+| GitHub/Muse installed upgrades (Q28 slice) | Real active Architect payload upgrade/captured executable, current retained-copy migration/refusal/reopen, installed Muse1.4.18 download/activation, interrupted uninstall/reinstall and preservation pass. Global helper/backend replacement requires quiescence; no running-backend hot swap is claimed. Scoped item6 passes; other consumers/whole Q28 remain open. [Exact evidence](#githubmuse-installed-updates-completion-2026-11-13). |
+| Release/security/finalization (Q30) | Candidate120 source537d8a7, inventory5f46920e…e436, actual installed input/notices/IPC/custody checks and published CI43363163689 on3a99aa2 pass their scopes. These use no new paid model journey. **INCOMPLETE:** MCP root rotation after admitted work is missing implementation; actual installed withdrawal/owner-loss/isolation/tool/custody composition is not fully qualified. Strategist/Test Pilot live coverage remains absent. All13 broad security gates remain Open; the [current gate table](factory-products/daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13) identifies ordinary gaps. Neither COMPLETE nor READY FOR DAYBREAK is justified. |
+
+The historical Q30 fifteen-milestone table is a dated snapshot, not a current
+claim that Q16/Q17 or update work has no evidence. T11-INTAKE and T12-GITHUB-PRS
+now have the ordinary scoped completions above; T13-GITHUB/T09 execution still
+need installed/security composition. T14 package/upgrade have scoped installed
+and current release evidence, not all-consumer closure. Fountain placement,
+gateway/publication/intake/external/desktop/parity and installed Forge outcomes
+remain outside this pass; no replacement appliance exists. No whole milestone
+or security gate is closed merely by updating this ledger.
+
+Accounting on source3d34808251c58eb6555cad0ea58065b9 is checkpoint-specific,
+not additive: PR55's153 minutes, PR56's181,
+PR58's210 and PR62's245 are historical cumulative GitHub totals on the retained
+source, not four new bills. The later stopped-profile checkpoint has44 settled
+workers,219 commands,193 usage rows,246 fixture minutes/254 global source minutes
+after original judgment302c6fe0…217 was adopted once; issue63 remains accepted,
+without a new worker. The separate Fountain eight minutes remain untouched.
+Do not substitute a zero-model controlled check for this paid history.
+
+Original publication0bc012940c247259280c0c90166c388c, protected command
+3023a7d539af47ac9a7253d51165c186 and team commands3563790745944bdba7991a168752a014/
+a7ed6e3aa27448539b46b515477e8546 retain their uncertain/fenced outcomes.
+Later successful writes do not settle them. No original receipt, deadline,
+credential, profile, human text or stash is changed by this reconciliation.
+
+Recovery: no owned process or new uncertain effect was created. Original
+connected profile remains stopped under its retained request journal. Continue
+items5/7 with their existing owners: implement authorized MCP root rotation while
+preserving enrollment proofs, and qualify missing installed authority/worker
+cases. Admit measured calls before connected work; never wait for quota, rotate
+accounts, reset history or replay paid work to fill an evidence gap. The live
+Strategist/Test Pilot gaps require their own bounded real journeys, not another
+successful Builder replay. Fountain/appliance availability blocks only its
+affected installed journeys; final Q30 still requires every mandatory outcome.
+
 ## Retained review recovery fix (2026-11-11)
 
 **Active goal: finish ordinary GitHub/Muse assembly-line qualification.**
 INCOMPLETE. Fountain and user-started Daybreak are excluded. Completed below:
 retained genuine Inspector → Fixer → re-inspection → current-CI/allowed-merge
 journey. The actual next Architect/Builder also succeeded at that merged result.
-Remaining: required installed withdrawal/revocation/I/O and remaining update
-activation/retirement composition, plus scoped completion reconciliation.
+Remaining: installed source/role withdrawal during I/O, pending account/repository
+changes, active-worker recovery and ordinary security qualification. Provider
+revocation/re-consent, the GitHub/Muse update slice and scoped ledger reconciliation
+are now complete within the newer records linked above.
 The fork candidate's retained paid-decision merge now commits and reconciles;
 see the installed volume qualification below for its current receipt and limits.
 Reuse valid scoped evidence; a second forced correction cycle is unnecessary.

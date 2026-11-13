@@ -102,16 +102,19 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
 - [ ] **5. Finish installed authority, custody and recovery composition (Q26).**
   Reuse installed login/keyring, real keyboard/window/second-launch,
   Quit/restart/wake, physical execution Retry and earlier standalone recovery
-  evidence within their exact scopes. Remaining proof includes actual installed
-  provider-side revocation/refusal and re-consent; source/role withdrawal during
-  provider/worker I/O; account/repository changes while work is pending; and the
+  evidence within their exact scopes. Actual installed provider-side OAuth
+  revocation/refusal and re-consent now pass (`revoked111-settled.json` and
+  `reconsent111-{return,connected,read}.json` in factory-installed-recovery-20261113).
+  Remaining proof includes source/role withdrawal during provider/worker I/O;
+  account/repository changes while work is pending; and the
   required worker crash/reboot/retirement reconciliation not already covered.
   Verify no future spend/send under withdrawn authority, exact settled charges,
   preserved candidates/receipts and no replay of unknown outcomes. Local account
   removal and simulated revocation do not replace provider-side revocation.
   Preserve human drafts/text and verify selected-repository policy/action states
-  through the installed shared UI. Provider revocation needs account interaction;
-  finish sends requiring that account before deliberately revoking its grant.
+  through the installed shared UI. Idle backend/database crash and reboot evidence
+  does not establish active-worker recovery; individual role removal does not
+  establish in-flight withdrawal. Reuse completed provider revocation evidence.
 
 - [x] **6. Finish installed upgrades and update activation (Q28, GitHub/Muse
   slice, 2026-11-13).** Reused the real active Architect upgrade and native
@@ -148,19 +151,24 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   only exact hacking-like checks as Daybreak work; do not start Daybreak or
   silently defer ordinary gaps. Fountain-only gates5/13 remain outside this pass.
 
-- [ ] **8. Close the scoped completion ledger.** Map each required role/handoff
-  and enabled GitHub entry path to its actual evidence, distinguishing real
-  Muse execution, controlled results and source-only coverage. Reconcile Q15,
-  Q16, Q17, Q26 and the relevant Q28/Q30 records; retain historical failures and
-  uncertain effects verbatim. Report GitHub/Muse complete only after the above
-  ordinary requirements pass. Do not present the latest simulated check as a
-  fresh end-to-end Muse journey, or GitHub-only completion as all Factory/Q30
-  completion. No blanket repeat of successful model runs is required.
+- [x] **8. Close the scoped completion ledger (2026-11-13).** The
+  [current ledger](../untangle-codebase.md#scoped-githubmuse-completion-ledger-2026-11-13)
+  maps all eight profiles, their handoffs and GitHub entry paths to retained
+  evidence. Six profiles have real Muse evidence; Strategist/Test Pilot have
+  controlled contract coverage, without a qualifying live role journey. Real
+  PR56 correction/re-inspection, PR58 automatic delivery and PR61/62 external
+  journeys are distinguished from the204-send simulated assembly check and
+  installed checks with no model. Q15/Q16/Q17/Q26/Q28/Q30 scope and checkpoint
+  accounting are reconciled without new inference, provider calls or app launch.
+  Historical failures and unknown sends remain unchanged. **Only the ledger
+  reconciliation closes here:** GitHub/Muse remains INCOMPLETE for items5/7 and
+  missing live-role coverage; all13 broad security gates and whole Q30 stay open.
 
 Current checkout is main; no owned app/check/permission guard was left running
 at the last recovery checkpoint. Inspect actual process/journal state before
 resuming. PR62 needs no further connected action. Continue with the uncovered
-journeys in items3–7, using request admission and original-operation recovery;
+journeys in items5/7 and the live-role gaps recorded in item8, using request
+admission and original-operation recovery;
 independent missing installed/update work can proceed. Record concrete regressions
 as implementation work under the affected item rather than declaring all remaining
 work verification.
@@ -966,6 +974,16 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q15"></a>
 
 ### Q15 — Complete connected GitHub delivery and correction
+
+**Current ledger reconciliation (2026-11-13): required real delivery slices
+VERIFIED; broader installed/security scope INCOMPLETE.** PR56 supplies genuine
+correction/re-inspection and allowed merge; issue57's subsequent real
+Architect/Builder proves resulting-commit preparation; PR62 supplies paid
+delivery acceptance through causal merge/closure/accounting. These are separate
+retained journeys, not a fresh simulated or candidate120 end-to-end run.
+See the [current role/path ledger](../untangle-codebase.md#scoped-githubmuse-completion-ledger-2026-11-13).
+Missing Strategist/Test Pilot live coverage and installed/security composition
+are explicit; the dated paid-acceptance absence below is superseded by PR62.
 
 **PR62 scoped completion (2026-11-13): VERIFIED.** The retained fork journey's
 real review/correction, CI and paid judgment join to one merged result, original
@@ -3350,6 +3368,13 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
+**Current ledger (2026-11-13): INCOMPLETE.** Required actual source/role withdrawal
+during provider/worker I/O, pending account/repository changes and active-worker
+crash/reboot/retirement composition remain open. Real provider revocation/refusal/
+re-consent and idle recovery below pass only their recorded scopes. Production
+DOM/PG/native simulations do not supply these missing installed journeys. See
+the [role/path reconciliation](../untangle-codebase.md#scoped-githubmuse-completion-ledger-2026-11-13).
+
 **Current recovery slice (2026-11-13): INCOMPLETE.** Provider-side revocation,
 installed refusal/re-consent under the same account, separate backend/PostgreSQL
 crashes, normal retirement and actual guest reboot/reopen pass their scoped
@@ -4412,9 +4437,12 @@ global execution-service upgrades require quiescence and refuse live ownership.
 Original and disposable retained profile/keyring bytes remain unchanged. No paid
 inference or GitHub call was repeated. [Exact ledger and limits](../untangle-codebase.md#githubmuse-installed-updates-completion-2026-11-13).
 This supersedes the historical unverified notes below only for these checks.
-Whole Q28 remains open for the separately queued current release/dependency
-delivery reconciliation and other consumers; no Fountain or broad security gate
-closes here.
+Current candidate120 release inputs, installed activation and dependency
+run43363163689 now pass their scoped checks in item7; its ordinary security work
+remains open. Whole Q28 stays open for other consumers and required broader
+composition; no Fountain or broad security gate closes here. The current
+[completion ledger](../untangle-codebase.md#scoped-githubmuse-completion-ledger-2026-11-13)
+distinguishes real active-worker evidence from controlled migration/tool races.
 
 **Current scoped GitHub evidence (2026-11-11):** actual active Architect upgrade
 preserved captured executable/intent/deadline and then completed, followed by the
@@ -4728,10 +4756,20 @@ Final reply: requested Q29, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q30 — Full finalization of non-Daybreak Factory work
 
-Current GitHub-only verification and recovery are in the active recovery ledger
-linked at the top. The following
-source-only ledger is historical; the newer owner request permits GitHub
-execution without reopening Fountain qualification or weakening final gates.
+**Current finalization status (2026-11-13): INCOMPLETE, not READY FOR DAYBREAK.**
+The [scoped completion ledger](../untangle-codebase.md#scoped-githubmuse-completion-ledger-2026-11-13)
+joins the actual Muse roles, delivery/automatic/external paths, installed update
+and release evidence. Items1–4/6/8 close only their specified scopes. Items5/7,
+live Strategist/Test Pilot qualification, Fountain/installed appliance/parity and
+the13 broad security gates remain open. Ordinary MCP root rotation is missing
+implementation; installed authority/worker isolation/recovery gaps are ordinary
+work, not Daybreak deferrals. No new model or provider effect ran to reconcile
+this ledger. All mandatory Q30 outcomes still require evidence.
+
+The following source-only fifteen-milestone ledger is historical; newer scoped
+Q16/Q17/update/release completions supersede its dated absence statements, without
+closing all-consumer milestones. GitHub execution does not reopen Fountain
+qualification or weaken final gates. Retain the historical facts below verbatim.
 
 **INCOMPLETE — source-only finalization/recovery ledger (2026-11-10).** Requested
 ceiling Q30; actual work reached the source audit and Q15/shared-UI recovery
