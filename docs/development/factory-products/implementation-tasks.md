@@ -113,16 +113,18 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   through the installed shared UI. Provider revocation needs account interaction;
   finish sends requiring that account before deliberately revoking its grant.
 
-- [ ] **6. Finish installed upgrades and update activation (Q28).** Retained-store
-  migration/refusal, inactive exact-prior upgrades and scoped uninstall have
-  evidence; reuse it. Qualify the remaining active-worker app/backend/provider
-  upgrade with its captured old executable retained, and current dependency/
-  Muse download, integrity, failure/status and activation behavior. Demonstrate
-  interrupted activation/reopen and safe uninstall preserve original profiles,
-  keyrings, drafts, pending effects, candidates and causal receipts. Use disposable
-  copies for migration/uninstall work; never use schema/current target state as
-  historical send authority. Do not replay a failed paid judgment just to supply
-  missing active-run update evidence.
+- [x] **6. Finish installed upgrades and update activation (Q28, GitHub/Muse
+  slice, 2026-11-13).** Reused the real active Architect upgrade and native
+  changed-release/captured-executable checks. Current107 concurrent migration,
+  prior-writer/unknown refusal and reopen pass on a disposable retained103 copy.
+  Actual installed118 downloads/verifies/selects Muse1.4.18 while retaining1.4.15;
+  cached reopen passes. Hard-interrupted uninstall, original-capture recovery,
+  replay and reinstall preserve live app/backend/PG bytes and original/copied
+  profile/keyring/draft/pending-effect/candidate/receipt bytes. All owned native
+  processes join; zero new inference, charges or GitHub calls. Exact checks and
+  reused/current scope: [installed updates completion](../untangle-codebase.md#githubmuse-installed-updates-completion-2026-11-13).
+  This closes item6, not whole Q28: current release/dependency publication and
+  ordinary security reconciliation remain item7; Fountain remains outside this pass.
 
 - [ ] **7. Reconcile GitHub release inputs and ordinary security evidence (Q30).**
   Check exact source/build/install revisions, current dependencies, notices/
@@ -4390,6 +4392,18 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+**GitHub/Muse installed update slice COMPLETE (2026-11-13):** item6 now joins the
+retained real active-worker upgrade with current107 migration/refusal, installed118
+Muse1.4.18 acquisition/activation/cached reopen and hard-interrupted safe
+uninstall/reinstall. Existing app/backend captures retain their original paths;
+global execution-service upgrades require quiescence and refuse live ownership.
+Original and disposable retained profile/keyring bytes remain unchanged. No paid
+inference or GitHub call was repeated. [Exact ledger and limits](../untangle-codebase.md#githubmuse-installed-updates-completion-2026-11-13).
+This supersedes the historical unverified notes below only for these checks.
+Whole Q28 remains open for the separately queued current release/dependency
+delivery reconciliation and other consumers; no Fountain or broad security gate
+closes here.
 
 **Current scoped GitHub evidence (2026-11-11):** actual active Architect upgrade
 preserved captured executable/intent/deadline and then completed, followed by the

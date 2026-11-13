@@ -43,13 +43,17 @@ Initial native CLI-owned sign-in, retained-login reopen, interrupted transfers,
 changed-release refusal and captured active/new executable selection now have
 [Q02 source/native evidence](untangle-codebase.md#q02-verified-increment-initial-muse-login-2026-11-08).
 The real five-minute refresh was exercised without shortening its interval.
-Installed distribution/activation remains Q28; other providers remain unavailable
-until their own adapters exist.
+Installed Muse distribution/activation now has scoped Q28 evidence; other
+providers remain unavailable until their own adapters exist.
 Shared Work now shows checking/download/failure/verified status, upstream and
 selected versions and the last successful verification. Source execution
 availability requires current native verification as well as its other local
 dependencies. Native status readback and declared browser states have scoped
-proof in A16/Q02; installed update UX remains unqualified.
+proof in A16/Q02. Actual installed118 public acquisition, current selection,
+cached reopen and retained interruption/status evidence are joined in the
+[GitHub/Muse installed update ledger](untangle-codebase.md#githubmuse-installed-updates-completion-2026-11-13).
+This does not establish a fresh baseline for every bundled dependency or qualify
+other consumers.
 
 Other dependencies need event-driven updates where available and frequent
 automatic checks otherwise. The source now configures hourly Dependabot discovery

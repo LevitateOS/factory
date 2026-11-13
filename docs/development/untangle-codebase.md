@@ -6014,3 +6014,49 @@ install118.log confirms the installed digest and no app/database launch. Affecte
 connected qualification is still pending; it is not item5 completion. Source/role withdrawal during real I/O, pending selection and active
 worker crash/reboot/retirement remain open. No quota wait/reset, account rotation,
 paid replay or replacement issue is permitted. Recover the existing queue first.
+
+## GitHub/Muse installed updates completion (2026-11-13)
+
+Consolidated item6 is complete within its GitHub/Muse update scope. The existing
+owners required no product correction: Tools is unchanged from
+`3cb3e3ade2910725eb09d5e1ab6d237cb8f677a3`; the execution installer is unchanged
+from `3e31f23ef293a7d53b1462373c8acf4591cd6ffb`. Desktop install/activation/uninstall
+is the verified `d4d4de54753570710ef71dded61dd5d7a4a4aabe` owner plus
+`a897f495f9e073c59dfe7f6678e74cb0f6f17ae4`'s developer-CLI executable check.
+Current format107 is `7f4aea8f0c5c626c61673e97b99c6b7725373f58`.
+
+| Required behavior | Actual evidence and scope |
+| --- | --- |
+| Upgrade during real work; preserve captures | Re-read `factory-real-cycle-20261110/goal26-active-installed-update.json`: actual Architect eb2d5c2e11baac03801ad2b6c4c66dfc spans installation17:48:55–57Z, keeps its Muse1.4.15 SHA/intent/authority/deadline/invocation, succeeds, then Builder5ab04fdf873950c77ee5c61edd8c7294 launches. Old app/backend paths remain selected for those running processes while the launcher activates the separate next payload. This is app payload activation, not a hot swap of a running backend, store or global helpers. |
+| Provider replacement and failure races | Existing `q02-tool-races-verified/result.log` proves actual ELF capture across controlled release replacement, cancellation/partial staging cleanup, changed-release refusal and status recovery. `q28-upgrade/provider-ui/result.log` supplies actual installed offline refusal, metadata-I/O cancellation/Close, second-launch restore and verified reopen. These retain their declared fixture/historical scopes; no new paid run is needed. |
+| Current installed Muse delivery/activation | Actual Debian installed118, inventory `bd45abe45b8f8f3b2b2d9f7e9a944001eb5ff7e5860dfcaac8a9cf57d0b8c8df`, app/UI aa244fa and backend b1adc27. A new credential-free profile starts with public1.4.15, downloads official1.4.18-R8587.1, passes native protocol/integrity admission and shows latest=selected with successful verification time. SHA256 `57732db89e25a58196c923b3790aa3e2a85b8d1ad5094492384792260e65b538`; prior1.4.15 SHA abe0a728…12a3d5 remains exact. Normal Quit/reinstalled cached reopen selects1.4.18 without another artifact download. |
+| Current retained-store upgrade | The existing retained probe, compiled against current code, opens a disposable103 copy concurrently to107, compares all75 table fingerprints, rejects exact103 writer and unknown108 without row changes, then reopens107. The added cursor `scan` must be empty and is excluded from old-row comparison. Original source copy is unchanged; copied PG joins. Earlier genuine schema93 interruption/rollback and old/standalone draft reopen checks above remain applicable. No provider/effect adapter is attached to the migration probe. |
+| Interrupted uninstall and retained state | Current118 separate prefix: unknown digest refuses; real SIGKILL after launcher unlink preserves active app1185/backend1353/PG1340 executable hashes. Original uninstall capture completes/replays, then exact reinstall restores entries. All payload hashes pass. Full file hashes of both original stopped profile/keyring and private offline copies remain exact, including WebKit drafts, pending/uncertain commands, native candidates and causal receipts. Copies are never opened with effect adapters; originals are never launched. |
+| Service ownership and retirement | Existing installed active-app helper-upgrade refusal and quiescent activation remain in `current24-upgrade.log` and the execution recovery records. Current installer still refuses live app/services and retained execution roots before replacement. Both new installed owners Quit normally, remove their control endpoint and join backend/PG/display; no partial download remains. Unknown Quit replies resolve from original process/control retirement, without another Quit identity. |
+
+New private evidence root: `/home/vince/Projects/factory-installed-updates-20261113`:
+`migration107/{check.log,open-a.log,open-b.log,prior-writer.log,unknown-refusal.log}`,
+`initial.json`, `restored-same-session.json`, `reopened{,-status}.json`,
+`uninstall-result.log`, `tools-after.sha256`, `reopened-counts.json` and
+`final-retirement.log`. Guest originals, full preservation hashes and installer
+captures stay under `/home/factory/installed-updates-20261113`; no profile or
+credential was transferred. The current store reports107 with zero runs,
+assignments, commands, usage or sponsorships; both installed runtime counters
+report zero GitHub wire attempts. No login, paid inference, funding, uncertain
+send retry, original profile mutation, quota wait/reset or account rotation ran.
+
+Preserve the initial probe failure: adding the known empty scan column changes a
+raw whole-row hash; comparison was corrected only for that column and separately
+asserts it is empty. Also retain the refused cross-D-Bus second-launch observer
+and bundled-client probe failures (missing library path, then an appliance-only
+table); corrected reads use the existing desktop session and standalone schema.
+These failed observations are not product passes. Close was observed during the
+acquisition journey, but bytes were already published at readback; partial-download
+cancellation is supplied by the retained native race check, not claimed anew.
+
+Current release/dependency publication and broad ordinary security reconciliation
+remain consolidated item7; Fountain is outside this pass. This does not promote
+118 as an all-dependencies-fresh release, qualify a PostgreSQL major upgrade, or
+close whole Q28/Q30. Original connected profile remains stopped at its retained
+request ceiling with all44 runs settled and issue63 pending; item5's outstanding
+withdrawal/crash work is unchanged. No owned check or uncertain new effect remains.
