@@ -138,8 +138,12 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   checks; no new paid inference or GitHub product call ran. Item7 remains open:
   published dependency run43363163689 passed on exact main3a99aa2; the current18.7
   disposable retained-profile migration/refusal check also passes.
-  MCP root-key rotation after admitted work is an ordinary implementation gap,
-  and the active-worker withdrawal/crash cases shared with item5 remain required.
+  Explicit offline MCP root rotation is now implemented/native-verified at
+  cc1e452: durable staged/active capability revocation, unchanged enrollment
+  proofs, expected-root admission and original-command recovery/replay pass.
+  [Exact scope/evidence](../untangle-codebase.md#mcp-root-rotation-implementation-2026-11-13).
+  Candidate120 predates this change; current installed worker-boundary rotation
+  and active-worker withdrawal/crash cases shared with item5 remain required.
   [Current evidence and precise gate gaps](daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13).
   Check exact source/build/install revisions, current dependencies, notices/
   licenses, installer inputs and dependency-job publication against retained
@@ -4761,8 +4765,9 @@ The [scoped completion ledger](../untangle-codebase.md#scoped-githubmuse-complet
 joins the actual Muse roles, delivery/automatic/external paths, installed update
 and release evidence. Items1–4/6/8 close only their specified scopes. Items5/7,
 live Strategist/Test Pilot qualification, Fountain/installed appliance/parity and
-the13 broad security gates remain open. Ordinary MCP root rotation is missing
-implementation; installed authority/worker isolation/recovery gaps are ordinary
+the13 broad security gates remain open. Explicit MCP root rotation is implemented
+and native-verified at cc1e452, with its installed composition still pending;
+installed authority/worker isolation/recovery gaps are ordinary
 work, not Daybreak deferrals. No new model or provider effect ran to reconcile
 this ledger. All mandatory Q30 outcomes still require evidence.
 

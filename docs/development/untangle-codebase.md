@@ -6,8 +6,9 @@
 current index for consolidated item8 and Q15/Q16/Q17/Q26/Q28/Q30. It supersedes
 dated pending/completion summaries only where the scoped receipts below do so;
 all original attempts and unknown outcomes remain unchanged. This pass reads
-retained artifacts and current owners: no app launch, inference, provider request,
-build or integration run. Evidence is reused, not represented as a new journey
+retained artifacts and current owners: that ledger-only pass used no app launch,
+inference, provider request, build or integration run. The subsequent native
+rotation check below is separate. Reused evidence is not a new journey
 on candidate120. Fountain and Daybreak qualification are outside this pass.
 
 Evidence classes: **real Muse** means an original provider-backed run and its
@@ -60,7 +61,7 @@ into outcome proof by a later successful merge.
 | Installed call volume (item1) | Installed108 measured357 journey calls,458 including comparison/fixture guard,0 suppressed and one causal merge; only that single-repository scope passes. Later aa244fa's eight-concurrent-namespace/zero-provider-call production-component check is controlled evidence, not a completed installed navigation measurement. The earlier65-call observation includes New issue → issue63 → Work detail, not Work detail alone. No arbitrary-load or current multi-repository volume qualification is claimed. |
 | Installed GitHub desktop composition (Q26) | Real sign-in/UI/window/second launch, physical Retry/wake, provider-side OAuth revocation/refusal/re-consent, idle backend/database crash and reboot scopes pass. **INCOMPLETE:** actual source/role withdrawal during provider/worker I/O, pending account/repository changes and active-worker crash/reboot/retirement composition. Controlled role/CAS/namespace checks do not close these cases. [Current recovery evidence](#installed-authority-and-recovery-2026-11-13). |
 | GitHub/Muse installed upgrades (Q28 slice) | Real active Architect payload upgrade/captured executable, current retained-copy migration/refusal/reopen, installed Muse1.4.18 download/activation, interrupted uninstall/reinstall and preservation pass. Global helper/backend replacement requires quiescence; no running-backend hot swap is claimed. Scoped item6 passes; other consumers/whole Q28 remain open. [Exact evidence](#githubmuse-installed-updates-completion-2026-11-13). |
-| Release/security/finalization (Q30) | Candidate120 source537d8a7, inventory5f46920e…e436, actual installed input/notices/IPC/custody checks and published CI43363163689 on3a99aa2 pass their scopes. These use no new paid model journey. **INCOMPLETE:** MCP root rotation after admitted work is missing implementation; actual installed withdrawal/owner-loss/isolation/tool/custody composition is not fully qualified. Strategist/Test Pilot live coverage remains absent. All13 broad security gates remain Open; the [current gate table](factory-products/daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13) identifies ordinary gaps. Neither COMPLETE nor READY FOR DAYBREAK is justified. |
+| Release/security/finalization (Q30) | Candidate120 source537d8a7, inventory5f46920e…e436, actual installed input/notices/IPC/custody checks and published CI43363163689 on3a99aa2 pass their scopes. Explicit MCP root rotation is now implemented/native-verified in cc1e452 below; candidate120 predates it. **INCOMPLETE:** installed withdrawal/owner-loss/isolation/tool/custody and current installed rotation composition are not fully qualified. Strategist/Test Pilot live coverage remains absent. All13 broad security gates remain Open; the [current gate table](factory-products/daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13) identifies ordinary gaps. Neither COMPLETE nor READY FOR DAYBREAK is justified. |
 
 The historical Q30 fifteen-milestone table is a dated snapshot, not a current
 claim that Q16/Q17 or update work has no evidence. T11-INTAKE and T12-GITHUB-PRS
@@ -88,13 +89,54 @@ credential, profile, human text or stash is changed by this reconciliation.
 
 Recovery: no owned process or new uncertain effect was created. Original
 connected profile remains stopped under its retained request journal. Continue
-items5/7 with their existing owners: implement authorized MCP root rotation while
-preserving enrollment proofs, and qualify missing installed authority/worker
+items5/7 with their existing owners: qualify the implemented MCP rotation on the
+installed worker boundary, and finish missing installed authority/worker
 cases. Admit measured calls before connected work; never wait for quota, rotate
 accounts, reset history or replay paid work to fill an evidence gap. The live
 Strategist/Test Pilot gaps require their own bounded real journeys, not another
 successful Builder replay. Fountain/appliance availability blocks only its
 affected installed journeys; final Q30 still requires every mandatory outcome.
+
+### MCP root rotation implementation (2026-11-13)
+
+**Implementation/native integration COMPLETE, commit
+cc1e452477d778ecb6cdfb0bee6abf85dad394d5. Gate11 remains
+Open for installed isolated-worker/root/shared-IPC and interruption composition.**
+The stopped-app CLI requires an explicit command and expected root, holds the
+exclusive supervisor lock, starts only private storage/backend and drains Go
+admission before atomically revoking every staged/active MCP capability. Rust
+then publishes a new private MCP root and nonsecret command receipt. The original
+key/identity remain the enrollment seed; proof bytes stay exact. Revoked/retired
+capabilities cannot receive new secrets or reactivate. Run/candidate/effect
+receipts, deadlines and accounting are not renewed or settled by rotation.
+
+Pending rotation fences normal startup; only its exact original command can
+resume. Unknown local SQL replies retry idempotent revocation, never execution.
+Committed command replay does not revoke work admitted later or roll back a newer
+root. Stale roots, foreign pending commands and damaged/missing records refuse.
+Usage: [native maintenance commands](../../cmd/soda-desktop/README.md#mcp-signing-root-maintenance).
+
+Private evidence: `/home/vince/Projects/factory-mcp-rotation-20261113/` contains
+`rotation-check2.log` (real Rust/Go/PostgreSQL18.7, controlled capabilities),
+`legacy-managed-check2.log` (existing authenticated callback/eight catalogues,
+synthetic worker HTTP, restart and private-file compatibility), `rust-build.log`,
+`desktop-ui-build.log`, `cli-{before,rotation,replay,after}.json` and
+`retirement.log`; `boundaries-current.log` passes the existing ownership check,
+and `checked-binaries.sha256`/`backend-build-info.log` retain actual check inputs.
+Actual current native-ui CLI rotation and original replay pass
+on disposable `/home/vince/Projects/mr1/rotation-profile`; receipt matches both
+root readbacks. Fresh-capability derivation/verification works after restart;
+original command replay leaves that later capability active. Controlled lost
+revocation reply, missing final receipt, multiple generations, malformed pending
+and missing-current-root cases preserve their original records and pass their
+recovery/refusal contracts. Enrollment HMAC bytes and original key bytes match.
+
+Preserve initial fixture failures: overlong PostgreSQL socket path and missing
+scratch parent both stopped before database startup; corrected short/private
+paths pass. Go1.27.4/Rust1.100.0 builds pass. All owned native processes/endpoints
+join. Zero inference, GitHub/Fountain calls or original connected-profile writes.
+This is not installed-package or real Muse worker qualification; existing120
+remains unchanged and does not contain cc1e452. Other item5/7 gates stay open.
 
 ## Retained review recovery fix (2026-11-11)
 
