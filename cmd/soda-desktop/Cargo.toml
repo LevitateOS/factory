@@ -32,7 +32,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tauri = { workspace = true, optional = true }
 tauri-plugin-single-instance = { version = "=2.5.5", optional = true }
-tauri-plugin-opener = { version = "=2.7.2", optional = true }
+tauri-plugin-opener = { version = "=2.7.3", optional = true }
 tokio = { workspace = true, default-features = true, features = ["time", "net", "sync", "macros", "rt", "io-util"], optional = true }
 
 [build-dependencies]

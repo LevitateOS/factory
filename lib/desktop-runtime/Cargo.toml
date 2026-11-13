@@ -14,6 +14,7 @@ serde_json = { workspace = true }
 soda-unix-http = { path = "../unix-http" }
 serde = { workspace = true, features = ["derive"] }
 secret-service = { workspace = true, features = ["rt-tokio-crypto-rust"] }
+# SecretService::connect_with_existing takes this same connection type (zbus 5).
 zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, default-features = true, features = ["sync", "time", "rt", "net", "macros", "io-util", "fs"] }
 zeroize = { workspace = true }
