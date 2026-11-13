@@ -241,6 +241,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     fundingSource: {state: true},
     fundingRoles: {state: true},
     fundingMinutes: {state: true},
+    workspaceOpened: {state: true},
     busy: {state: true},
     message: {state: true},
   };
@@ -255,6 +256,7 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private fundingSource: string;
   declare private fundingRoles: string[];
   declare private fundingMinutes: string;
+  declare private workspaceOpened: boolean;
   private current: RoleContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
@@ -268,6 +270,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.fundingSource = '';
     this.fundingRoles = Object.keys(roleNames);
     this.fundingMinutes = '30';
+    this.workspaceOpened = false;
     this.message = '';
   }
   protected createRenderRoot() {
@@ -292,6 +295,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.fundingSource = '';
     this.fundingRoles = Object.keys(roleNames);
     this.fundingMinutes = '30';
+    this.workspaceOpened = false;
     this.busy = false;
     this.message = '';
     if (context) void this.refresh();
@@ -625,7 +629,9 @@ export class SodaFactoryRoleSettings extends LitElement {
           this.checks().length <= 32 &&
           view.options?.mergeMethods.includes(this.setup.method)));
     return html`<section aria-label="Agent role settings">
-      ${view?.options?.nativeSetup ? html`<soda-factory-workspace-setup .context=${this.current}></soda-factory-workspace-setup>` : ''}
+      ${view?.options?.nativeSetup ? this.workspaceOpened
+        ? html`<soda-factory-workspace-setup .context=${this.current}></soda-factory-workspace-setup>`
+        : html`<button type="button" @click=${() => { this.workspaceOpened = true; }}>Workspace setup</button>` : ''}
       <h3>Agent roles and judgments</h3>
       <p>
         Choose the provider, model and saved spending source for each role. Factory does not switch sources

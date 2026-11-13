@@ -29,6 +29,7 @@
     button(app.querySelector('nav[aria-label="Factory"]'), 'Work').click();
     await until(() => app.querySelector('soda-factory-role-settings')?.querySelector('[aria-label="Coding model"]'), 'shared settings');
     const roles = app.querySelector('soda-factory-role-settings');
+    assert(!roles.querySelector('soda-factory-workspace-setup'), 'role settings eagerly opened workspace source reads');
     const context = roles.current, path = `repositories/${context.repository}/factory`;
     const api = async (method, target, body) => {
       const response = await context.transport.request(target, {method, ...(body === undefined ? {} : {body: JSON.stringify(body)})});

@@ -5354,6 +5354,7 @@ func repositoryPriorityFixture() error {
 	chooser := &repositoryPriorityChooser{repository: ready, payer: payer}
 	ports := &repositoryPriorityNoEffects{}
 	refreshes, authorities := 0, 0
+	refreshFailure := false
 	deps := control.DispatchDeps{Store: db, Host: ports, Broker: ports, Queue: control.NewDispatchQueueCursor(),
 		Priority:        &control.PriorityJudgments{Journal: db, Chooser: chooser},
 		ObserveRevision: func(context.Context) (int64, bool, error) { return nativeRevision, true, nil },
@@ -5361,6 +5362,9 @@ func repositoryPriorityFixture() error {
 			refreshes++
 			if observed.Repository != unavailable || revision != nativeRevision {
 				return observed, false, errors.New("completed scoped observations were repeated")
+			}
+			if refreshFailure {
+				return observed, false, errors.New("declared unavailable readiness source")
 			}
 			return observed, false, nil
 		},
@@ -5378,14 +5382,18 @@ func repositoryPriorityFixture() error {
 		}) {
 			return fmt.Errorf("older unavailable repository did not pause its own scan: %+v", blocked)
 		}
+		if refreshFailure && !slices.ContainsFunc(blocked.Errors, func(e control.DispatchError) bool {
+			return e.Repository == unavailable && e.Issue == 1 && e.Reason == control.DispatchErrHost
+		}) {
+			return fmt.Errorf("priority readiness failure was hidden: %+v", blocked)
+		}
 		paused, e := db.LoadPriorityScan(ctx, unavailable)
 		if e != nil || paused.Cursor != 0 || len(paused.Subjects) != 1 || len(paused.Observations) != 0 {
 			return fmt.Errorf("unavailable repository scan advanced: %+v: %v", paused, e)
 		}
-		selected := control.DispatchPass(ctx, deps)
-		if len(selected.Launched) != 0 || len(selected.Errors) != 0 || len(selected.Waits) != 1 ||
-			selected.Waits[0].Repository != ready || selected.Waits[0].Issue != 2 || selected.Waits[0].Reason != control.WaitAuthority {
-			return fmt.Errorf("independent scoped selection did not reach the authority stop: %+v", selected)
+		if len(blocked.Waits) != 1 || blocked.Waits[0].Repository != ready || blocked.Waits[0].Issue != 2 || blocked.Waits[0].Reason != control.WaitAuthority ||
+			slices.ContainsFunc(blocked.Errors, func(e control.DispatchError) bool { return e.Repository == ready }) {
+			return fmt.Errorf("independent repository did not reach selection in the same pass: %+v", blocked)
 		}
 		return nil
 	}
@@ -5413,6 +5421,7 @@ func repositoryPriorityFixture() error {
 	}
 	defer db.Close()
 	deps.Store, deps.Priority.Journal, deps.Queue = db, db, control.NewDispatchQueueCursor()
+	refreshFailure = true
 	admissions := chooser.admissions
 	if err = checkPasses(); err != nil {
 		return err
@@ -5426,7 +5435,21 @@ func repositoryPriorityFixture() error {
 	if err != nil || before != after {
 		return fmt.Errorf("foreign control, reservation or historical global scan changed: %v", err)
 	}
-	fmt.Println("PASS: unavailable older repository pauses alone; next repository completes its same-repository two-candidate tournament with declared payer; reopen replays the receipt without another choice; foreign control/reservation and legacy global scan stay exact; no execution/provider/model calls")
+	deps.Queue = control.NewDispatchQueueCursor()
+	deps.RefreshCandidate = func(_ context.Context, observed factory.IssueControl, _ int64) (factory.IssueControl, bool, error) {
+		return observed, true, nil
+	}
+	deps.Authority = func(context.Context, int64, string) (factory.EffectiveAuthority, error) {
+		return factory.EffectiveAuthority{}, errors.New("declared local authority read failure")
+	}
+	failed := control.DispatchPass(ctx, deps)
+	if len(failed.Launched) != 0 || !slices.ContainsFunc(failed.Errors, func(e control.DispatchError) bool {
+		return e.Repository == unavailable && e.Issue == 1 && e.Reason == control.DispatchErrStore && e.Detail == "authority unreadable"
+	}) || ports.calls != 0 || len(chooser.calls) != 1 {
+		return fmt.Errorf("priority admission failure was hidden or drove effects: %+v", failed)
+	}
+	fmt.Println("PASS: unavailable older repository pauses alone; the same pass reaches the next repository's two-candidate tournament with its declared payer; reopen replays the receipt without another choice; foreign control/reservation and legacy global scan stay exact; no execution/provider/model calls")
+	fmt.Println("PASS: priority readiness and local admission failures retain the exact repository/issue reason without launching, repeating a judgment or advancing the failed scan")
 	return nil
 }
 

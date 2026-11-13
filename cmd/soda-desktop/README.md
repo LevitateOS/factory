@@ -101,6 +101,12 @@ these counters makes no provider calls or credential reads;
 compare snapshots within the same native owner incarnation. It is `null` when
 the runtime is absent, and counters reset with a new owner.
 
+For a stalled priority scan, the private `PROFILE/backend.log` records
+`factory priority paused` with the same bounded, redacted dispatch observation
+shown to repository owners. `native_rpc_used` and `evidence_reserved` describe
+that pass's local work budget, not GitHub quota. Read the original error and
+saved scan before retrying; reading this log makes no provider requests.
+
 `github_traffic.local_budget` is separate retained state: at most 600 wire
 attempts per rolling hour for this profile, across restarts and token changes.
 Every GitHub request counts, including OAuth, GraphQL, Git and failed transport.

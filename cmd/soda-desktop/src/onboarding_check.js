@@ -81,6 +81,8 @@
     await click(document, 'Allow isolated workspaces');
     await until(async () => (await api()).environment_grant?.active === true, 'workspace grant');
     }
+    await click(roles, 'Workspace setup');
+    await roles.updateComplete;
     const setup = document.querySelector('soda-factory-workspace-setup');
     await click(setup, 'Refresh workspace setup');
     await until(() => !setup.busy && setup.view?.available, 'setup available');

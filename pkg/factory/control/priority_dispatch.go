@@ -23,34 +23,55 @@ func dispatchPriorityPass(ctx context.Context, deps DispatchDeps, report Dispatc
 	if deps.Priority == nil {
 		return report
 	}
-	firstSeen, repository, _, after := deps.Queue.start()
-	next, err := deps.Store.PriorityRepositoryAfter(ctx, firstSeen, repository, after)
-	if errors.Is(err, store.ErrNotFound) && after {
-		deps.Queue.reset()
-		next, err = deps.Store.PriorityRepositoryAfter(ctx, 0, 0, false)
-	}
-	if errors.Is(err, store.ErrNotFound) {
-		return report
-	}
-	if err != nil {
-		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "queued listing unavailable"})
-		return report
-	}
-	// Rotate before any native read. Each repository retains its own complete
-	// scan, so an unavailable member pauses only its repository's tournament.
-	deps.Queue.advance(factory.IssueControl{Repository: next.Repository, FirstSeenUnix: next.FirstSeenUnix}, false)
-	errorsBefore, waitsBefore := len(report.Errors), len(report.Waits)
-	report = dispatchPriorityInventoryPass(ctx, deps, next.Repository, report)
-	for i := errorsBefore; i < len(report.Errors); i++ {
-		if report.Errors[i].Repository == 0 {
-			report.Errors[i].Repository = next.Repository
+	// A failed incomplete scan keeps its cursor, but must not postpone another
+	// repository until a later passive pass or restart. Selection, waits and
+	// launches still stop the pass; every visit shares its existing I/O budget.
+	visited := make(map[int64]bool)
+	for visits := 0; visits < MaxDispatchVisits; visits++ {
+		firstSeen, repository, _, after := deps.Queue.start()
+		next, err := deps.Store.PriorityRepositoryAfter(ctx, firstSeen, repository, after)
+		if errors.Is(err, store.ErrNotFound) && after {
+			deps.Queue.reset()
+			next, err = deps.Store.PriorityRepositoryAfter(ctx, 0, 0, false)
+		}
+		if errors.Is(err, store.ErrNotFound) {
+			return report
+		}
+		if err != nil {
+			report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "queued listing unavailable"})
+			return report
+		}
+		if visited[next.Repository] {
+			return report
+		}
+		visited[next.Repository] = true
+		// Rotate before any native read. Each repository retains its own complete
+		// scan, so an unavailable member pauses only its repository's tournament.
+		deps.Queue.advance(factory.IssueControl{Repository: next.Repository, FirstSeenUnix: next.FirstSeenUnix}, false)
+		errorsBefore, waitsBefore, launchedBefore := len(report.Errors), len(report.Waits), len(report.Launched)
+		report = dispatchPriorityInventoryPass(ctx, deps, next.Repository, report)
+		for i := errorsBefore; i < len(report.Errors); i++ {
+			if report.Errors[i].Repository == 0 {
+				report.Errors[i].Repository = next.Repository
+			}
+		}
+		for i := waitsBefore; i < len(report.Waits); i++ {
+			if report.Waits[i].Repository == 0 {
+				report.Waits[i].Repository = next.Repository
+			}
+		}
+		if ctx.Err() != nil || len(report.Errors) == errorsBefore || len(report.Waits) != waitsBefore || len(report.Launched) != launchedBefore {
+			return report
+		}
+		scan, err := deps.Store.LoadPriorityScan(ctx, next.Repository)
+		if err != nil || scan.Cursor >= len(scan.Subjects) {
+			return report
+		}
+		if budget := readinessBudgetFrom(ctx); budget != nil && (budget.nativeRPC.Load() >= readinessMaxNativeRPC || budget.reserved.Load() >= readinessMaxEvidenceRead) {
+			return report
 		}
 	}
-	for i := waitsBefore; i < len(report.Waits); i++ {
-		if report.Waits[i].Repository == 0 {
-			report.Waits[i].Repository = next.Repository
-		}
-	}
+
 	return report
 }
 
