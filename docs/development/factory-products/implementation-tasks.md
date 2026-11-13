@@ -133,6 +133,8 @@ artifacts remain in the [active evidence ledger](../untangle-codebase.md#retaine
   Exact-prior app/helper activation, installed IPC refusal, native MCP/restart,
   encrypted-grant custody and current Muse1.4.18 verification now have scoped
   checks; no new paid inference or GitHub product call ran. Item7 remains open:
+  published dependency run43363163689 passed on exact main3a99aa2; the current18.7
+  disposable retained-profile migration/refusal check also passes.
   MCP root-key rotation after admitted work is an ordinary implementation gap,
   and the active-worker withdrawal/crash cases shared with item5 remain required.
   [Current evidence and precise gate gaps](daybreak-security-handoff.md#github-release-and-ordinary-security-reconciliation-2026-11-13).

@@ -78,6 +78,15 @@ make a dependency updated: apply it, run the affected checks and ship it through
 the owning component's update path. Do not rebuild the host OS to update an
 independent CLI or rerun unrelated expensive checks.
 
+The 2026-11-13 scoped candidate120 captures official Go1.27.4, Rust/Cargo1.100.0,
+Bun1.4.4 and PostgreSQL18.7 selections and exact shipped dependency notices;
+normal installed app/helper activation and current Muse1.4.18 verification pass.
+[Dependency run43363163689](https://github.com/LevitateOS/factory/actions/runs/43363163689)
+passes on main3a99aa2, whose differences from the candidate's source537d8a7 are
+documentation only. This is current source-job/installed-candidate evidence,
+not stable release promotion or completion of the ordinary security gates.
+See the [exact ledger and remaining obligations](untangle-codebase.md#release-inputs-and-ordinary-github-security-reconciliation-2026-11-13).
+
 Discovery intervals bound detection latency; they cannot guarantee simultaneous
 installation with an upstream publication. Show last successful check, upstream
 selection, installed/active selection and failures. Network or upstream failures

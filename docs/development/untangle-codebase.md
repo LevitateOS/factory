@@ -6133,3 +6133,30 @@ not waived or reclassified as Daybreak. Historical source-job runs do not qualif
 this candidate's publication; source-job/current release promotion status must be
 recorded separately before claiming completion. Current120 is a qualified scoped
 installation candidate, not a promoted stable release or whole Q30 completion.
+
+Final publication/recovery receipt for this slice: `main`3a99aa2 was pushed
+normally, then the existing dependencies.yml was dispatched once. Actual
+[run43363163689](https://github.com/LevitateOS/factory/actions/runs/43363163689)
+completed **success** on exact3a99aa2354acf364de3317ce62964145144dfa71. UI/analyzers,
+all native configurations and the full Go/PostgreSQL step passed. Its differences
+from candidate120 source537d8a7 are documentation only. Five bounded workflow API
+calls resolved the original run; no redispatch, rate-limit wait/reset or account
+rotation. Product GitHub counters remain zero for this slice.
+
+The existing retained103→107 concurrent migration/reopen/old-writer/unknown108
+refusal check also passes with the shipped PostgreSQL18.7, current Go/pgx and a
+new disposable18.6 data copy: all75 retained table fingerprints are unchanged
+apart from the explicitly checked empty scan column. Original data hashes remain
+exact and the copied server joins. Receipt: `retained18-7-migration.log`, original
+check/copy under `/home/vince/Projects/rs120p`.
+
+Recovery: item7 remains **INCOMPLETE** for the ordinary security work listed
+above; no new permission decision or appliance prerequisite is inferred. Next
+implementation is explicit native MCP key rotation after admitted work, preserving
+the existing enrollment proof and fencing old capabilities; continue the shared
+item5 installed authority/crash cases from their retained operations. All owned
+apps, databases, containers and checks are joined; the dependency run is terminal.
+Canonical guest app is120, helper manifest9963dab5…1231ea; connected original
+profile remains stopped, unchanged, with44 settled runs and issue63 pending.
+No owned uncommitted implementation or uncertain new effect remains. This is
+neither GitHub/Muse final completion nor READY FOR DAYBREAK.
