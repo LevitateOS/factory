@@ -3363,10 +3363,19 @@ The production component/declared peer check passes all three412 paths with zero
 provider calls (`acceptance-ui-result.json` in the private root). Installed112
 was normally Quit and its database/control endpoint joined before further
 provider work approached the retained ceiling; no quota wait/reset occurred.
-Next install these follow-up UI changes, resume issue63's existing queue (never
-recreate it or repeat its acceptance), then prove real source/role withdrawal,
-pending selection and active worker crash/retirement. Original profiles,
-uncertain outcomes and merged candidates remain preserved; item5 stays open.
+Follow-ups `d2f2c18` are installed as113 (inventory `123655c5`). Its original
+queue survives, but its repository734 priority scan remains at cursor0 despite
+zero held reservations and a successful current input read through the installed
+native owner (`input-probe113-result.json`). Two normal progress passes launched
+no run or charge. Installed113 was Quit with101 wire attempts in that owner,
+retained budget560/600 and zero suppressions; no quota wait/reset/rotation.
+The priority scanner was dropping its underlying admission errors. The next
+backend preserves those errors and logs its existing bounded/redacted projection
+with pass-budget counters when a priority scan pauses; this adds no provider
+calls or dispatch authority. Compilation passes; installed diagnosis is next.
+Recover that exact scan before any new attempt. Remaining item5 gates are actual
+source/role withdrawal during work, pending selection and active worker crash/
+retirement. Profiles, uncertain outcomes and merged candidates remain preserved.
 
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** GitHub login
 refresh now rejects a reply from an older runtime generation before replacing

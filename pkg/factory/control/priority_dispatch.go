@@ -250,6 +250,10 @@ func observePrioritySubject(ctx context.Context, deps DispatchDeps, occupancy *p
 	}
 	refreshed, ok, err := priorityRefreshCandidate(ctx, deps, control, nativeRev)
 	if err != nil || !ok {
+		if err != nil {
+			failure := routeAttemptInputError(err)
+			report.Errors = append(report.Errors, DispatchError{Repository: subject.Repository, Issue: subject.Issue, Reason: failure.Reason, Detail: failure.Detail})
+		}
 		return store.PriorityCandidateObservation{}, false, nil
 	}
 	silent := newDispatchReport()
@@ -262,6 +266,7 @@ func observePrioritySubject(ctx context.Context, deps DispatchDeps, occupancy *p
 		return store.PriorityCandidateObservation{Subject: key, Repository: subject.Repository, Issue: subject.Issue, Exclusion: WaitAssigned, Fingerprint: refreshed.Fingerprint}, true, nil
 	}
 	if len(silent.Errors) > 0 {
+		report.Errors = append(report.Errors, silent.Errors...)
 		return store.PriorityCandidateObservation{}, false, nil
 	}
 	if len(silent.Waits) > 0 {

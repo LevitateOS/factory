@@ -2,7 +2,9 @@ package control
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 	"time"
 
@@ -161,13 +163,15 @@ type DispatchReport struct {
 // It contains no report Detail, prompts, run output or persisted authority.
 // A new process has no observation until its serving coordinator advances.
 type DispatchObservation struct {
-	Stage      string                      `json:"stage"`
-	StageAt    time.Time                   `json:"stage_at"`
-	DispatchAt time.Time                   `json:"dispatch_at,omitempty"`
-	Context    string                      `json:"context"`
-	Waits      []DispatchObservationReason `json:"waits"`
-	Errors     []DispatchObservationReason `json:"errors"`
-	Truncated  bool                        `json:"truncated"`
+	Stage            string                      `json:"stage"`
+	StageAt          time.Time                   `json:"stage_at"`
+	DispatchAt       time.Time                   `json:"dispatch_at,omitempty"`
+	Context          string                      `json:"context"`
+	Waits            []DispatchObservationReason `json:"waits"`
+	Errors           []DispatchObservationReason `json:"errors"`
+	Truncated        bool                        `json:"truncated"`
+	NativeRPCUsed    int32                       `json:"native_rpc_used"`
+	EvidenceReserved int32                       `json:"evidence_reserved"`
 }
 
 type DispatchObservationReason struct {
@@ -228,6 +232,10 @@ func (c *Coordinator) observeDispatch(ctx context.Context, report DispatchReport
 		next.Context = "cancelled"
 	}
 	next.Waits, next.Errors, next.Truncated = []DispatchObservationReason{}, []DispatchObservationReason{}, false
+	next.NativeRPCUsed, next.EvidenceReserved = 0, 0
+	if budget := readinessBudgetFrom(ctx); budget != nil {
+		next.NativeRPCUsed, next.EvidenceReserved = budget.nativeRPC.Load(), budget.reserved.Load()
+	}
 	const limit = 64
 	for _, wait := range report.Waits {
 		if len(next.Waits)+len(next.Errors) == limit {
@@ -244,6 +252,16 @@ func (c *Coordinator) observeDispatch(ctx context.Context, report DispatchReport
 		next.Errors = append(next.Errors, dispatchObservationReason(failure.Repository, failure.Issue, failure.Reason, failure.Detail))
 	}
 	c.dispatchObservation.Store(&next)
+	for _, failure := range next.Errors {
+		if failure.Reason == "priority_incomplete" {
+			// This is the same bounded, redacted projection exposed to owners.
+			// Keep a blocked scan diagnosable without another provider read.
+			if encoded, err := json.Marshal(next); err == nil {
+				log.Printf("factory priority paused: %s", encoded)
+			}
+			break
+		}
+	}
 }
 
 // coderTimeWait reports whether a wait is a coder-time sponsorship
