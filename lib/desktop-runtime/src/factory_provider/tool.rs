@@ -372,7 +372,10 @@ impl Tools {
         let mut selected = self.selected.lock().await;
         let mut check = SelectionCheck { status: &self.status, finished: false };
         let result = self.select_inner(refresh, &mut selected).await;
-        if result.is_err() {
+        if let Err(error) = &result {
+            // This owner uses only fixed public release endpoints and private
+            // executable verification; no login/token request enters this log.
+            eprintln!("native Muse verification: {error}");
             if let Ok(mut status) = self.status.lock() {
                 status.state = "unavailable";
                 status.error =
