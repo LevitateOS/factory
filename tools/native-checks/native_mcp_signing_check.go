@@ -99,11 +99,14 @@ func check(profile, instance string, unavailable bool) error {
 		AcceptedRevision: strings.Repeat("c", 40), Authority: strings.Repeat("d", 64),
 		DeadlineUnix: time.Now().Add(time.Hour).Unix(), State: factory.MCPCapabilityStaged,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-	defer cancel()
 	if err := checkNativeRecovery(config, instance, unavailable); err != nil {
 		return err
 	}
+	if err := capability.Validate(); err != nil {
+		return fmt.Errorf("signing fixture capability: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
 	secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, capability)
 	if unavailable {
 		if err == nil || secret != "" {
@@ -271,7 +274,9 @@ func check(profile, instance string, unavailable bool) error {
 	}
 	source.current.State = factory.MCPCapabilityActive
 	source.current.DeadlineUnix = time.Now().Add(-time.Second).Unix()
-	expired, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, source.current)
+	expiredContext, cancelExpired := context.WithTimeout(context.Background(), 6*time.Second)
+	expired, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(expiredContext, source.current)
+	cancelExpired()
 	if err != nil {
 		return err
 	}
