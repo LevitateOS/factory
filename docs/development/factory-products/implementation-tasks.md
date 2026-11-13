@@ -3345,14 +3345,28 @@ The owner revoked `sodaos`'s OAuth grant: installed111 refused repository access
 fresh device consent restored the same connection and catalog without changing
 the original journals. Normal Quit joined PostgreSQL; an actual guest reboot
 changed its boot identity. Private receipts: `/home/vince/Projects/factory-installed-recovery-20261113/`.
-Shared allowance settings now expose per-role permission and retain the saved
-minute limit when selecting a source. TypeScript/Lit, production UI and native
-builds pass; the existing broad native owner-policy fixture needs its current
-readiness expectations reconciled and does not yet qualify this change.
-Next install the changed UI, reopen the original profile/keyring after reboot,
-then prove real source/role withdrawal, pending selection and worker retirement.
-No inference, new delivery command or publication ran in this slice. Original
-profiles, uncertain outcomes and merged candidates remain preserved.
+Shared allowance controls `6b7e511` are installed as112 (inventory `b8fc3fce`):
+the original260-minute cap survives selection, withdrawing Coding retains Review
+and Judgments, explicit restoration succeeds, and empty-role save is refused.
+Reboot/reopen preserves the original login and all journal digests. The native
+owner-policy check6 reaches its final legacy catalogue assumption after passing
+the role/CAS/full-withdrawal cases; its proxy supplies only one repository, so
+that full fixture is not a pass. TypeScript/Lit, production UI/native builds and
+the real installed controls qualify their stated scopes.
+One fresh issue63 was created once (`9f8863ef2cc5479ab8a36daa05735ba9`), admitted
+automatically as `de38981d0dea9306777295bf5` and queued. The separate manual
+acceptance raced that head and returned412; its retained request is preserved.
+No run or charge was added. An allowance save now consumes its exact CAS receipt
+instead of rereading repository settings/access, and a first-send stale-head
+refusal permits a fresh preview while lost/recovered requests remain fenced.
+The production component/declared peer check passes all three412 paths with zero
+provider calls (`acceptance-ui-result.json` in the private root). Installed112
+was normally Quit and its database/control endpoint joined before further
+provider work approached the retained ceiling; no quota wait/reset occurred.
+Next install these follow-up UI changes, resume issue63's existing queue (never
+recreate it or repeat its acceptance), then prove real source/role withdrawal,
+pending selection and active worker crash/retirement. Original profiles,
+uncertain outcomes and merged candidates remain preserved; item5 stays open.
 
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** GitHub login
 refresh now rejects a reply from an older runtime generation before replacing

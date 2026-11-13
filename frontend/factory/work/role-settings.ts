@@ -417,16 +417,16 @@ export class SodaFactoryRoleSettings extends LitElement {
           'The source allowance could not be saved. Refresh before trying again.',
           response.status
         );
-      const confirmed = await this.read(context, signal),
-        account = confirmed.accounts.find((account) => account.connection === connection);
-      check(
-        account?.active === active &&
-          account.minutes === minutes &&
-          account.roles.length === roles.length &&
-          roles.every((role) => account.roles.includes(role))
-      );
+      const receipt = object(await readSodaJSON(response));
+      check(Number.isSafeInteger(receipt.revision) && receipt.revision === (stored?.revision ?? 0) + 1);
+      // The CAS receipt acknowledges this exact write. A later competing change
+      // will refuse our next revision; saving need not reload provider settings.
+      const account: Account = {
+        connection, active, roles, minutes, revision: Number(receipt.revision),
+        owner: context.actor, native: true,
+      };
       if (this.live(context, signal)) {
-        this.view = confirmed;
+        this.view = {...view, accounts: [...view.accounts.filter(saved => saved.connection !== connection), account]};
         this.selectFundingSource(connection);
         this.message = active
           ? 'Source allowance saved. Select it separately for each role.'

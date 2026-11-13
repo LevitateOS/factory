@@ -26,7 +26,8 @@ const refusedBeforePersistence = new Set([
   'prereq_route_stale',
 ]);
 const classifyRefusal: ClassifyRefusal = (status, code) =>
-  status === 409 && code !== undefined && refusedBeforePersistence.has(code) ? 'discard' : 'keep';
+  (status === 409 && code !== undefined && refusedBeforePersistence.has(code)) ||
+  (status === 412 && code === 'stale_revision') ? 'discard' : 'keep';
 
 export interface RequirementsAcceptanceContext {
   readonly observation?: WorkObservation;

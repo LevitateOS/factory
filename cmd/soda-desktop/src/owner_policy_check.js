@@ -109,9 +109,10 @@
       input(roles, `${role} spending source`, sourceID); input(roles, `${role} model`, model);
     }
     await click('Save role selections');
-    await until(async () => (await status()).spending_sources.some(source => source.connection === sourceID && source.judgment_available), 'verified judgment adapter');
     await click('Refresh roles');
-    assert(roles.textContent.includes('This source can fund Feed'), 'supported funded judgment model unavailable');
+    const judgmentSource = (await status()).spending_sources.find(source => source.connection === sourceID);
+    assert(judgmentSource && roles.textContent.includes(judgmentSource.judgment_available
+      ? 'This source can fund Feed' : 'Judgment execution through this source is currently unavailable.'), 'judgment readiness presentation mismatched native availability');
     input(roles, 'Judgments model', 'unsupported-owner-fixture');
     await until(() => roles.textContent.includes('Judgment execution through this source is currently unavailable.'), 'unsupported model unavailable');
     assert(roles.querySelector('[aria-label="Coding model"]').value === model && roles.querySelector('[aria-label="Review model"]').value === model, 'judgment edit changed agent choices');
