@@ -667,6 +667,10 @@ profile/provider/account reference, never credentials or a transport generation.
 Missing or unavailable identity leaves reads visible and actions disabled.
 Fountain supplies its authenticated command scope; native composition supplies its
 own profile/account binding through the same port.
+Desktop namespace lookup is local to that admitted binding and refuses suspended,
+retired or aborted transports. It does not grant repository access or permission
+to send: product requests still obtain current native/provider admission, and
+desktop reconnect separately refreshes account proof.
 
 Direct run props take precedence over issue lookup and do not trigger an initial
 run read. Repeated bindings do not reread. `refresh()` explicitly rechecks either

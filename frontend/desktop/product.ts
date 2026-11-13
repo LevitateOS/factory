@@ -39,8 +39,8 @@ export class DesktopProduct {
     private navigate: (route: FactoryRoute) => void,
     private defaultBranch?: string
   ) {
-    this.scope = `${selected.provider}:${profile}:${selected.identity.host}:${selected.identity.actor}`;
     this.transport = new DesktopTransport(core, selected, profile);
+    this.scope = this.transport.scope;
   }
   retire() {
     this.lifetime.abort();
@@ -50,7 +50,12 @@ export class DesktopProduct {
   async resume() {
     this.lifetime.signal.throwIfAborted();
     this.transport.resume();
-    try { await this.commandScope(this.lifetime.signal); }
+    try {
+      const response = await this.transport.request('/api/factory/identity', {signal: this.lifetime.signal});
+      check(response.ok);
+      const identity = object(await readSodaJSON(response));
+      check(identity.host === this.selected.identity.host && identity.actor === this.selected.identity.actor);
+    }
     catch (error) { this.transport.suspend(); throw error; }
   }
   context(route: FactoryRoute): FactoryAppContext {
@@ -142,13 +147,6 @@ export class DesktopProduct {
       return;
     }
   }
-  private async commandScope(signal: AbortSignal): Promise<string> {
-    const response = await this.transport.request('/api/factory/identity', {signal});
-    check(response.ok);
-    const identity = object(await readSodaJSON(response));
-    check(identity.host === this.selected.identity.host && identity.actor === this.selected.identity.actor);
-    return this.scope;
-  }
   private async resolve(route: FactoryRoute, signal: AbortSignal): Promise<FactoryScreen> {
     signal.throwIfAborted();
     admitFactoryRoute(route);
@@ -157,7 +155,7 @@ export class DesktopProduct {
     const repository = this.selected.repository;
     if ('repository' in route && route.repository !== undefined) check(repository?.id === route.repository);
     const common = {transport, scope, host, actor};
-    const commandScope = (signal: AbortSignal) => this.commandScope(signal);
+    const commandScope = (signal: AbortSignal) => this.transport.commandScope(signal);
     switch (route.kind) {
       case 'request':
         return {

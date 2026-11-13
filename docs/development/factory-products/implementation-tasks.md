@@ -3365,19 +3365,39 @@ wrong-receipt refusal and preserved unknown acceptances. TypeScript/Lit/native
 builds pass. Source and precise artifacts:
 [installed recovery evidence](../untangle-codebase.md#installed-authority-and-recovery-2026-11-13).
 
-Installed115 reaches issue63 but its original completion fence remains closed.
-A lookup identifies the omitted background completion-inventory read permission;
-c5cc88a fixes it in installed116 (inventory d9208f0a). The actual inventory seals,
-and original native judgment302c6fe01321773982c08570418d0217 returns continue
-with a retired eight-second Muse process. Preserve and settle that result; never
-repeat it. No withdrawal was sent: the local observer missed its short process.
-116 is stopped normally. Local judgment retirement/settlement is being separated
-from passive provider polling, with the existing PostgreSQL progress check.
-Next install that verified backend through116's exact-prior installer and resume
-the original decision/queue, then prove live source/role withdrawal, pending
-selection and active worker crash/retirement. Original profiles, credentials,
-candidates and uncertain outcomes remain preserved. Private evidence stays in
-`/home/vince/Projects/factory-installed-recovery-20261113/`; item5 remains open.
+Installed115 reaches issue63's completion fence; c5cc88a admits its missing
+background inventory read in installed116. Original judgment302c6fe0…18d0217
+succeeds once. Backend b1adc27 in installed117 settles that exact receipt and
+releases the fence without replay:193 usage rows/254 global source minutes
+(246 on this repository),44 original settled runs and219 commands. The same
+finite source is explicitly extended to290 minutes under standing permission,
+revision11. No source/role withdrawal or new Architect/Builder has run.
+
+The reboot had restored /run to400 MiB; the broker refused preparation before
+launch. Original failures are retained. Restoring the documented runtime
+prerequisite yields passing current-source preparations for both roles. A
+fixture-only appended fstab entry survives an actual subsequent reboot with3 GiB;
+original fstab text, profiles, credentials and receipts are preserved.
+
+Connected checks stop at572/600 retained requests, zero suppression. No quota
+waiting, account rotation or journal reset. The issue/work-detail navigation
+slice used65 calls; it is not a measurement of work-detail alone. Desktop command
+panels independently queried provider identity only to locate retained commands.
+The correction uses the admitted local binding for that namespace; actual product
+requests and reconnect remain freshly admitted. The production browser check
+proves eight consumers make0 identity requests; denied sends and suspended,
+retired, aborted and changed-account namespaces refuse correctly. TypeScript,
+Lit and release build pass; package/install this correction next.
+
+**Recovery:** item5 remains INCOMPLETE. No live app, model or check remains.
+Source changes are owned on main; private evidence stays at
+`/home/vince/Projects/factory-installed-recovery-20261113/`. Preserve issue63,
+acceptance de38981d…295bf5, the stale manual acceptance and every original
+operation. Next use the corrected installed build, verify bounded remaining
+request admission before launch, then observe actual Muse I/O and withdraw its
+source once through Work. Finish individual-role withdrawal, pending account/
+repository selection and active worker crash/reboot/retirement. Do not replay
+judgment302c6fe0 or re-create the issue to replace missing evidence.
 
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** GitHub login
 refresh now rejects a reply from an older runtime generation before replacing

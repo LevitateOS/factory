@@ -5971,11 +5971,43 @@ filter missed Muse's sealed executable and has been corrected to exact SHA.
 116 quits normally; retirement116.log confirms database/control removal.
 
 That result also exposes five-minute settlement latency: local judgment recovery
-was coupled to passive provider polling. The next backend moves existing-process
+was coupled to passive provider polling. Backend b1adc27 moves existing-process
 observation/cancellation to the worker tick and grant changes, wakes consumers
 once on settlement, and leaves provider discovery on its existing cadence.
 The existing external-preparation PostgreSQL harness covers local recovery during
-a finite merge-only wake and a terminal receipt waking consumers. Preserve the
-original decision/queue and settle its saved result on reopen; never repeat the
-creation, stale acceptance or completed models. Live source/role withdrawal,
-pending selection and active worker crash/retirement remain unverified.
+a finite merge-only wake and a terminal receipt waking consumers:
+recovery-progress117-pgd.log passes with clean shutdown, no provider/model. The
+earlier added timeout was shorter than the existing ten-second tick; it is
+corrected to15 seconds. Installed117 inventory cb7bfc1c…a843f uses that backend
+and otherwise byte-identical116 assets. start117-read.json confirms adoption of
+original judgment302c6fe0…18d0217 and released completion fence without inference
+replay:193 usage rows/254 global minutes (246 repository minutes),44 unchanged
+settled runs,219 commands. Original acceptances/receipts stay exact.
+
+Preparing current source2513e1d6 initially fails before launch: actual broker
+journal preparation117-original-failure.log reports free-space reserve unavailable.
+The prior reboot restored /run to400 MiB. runtime117-capacity.log restores the
+existing documented execution prerequisite, and prepared117-read.json retains
+both original interrupted preparations and fresh passing roles f9c6a72b…fb4635 /
+ffcb5764…e2e593. A fixture-only appended fstab entry preserves original text;
+actual reboot08c01a12…b6ef8 keeps /run3 GiB and broker socket enabled, with app/PG
+stopped (runtime117-reboot-result.log). It is an at-rest reboot, not an active
+worker qualification. The same source cap is290/revision11 under standing
+permission; no worker or extra model has been launched.
+
+Connected work stops at572/600 retained requests and0 suppression. The measured
+65-call navigation includes New issue/retained issue63/work detail; it is not a
+work-detail-only counter. DesktopProduct.commandScope was re-reading GitHub for
+each panel's local persistence namespace. Namespace ownership moves to the same
+live DesktopTransport binding; no external authority is cached. Each actual
+product request still obtains native/provider admission, and resume separately
+fresh-reads identity. Existing production-component browser qualification now
+imports the actual desktop product/transport: eight concurrent namespaces make
+zero IPC/provider requests; denied writes still invoke admission; failed/successful
+resume each probes identity; aborted, suspended, retired and changed accounts
+refuse or separate scopes. namespace-browser-check.log, namespace-typecheck.log,
+namespace-lit.log and namespace-release-build.log pass. This correction still
+needs packaging/install and affected connected qualification; it is not item5
+completion. Source/role withdrawal during real I/O, pending selection and active
+worker crash/reboot/retirement remain open. No quota wait/reset, account rotation,
+paid replay or replacement issue is permitted. Recover the existing queue first.

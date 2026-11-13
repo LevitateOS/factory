@@ -155,6 +155,11 @@ the same request admission, with fresh outer visibility checks. A finalized merg
 holds passive child advice until a fresh command exists; it does not reread full
 delivery material on every sweep. Original operation recovery remains available.
 
+Retained command/draft namespaces use the desktop's admitted profile/provider/
+account binding locally. Mounting command panels makes no identity requests.
+Suspended, retired and aborted bindings refuse namespace reads; every product
+read/write still uses native admission, and reconnect obtains fresh account proof.
+
 ### Linux execution services
 
 The stage also contains `factory-runtime/execution`: seven native helpers,

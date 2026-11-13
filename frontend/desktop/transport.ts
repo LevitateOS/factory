@@ -67,6 +67,7 @@ export function binding(value: unknown, generation: number): Binding {
 export class DesktopTransport implements FactoryTransport {
   readonly assetBase = '';
   readonly generation: string;
+  readonly scope: string;
   private lifetime = new AbortController();
   private suspended = false;
   private retired = false;
@@ -76,12 +77,20 @@ export class DesktopTransport implements FactoryTransport {
     profile: string
   ) {
     this.generation = `${profile}:${selected.generation}:${selected.session}`;
+    this.scope = `${selected.provider}:${profile}:${selected.identity.host}:${selected.identity.actor}`;
   }
   retire() {
     this.retired = true; this.suspend();
   }
   suspend() { this.suspended = true; this.lifetime.abort(); }
   resume() { check(!this.retired); this.lifetime = new AbortController(); this.suspended = false; }
+  // This names retained commands; it grants no authority. Every product request
+  // still authenticates the captured native selection, including after revocation.
+  async commandScope(signal: AbortSignal): Promise<string> {
+    check(!this.retired && !this.suspended);
+    AbortSignal.any([signal, this.lifetime.signal]).throwIfAborted();
+    return this.scope;
+  }
   async request(input: string, init: RequestInit = {}): Promise<Response> {
     check(!this.retired && !this.suspended);
     const path = input.startsWith('/api/') ? input : '/api/' + input.replace(/^\//, '');
