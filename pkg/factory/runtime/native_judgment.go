@@ -145,16 +145,16 @@ func (s NativeJudgments) SelectScoped(ctx context.Context, repository int64, sub
 	return chooser.Select(ctx, state, question, options)
 }
 
-// The background owner settles completed purpose calls and retires calls whose
-// posts left the normal scan. Missing evidence retains the original reservation.
-func (s NativeJudgments) ReconcilePostJudgments(ctx context.Context) {
+// ReconcileJudgments observes only already-recorded native processes. It never
+// launches inference or reads the provider. Missing evidence keeps its reservation.
+func (s NativeJudgments) ReconcileJudgments(ctx context.Context) (settled int) {
 	commands, err := s.Store.PendingNativeJudgments(ctx)
 	if err != nil {
-		return
+		return settled
 	}
 	for _, cmd := range commands {
 		if ctx.Err() != nil {
-			return
+			return settled
 		}
 		var capture factory.NativeJudgmentCapture
 		if nativeDecode([]byte(cmd.Payload), &capture) != nil || capture.Profile != s.Config.Profile {
@@ -172,17 +172,19 @@ func (s NativeJudgments) ReconcilePostJudgments(ctx context.Context) {
 			if err != nil && !errors.Is(err, store.ErrNotFound) {
 				continue
 			}
-			if err == nil && !post.Record.Deleted && !post.Record.Revoked && post.Record.Revision == capture.SourceRevision {
-				continue
+			if err != nil || post.Record.Deleted || post.Record.Revoked || post.Record.Revision != capture.SourceRevision {
+				cancel = true
 			}
-			cancel = true
 		}
 		var reply nativeJudgmentReply
 		if nativeHostCall(ctx, s.Config, s.Instance, "/api/native/execution", map[string]any{"operation": "inspect_judgment", "id": capture.ID, "digest": cmd.Digest, "cancel": cancel}, &reply) != nil || reply.State != "complete" || reply.Result == nil {
 			continue
 		}
-		_, _ = finishNativeJudgment(ctx, s.NativeExecution, capture, cmd, reply.Result, nil)
+		if _, err := finishNativeJudgment(ctx, s.NativeExecution, capture, cmd, reply.Result, nil); err == nil {
+			settled++
+		}
 	}
+	return settled
 }
 
 func (s NativeJudgments) JudgePost(ctx context.Context, input factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {

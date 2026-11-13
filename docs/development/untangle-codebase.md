@@ -5910,3 +5910,72 @@ session; none ran. Ordinary permission/consent, changed-head/base, withdrawal
 and recovery checks are covered, not deferred as adversarial work. This closes
 Q17's ordinary scope, not Q26's remaining installed revocation/worker-I/O,
 upgrade/release work or whole-product security gates in items5–8.
+
+### Installed authority and recovery (2026-11-13)
+
+Active scope: consolidated GitHub/Muse item5, still **INCOMPLETE**. Private evidence
+root: `/home/vince/Projects/factory-installed-recovery-20261113/`.
+
+Installed108/111 refuses the owner's actual `sodaos` OAuth revocation; fresh device
+consent restores connection66fdff1b…3549 and repository access. Original44 runs,
+217 commands,192 usage rows and all captured issue57 receipts stay unchanged.
+`revoked111-settled.json`, `reconsent111-{return,connected,read}.json` and
+`reboot112-read.json` retain the boundaries. Independent backend/postmaster
+SIGKILL checks recover through one rendered Retry each; uncertain click replies
+are resolved by Ready/readback, never replayed. `backend-recovered110.json` and
+`database-recovered110.json` equal `before110.json`. Actual guest reboot changes
+boot identity b96a3c16…→6537698a…; installed112 reopens the original keyring/profile.
+Retirement110/112/114 logs prove joined database/control shutdown.
+
+Controls6b7e511/d2f2c18 are installed as112/113. Individual Coding removal retains
+Review/Judgments and the260-minute cap; restoration and zero-role refusal pass
+in `coding112-confirm.json`, `restored112-tree.json`, `empty112-tree.json`.
+One new issue63 creation9f8863ef…35ba9 has a causal receipt and initial acceptance
+de38981d…295bf5. The distinct manual412 request is preserved; no model or charge
+was added. Role/CAS/withdrawal portions of `role-ui-check6/run.log` pass before its
+obsolete one-repository proxy prevents the final two-repository check; the full
+fixture is not qualified. `roles-browser-check.log` instead exercises the actual
+production components with the existing declared peer: zero eager workspace
+source reads, one PUT/no extra GETs on save, retained editor, wrong-receipt refusal,
+and first-send versus lost/recovered412 behavior. It makes zero provider calls.
+
+Installed114's `guard114-result.json`/`priority114-backend.log` reveal an older
+repository20856/issue2 failing before selection. Five native RPCs and one evidence
+reservation were used; the bounded pass was not exhausted. The25-call observation
+stops normally without suppression, quota waiting/reset or inference. Commit
+1f95f74 preserves the previously hidden error and fixed-label budget diagnostics.
+Commit352e2f3 continues to an independent repository after an incomplete scan's
+error, preserving the failed cursor and all existing I/O limits. The existing
+real-PG `priority-isolation-pg.log` proves same-pass selection, per-repository payer,
+original foreign controls/reservation/global scan, retained judgment replay and
+zero execution/provider/model calls. TypeScript, required Lit analysis, production
+UI/native and backend builds pass in this root. These establish scoped changes;
+real installed withdrawal during worker I/O and crash/retirement remain next.
+
+114's inventory is149db24e…444b7; its backend is1f95f74 and app/UI d2f2c18.115
+combines352e2f3's backend/UI; `package115-retention.json` records exact integrity
+and byte-identical inherited helpers/provider/PostgreSQL/CLI/notices/installers.
+Installed115 subsequently reaches issue63 in the same pass, then waits behind
+completion cycle daceea5c…e29e5. One bounded original-read probe returns
+native_background_read_unavailable: native background admission omitted the
+implemented completion_issues read. Commit c5cc88a adds that exact read only;
+existing callback admission/custody/refusal checks pass, while the broader old
+work-history fixture fails its unrelated schema seed and is not claimed passing.
+Release/native builds pass. Installed116 inventory d9208f0a…9ad8f preserves every
+other115 payload byte. Actual completion_issues succeeds and the inventory seals.
+Original judgment302c6fe01321773982c08570418d0217 selects continue (0.92), with
+Muse1.4.18-R8587.1, tool57732db8…b538, eight-second process11573 and retired tree.
+Its original native result is in judgment116-original.txt. No withdrawal was sent
+and no replacement inference was requested: the observer's executable-name
+filter missed Muse's sealed executable and has been corrected to exact SHA.
+116 quits normally; retirement116.log confirms database/control removal.
+
+That result also exposes five-minute settlement latency: local judgment recovery
+was coupled to passive provider polling. The next backend moves existing-process
+observation/cancellation to the worker tick and grant changes, wakes consumers
+once on settlement, and leaves provider discovery on its existing cadence.
+The existing external-preparation PostgreSQL harness covers local recovery during
+a finite merge-only wake and a terminal receipt waking consumers. Preserve the
+original decision/queue and settle its saved result on reopen; never repeat the
+creation, stale acceptance or completed models. Live source/role withdrawal,
+pending selection and active worker crash/retirement remain unverified.

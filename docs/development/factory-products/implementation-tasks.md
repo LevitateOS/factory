@@ -3337,45 +3337,47 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
-**Current recovery slice (2026-11-13): INCOMPLETE.** Installed108's owned backend
-and PostgreSQL postmaster were killed separately; the rendered Retry control
-restored Ready each time with all44 runs,217 commands and192 usage rows unchanged.
-Lost Retry/Quit replies were resolved by state/process observation, never repeated.
-The owner revoked `sodaos`'s OAuth grant: installed111 refused repository access;
-fresh device consent restored the same connection and catalog without changing
-the original journals. Normal Quit joined PostgreSQL; an actual guest reboot
-changed its boot identity. Private receipts: `/home/vince/Projects/factory-installed-recovery-20261113/`.
-Shared allowance controls `6b7e511` are installed as112 (inventory `b8fc3fce`):
-the original260-minute cap survives selection, withdrawing Coding retains Review
-and Judgments, explicit restoration succeeds, and empty-role save is refused.
-Reboot/reopen preserves the original login and all journal digests. The native
-owner-policy check6 reaches its final legacy catalogue assumption after passing
-the role/CAS/full-withdrawal cases; its proxy supplies only one repository, so
-that full fixture is not a pass. TypeScript/Lit, production UI/native builds and
-the real installed controls qualify their stated scopes.
-One fresh issue63 was created once (`9f8863ef2cc5479ab8a36daa05735ba9`), admitted
-automatically as `de38981d0dea9306777295bf5` and queued. The separate manual
-acceptance raced that head and returned412; its retained request is preserved.
-No run or charge was added. An allowance save now consumes its exact CAS receipt
-instead of rereading repository settings/access, and a first-send stale-head
-refusal permits a fresh preview while lost/recovered requests remain fenced.
-The production component/declared peer check passes all three412 paths with zero
-provider calls (`acceptance-ui-result.json` in the private root). Installed112
-was normally Quit and its database/control endpoint joined before further
-provider work approached the retained ceiling; no quota wait/reset occurred.
-Follow-ups `d2f2c18` are installed as113 (inventory `123655c5`). Its original
-queue survives, but its repository734 priority scan remains at cursor0 despite
-zero held reservations and a successful current input read through the installed
-native owner (`input-probe113-result.json`). Two normal progress passes launched
-no run or charge. Installed113 was Quit with101 wire attempts in that owner,
-retained budget560/600 and zero suppressions; no quota wait/reset/rotation.
-The priority scanner was dropping its underlying admission errors. The next
-backend preserves those errors and logs its existing bounded/redacted projection
-with pass-budget counters when a priority scan pauses; this adds no provider
-calls or dispatch authority. Compilation passes; installed diagnosis is next.
-Recover that exact scan before any new attempt. Remaining item5 gates are actual
-source/role withdrawal during work, pending selection and active worker crash/
-retirement. Profiles, uncertain outcomes and merged candidates remain preserved.
+**Current recovery slice (2026-11-13): INCOMPLETE.** Provider-side revocation,
+installed refusal/re-consent under the same account, separate backend/PostgreSQL
+crashes, normal retirement and actual guest reboot/reopen pass their scoped
+checks. The original44 runs,217 pre-existing commands and192 usage rows stayed
+exact. Installed112 proves individual Coding withdrawal/restoration, unchanged
+260-minute cap and zero-role refusal. Commits6b7e511/d2f2c18 own those controls,
+CAS-only save readback and first-send acceptance-conflict recovery; lost/recovered
+unknown requests remain fenced.
+
+Fresh issue63 was created once by command `9f8863ef2cc5479ab8a36daa05735ba9`
+and automatically accepted as `de38981d0dea9306777295bf5`. Its manual stale-head
+acceptance remains saved; never repeat it or recreate the issue. No new model
+run or charge has occurred. Installed114 (backend1f95f74, inventory149db24e)
+identifies the first paused scan as repository20856/issue2, host unavailable,
+with only5 native RPCs used. This was repository rotation, not quota exhaustion
+or a model failure. Its bounded observer used25 GitHub calls/zero suppressions
+and Quit with retained budget510/600; database/control retirement is confirmed.
+
+Commit352e2f3 lets a bounded pass continue after a failed incomplete scan,
+without crossing repository funding or advancing that scan. The existing real
+PostgreSQL check proves same-pass independent selection, preserved foreign
+records and zero repeated judgments/effects. Workspace sources are fetched only
+when “Workspace setup” is opened; the existing editor remains mounted afterward.
+Production DOM checks prove0 eager source reads,1 PUT/0 GETs per allowance save,
+wrong-receipt refusal and preserved unknown acceptances. TypeScript/Lit/native
+builds pass. Source and precise artifacts:
+[installed recovery evidence](../untangle-codebase.md#installed-authority-and-recovery-2026-11-13).
+
+Installed115 reaches issue63 but its original completion fence remains closed.
+A lookup identifies the omitted background completion-inventory read permission;
+c5cc88a fixes it in installed116 (inventory d9208f0a). The actual inventory seals,
+and original native judgment302c6fe01321773982c08570418d0217 returns continue
+with a retired eight-second Muse process. Preserve and settle that result; never
+repeat it. No withdrawal was sent: the local observer missed its short process.
+116 is stopped normally. Local judgment retirement/settlement is being separated
+from passive provider polling, with the existing PostgreSQL progress check.
+Next install that verified backend through116's exact-prior installer and resume
+the original decision/queue, then prove live source/role withdrawal, pending
+selection and active worker crash/retirement. Original profiles, credentials,
+candidates and uncertain outcomes remain preserved. Private evidence stays in
+`/home/vince/Projects/factory-installed-recovery-20261113/`; item5 remains open.
 
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** GitHub login
 refresh now rejects a reply from an older runtime generation before replacing

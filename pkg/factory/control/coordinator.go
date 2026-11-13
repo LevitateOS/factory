@@ -97,7 +97,10 @@ type Coordinator struct {
 	// the coordinator owns only the lifetime that drives them,
 	// so comment completion never depends on a browser request. Nil
 	// holds pending comment requests in their stored state.
-	CommentDrive        func(ctx context.Context)
+	CommentDrive func(ctx context.Context)
+	// JudgmentRecovery observes existing local inference only; a settled receipt
+	// wakes consumers without making passive provider polling run on every tick.
+	JudgmentRecovery    func(ctx context.Context) bool
 	queue               DispatchQueueCursor
 	lock                *os.File
 	requestGate         sync.RWMutex

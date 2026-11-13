@@ -6274,7 +6274,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if os.Getenv("SODA_NATIVE_CHECK_RECOVER_PRIORITY") == "1" {
 			judgments := factoryruntime.NativeJudgments{NativeExecution: port}
 			for {
-				judgments.ReconcilePostJudgments(ctx)
+				judgments.ReconcileJudgments(ctx)
 				pending, e := db.PendingNativeJudgments(ctx)
 				if e != nil {
 					return e
@@ -6322,7 +6322,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if os.Getenv("SODA_NATIVE_CHECK_RECOVER_CONTRIBUTIONS") == "1" {
 			judgments := factoryruntime.NativeJudgments{NativeExecution: port}
 			for {
-				judgments.ReconcilePostJudgments(ctx)
+				judgments.ReconcileJudgments(ctx)
 				pending, e := db.PendingNativeJudgments(ctx)
 				if e != nil {
 					return e
@@ -6721,7 +6721,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if err != nil || cap.State != factory.MCPCapabilityActive && cap.State != factory.MCPCapabilityRetired {
 			if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE") == "1" && err == nil && cap.State == factory.MCPCapabilityRevoked {
 				for {
-					(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcilePostJudgments(ctx)
+					(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcileJudgments(ctx)
 					pending, e := db.PendingNativeJudgments(ctx)
 					if e != nil {
 						return e
@@ -9785,7 +9785,7 @@ func admittedContributionsFixture(profile, instance, path string) error {
 			return errors.New("withdrawal adopted a contribution answer")
 		}
 		for {
-			judgments.ReconcilePostJudgments(ctx)
+			judgments.ReconcileJudgments(ctx)
 			pending, e := db.PendingNativeJudgments(ctx)
 			if e != nil {
 				return e
@@ -10032,7 +10032,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		if phase == "fund-retained-reconcile" {
 			port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 			judgments := factoryruntime.NativeJudgments{NativeExecution: port}
-			judgments.ReconcilePostJudgments(ctx)
+			judgments.ReconcileJudgments(ctx)
 			rawDB, e := sql.Open("pgx", config.DatabaseDSN())
 			if e != nil {
 				return e
@@ -10552,7 +10552,7 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 			return errors.New("graph does not bind the current native account/repository")
 		}
 		if phase == "graph-recover" {
-			judgments.ReconcilePostJudgments(ctx)
+			judgments.ReconcileJudgments(ctx)
 			a, e := db.IntentPlanAttempt(ctx, head.Intent, in.Revision)
 			if e != nil || a.Outcome != factory.Succeeded {
 				return errors.New("original graph plan unavailable")
@@ -11152,7 +11152,7 @@ func connectedJudgmentFixture(profile, instance, path string) error {
 		}
 		until = time.Now().Add(40 * time.Second)
 		for {
-			judgments.ReconcilePostJudgments(ctx)
+			judgments.ReconcileJudgments(ctx)
 			cmd, e := db.FactoryCommand(ctx, raceID)
 			if e != nil {
 				return e
@@ -11215,7 +11215,7 @@ func connectedJudgmentFixture(profile, instance, path string) error {
 		}
 		until = time.Now().Add(40 * time.Second)
 		for {
-			judgments.ReconcilePostJudgments(ctx)
+			judgments.ReconcileJudgments(ctx)
 			cmd, e := db.FactoryCommand(ctx, pending[0].ID)
 			if e != nil {
 				return e
@@ -11410,7 +11410,7 @@ func liveJudgmentFixture(profile, instance, phase string) error {
 		return errors.New("unknown live judgment phase")
 	}
 	for {
-		(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcilePostJudgments(ctx)
+		(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcileJudgments(ctx)
 		command, err := db.FactoryCommand(ctx, capture.ID)
 		if err != nil {
 			return err
@@ -15928,6 +15928,12 @@ func externalPreparationFixture() error {
 		return factory.OperationOutcome{OperationID: o.OperationID, InstallationID: o.InstallationID, ActorID: o.ActorID, RepositoryID: o.RepositoryID, Kind: o.Kind, Effect: o.Effect, Cancellation: o.Cancellation, Completion: o.Completion, Reason: o.Reason}, nil
 	}}
 	woken := make(chan struct{}, 2)
+	var judgmentRecoveries atomic.Int64
+	var judgmentSettled atomic.Bool
+	wakeCoordinator.JudgmentRecovery = func(context.Context) bool {
+		judgmentRecoveries.Add(1)
+		return judgmentSettled.Swap(false)
+	}
 	wakeCoordinator.CommentDrive = func(context.Context) {
 		select {
 		case woken <- struct{}{}:
@@ -15940,6 +15946,7 @@ func externalPreparationFixture() error {
 	}
 	defer wakeCoordinator.Close()
 	<-woken // startup completed before the fresh command
+	initialRecoveries := judgmentRecoveries.Load()
 	if receipt, err := wakeCoordinator.PrepareUnsentMerge(ctx, factory.NewID(), "declared-direct-merge", directOffer); err != nil || receipt.NotAfter <= time.Now().Unix() {
 		return fmt.Errorf("direct external owner finite merge-only preparation failed: %v", err)
 	}
@@ -15960,6 +15967,9 @@ func externalPreparationFixture() error {
 			return err
 		}
 		if current.Stage == factory.MergeWithdrawn {
+			if judgmentRecoveries.Load() <= initialRecoveries {
+				return errors.New("local judgment recovery waited behind passive provider polling")
+			}
 			break
 		}
 		select {
@@ -15969,6 +15979,13 @@ func externalPreparationFixture() error {
 			return errors.New("fresh merge-only command waited behind passive provider polling")
 		case <-time.After(20 * time.Millisecond):
 		}
+	}
+	judgmentSettled.Store(true)
+	select {
+	case <-woken:
+		fmt.Println("PASS: local judgment recovery runs during the passive hold and a newly settled receipt wakes consumers on the next worker tick, without polling unrelated providers while pending.")
+	case <-time.After(15 * time.Second):
+		return errors.New("settled judgment did not wake its consumers before passive polling")
 	}
 	if err = wakeCoordinator.Close(); err != nil {
 		return err

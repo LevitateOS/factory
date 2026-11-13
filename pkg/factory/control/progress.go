@@ -175,6 +175,9 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	c.stopRevokedRuns(ctx, 0)
 	budget := readinessBudgetFrom(ctx)
 	terminalObserved := false
+	if c.JudgmentRecovery != nil {
+		terminalObserved = c.JudgmentRecovery(ctx)
+	}
 	settle := func(run factory.Run) {
 		result := c.settleRun(ctx, run)
 		terminalObserved = terminalObserved || result.Confirmed
@@ -258,7 +261,8 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	// Explicit finite merge commands own their next pass even when passive work
 	// is due. Sharing that pass with an old repository sweep can exhaust its
 	// provider budget before the requested merge reaches admission.
-	if c.driveRequestedMerges(ctx) {
+	// A newly settled result still wakes its consumers through the ordinary pass.
+	if !terminalObserved && c.driveRequestedMerges(ctx) {
 		c.nextPassiveProgress = time.Now().Add(passiveProgressInterval)
 		return
 	}

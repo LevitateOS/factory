@@ -73,6 +73,9 @@ func (c *Coordinator) applyGrant(ctx context.Context, principal string, record a
 	}
 	if repository > 0 {
 		c.stopRevokedRuns(bounded, repository)
+		if c.JudgmentRecovery != nil {
+			c.JudgmentRecovery(bounded)
+		}
 	}
 	return result, nil
 }

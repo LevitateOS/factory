@@ -68,6 +68,7 @@ func NewApplication(ports ApplicationPorts) Application {
 	}
 	application := Application{Store: ports.Store, Coordinator: coordinator, Chooser: ports.CurrentChooser, IssueEffects: ports.IssueEffects, PostJudge: ports.PostJudge}
 	coordinator.CommentDrive = application.Background().Drive
+	coordinator.JudgmentRecovery = application.Background().ReconcileJudgments
 	return application
 }
 

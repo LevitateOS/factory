@@ -42,9 +42,6 @@ func (s Background) Drive(ctx context.Context) {
 	if s.Store == nil || ctx.Err() != nil {
 		return
 	}
-	if pending, ok := s.Stages.Judge.(interface{ ReconcilePostJudgments(context.Context) }); ok {
-		pending.ReconcilePostJudgments(ctx)
-	}
 	_ = DrivePendingPosts(ctx, s.Store, s.Collaborators(), PostDriveLimit)
 	if ctx.Err() != nil {
 		return
@@ -52,4 +49,16 @@ func (s Background) Drive(ctx context.Context) {
 	// A key may have been connected/withdrawn while post stages were doing I/O.
 	// Re-resolve availability before a contribution can claim its source.
 	_, _ = (Contributions{Store: s.Store, Chooser: s.currentChooser()}).Drive(ctx)
+}
+
+// ReconcileJudgments retires and settles captured local work independently of
+// passive provider polling. True wakes its consumers to adopt the saved result.
+func (s Background) ReconcileJudgments(ctx context.Context) bool {
+	if s.Store == nil || ctx.Err() != nil {
+		return false
+	}
+	if pending, ok := s.Stages.Judge.(interface{ ReconcileJudgments(context.Context) int }); ok {
+		return pending.ReconcileJudgments(ctx) > 0
+	}
+	return false
 }
