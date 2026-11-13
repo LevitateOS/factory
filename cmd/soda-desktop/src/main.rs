@@ -598,8 +598,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "native-check")]
     let mut checks = check::Options::default();
     let mut developer_mode = developer::Mode::Disabled;
+    let mut mcp_root_status = false;
+    let mut mcp_rotation = None;
+    let mut mcp_expected_root = None;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        if arg == "--mcp-root-status" {
+            if mcp_root_status { return Err("duplicate MCP maintenance option".into()); }
+            mcp_root_status = true;
+            continue;
+        }
+        if arg == "--rotate-mcp-root" || arg == "--expected-root" {
+            let slot = if arg == "--rotate-mcp-root" { &mut mcp_rotation } else { &mut mcp_expected_root };
+            if slot.is_some() { return Err("duplicate MCP maintenance option".into()); }
+            *slot = Some(args.next().and_then(|value| value.into_string().ok()).ok_or("MCP maintenance value required")?);
+            continue;
+        }
         if arg == "--developer-tools" {
             if developer_mode != developer::Mode::Disabled { return Err("duplicate developer option".into()); }
             developer_mode = developer::Mode::parse(args.next().and_then(|s| s.into_string().ok()).as_deref().ok_or("developer mode required")?)?;
@@ -623,6 +637,19 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "native-check")]
     let check = checks.finish()?;
     prepare_profile(&paths.profile)?;
+    if mcp_root_status || mcp_rotation.is_some() || mcp_expected_root.is_some() {
+        if developer_mode != developer::Mode::Disabled { return Err("MCP maintenance cannot enable developer control".into()); }
+        if mcp_root_status && mcp_rotation.is_none() && mcp_expected_root.is_none() {
+            let root = soda_desktop_runtime::supervisor::mcp_root_identity(&paths.profile)?;
+            println!("{}", serde_json::json!({"root":root}));
+        } else if !mcp_root_status {
+            let receipt = soda_desktop_runtime::supervisor::rotate_mcp_root(&paths.payload, &paths.backend, &paths.profile,
+                mcp_rotation.as_deref().ok_or("MCP rotation command required")?,
+                mcp_expected_root.as_deref().ok_or("expected MCP root required")?)?;
+            println!("{}", serde_json::to_string(&receipt)?);
+        } else { return Err("MCP maintenance options conflict".into()); }
+        return Ok(());
+    }
     let bus = format!(
         "dev.soda.Factory.p{}",
         paths

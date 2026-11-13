@@ -23,7 +23,7 @@ import (
 // LoadNative and instance from the current owned backend health response.
 func NativeMCPSecretDeriver(config NativeConfig, instance string) factory.MCPSecretDeriver {
 	return func(ctx context.Context, capability factory.MCPCapability) (string, error) {
-		if capability.Validate() != nil {
+		if capability.Validate() != nil || capability.State != factory.MCPCapabilityStaged && capability.State != factory.MCPCapabilityActive {
 			return "", errors.New("native MCP signing unavailable")
 		}
 		var result struct {

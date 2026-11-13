@@ -14,18 +14,22 @@ use zeroize::Zeroizing;
 
 type Result<T> = std::result::Result<T, String>;
 
+mod rotation;
+pub use rotation::{rotate, RootRotation};
+
 pub struct Signer {
     key: Zeroizing<[u8; 32]>,
+    enrollment_key: Zeroizing<[u8; 32]>,
 }
 
 impl Signer {
     /// A separate protocol domain binds a desktop enrollment to this native
     /// profile. Only its hash is enrollment metadata; the proof stays in Rust.
-    pub(crate) fn derive_desktop_enrollment(&self, context: &[u8]) -> Result<Zeroizing<String>> {
+    pub fn derive_desktop_enrollment(&self, context: &[u8]) -> Result<Zeroizing<String>> {
         if context.is_empty() || context.len() > 2048 {
             return Err("native enrollment scope invalid".into());
         }
-        let mut mac = Hmac::<Sha256>::new_from_slice(&*self.key)
+        let mut mac = Hmac::<Sha256>::new_from_slice(&*self.enrollment_key)
             .map_err(|_| "native profile key invalid")?;
         mac.update(b"factory-fountain-desktop-enrollment/v1\0");
         mac.update(context);
@@ -38,6 +42,16 @@ impl Signer {
     /// invalid existing file is an error, never a reason to rotate silently.
     /// The profile owner must hold its exclusive lock before calling this.
     pub fn open(profile: &Path) -> Result<Self> {
+        let mut signer = Self::open_enrollment(profile)?;
+        signer.key = rotation::current_key(profile, &signer.key)?;
+        Ok(signer)
+    }
+
+    pub fn root_identity(&self) -> String {
+        rotation::fingerprint(&self.key)
+    }
+
+    fn open_enrollment(profile: &Path) -> Result<Self> {
         private_dir(profile).map_err(|_| "native MCP profile unavailable")?;
         let path = profile.join("native-mcp.key");
         let pending = profile.join("native-mcp.key.pending");
@@ -49,7 +63,7 @@ impl Signer {
                 }
                 let key = read_key(&path)?;
                 identity(profile, &key)?;
-                return Ok(Self { key });
+                return Ok(Self { enrollment_key: Zeroizing::new(*key), key });
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(_) => return Err("native MCP key unavailable".into()),
@@ -104,7 +118,7 @@ impl Signer {
             .and_then(|directory| directory.sync_all())
             .map_err(|_| "native MCP key durability unavailable")?;
         identity(profile, &key)?;
-        Ok(Self { key })
+        Ok(Self { enrollment_key: Zeroizing::new(*key), key })
     }
 
     /// Derive exactly the Go capability protocol's HMAC over a canonical

@@ -60,6 +60,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 5 && args[4] == "mcp-rotation" {
+        return mcp_rotation_check(&root, Path::new(&args[1]), Path::new(&args[2]), Path::new(&args[3]));
+    }
     if args.len() == 2 && args[1] == "tool-races" {
         return tokio::runtime::Builder::new_current_thread().enable_all().build()?
             .block_on(tool_races(&root));
@@ -474,6 +477,93 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(&key_path)?;
     assert!(Signer::open(&legacy).is_err());
     println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation, pre-marker adoption, changed-key and missing-key refusal");
+    Ok(())
+}
+
+fn mcp_rotation_check(root: &Path, payload: &Path, backend: &Path, client: &Path)
+    -> Result<(), Box<dyn std::error::Error>> {
+    use soda_desktop_runtime::{mcp_signing, supervisor};
+    DirBuilder::new().recursive(true).mode(0o700).create(root)?;
+    let profile = root.join("rotation-profile");
+    let owner = NativeSupervisor::start(payload, backend, &profile)?;
+    let ready = owner.health()?;
+    let run_client = |instance: &str, mode: &str| -> Result<(), Box<dyn std::error::Error>> {
+        if !Command::new(client).arg(&profile).arg(instance).arg(mode).status()?.success() {
+            return Err("MCP rotation Go capability check failed".into());
+        }
+        Ok(())
+    };
+    run_client(&ready.instance, "mcp-rotation-seed")?;
+    let signer = Signer::open(&profile)?;
+    let previous = signer.root_identity();
+    let id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let digest = "a".repeat(64);
+    let secret = signer.derive(id, &digest)?;
+    let enrollment = signer.derive_desktop_enrollment(b"retained enrollment context")?;
+    let original = fs::read(profile.join("native-mcp.key"))?;
+    let command = "11111111111111111111111111111111";
+    assert!(supervisor::rotate_mcp_root(payload, backend, &profile, command, &previous).is_err());
+    assert_eq!(Signer::open(&profile)?.root_identity(), previous);
+    drop(signer);
+    owner.stop()?;
+    let receipt = supervisor::rotate_mcp_root(payload, backend, &profile, command, &previous)?;
+    assert_ne!(receipt.root, previous);
+    assert_eq!(receipt.command, command);
+    let reopened = Signer::open(&profile)?;
+    assert!(!reopened.verify(id, &digest, &secret)?);
+    assert_ne!(reopened.derive(id, &digest)?, secret);
+    assert_eq!(*reopened.derive_desktop_enrollment(b"retained enrollment context")?, *enrollment);
+    assert_eq!(fs::read(profile.join("native-mcp.key"))?, original);
+    drop(reopened);
+    assert!(supervisor::rotate_mcp_root(payload, backend, &profile,
+        "22222222222222222222222222222222", &previous).is_err());
+    let replay = supervisor::rotate_mcp_root(payload, backend, &profile, command, &previous)?;
+    assert!(replay == receipt);
+    let owner = NativeSupervisor::start(payload, backend, &profile)?;
+    run_client(&owner.health()?.instance, "mcp-rotation-check")?;
+    owner.stop()?;
+    assert!(supervisor::rotate_mcp_root(payload, backend, &profile, command, &previous)? == receipt);
+    let owner = NativeSupervisor::start(payload, backend, &profile)?;
+    run_client(&owner.health()?.instance, "mcp-rotation-replay")?;
+    owner.stop()?;
+    assert!(!profile.join("backend.sock").exists());
+    assert_eq!(supervisor::mcp_root_identity(&profile)?, receipt.root);
+
+    let interrupted = root.join("rotation-interrupted");
+    DirBuilder::new().mode(0o700).create(&interrupted)?;
+    let signer = Signer::open(&interrupted)?;
+    let initial = signer.root_identity();
+    let old_secret = signer.derive(id, &digest)?;
+    let proof = signer.derive_desktop_enrollment(b"existing proof")?;
+    drop(signer);
+    assert!(mcp_signing::rotate(&interrupted, command, &initial, || Err("declared lost revocation reply".into())).is_err());
+    let pending = fs::read(interrupted.join("native-mcp-root.pending"))?;
+    assert!(Signer::open(&interrupted).is_err());
+    assert!(mcp_signing::rotate(&interrupted, "22222222222222222222222222222222", &initial,
+        || panic!("foreign command reached revocation")).is_err());
+    assert_eq!(fs::read(interrupted.join("native-mcp-root.pending"))?, pending);
+    let first = mcp_signing::rotate(&interrupted, command, &initial, || Ok(()))?;
+    assert!(!Signer::open(&interrupted)?.verify(id, &digest, &old_secret)?);
+    let second_command = "22222222222222222222222222222222";
+    let second = mcp_signing::rotate(&interrupted, second_command, &first.root, || Ok(()))?;
+    assert_ne!(second.root, first.root);
+    assert!(mcp_signing::rotate(&interrupted, command, &initial, || panic!("replay revoked fresh work"))? == first);
+    assert_eq!(Signer::open(&interrupted)?.root_identity(), second.root);
+    fs::remove_file(interrupted.join("native-mcp-rotations").join(format!("{second_command}.json")))?;
+    assert!(Signer::open(&interrupted).is_err());
+    assert!(mcp_signing::rotate(&interrupted, second_command, &first.root, || panic!("committed rotation revoked twice"))? == second);
+    assert_eq!(*Signer::open(&interrupted)?.derive_desktop_enrollment(b"existing proof")?, *proof);
+    let current = interrupted.join("native-mcp-root.json");
+    fs::rename(&current, interrupted.join("retained-root"))?;
+    assert!(Signer::open(&interrupted).is_err());
+    fs::rename(interrupted.join("retained-root"), &current)?;
+    let mut partial = OpenOptions::new().write(true).create_new(true).mode(0o600)
+        .open(interrupted.join("native-mcp-root.pending"))?;
+    partial.write_all(b"{")?;
+    partial.sync_all()?;
+    assert!(Signer::open(&interrupted).is_err());
+    assert!(mcp_signing::rotate(&interrupted, "33333333333333333333333333333333", &second.root, || panic!("partial record reached revocation")).is_err());
+    println!("PASS: explicit native/Go/PG root rotation revokes admitted staged/active capabilities without renewing old runs; retired history, stable enrollment proofs, exclusive owner, expected-root CAS, original replay, pending/committed recovery, missing/partial refusal and joined retirement; no model/provider calls");
     Ok(())
 }
 

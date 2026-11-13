@@ -149,6 +149,15 @@ func (s *Store) RevokeMCPCapability(ctx context.Context, id string) error {
 	return casMCPCapabilityState(ctx, s.db, id, []string{factory.MCPCapabilityStaged, factory.MCPCapabilityActive}, factory.MCPCapabilityRevoked)
 }
 
+// RevokeOutstandingMCPCapabilities is an idempotent local maintenance effect.
+// The native owner first drains coordinator admission and holds the exclusive
+// profile lock. Rows and immutable scopes survive; revoked capabilities cannot
+// activate again, even if an old run is recovered after signing-root rotation.
+func (s *Store) RevokeOutstandingMCPCapabilities(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE factory_mcp_capabilities SET state='revoked' WHERE state IN ('active','staged')`)
+	return err
+}
+
 // RetireMCPCapability moves an active capability to retired after
 // terminal settlement and confirmed native retirement. Revoked rows
 // stay revoked; retirement never reactivates.

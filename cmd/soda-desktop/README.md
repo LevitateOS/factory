@@ -41,6 +41,37 @@ It stages the fixed `soda-factory-muse` connector beside `soda-desktop`; keep bo
 files together. This helper uses Muse's existing login; the native tool owner
 can acquire the current verified executable in Factory's private cache.
 
+### MCP signing-root maintenance
+
+Quit the selected app normally before maintenance. The profile's exclusive
+supervisor lock refuses a running app or competing controller. No GitHub/Muse
+login or developer mode is needed; authority is the native profile owner.
+
+```sh
+factory --profile /home/USER/PROFILE --mcp-root-status
+factory --profile /home/USER/PROFILE \
+  --rotate-mcp-root "$command_id" --expected-root "$root"
+```
+
+Choose a fresh32-character lowercase hexadecimal `command_id` for an intentional
+new rotation, and capture `root` from status. Keep both values for recovery. The
+command starts only private storage/backend, drains admission and durably revokes
+all staged/active MCP capabilities before publishing the new key. It starts no
+account, execution intake, inference or remote write. Revoked old runs cannot
+gain authority under the new root; run/effect receipts, deadlines and accounting
+are preserved rather than settled or renewed by maintenance.
+
+The original `native-mcp.key` and its identity remain the enrollment seed, so
+existing Fountain proofs are unchanged. Only the MCP root changes. A nonsecret
+receipt records command/previous/new root in `native-mcp-rotations/`.
+An interrupted pending rotation fences normal startup. Recover with the exact
+original command and expected root; an unknown local revocation reply repeats
+only idempotent revocation. A completed command replays its receipt without
+rotating again or revoking later work. Stale roots, different pending commands
+and damaged/missing committed keys refuse. Do not remove pending records or
+generate replacement commands to bypass those refusals. After successful
+maintenance, launch the app normally; no old spending authority is renewed.
+
 ### Live developer inspection and control
 
 Normal release bundles include `factory-dev`. Quit the selected app normally,

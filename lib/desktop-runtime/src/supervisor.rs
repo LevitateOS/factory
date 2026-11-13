@@ -886,3 +886,48 @@ pub fn prepare_profile(profile: &Path) -> Result<()> {
         .map_err(|_| "native profile directory is unavailable")?;
     private_dir(profile).map_err(|error| error.to_string())
 }
+
+/// Owner-only offline maintenance. A running app or competing maintenance owner
+/// keeps the same supervisor lock, so this never replaces an in-memory signer.
+pub fn mcp_root_identity(profile: &Path) -> Result<String> {
+    private_dir(profile).map_err(|_| "native MCP profile unavailable")?;
+    let lock = private_file(&profile.join("supervisor.lock"), false)
+        .map_err(|_| "native supervisor lock unavailable")?;
+    lock.try_lock().map_err(|_| "stop the app before MCP root maintenance")?;
+    Ok(crate::mcp_signing::Signer::open(profile)?.root_identity())
+}
+
+pub fn rotate_mcp_root(payload: &Path, backend: &Path, profile: &Path,
+    command: &str, expected_root: &str) -> Result<crate::mcp_signing::RootRotation> {
+    // Start only private storage/backend, retaining their ordinary ownership
+    // locks. No product, collaboration, account, broker recovery or execution
+    // intake owner is started. Existing run/effect receipts remain untouched.
+    let mut children = Children::start(payload, backend, profile)?;
+    let result = (|| {
+        let ready = children.health()?;
+        crate::mcp_signing::rotate(profile, command, expected_root, || {
+            let body = serde_json::to_vec(&serde_json::json!({"command": command}))
+                .map_err(|_| "native MCP maintenance request invalid")?;
+            let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()
+                .map_err(|_| "native MCP maintenance runtime unavailable")?;
+            let response = runtime.block_on(soda_unix_http::request_authenticated_async(
+                &profile.join("backend.sock"), "POST", "/api/native/execution/mcp-retire",
+                "soda-native", &body, &children.key,
+                &[("x-soda-native-instance", &ready.instance)], Duration::from_secs(10),
+                Limits { header_bytes: 4096, body_bytes: 512 },
+            )).map_err(|_| "native MCP revocation reply unknown; recover the original command")?;
+            let value: serde_json::Value = serde_json::from_slice(&response.body)
+                .map_err(|_| "native MCP revocation reply invalid")?;
+            if response.status != 200 || value != serde_json::json!({"command":command,"status":"revoked"}) {
+                return Err("native MCP revocation unconfirmed; recover the original command".into());
+            }
+            Ok(())
+        })
+    })();
+    let stopped = children.stop();
+    match (result, stopped) {
+        (Ok(receipt), Ok(())) => Ok(receipt),
+        (Err(error), Ok(())) => Err(error),
+        (_, Err(_)) => Err("native MCP maintenance retirement unconfirmed; inspect the original command receipt".into()),
+    }
+}

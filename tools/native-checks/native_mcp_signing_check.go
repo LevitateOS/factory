@@ -46,6 +46,122 @@ type syntheticCapability struct{ current factory.MCPCapability }
 
 type pendingProductJudgment struct{}
 
+func checkMCPRotation(profile, instance, mode string) error {
+	seed := mode == "mcp-rotation-seed"
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for index, state := range []string{factory.MCPCapabilityActive, factory.MCPCapabilityStaged, factory.MCPCapabilityRetired} {
+		id := strings.Repeat(string(rune('a'+index)), 32)
+		cap := factory.MCPCapability{ID: id, RunID: id, AssignmentID: id, Generation: 1,
+			Profile: factory.MCPProfileBuilder, Subject: "synthetic-subject", Repository: 1, Project: "p0123456789abcdef01234567",
+			PreparationDigest: strings.Repeat("a", 64), SourceDigest: strings.Repeat("b", 64),
+			AcceptedRevision: strings.Repeat("c", 40), Authority: strings.Repeat("d", 64), DeadlineUnix: 4000000000, State: factory.MCPCapabilityStaged}
+		if seed {
+			if err = db.StageMCPCapability(ctx, cap); err != nil {
+				return err
+			}
+			if state != factory.MCPCapabilityStaged {
+				if err = db.ActivateMCPCapability(ctx, id, cap.Generation, id, id, cap.Authority, time.Now().Unix(), false); err != nil {
+					return err
+				}
+			}
+			if state == factory.MCPCapabilityRetired {
+				if err = db.RetireMCPCapability(ctx, id); err != nil {
+					return err
+				}
+			}
+			if index == 0 {
+				secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, cap)
+				if err != nil {
+					return err
+				}
+				if err = os.WriteFile(filepath.Join(profile, "rotation-old-secret"), []byte(secret), 0600); err != nil {
+					return err
+				}
+			}
+		} else {
+			actual, readErr := db.GetMCPCapability(ctx, id)
+			if readErr != nil {
+				return readErr
+			}
+			wanted := factory.MCPCapabilityRevoked
+			if state == factory.MCPCapabilityRetired {
+				wanted = state
+			}
+			if actual.State != wanted || actual.ScopeDigest() != cap.ScopeDigest() {
+				return errors.New("rotation lost state or immutable capability scope")
+			}
+			if secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, actual); err == nil || secret != "" {
+				return errors.New("old capability received new-root authority")
+			}
+			if index == 0 {
+				secret, err := os.ReadFile(filepath.Join(profile, "rotation-old-secret"))
+				if err != nil {
+					return err
+				}
+				if valid, err := factoryruntime.NativeMCPSecretVerifier(config, instance)(ctx, actual, string(secret)); err != nil || valid {
+					return errors.New("old capability token survived real native root rotation")
+				}
+			}
+			if err = db.StageMCPCapability(ctx, cap); err != nil {
+				return err
+			}
+			if err = db.ActivateMCPCapability(ctx, id, cap.Generation, id, id, cap.Authority, time.Now().Unix(), false); !errors.Is(err, store.ErrMCPCapabilityState) {
+				return errors.New("old run capability reactivated after root rotation")
+			}
+		}
+	}
+	if !seed {
+		fresh := factory.MCPCapability{ID: strings.Repeat("d", 32), RunID: strings.Repeat("d", 32), AssignmentID: strings.Repeat("d", 32), Generation: 1,
+			Profile: factory.MCPProfileBuilder, Subject: "fresh-synthetic-subject", Repository: 1, Project: "p0123456789abcdef01234567",
+			PreparationDigest: strings.Repeat("a", 64), SourceDigest: strings.Repeat("b", 64), AcceptedRevision: strings.Repeat("c", 40), Authority: strings.Repeat("d", 64), DeadlineUnix: 4000000000, State: factory.MCPCapabilityStaged}
+		if mode == "mcp-rotation-check" {
+			if err = db.StageMCPCapability(ctx, fresh); err != nil {
+				return err
+			}
+			if err = db.ActivateMCPCapability(ctx, fresh.ID, 1, fresh.RunID, fresh.AssignmentID, fresh.Authority, time.Now().Unix(), false); err != nil {
+				return err
+			}
+		}
+		actual, err := db.GetMCPCapability(ctx, fresh.ID)
+		if err != nil || actual.State != factory.MCPCapabilityActive {
+			return errors.New("rotation command replay revoked fresh authority")
+		}
+		secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, actual)
+		if err != nil {
+			return err
+		}
+		if valid, err := factoryruntime.NativeMCPSecretVerifier(config, instance)(ctx, actual, secret); err != nil || !valid {
+			return errors.New("new native root failed fresh capability derivation/verification")
+		}
+		connection, err := sql.Open("pgx", config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer connection.Close()
+		for _, table := range []string{"factory_runs", "factory_commands", "factory_usage"} {
+			var count int
+			if err = connection.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil {
+				return err
+			}
+			if count != 0 {
+				return errors.New("MCP maintenance changed unrelated work/accounting")
+			}
+		}
+	}
+	fmt.Println("PASS: real PostgreSQL MCP rotation preserves immutable scopes/history and refuses old-run reactivation; no inference, work or charges")
+	return nil
+}
+
 // Public scope from the connected Fountain fixture; credentials stay in Rust.
 type nativeControllerFixture struct {
 	Origin, Connection, Actor, Repository, Grant string
@@ -1275,6 +1391,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 4 && (os.Args[3] == "mcp-rotation-seed" || os.Args[3] == "mcp-rotation-check" || os.Args[3] == "mcp-rotation-replay") {
+		if err := checkMCPRotation(os.Args[1], os.Args[2], os.Args[3]); err != nil {
+			fmt.Fprintln(os.Stderr, "MCP rotation:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "check-builder-retirement" {
 		if err := builderRetirementFixture(); err != nil {
 			fmt.Fprintln(os.Stderr, "builder retirement:", err)

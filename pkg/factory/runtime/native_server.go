@@ -15,10 +15,12 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
+	"github.com/levitateos/factory/pkg/strictjson"
 )
 
 type nativePeerKey struct{}
@@ -125,6 +127,25 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 	key := []byte(hex.EncodeToString(config.IPCKey()))
 	mux := http.NewServeMux()
 	db := application.application.Store
+	// Profile-owner maintenance, not a worker/browser/product operation. Closing
+	// admission joins existing handlers before revocation. The native maintenance
+	// command never starts execution intake; normal service requires a restart.
+	mux.HandleFunc("/api/native/execution/mcp-retire", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Command string `json:"command"`
+		}
+		if r.Method != http.MethodPost || r.URL.RawQuery != "" || r.URL.ForceQuery ||
+			len(r.Header.Values("X-Soda-Native-Instance")) != 1 || r.Header.Get("X-Soda-Native-Instance") != instance ||
+			strictjson.Decode(http.MaxBytesReader(w, r.Body, 128), &input) != nil || !factory.ValidID(input.Command) {
+			nativeResponse(w, 400, map[string]string{"error": "invalid_mcp_maintenance"})
+			return
+		}
+		if application.Close() != nil || db.RevokeOutstandingMCPCapabilities(r.Context()) != nil {
+			nativeResponse(w, 503, map[string]string{"error": "mcp_retirement_unavailable"})
+			return
+		}
+		nativeResponse(w, 200, map[string]string{"command": input.Command, "status": "revoked"})
+	})
 	worker := nativeWorkerMCP(lifetime, NativeExecution{Config: config, Instance: instance, Store: db})
 	mux.Handle("/api/native/execution/mcp", application.application.Coordinator.AdmitHTTP(worker))
 	mux.Handle("/api/native/execution/launch-admission", application.application.Coordinator.AdmitHTTP(nativeLaunchAdmission(NativeExecution{Config: config, Instance: instance, Store: db})))
