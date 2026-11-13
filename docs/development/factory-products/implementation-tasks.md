@@ -3337,6 +3337,23 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
+**Current recovery slice (2026-11-13): INCOMPLETE.** Installed108's owned backend
+and PostgreSQL postmaster were killed separately; the rendered Retry control
+restored Ready each time with all44 runs,217 commands and192 usage rows unchanged.
+Lost Retry/Quit replies were resolved by state/process observation, never repeated.
+The owner revoked `sodaos`'s OAuth grant: installed111 refused repository access;
+fresh device consent restored the same connection and catalog without changing
+the original journals. Normal Quit joined PostgreSQL; an actual guest reboot
+changed its boot identity. Private receipts: `/home/vince/Projects/factory-installed-recovery-20261113/`.
+Shared allowance settings now expose per-role permission and retain the saved
+minute limit when selecting a source. TypeScript/Lit, production UI and native
+builds pass; the existing broad native owner-policy fixture needs its current
+readiness expectations reconciled and does not yet qualify this change.
+Next install the changed UI, reopen the original profile/keyring after reboot,
+then prove real source/role withdrawal, pending selection and worker retirement.
+No inference, new delivery command or publication ran in this slice. Original
+profiles, uncertain outcomes and merged candidates remain preserved.
+
 **INCOMPLETE — source-only continuation (2026-11-10), unverified.** GitHub login
 refresh now rejects a reply from an older runtime generation before replacing
 the displayed sign-in state. Runtime-status failure also retires the Fountain

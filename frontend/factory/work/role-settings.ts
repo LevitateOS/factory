@@ -239,6 +239,8 @@ export class SodaFactoryRoleSettings extends LitElement {
     automationReviewer: {state: true},
     automaticExternalPulls: {state: true},
     fundingSource: {state: true},
+    fundingRoles: {state: true},
+    fundingMinutes: {state: true},
     busy: {state: true},
     message: {state: true},
   };
@@ -251,6 +253,8 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private automationReviewer: boolean;
   declare private automaticExternalPulls: boolean;
   declare private fundingSource: string;
+  declare private fundingRoles: string[];
+  declare private fundingMinutes: string;
   private current: RoleContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
@@ -262,6 +266,8 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.automationReviewer = false;
     this.automaticExternalPulls = false;
     this.fundingSource = '';
+    this.fundingRoles = Object.keys(roleNames);
+    this.fundingMinutes = '30';
     this.message = '';
   }
   protected createRenderRoot() {
@@ -284,6 +290,8 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.view = this.roles = undefined;
     this.automaticExternalPulls = false;
     this.fundingSource = '';
+    this.fundingRoles = Object.keys(roleNames);
+    this.fundingMinutes = '30';
     this.busy = false;
     this.message = '';
     if (context) void this.refresh();
@@ -363,6 +371,12 @@ export class SodaFactoryRoleSettings extends LitElement {
   private canWithdraw(account: Account | undefined, actor = this.current?.actor) {
     return !!account && account.native && account.active && account.owner !== undefined && account.owner === actor;
   }
+  private selectFundingSource(connection: string) {
+    this.fundingSource = connection;
+    const stored = this.view?.accounts.find(account => account.connection === connection);
+    this.fundingRoles = stored ? [...stored.roles] : Object.keys(roleNames);
+    this.fundingMinutes = stored ? String(stored.minutes) : '30';
+  }
   private async saveFunding(event: SubmitEvent) {
     event.preventDefault();
     const context = this.current,
@@ -378,6 +392,8 @@ export class SodaFactoryRoleSettings extends LitElement {
     const source = view.sources.find((source) => source.connection === connection);
     if (!Number.isSafeInteger(minutes) || minutes < 1 || minutes > 10080) return;
     const stored = view.accounts.find((account) => account.connection === connection);
+    const roles = active ? values.getAll('allowed_roles').map(String) : stored?.roles ?? Object.keys(roleNames);
+    if (!roles.length || new Set(roles).size !== roles.length || roles.some(role => !Object.hasOwn(roleNames, role))) return;
     if (active ? !source?.allowanceAvailable : !this.canWithdraw(stored, context.actor)) return;
     if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) return;
     this.busy = true;
@@ -390,7 +406,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           signal,
           body: JSON.stringify({
             expected_revision: stored?.revision ?? 0,
-            roles: Object.keys(roleNames),
+            roles,
             allowance_minutes: minutes,
             active,
           }),
@@ -406,11 +422,12 @@ export class SodaFactoryRoleSettings extends LitElement {
       check(
         account?.active === active &&
           account.minutes === minutes &&
-          account.roles.length === Object.keys(roleNames).length &&
-          Object.keys(roleNames).every((role) => account.roles.includes(role))
+          account.roles.length === roles.length &&
+          roles.every((role) => account.roles.includes(role))
       );
       if (this.live(context, signal)) {
         this.view = confirmed;
+        this.selectFundingSource(connection);
         this.message = active
           ? 'Source allowance saved. Select it separately for each role.'
           : 'Source allowance withdrawn. Existing work may still need retirement.';
@@ -628,7 +645,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                 <label
                   >Source
                   <select name="source" aria-label="Spending source" required
-                    @change=${(event: Event) => { this.fundingSource = (event.target as HTMLSelectElement).value; }}>
+                    @change=${(event: Event) => this.selectFundingSource((event.target as HTMLSelectElement).value)}>
                     <option value="" .selected=${!this.fundingSource}>Choose a source</option>
                     ${this.fundingSource && !view.sources.some(source => source.connection === this.fundingSource) && !view.accounts.some(account => account.connection === this.fundingSource && this.canWithdraw(account))
                       ? html`<option .value=${this.fundingSource} .selected=${true} disabled>Selected source unavailable</option>` : ''}
@@ -646,13 +663,27 @@ export class SodaFactoryRoleSettings extends LitElement {
                     min="1"
                     max="10080"
                     step="1"
-                    value="30"
+                    .value=${this.fundingMinutes}
+                    @input=${(event: Event) => { this.fundingMinutes = (event.target as HTMLInputElement).value; }}
                     required
                 /></label>
                 <p>
                   This repository shares the allowance across Coding, Review and Judgments. It is Factory's run-time allowance, not
                   a provider invoice limit.
                 </p>
+                <fieldset>
+                  <legend>Allow spending for</legend>
+                  ${Object.entries(roleNames).map(([role, name]) => html`<label>
+                    <input type="checkbox" name="allowed_roles" value=${role}
+                      .checked=${this.fundingRoles.includes(role)}
+                      @change=${(event: Event) => {
+                        this.fundingRoles = (event.target as HTMLInputElement).checked
+                          ? [...this.fundingRoles, role]
+                          : this.fundingRoles.filter(selected => selected !== role);
+                      }} />${name}
+                  </label>`)}
+                  <p>Removing a role withdraws its spending permission. Withdraw the source allowance to stop all roles.</p>
+                </fieldset>
                 ${view.sources.map((source) => source.tool
                   ? html`<div role="status">
                       <p>${toolStatusLabels[source.tool.state]}</p>
@@ -665,7 +696,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                 ${view.sources.some((source) => !source.available) ? html`<p>Execution through this source is currently unavailable. You can save its allowance and role choices.</p>` : ''}
                 ${this.fundingSource && !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)
                   ? html`<p>Source allowance is unavailable. Check the selected controller and workspace permission, then refresh roles.</p>` : ''}
-                <button type="submit" value="save" ?disabled=${!view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)}>Save source allowance</button>
+                <button type="submit" value="save" ?disabled=${!this.fundingRoles.length || !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)}>Save source allowance</button>
                 <button type="submit" value="withdraw" ?disabled=${!view.accounts.some(account => account.connection === this.fundingSource && this.canWithdraw(account))}>Withdraw source allowance</button>
               </fieldset>
             </form>`

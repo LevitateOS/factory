@@ -1,11 +1,13 @@
 (async () => {
   const invoke = window.__TAURI__.core.invoke;
   const assert = (ok, why) => { if (!ok) throw Error(why); };
+  let waiting = '';
   const until = async (check, why) => {
+    waiting = why;
     const end = Date.now() + 45000;
     while (!await check()) {
-      assert(Date.now() < end, 'Owner policy deadline: ' + why);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      assert(Date.now() < end, 'Owner policy deadline: ' + why + '; ' + document.querySelector('#runtime-placement')?.textContent);
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   };
   const button = (root, text) => [...root.querySelectorAll('button')].find(node => node.textContent.trim() === text);
@@ -33,7 +35,7 @@
       return {status: response.status, body: await response.json()};
     };
     const status = async () => {
-      const response = await api('GET', path); assert(response.status === 200, 'settings read'); return response.body;
+      const response = await api('GET', path); assert(response.status === 200, `settings read (${waiting}, HTTP ${response.status})`); return response.body;
     };
     const idle = () => !roles.busy;
     const click = async text => { await until(() => idle() && button(roles, text) && !button(roles, text).disabled, text); button(roles, text).click(); await until(idle, text + ' joined'); };
@@ -49,6 +51,9 @@
     input(roles, 'Required CI checks', 'fixture/check');
     assert(before.policy_options.merge_methods.includes('squash'), 'observed squash option');
     input(roles, 'Automation merge method', 'squash');
+    input(roles, 'Time limit per run in minutes', '15');
+    input(roles, 'Maximum independent reviews per attempt', '2');
+    input(roles, 'Maximum corrections per attempt', '1');
     const consent = [...roles.querySelectorAll('input[type=checkbox]')].find(node => node.closest('label')?.textContent.includes('for repository automation'));
     assert(consent && !consent.checked, 'account consent default'); consent.click();
     await click('Save disabled automation policy');
@@ -61,8 +66,8 @@
     const limit = [...document.querySelectorAll('label')].find(node => node.textContent.includes('Maximum simultaneous agent runs'))?.querySelector('input');
     assert(limit, 'run limit input'); limit.value = '2'; runLimit.click();
     await until(async () => (await status()).capacity?.max_concurrent_runs === 2, 'capacity readback');
-    await until(() => button(document, 'Use this computer') && !button(document, 'Use this computer').disabled, 'controller observation settled');
-    button(document, 'Use this computer').click();
+    await until(() => button(document.querySelector('#runtime-placement'), 'Use this computer') && !button(document.querySelector('#runtime-placement'), 'Use this computer').disabled, 'controller observation settled');
+    button(document.querySelector('#runtime-placement'), 'Use this computer').click();
     await until(async () => (await api('GET', `${path}/placement`)).body.placement?.state === 'active', 'controller readback');
     await until(() => button(document, 'Allow this repository to use this computer') && !button(document, 'Allow this repository to use this computer').disabled, 'current local consent');
     const permission = button(document, 'Allow this repository to use this computer');
@@ -78,14 +83,14 @@
     const firstPlacement = (await api('GET', `${path}/placement`)).body.placement;
     assert((await api('PUT', `${path}/placement`, {state: 'active', expected_revision: firstPlacement.revision, runtime: 'f'.repeat(32)})).status === 400, 'browser chose another controller');
     assert((await api('PUT', `${path}/placement`, {state: 'retiring', expected_revision: firstPlacement.revision})).status === 200, 'competing placement transition');
-    await until(() => button(document, 'Retire controller') && !button(document, 'Retire controller').disabled, 'stale controller action');
-    button(document, 'Retire controller').click();
+    await until(() => button(document.querySelector('#runtime-placement'), 'Retire controller') && !button(document.querySelector('#runtime-placement'), 'Retire controller').disabled, 'stale controller action');
+    button(document.querySelector('#runtime-placement'), 'Retire controller').click();
     await until(() => document.querySelector('#runtime-placement').textContent.includes('could not be confirmed'), 'stale placement refused');
-    button(document, 'Refresh controller').click();
-    await until(() => button(document, 'Finish retirement') && !button(document, 'Finish retirement').disabled, 'current retirement observation');
-    button(document, 'Finish retirement').click();
-    await until(() => button(document, 'Use this computer') && !button(document, 'Use this computer').disabled, 'inactive controller');
-    button(document, 'Use this computer').click();
+    button(document.querySelector('#runtime-placement'), 'Refresh controller').click();
+    await until(() => button(document.querySelector('#runtime-placement'), 'Finish retirement') && !button(document.querySelector('#runtime-placement'), 'Finish retirement').disabled, 'current retirement observation');
+    button(document.querySelector('#runtime-placement'), 'Finish retirement').click();
+    await until(() => button(document.querySelector('#runtime-placement'), 'Use this computer') && !button(document.querySelector('#runtime-placement'), 'Use this computer').disabled, 'inactive controller');
+    button(document.querySelector('#runtime-placement'), 'Use this computer').click();
     await until(async () => {
       const next = (await api('GET', `${path}/placement`)).body.placement;
       return next.state === 'active' && BigInt(next.generation) === BigInt(firstPlacement.generation) + 1n;
@@ -125,6 +130,24 @@
     assert(roles.textContent.includes('could not be confirmed'), 'stale allowance was not refused');
     assert((await status()).sponsorships[0].allowance_minutes === 20, 'conflict overwrote current allowance');
     await click('Refresh roles');
+    input(roles, 'Spending source', sourceID);
+    await roles.updateComplete;
+    assert(roles.querySelector('[aria-label="Source allowance in minutes"]').value === '20', 'editing a saved source reset its minute limit');
+    const codingAllowance = roles.querySelector('input[name="allowed_roles"][value="soda-coder"]');
+    assert(codingAllowance?.checked, 'saved Coding permission missing');
+    codingAllowance.click();
+    await click('Save source allowance');
+    const limited = await status();
+    assert(limited.sponsorships[0].active && limited.sponsorships[0].allowance_minutes === 20 &&
+      !limited.sponsorships[0].roles.includes('soda-coder') && limited.sponsorships[0].roles.includes('soda-reviewer') &&
+      limited.sponsorships[0].roles.includes('factory-judgment') && limited.policy.roles['soda-coder'].account === sourceID,
+      'role withdrawal changed the shared limit, other roles or selected source');
+    roles.querySelector('input[name="allowed_roles"][value="soda-coder"]').click();
+    await click('Save source allowance');
+    assert((await status()).sponsorships[0].roles.length === 3, 'explicit role permission restoration failed');
+    for (const checkbox of roles.querySelectorAll('input[name="allowed_roles"]')) checkbox.click();
+    await until(() => button(roles, 'Save source allowance').disabled && !button(roles, 'Withdraw source allowance').disabled, 'empty active role grant refused');
+    input(roles, 'Spending source', sourceID);
     const current = await status(), p = current.policy;
     const actor = value => { const {kind, ...ref} = value; return ref; };
     const change = {expected_revision: p.revision, enabled: p.enabled, paused: p.paused, target_branch: p.target_branch, merge_method: p.merge_method,
