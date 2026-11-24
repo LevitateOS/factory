@@ -32,7 +32,7 @@
 }
 soda-factory-feed {
   display: block;
-  max-width: 880px;
+  max-width: 1040px;
   margin-inline: auto;
 }
 .soda-feed {
@@ -3509,4 +3509,101 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
 }
 .soda-feed .soda-feed-outcome[data-tone='blocked'] .soda-feed-outcome-who {
   color: var(--soda-page-text);
+}
+
+/* Needs me rail: the list stays one column; the rail sits to its right on wide
+   screens and above the list on narrow ones. */
+.soda-feed > :not(.soda-feed-body) {
+  max-width: 700px;
+}
+.soda-feed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: stretch;
+}
+.soda-feed-main {
+  min-width: 0;
+}
+.soda-feed-needs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 28px;
+  border: 1px solid var(--soda-page-text);
+  background: var(--soda-page-surface);
+  min-width: 0;
+}
+.soda-feed-needs h2 {
+  margin: 0;
+  font: var(--soda-font-heading);
+  font-size: 22px;
+  line-height: 1.2;
+}
+.soda-feed-needs ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.soda-feed-needs p {
+  margin: 0;
+  color: var(--soda-page-muted);
+}
+.soda-feed-needs a {
+  display: flex;
+  gap: 10px;
+  color: var(--soda-page-text);
+  text-decoration: none;
+}
+.soda-feed-needs a:hover .soda-feed-needs-hl {
+  text-decoration: underline;
+}
+.soda-feed-needs-face {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--soda-feed-neu-bg);
+  font-weight: 600;
+}
+.soda-feed-needs-face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.soda-feed-needs-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.soda-feed-needs-hl {
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.soda-feed-needs-meta {
+  font: var(--soda-font-caption);
+  color: var(--soda-page-muted);
+}
+@media (min-width: 1000px) {
+  .soda-feed-body {
+    display: grid;
+    grid-template-columns: minmax(0, 700px) minmax(240px, 300px);
+    align-items: start;
+    gap: 28px;
+  }
+  .soda-feed-needs {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 20px;
+  }
 }

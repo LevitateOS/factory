@@ -598,6 +598,72 @@ function sourceLinks(entry: FeedEntry, repository: FeedRepositoryRef): {label: s
   return links;
 }
 
+function entryRole(entry: FeedEntry): string {
+  return (
+    roleLabel(entry.actor && !/^\d+$/.test(entry.actor) ? entry.actor : undefined) ??
+    (entry.kind === 'record' ? 'Factory' : entry.post?.parentId ? 'Reply' : 'Post')
+  );
+}
+
+export interface NeedsMeRow {
+  readonly href: string;
+  readonly headline: string;
+  readonly role: string;
+  readonly avatarFile: string | undefined;
+  readonly name: string;
+  readonly at: number | undefined;
+}
+
+// needsMeRows lists the posts whose thread state waits for the viewer, in feed order.
+export function needsMeRows(items: readonly FeedThreadItem[]): NeedsMeRow[] {
+  return items
+    .filter((item) => item.state === 'needs_you')
+    .map(({entry, state}) => {
+      const role = entryRole(entry);
+      return {
+        href: '#feed-' + feedEntryKey(entry).replace(':', '-'),
+        headline: describePostLine(entry, state).headline,
+        role,
+        avatarFile: feedRolePortraits[role],
+        name: entry.author ?? role,
+        at: entry.at,
+      };
+    });
+}
+
+// renderNeedsMe is the rail beside the list: one row per waiting post, each a
+// link that jumps to the post. More may wait on pages not loaded yet.
+export function renderNeedsMe(
+  rows: readonly NeedsMeRow[],
+  ageText: (at: number) => string,
+  assetBase: string,
+  older: boolean
+): TemplateResult {
+  return html`<aside class="soda-feed-needs" aria-label="Needs me">
+    <h2>Needs me${rows.length ? html` <span>· ${rows.length}</span>` : ''}</h2>
+    ${
+      rows.length
+        ? html`<ul>
+            ${rows.map(
+              (row) => html`<li>
+                <a href=${row.href}>
+                  <span class="soda-feed-needs-face" aria-hidden="true"
+                    >${row.avatarFile ? html`<img src=${assetBase + row.avatarFile} alt="" width="28" height="28" loading="lazy" />` : row.name.slice(0, 1).toUpperCase()}</span
+                  >
+                  <span class="soda-feed-needs-text"
+                    ><span class="soda-feed-needs-hl">${row.headline}</span
+                    ><span class="soda-feed-needs-meta">${row.role} · waits for you${row.at ? ' · ' + ageText(row.at) : ''}</span></span
+                  >
+                </a>
+              </li>`
+            )}
+          </ul>`
+        : html`<p>Nothing needed from you</p>`
+    }
+    ${older ? html`<p class="soda-feed-needs-older">Older entries are not loaded, so more may be waiting.</p>` : ''}
+  </aside>`;
+}
+
 // describeFeedPost composes one entry's card from its recorded facts.
 export function describeFeedPost(
   entry: FeedEntry,
@@ -610,9 +676,7 @@ export function describeFeedPost(
   const type = cardType(entry);
   const recorded = entry.kind === 'record';
   const name = entry.author ?? entry.post?.authorName ?? (recorded ? 'Recorded work' : 'Discussion post');
-  const role =
-    roleLabel(entry.actor && !/^\d+$/.test(entry.actor) ? entry.actor : undefined) ??
-    (recorded ? 'Factory' : entry.post?.parentId ? 'Reply' : 'Post');
+  const role = entryRole(entry);
   const state = thread.state;
   const line = describePostLine(entry, state);
   const key = feedEntryKey(entry);

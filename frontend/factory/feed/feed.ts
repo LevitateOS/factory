@@ -31,6 +31,8 @@ import {
   renderComposer,
   renderFeedPost,
   renderOutcome,
+  needsMeRows,
+  renderNeedsMe,
 } from './feed-view.js';
 import {renderFeedCommunication} from './feed-communication.js';
 import type {FeedArtifactContext} from './feed-artifact.js';
@@ -1690,9 +1692,21 @@ export class SodaFactoryFeed extends LitElement {
     if (entries.length === 0) return this.renderEmptyFeed();
     // Small steps fold under the post they belong to; running work is one
     // post that updates in place.
-    return html`<div class="soda-feed-list">
+    const items = threadFeed(entries, this.focusedEntry !== undefined);
+    // The rail reads the loaded page only; older pages may hold more.
+    const rail = this.accessFailure || this.focusedEntry
+      ? ''
+      : renderNeedsMe(
+          needsMeRows(items),
+          relativeReplyTime,
+          this.current?.transport.assetBase ?? '',
+          this.view.truncated && this.view.next !== ''
+        );
+    return html`<div class="soda-feed-body">
+      ${rail}
+      <div class="soda-feed-main"><div class="soda-feed-list">
         ${repeat(
-          threadFeed(entries, this.focusedEntry !== undefined),
+          items,
           (item) => feedEntryKey(item.entry),
           (item) => {
             const key = feedEntryKey(item.entry);
@@ -1725,7 +1739,7 @@ export class SodaFactoryFeed extends LitElement {
               Load older entries
             </button>`
           : ''
-      }`;
+      }</div></div>`;
   }
 
   private renderEmptyFeed() {
