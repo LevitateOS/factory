@@ -1515,19 +1515,20 @@ soda-factory-library {
   margin-bottom: -5px;
 }
 .soda-feed-component-caption > .soda-action-icon {
-  color: var(--soda-feed-role);
-  width: 15px;
-  height: 15px;
-  flex-basis: 15px;
+  color: currentColor;
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
 }
 .soda-feed-action :is(section, div, li) {
   min-width: 0;
 }
 .soda-feed-card .soda-feed-action :is(h4, h5) {
   font: var(--soda-font-label);
-  font-size: 12px;
-  line-height: 1.5;
-  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 18px;
+  margin: 0;
+  color: var(--soda-page-muted);
 }
 .soda-feed-card .soda-feed-action p {
   margin: 0;
@@ -1564,55 +1565,48 @@ soda-factory-library {
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: start;
   gap: 10px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--soda-feed-edge);
-}
-.soda-action-items > li:last-child {
-  border-bottom: 0;
+  padding: 3px 0;
 }
 .soda-action-items strong {
-  display: block;
-  font: var(--soda-font-label);
-  font-size: 13px;
+  font: var(--soda-font-meta);
+  font-weight: 600;
 }
 .soda-feed-card .soda-action-items p {
   font: var(--soda-font-meta);
-  font-size: 12px;
-  line-height: 1.5;
-  margin-top: 3px;
+  margin-top: 0;
   color: var(--soda-page-muted);
 }
 .soda-action-item-mark {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 22px;
-  color: var(--soda-feed-role);
-  font: var(--soda-font-caption);
+  justify-content: flex-start;
+  min-height: 21px;
+  color: var(--soda-page-muted);
+  font: 500 13px/20px var(--soda-font-mono-family);
   font-variant-numeric: tabular-nums;
 }
 .soda-action-state {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  margin-top: 5px;
-  font: var(--soda-font-caption);
+  gap: 5px;
+  margin-inline-start: 6px;
+  font: var(--soda-font-meta);
   color: var(--soda-page-muted);
 }
 .soda-action-state > span {
   font-size: 13px;
 }
 .soda-action-state[data-tone='attention'] {
-  color: var(--soda-page-warning);
+  color: var(--soda-feed-bad);
 }
 .soda-action-state[data-tone='positive'] {
-  color: var(--soda-page-success);
+  color: var(--soda-feed-ok);
 }
 .soda-action-count {
   display: inline-block;
-  margin-inline-start: 8px;
+  margin-inline-start: 6px;
+  font: 500 12px/18px var(--soda-font-mono-family);
   font-variant-numeric: tabular-nums;
-  font-weight: 400;
   color: var(--soda-page-muted);
 }
 .soda-action-list ul {
@@ -1620,7 +1614,7 @@ soda-factory-library {
   margin: 0;
 }
 .soda-action-list li {
-  padding-block: 4px;
+  padding-block: 0;
   font: var(--soda-font-meta);
   line-height: 1.5;
 }
@@ -1641,30 +1635,26 @@ soda-factory-library {
   margin-bottom: 8px;
 }
 .soda-action-reason {
-  padding-top: 12px;
+  padding-top: 0;
 }
 .soda-feed-card .soda-action-reason p {
-  font-size: 12px;
-  color: var(--soda-page-muted);
+  font-size: 14px;
+  color: var(--soda-page-text);
 }
 .soda-action-next {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  display: flex;
   gap: 8px;
-  margin-top: 12px;
-  padding: 12px 0 0;
-  border-top: 1px solid var(--soda-feed-edge);
+  margin-top: 0;
+  padding: 10px 12px;
+  background: var(--soda-page-selected);
 }
 .soda-action-next > span {
-  color: var(--soda-feed-role);
-  font-size: 20px;
-  line-height: 1;
-}
-.soda-feed-card .soda-action-next h4 {
-  margin-bottom: 2px;
+  color: var(--soda-page-text);
+  font-size: 15px;
+  line-height: 1.5;
 }
 .soda-feed-card .soda-action-next p {
-  font-size: 13px;
+  font-size: 14px;
 }
 .soda-action-brief {
   position: relative;
@@ -1803,15 +1793,14 @@ soda-factory-library {
   gap: 12px;
 }
 .soda-action-balance > section {
-  padding: 12px 14px;
-  background: var(--soda-feed-tint);
-  border: 1px solid var(--soda-feed-edge);
+  padding: 10px 12px;
+  background: var(--soda-page-selected);
 }
 .soda-action-balance > .soda-action-done {
-  border-top: 2px solid var(--soda-page-success);
+  background: var(--soda-feed-ok-bg);
 }
-.soda-action-balance > .soda-action-pending {
-  border-top: 2px solid var(--soda-page-warning);
+.soda-feed-card .soda-action-balance > .soda-action-done h4 {
+  color: var(--soda-feed-ok);
 }
 .soda-action-work > .soda-action-items {
   margin-top: 10px;
@@ -1866,20 +1855,18 @@ soda-factory-library {
 .soda-action-comparison {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 .soda-action-comparison > section {
-  padding: 12px 14px;
-  border: 1px solid var(--soda-feed-edge);
-}
-.soda-action-comparison [data-side='before'] {
-  background: var(--soda-feed-tint);
+  padding: 10px 12px;
+  border: 1px solid var(--soda-feed-line);
 }
 .soda-action-comparison [data-side='after'] {
-  border-inline-start: 2px solid var(--soda-feed-role);
+  border-color: var(--soda-page-text);
 }
 .soda-action-arrow {
-  color: var(--soda-page-muted);
+  color: var(--soda-page-text);
+  font: 500 18px/1 var(--soda-font-mono-family);
   text-align: center;
   transform: rotate(90deg);
   align-self: center;
@@ -1916,17 +1903,16 @@ soda-factory-library {
   padding: 4px 0;
 }
 .soda-action-source {
-  border: 1px solid var(--soda-feed-edge);
+  border: 1px solid var(--soda-page-edge);
   overflow: hidden;
-  background: #121416;
-  color: #e5e7eb;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
 }
 .soda-action-source > header {
-  padding: 9px 12px;
-  background: #202326;
-  color: #e5e7eb;
-  border-bottom: 1px solid #414448;
-  font: var(--soda-font-caption);
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--soda-page-edge);
+  font: 500 13px/20px var(--soda-font-mono-family);
 }
 .soda-action-source > header > span {
   display: flex;
@@ -1936,33 +1922,34 @@ soda-factory-library {
   margin: 0;
   color: inherit;
 }
+.soda-action-source > header strong {
+  font-weight: 500;
+}
 .soda-action-source > header > code {
   margin-inline-start: auto;
   font: inherit;
-  color: #b8bdc5;
+  color: var(--soda-page-muted);
 }
 .soda-source-panes {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
 }
 .soda-feed-card .soda-source-panes h4 {
-  padding: 8px 12px;
-  color: #b8bdc5;
-  border-bottom: 1px solid #414448;
+  padding: 6px 10px;
+  color: var(--soda-page-muted);
+  border-bottom: 1px solid var(--soda-feed-line);
   margin: 0;
 }
 .soda-feed-card .soda-source-panes pre {
   margin: 0;
   padding: 8px 0;
-  background: #121416;
-  color: #e5e7eb;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
   overflow-x: auto;
   border: 0;
   border-radius: 0;
   max-height: 256px;
-  font: var(--soda-font-mono);
-  font-size: 12px;
-  line-height: 1.7;
+  font: 400 13px/20px var(--soda-font-mono-family);
   white-space: pre;
 }
 .soda-source-panes pre > code {
@@ -1975,29 +1962,27 @@ soda-factory-library {
 }
 .soda-source-line {
   display: flex;
-  padding-inline: 0 12px;
+  padding-inline: 10px;
   min-height: 20px;
 }
 .soda-source-number {
-  flex: 0 0 38px;
-  text-align: end;
-  margin-inline-end: 12px;
-  color: #8a919b;
+  flex: 0 0 auto;
+  min-width: 3ch;
+  margin-inline-end: 1ch;
+  color: var(--soda-page-muted);
   user-select: none;
 }
 .soda-source-line[data-change='flagged'] {
-  background: #48272e;
-  box-shadow: inset 2px 0 #fb7185;
+  background: var(--soda-feed-bad-bg);
 }
 .soda-source-line[data-change='added'] {
-  background: #17392d;
-  box-shadow: inset 2px 0 #6ee7b7;
+  background: var(--soda-feed-ok-bg);
 }
 .soda-feed-card .soda-source-attribution {
-  padding: 7px 12px;
-  border-top: 1px solid #414448;
-  color: #b8bdc5;
-  font: var(--soda-font-caption);
+  padding: 4px 10px;
+  border-top: 1px solid var(--soda-feed-line);
+  color: var(--soda-page-muted);
+  font: 400 12px/18px Barlow, Arial, sans-serif;
 }
 .soda-action-source + .soda-action-comparison {
   margin-top: 12px;
@@ -2239,7 +2224,7 @@ soda-factory-library {
     grid-column: 1 / -1;
   }
   .soda-action-comparison {
-    grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   }
   .soda-action-arrow {
     transform: none;
@@ -2251,7 +2236,7 @@ soda-factory-library {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .soda-source-panes > section + section {
-    border-inline-start: 1px solid #414448;
+    border-inline-start: 1px solid var(--soda-page-edge);
   }
   .soda-action-merge {
     grid-template-columns: minmax(140px, 0.7fr) minmax(0, 1fr);
@@ -2401,12 +2386,14 @@ soda-factory-library {
   font-size: 11px;
 }
 .soda-feed-card .soda-feed-component-caption {
+  gap: 8px;
+  margin: 0;
+  color: var(--soda-page-text);
+  font: 600 13px/18px Barlow, Arial, sans-serif;
+}
+.soda-feed-card .soda-feed-component-caption > span {
   color: var(--soda-page-muted);
-  font: var(--soda-font-button);
-  font-size: 10px;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
-  margin-bottom: 0;
+  font-weight: 400;
 }
 .soda-feed-card .soda-feed-communication > h3 {
   font:
@@ -2605,15 +2592,15 @@ soda-factory-library {
 .soda-feed-post .soda-feed-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin-right: 8px;
-  vertical-align: 2px;
-  padding: 4px 8px 4px 7px;
+  vertical-align: 1px;
+  padding: 1px 8px;
   border: 0;
-  border-radius: 999px;
-  font-size: 12.5px;
+  border-radius: 0;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 18px;
   white-space: nowrap;
   background: var(--soda-feed-neu-bg);
   color: var(--soda-feed-neu);
@@ -2638,15 +2625,10 @@ soda-factory-library {
   background: var(--soda-feed-ok-bg);
   color: var(--soda-feed-ok);
 }
-.soda-feed-pill[data-state='in_progress'] {
-  background: transparent;
-  color: var(--soda-page-text);
-  box-shadow: inset 0 0 0 1.5px var(--soda-page-text);
-}
 .soda-feed-pill[data-state='info'] {
   background: transparent;
-  color: var(--soda-page-muted);
-  box-shadow: inset 0 0 0 1px var(--soda-feed-line);
+  color: var(--soda-feed-neu);
+  box-shadow: inset 0 0 0 1px var(--soda-page-edge);
 }
 .soda-feed-ic {
   width: 16px;
@@ -2656,7 +2638,6 @@ soda-factory-library {
 /* The headline and pill now lead the card. The section's own caption and
    title stay for screen readers only, so the post keeps its heading. */
 .soda-feed-card > section[data-feed-family] > .soda-feed-headline,
-.soda-feed-card .soda-feed-communication > .soda-feed-component-caption,
 .soda-feed-card .soda-feed-communication > h3 {
   position: absolute;
   width: 1px;
@@ -2873,15 +2854,15 @@ soda-factory-library {
 .soda-feed-jev-track {
   grid-column: 1 / -1;
   position: relative;
-  height: 8px;
-  border-radius: 99px;
-  background: light-dark(#ebe6e7, #2f2f2f);
+  height: 6px;
+  border-radius: 0;
+  background: var(--soda-feed-line);
 }
 .soda-feed-jev-track b {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 99px;
-  background: light-dark(#847b7f, #808080);
+  border-radius: 0;
+  background: var(--soda-page-muted);
 }
 .soda-feed-jev-opt[data-top='true'] .soda-feed-jev-track b {
   background: var(--soda-page-text);
@@ -2892,9 +2873,8 @@ soda-factory-library {
   top: -4px;
   bottom: -4px;
   width: 2px;
-  border-radius: 1px;
-  background: var(--soda-page-text);
-  box-shadow: 0 0 0 1.5px var(--soda-page-surface);
+  border-radius: 0;
+  background: var(--soda-feed-attn);
 }
 .soda-feed-jev-key,
 .soda-feed-jev-sure {
@@ -2915,8 +2895,8 @@ soda-factory-library {
   flex: none;
   width: 34px;
   height: 8px;
-  border-radius: 99px;
-  background: light-dark(#ebe6e7, #2f2f2f);
+  border-radius: 0;
+  background: var(--soda-feed-line);
 }
 .soda-feed-jev-kn i {
   left: 15px;
@@ -3281,8 +3261,8 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
 /* JEV's typed answers: Choice (weighed options, pick marked), NOUL (a
    yes/no balance) and Score (a position on ordered levels). */
 .soda-jev-answer {
-  --soda-jev-accent: var(--soda-page-action);
-  --soda-jev-rail: color-mix(in srgb, var(--soda-page-muted) 22%, transparent);
+  --soda-jev-accent: var(--soda-page-text);
+  --soda-jev-rail: var(--soda-feed-line);
   display: grid;
   gap: 8px;
   margin: 6px 0 0;
@@ -3342,14 +3322,14 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   display: block;
   height: 6px;
   margin-left: 18px;
-  border-radius: 3px;
+  border-radius: 0;
   background: var(--soda-jev-rail);
   overflow: hidden;
 }
 .soda-jev-track b {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 0;
   background: var(--soda-page-muted);
 }
 .soda-jev-choice li[data-picked='true'] .soda-jev-track b {
@@ -3366,27 +3346,20 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.soda-jev-noul[data-leaning='yes'] .soda-jev-noul-head strong {
-  color: var(--soda-feed-ok, var(--soda-page-text));
-}
-.soda-jev-noul[data-leaning='no'] .soda-jev-noul-head strong {
-  color: var(--soda-feed-bad, var(--soda-page-text));
-}
 .soda-jev-balance {
   position: relative;
   display: flex;
   height: 10px;
-  border-radius: 5px;
+  border-radius: 0;
   overflow: hidden;
   background: var(--soda-jev-rail);
 }
 .soda-jev-balance .soda-jev-yes {
-  background: var(--soda-feed-ok, #2e7d32);
+  background: var(--soda-page-text);
 }
 .soda-jev-balance .soda-jev-no {
   flex: 1;
-  background: var(--soda-feed-bad, #b3261e);
-  opacity: 0.75;
+  background: var(--soda-page-edge);
 }
 .soda-jev-balance i {
   position: absolute;
@@ -3436,7 +3409,7 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   display: block;
   width: 100%;
   min-height: 2px;
-  border-radius: 2px 2px 0 0;
+  border-radius: 0;
   background: var(--soda-jev-rail);
 }
 .soda-jev-scale span[data-on='true'] b {
