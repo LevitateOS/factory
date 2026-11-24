@@ -73,9 +73,18 @@ No backend work. Everything later depends on these.
 
 | # | Slice | Where | Model | Notes |
 |---|---|---|---|---|
-| 0.1 | Page frame styles: sidebar plus content, buttons, pills, panels | `frontend/factory/styles/` | Sonnet | Existing tokens in `assets/branding/theme/` already match the designs. No new token file. |
-| 0.2 | One shared "unavailable" presentation, driven by the existing `unavailable` read state | `frontend/factory/shared/read-state.ts` and one new render helper | Sonnet | Adopt it in activity, repair funding, watch and artifact download in the same slice so the old wording goes away. |
+| 0.1 | Control styles in the standalone envelope: buttons, primary buttons, inputs, selects | `frontend/factory/styles/base.css` | Sonnet | `base.css` is imported only by the native app and Storybook. Fountain themes `.ui.button` itself, so the ~42 `ui button` elements are browser defaults in the native app today. Zero-specificity selectors, so component rules keep winning. Layout, sidebar and panel styles belong to 2.1. |
 | 0.3 | Storybook stories for the pull request list and detail | `frontend/factory/pulls/`, `frontend/storybook/` | Haiku | Only "Pull comment" has a story today. Copy the issues stories' shape. |
+
+Slice 0.2 (one shared "unavailable" presentation) was dropped from this phase
+on 2026-11-25. The activity and repair panels are not mounted in the native
+app yet, so the helper would have had one consumer. It moves into 3.2 (which
+mounts activity and repair on Work) and 3.4 (Watch). Follow the existing
+pattern there: the host declares the capability unavailable, as
+`frontend/desktop/product.ts` already does with `watchAvailable: false`, and
+the component renders the unavailable state without sending the request. Do
+not classify every 503 as "not in this app"; Storybook already uses 503 for
+offline states.
 
 ## Phase 1: Feed
 
@@ -121,9 +130,9 @@ independent of each other and of Phase 2 after 2.1.
 | # | Slice | Where | Model |
 |---|---|---|---|
 | 3.1 | Request | `request/request-view.ts` (562 lines; `request.ts` logic stays) | Sonnet |
-| 3.2 | Work, including the plan table and dispatch panel | `work/work-view.ts`, `work/progress-view.ts` | Sonnet |
+| 3.2 | Work, including the plan table and dispatch panel; mount activity and repair with host-declared availability and the shared unavailable presentation (absorbs old 0.2) | `work/work-view.ts`, `work/progress-view.ts`, `work/activity.ts`, `work/repair-funding.ts`, `frontend/desktop/product.ts`, one shared render helper | Opus (host port), then Sonnet (views) |
 | 3.3 | Work detail, including journey strip and run facts | `work/detail.ts`, `work/journey-view.ts` | Sonnet |
-| 3.4 | Watch, unavailable and live states | `watch/watch-view.ts` | Sonnet |
+| 3.4 | Watch, unavailable and live states, using the shared unavailable presentation from 3.2 | `watch/watch-view.ts` | Sonnet |
 | 3.5 | Issues list and issue detail | `issues/issues.ts`, `issues/detail.ts`, `styles/issues.css` | Sonnet |
 | 3.6 | Pull request list and detail | `pulls/list.ts`, `pulls/detail.ts` | Sonnet |
 | 3.7 | Knowledge | `library/library.ts` | Sonnet |
@@ -195,8 +204,8 @@ Commit the slice on main when verified.
 | Model | Slices |
 |---|---|
 | Haiku 5.5 | 0.3, 1.4, 1.6, 3.8, the follow-ups in Phase 4 |
-| Sonnet 5.5 | 0.1, 0.2, 1.1, 1.2, 1.3, 1.5, 1.7, 2.1, 2.4, 2.5c, 2.6, 3.1 to 3.7, 4.4, the Lit half of Phase 5 |
-| Opus 5.5 | 2.2, 2.3, 2.5a, 2.5b, 4.1, 4.2, 4.3, the review of 2.1, the backend half of Phase 5 |
+| Sonnet 5.5 | 0.1, 1.1, 1.2, 1.3, 1.5, 1.7, 2.1, 2.4, 2.5c, 2.6, 3.1, 3.2 views, 3.3 to 3.7, 4.4, the Lit half of Phase 5 |
+| Opus 5.5 | 2.2, 2.3, 2.5a, 2.5b, the 3.2 host port, 4.1, 4.2, 4.3, the review of 2.1, the backend half of Phase 5 |
 | Fable 5.2 | two design reviews (before 2.5 and before 5.7) |
 
 ## Not verified while writing this plan
