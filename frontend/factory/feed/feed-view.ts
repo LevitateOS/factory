@@ -782,23 +782,30 @@ function renderCardContent(
   }${entry.ref ? html`<p class="soda-feed-block-note">Candidate <code title=${entry.ref}>${shortFeedID(entry.ref)}</code></p>` : ''}`;
 }
 
-function renderByline(model: FeedPostModel, assetBase: string): TemplateResult {
-  const changed = model.thread?.changes.length ? 'updated ' : '';
-  return html`<div class="soda-feed-header">
+// renderPortrait is the post's face in the timeline gutter, beside the byline
+// and card.
+function renderPortrait(model: FeedPostModel, assetBase: string): TemplateResult {
+  return html`<div class="soda-feed-gutter">
     <span class="soda-feed-avatar" aria-hidden="true"
       >${
         model.avatarFile
           ? html`<img
               src=${assetBase + model.avatarFile}
               alt=""
-              width="28"
-              height="28"
+              width="44"
+              height="44"
               loading="lazy"
               decoding="async"
             />`
           : model.name.slice(0, 1).toUpperCase()
       }</span
     >
+  </div>`;
+}
+
+function renderByline(model: FeedPostModel): TemplateResult {
+  const changed = model.thread?.changes.length ? 'updated ' : '';
+  return html`<div class="soda-feed-header">
     <p>
       <strong>${model.name}</strong
       >${model.role !== model.name ? html`<span class="soda-feed-by-role"> · ${model.role}</span>` : ''}
@@ -849,81 +856,84 @@ export function renderFeedPost(
     data-level=${model.thread?.level ?? 'post'}
     data-role=${model.role.toLowerCase().replace(/[\s-]+/g, '_')}
   >
-    ${model.parent ? html`<p class="soda-feed-parent">Replying to <a href=${model.parent.href}>${model.parent.author}</a></p>` : ''}
-    ${renderByline(model, assetBase)}
-    <div class="soda-feed-stack">
-      <div class="soda-feed-card" data-state=${question ? 'question' : model.state}>
-        ${
-          // A post's byline already says so: no pill or headline row.
-          post || question
-            ? ''
-            : html`<div class="soda-feed-hgroup">
-                <p class="soda-feed-hl">
-                  <span class="soda-feed-status soda-feed-pill" data-state=${model.state}
-                    >${icon(stateIcons[model.state])}${model.pill}</span
-                  >${model.headline}
-                </p>
-                ${model.detail ? html`<p class="soda-feed-dt">${model.detail}</p>` : ''}
-              </div>`
-        }
-        ${
-          question
-            ? html`${questionPrompt(question, model.key)}${renderComposer(model.composer)}`
-            : renderCardContent(model, artifacts, links, assetBase)
-        }
-        ${
-          post || question
-            ? ''
-            : html`<p class="soda-feed-next" data-state=${model.state}>
-                ${model.state === 'needs_you' ? html`<b class="soda-feed-age">${icon(stateIcons.waiting)}${model.next}</b>` : model.next}
-              </p>`
-        }
-        ${renderChanges(model)}
-        ${
-          model.links.length > 0
-            ? html`<p class="soda-feed-source-links">
-                ${model.links.map((link) => html`<a href=${link.href}>${link.label}</a> `)}
-              </p>`
-            : ''
-        }
-      </div>
-      <section class="soda-feed-drawer" data-open=${model.replies.open} aria-label="Replies">
-        <button
-          type="button"
-          class="soda-feed-pull-tab"
-          data-feed-drawer-toggle=${model.replies.key}
-          aria-expanded=${model.replies.open}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5Z" />
-          </svg>
-          <strong>${model.replies.countText}</strong>
-          ${model.replies.faces.length ? html`<span class="soda-feed-faces" aria-hidden="true">${model.replies.faces.map((face) => html`<i>${face}</i>`)}</span>` : ''}
-          <svg
-            class="soda-feed-chev"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
-        <div class="soda-feed-drawer-body" .inert=${!model.replies.open}>
-          <div class="soda-feed-drawer-inner">${replies} ${question ? '' : renderComposer(model.composer)}</div>
+    ${renderPortrait(model, assetBase)}
+    <div class="soda-feed-column">
+      ${model.parent ? html`<p class="soda-feed-parent">Replying to <a href=${model.parent.href}>${model.parent.author}</a></p>` : ''}
+      ${renderByline(model)}
+      <div class="soda-feed-stack">
+        <div class="soda-feed-card" data-state=${question ? 'question' : model.state}>
+          ${
+            // A post's byline already says so: no pill or headline row.
+            post || question
+              ? ''
+              : html`<div class="soda-feed-hgroup">
+                  <p class="soda-feed-hl">
+                    <span class="soda-feed-status soda-feed-pill" data-state=${model.state}
+                      >${icon(stateIcons[model.state])}${model.pill}</span
+                    >${model.headline}
+                  </p>
+                  ${model.detail ? html`<p class="soda-feed-dt">${model.detail}</p>` : ''}
+                </div>`
+          }
+          ${
+            question
+              ? html`${questionPrompt(question, model.key)}${renderComposer(model.composer)}`
+              : renderCardContent(model, artifacts, links, assetBase)
+          }
+          ${
+            post || question
+              ? ''
+              : html`<p class="soda-feed-next" data-state=${model.state}>
+                  ${model.state === 'needs_you' ? html`<b class="soda-feed-age">${icon(stateIcons.waiting)}${model.next}</b>` : model.next}
+                </p>`
+          }
+          ${renderChanges(model)}
+          ${
+            model.links.length > 0
+              ? html`<p class="soda-feed-source-links">
+                  ${model.links.map((link) => html`<a href=${link.href}>${link.label}</a> `)}
+                </p>`
+              : ''
+          }
         </div>
-      </section>
+        <section class="soda-feed-drawer" data-open=${model.replies.open} aria-label="Replies">
+          <button
+            type="button"
+            class="soda-feed-pull-tab"
+            data-feed-drawer-toggle=${model.replies.key}
+            aria-expanded=${model.replies.open}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5Z" />
+            </svg>
+            <strong>${model.replies.countText}</strong>
+            ${model.replies.faces.length ? html`<span class="soda-feed-faces" aria-hidden="true">${model.replies.faces.map((face) => html`<i>${face}</i>`)}</span>` : ''}
+            <svg
+              class="soda-feed-chev"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="soda-feed-drawer-body" .inert=${!model.replies.open}>
+            <div class="soda-feed-drawer-inner">${replies} ${question ? '' : renderComposer(model.composer)}</div>
+          </div>
+        </section>
+      </div>
     </div>
   </article>`;
 }

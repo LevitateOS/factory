@@ -99,6 +99,9 @@ soda-factory-feed {
   margin-top: 28px;
 }
 .soda-feed-post {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
   scroll-margin-top: 20px;
   --soda-feed-role-color: var(--soda-page-muted);
@@ -108,6 +111,23 @@ soda-factory-feed {
   );
   --soda-feed-tint: color-mix(in srgb, var(--soda-feed-role-color) 8%, var(--soda-page-surface));
   --soda-feed-edge: color-mix(in srgb, var(--soda-feed-role-color) 35%, var(--soda-page-edge));
+  /* The card and its drawer keep the role edge and tint even where the
+     post's inner dividers use the neutral --soda-feed-edge. */
+  --soda-feed-role-edge: color-mix(in srgb, var(--soda-feed-role-color) 35%, var(--soda-page-edge));
+  --soda-feed-role-tint: color-mix(in srgb, var(--soda-feed-role-color) 8%, var(--soda-page-surface));
+}
+.soda-feed-post[data-role='post'] {
+  --soda-feed-role-edge: var(--soda-feed-line);
+}
+.soda-feed-gutter {
+  flex: 0 0 44px;
+}
+.soda-feed-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 /* The shared palette owns the approved role colors. Keep the exact color on
    each card's top edge; derive readable text and subtle surfaces for both themes.
@@ -146,10 +166,9 @@ soda-factory-feed {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 8px;
 }
 .soda-feed-parent {
-  margin: 0 0 6px 46px;
+  margin: 0;
   color: var(--soda-page-muted);
   font: var(--soda-font-caption);
   font-size: 12px;
@@ -178,6 +197,7 @@ soda-factory-feed {
   flex: 0 0 36px;
   width: 36px;
   height: 36px;
+  box-sizing: border-box;
   overflow: hidden;
   border-radius: 0;
   color: var(--soda-feed-role);
@@ -186,6 +206,13 @@ soda-factory-feed {
   font:
     600 13px/1 'IBM Plex Mono',
     monospace;
+}
+.soda-feed-gutter .soda-feed-avatar {
+  flex-basis: 44px;
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
+  font-weight: 500;
 }
 .soda-feed-avatar img {
   display: block;
@@ -200,13 +227,14 @@ soda-factory-feed {
 }
 .soda-feed-card {
   padding: 18px;
-  border: 1px solid var(--soda-feed-edge);
+  border: 1px solid var(--soda-feed-role-edge);
   border-top: 3px solid var(--soda-feed-role-color);
   border-radius: 0;
   background: color-mix(in srgb, var(--soda-feed-role-color) 4%, var(--soda-page-surface));
 }
 .soda-feed-post[data-role='post'] .soda-feed-card {
-  border-top-color: var(--soda-feed-edge);
+  border-top-color: var(--soda-feed-role-edge);
+  background: var(--soda-page-surface);
 }
 .soda-feed-card p {
   margin: 0 0 10px;
@@ -289,8 +317,8 @@ soda-factory-feed {
   margin-inline: 24px;
   margin-top: -16px;
   padding-top: 16px;
-  background: var(--soda-feed-tint);
-  border: 1px solid var(--soda-feed-edge);
+  background: var(--soda-feed-role-tint);
+  border: 1px solid var(--soda-feed-role-edge);
   border-top: 0;
   display: grid;
   grid-template-rows: auto 0fr;
@@ -334,7 +362,7 @@ soda-factory-feed {
   width: 20px;
   height: 20px;
   margin-inline-start: -5px;
-  border: 1px solid var(--soda-feed-tint);
+  border: 1px solid var(--soda-feed-role-tint);
   background: var(--soda-page-surface);
   color: var(--soda-page-muted);
   font:
@@ -2364,10 +2392,6 @@ soda-factory-library {
 .soda-feed button[data-post-submit]:not(:disabled):hover {
   background: var(--soda-page-action-hover);
 }
-.soda-feed-header {
-  gap: 12px;
-  padding-bottom: 12px;
-}
 .soda-feed-header p:first-child {
   font: var(--soda-font-meta);
 }
@@ -2490,23 +2514,6 @@ soda-factory-library {
   --soda-feed-edge: var(--soda-feed-line);
   --soda-feed-tint: var(--soda-page-selected);
 }
-.soda-feed-post .soda-feed-header {
-  gap: 8px;
-  padding: 0 0 6px 2px;
-  align-items: center;
-}
-.soda-feed-post .soda-feed-avatar {
-  flex-basis: 28px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--soda-feed-role-color);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
 .soda-feed-post .soda-feed-header p {
   margin: 0;
   display: flex;
@@ -2538,46 +2545,11 @@ soda-factory-library {
   text-underline-offset: 2px;
 }
 .soda-feed-post .soda-feed-card {
-  position: relative;
-  overflow: hidden;
   display: grid;
   gap: 12px;
-  padding: 14px 16px 14px 20px;
-  border: 1px solid var(--soda-feed-line);
-  border-radius: 10px;
-  background: var(--soda-page-surface);
 }
 .soda-feed-post .soda-feed-card > * {
   margin: 0;
-}
-.soda-feed-post .soda-feed-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  background: var(--soda-feed-state-edge, transparent);
-}
-.soda-feed-card[data-state='needs_you'] {
-  --soda-feed-state-edge: var(--soda-feed-attn);
-  border: 2px solid var(--soda-feed-attn);
-  padding: 13px 15px 13px 19px;
-}
-.soda-feed-card[data-state='problem'] {
-  --soda-feed-state-edge: repeating-linear-gradient(135deg, var(--soda-feed-bad) 0 3px, transparent 3px 6px);
-}
-.soda-feed-card[data-state='waiting'] {
-  --soda-feed-state-edge: repeating-linear-gradient(180deg, var(--soda-feed-warn) 0 7px, transparent 7px 11px);
-}
-.soda-feed-card[data-state='in_progress'] {
-  --soda-feed-state-edge: repeating-linear-gradient(135deg, var(--soda-page-text) 0 2px, transparent 2px 5px);
-}
-.soda-feed-card[data-state='done'] {
-  --soda-feed-state-edge: var(--soda-feed-ok);
-}
-.soda-feed-card[data-state='decided'] {
-  --soda-feed-state-edge: var(--soda-feed-faint);
 }
 /* An ordinary question reads as conversation: the question once, then the reply box. */
 .soda-feed-question {
@@ -2949,53 +2921,22 @@ soda-factory-library {
 .soda-feed-jev-kn i {
   left: 15px;
 }
-/* Replies continue the steps rail as a quiet line instead of a tab. */
-.soda-feed-post .soda-feed-drawer {
-  margin: 0 0 0 16px;
-  padding: 0 0 0 12px;
-  border: 0;
-  border-left: 2px solid var(--soda-feed-line);
-  background: transparent;
-}
-.soda-feed-post .soda-feed-pull-tab {
-  min-height: 32px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  font-size: 13px;
-  font-family: inherit;
-  letter-spacing: normal;
-  text-transform: none;
-  color: var(--soda-page-muted);
-}
 .soda-feed-post .soda-feed-pull-tab strong {
   font-family: inherit;
   font-size: 13px;
-  font-weight: 500;
   letter-spacing: normal;
   text-transform: none;
-  color: var(--soda-page-muted);
-}
-.soda-feed-post .soda-feed-pull-tab:hover strong {
-  color: var(--soda-page-text);
-}
-.soda-feed-post .soda-feed-pull-tab .soda-feed-chev {
-  margin-inline-start: 6px;
-}
-.soda-feed-post .soda-feed-drawer-inner {
-  padding: 2px 0 6px;
 }
 @media (max-width: 560px) {
   .soda-feed-post .soda-feed-card {
-    padding: 12px 14px 12px 18px;
+    padding: 14px;
   }
   .soda-feed-post .soda-feed-pill {
     display: flex;
     width: fit-content;
     margin: 0 0 7px;
   }
-  .soda-feed-thread,
-  .soda-feed-post .soda-feed-drawer {
+  .soda-feed-thread {
     margin-left: 8px;
     padding-left: 10px;
   }
@@ -3008,8 +2949,8 @@ soda-factory-library {
    row. Views are underline tabs, not buttons. */
 .soda-feed-composer {
   margin: 0 0 24px;
-  border: 1px solid var(--soda-feed-edge);
-  border-radius: 10px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 0;
   background: var(--soda-page-surface);
   transition: border-color 0.15s ease;
 }
@@ -3024,7 +2965,7 @@ soda-factory-library {
 .soda-feed .soda-feed-composer textarea {
   display: block;
   margin: 0;
-  padding: 14px 16px;
+  padding: 10px 12px;
   border: 0;
   background: transparent;
   min-height: 0;
@@ -3069,9 +3010,10 @@ soda-factory-library {
 }
 html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-submit],
 .soda-feed .soda-feed-composer button[data-post-submit] {
-  min-height: 40px !important;
-  padding: 8px 20px !important;
-  border-radius: 6px;
+  min-height: 44px !important;
+  padding: 0 22px !important;
+  border: 1px solid var(--soda-page-action) !important;
+  border-radius: 0 !important;
   flex-shrink: 0;
 }
 .soda-feed .soda-feed-toolbar {
@@ -3095,27 +3037,24 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button,
 .soda-feed .soda-feed-tabs button {
   min-height: 40px !important;
   margin-bottom: -1px;
-  padding: 8px 12px !important;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--soda-page-muted);
-  font: var(--soda-font-label) !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--soda-page-text) !important;
+  font: var(--soda-font-button) !important;
   text-transform: none;
   letter-spacing: 0;
   white-space: nowrap;
 }
 html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button:hover,
 .soda-feed .soda-feed-tabs button:hover {
-  background: transparent;
-  color: var(--soda-page-text);
+  background: var(--soda-feed-tint) !important;
 }
 html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button[aria-pressed='true'],
 .soda-feed .soda-feed-tabs button[aria-pressed='true'] {
-  background: transparent;
-  color: var(--soda-page-text);
-  border-bottom-color: var(--soda-page-action);
+  background: var(--soda-page-text) !important;
+  color: var(--soda-page-surface) !important;
 }
 .soda-feed .soda-feed-toolbar-actions {
   display: inline-flex;
@@ -3156,9 +3095,11 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button[aria-pressed='t
   max-width: none;
   min-height: 36px;
   padding-left: 34px;
+  border-radius: 0;
 }
 .soda-feed .soda-feed-filters select {
   min-height: 36px;
+  border-radius: 0;
 }
 .soda-feed .soda-feed-filters label {
   font: var(--soda-font-meta);
@@ -3205,6 +3146,11 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button[aria-pressed='t
 }
 html[data-theme^='soda-'] body .soda-feed .soda-feed-pull-tab,
 .soda-feed .soda-feed-pull-tab {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   font: var(--soda-font-caption) !important;
   text-transform: none;
   letter-spacing: 0;
