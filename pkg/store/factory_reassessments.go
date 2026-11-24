@@ -151,9 +151,9 @@ func (r ReassessmentRecord) Validate() error {
 // first UpdateMerge recording this merge as merged: the merge already
 // carries its confirmed merged commit, PR linkage, acceptance and
 // original issue-closing occurrence (Merge.Validate enforces them for
-// merged merges), and the same transaction already closed the issue
-// allowance and retained the readiness enqueue, so rollback rolls back
-// all four together with this insert.
+// merged merges), and the same transaction closes the issue allowance
+// before this insert and retains the readiness enqueue after it, so
+// rollback rolls back all four together.
 //
 // Exact-once: the (publication, occurrence) unique key keeps recovery
 // re-observation from recording the event twice; a replay returns

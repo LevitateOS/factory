@@ -218,16 +218,20 @@ func (s *Store) settleMergeUpdateTx(ctx context.Context, tx *sql.Tx, previous, m
 		}
 	}
 	if m.Stage == factory.MergeMerged && previous.Stage != factory.MergeMerged {
-		if err = enqueueReadinessRootEventTx(ctx, tx, m.Repository, m.Issue); err != nil {
+		// D13 completion fence (FW31): atomically close the issue
+		// allowance (above, through the assignment transition), insert
+		// the unique completion event, increment the repository
+		// generation and retain the readiness enqueue (below). Rollback
+		// rolls back all four. Recovery re-observation replays here and
+		// records once through the unique key.
+		//
+		// The completion locks the repository dispatch gate and the
+		// enqueue locks the readiness budget. Every other writer takes
+		// the gate first, so this one must too.
+		if _, err = recordCompletionTx(ctx, tx, m); err != nil {
 			return err
 		}
-		// D13 completion fence (FW31): atomically close the issue
-		// allowance (above, through the assignment transition), retain
-		// the readiness enqueue (above), insert the unique completion
-		// event and increment the repository generation. Rollback rolls
-		// back all four. Recovery re-observation replays here and
-		// records once through the unique key.
-		if _, err = recordCompletionTx(ctx, tx, m); err != nil {
+		if err = enqueueReadinessRootEventTx(ctx, tx, m.Repository, m.Issue); err != nil {
 			return err
 		}
 	}
