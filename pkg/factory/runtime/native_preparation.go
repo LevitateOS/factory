@@ -343,7 +343,7 @@ func nativePreparationAdmission(p NativeExecution) http.Handler {
 			Actor      string          `json:"actor"`
 			Repository string          `json:"repository"`
 		}
-		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 2*1024*1024), &input) != nil {
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, nativeLargeRequestLimit), &input) != nil {
 			nativeResponse(w, 400, map[string]string{"error": "invalid_native_preparation_admission"})
 			return
 		}

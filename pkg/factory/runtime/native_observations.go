@@ -79,7 +79,7 @@ func NewNativeObservationHandler(profile collaboration.Profile, provider collabo
 			return
 		}
 		var q nativeObservation
-		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 2<<20), &q) != nil || q.validate() != nil {
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, nativeLargeRequestLimit), &q) != nil || q.validate() != nil {
 			nativeResponse(w, 400, map[string]string{"error": "invalid_native_observation"})
 			return
 		}

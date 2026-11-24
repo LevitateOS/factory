@@ -264,8 +264,8 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 			return
 		}
 		limit := int64(65536)
-		if r.URL.Path == "/api/native/collaboration/observe" || r.URL.Path == "/api/native/execution/launch-admission" {
-			limit = 2 << 20
+		if route, ok := nativeRequestLimits[r.URL.Path]; ok {
+			limit = route
 		} else if factoryhttp.IsWorkspaceSetupSubmission(r) {
 			limit = factoryhttp.WorkspaceSetupRequestLimit
 		} else if factoryhttp.IsHumanCommentSubmission(r) {
@@ -288,6 +288,20 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// The outer reader bounds every request before its route runs, so a native
+// route that admits more than the default shares its bound with that reader.
+const (
+	nativeLargeRequestLimit     = 2 << 20
+	nativeWorkerMCPRequestLimit = factory.MCPMaxSubmissionPayload + 40960
+)
+
+var nativeRequestLimits = map[string]int64{
+	"/api/native/collaboration/observe":      nativeLargeRequestLimit,
+	"/api/native/execution/launch-admission": nativeLargeRequestLimit,
+	"/api/native/preparation/admission":      nativeLargeRequestLimit,
+	"/api/native/execution/mcp":              nativeWorkerMCPRequestLimit,
 }
 
 func nativeResponse(w http.ResponseWriter, status int, body map[string]string) {

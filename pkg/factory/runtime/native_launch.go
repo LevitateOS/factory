@@ -103,7 +103,7 @@ func nativeLaunchAdmission(p NativeExecution) http.Handler {
 			Actor      string                  `json:"actor"`
 			Repository string                  `json:"repository"`
 		}
-		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 2*1024*1024), &input) != nil || input.Request.Controller == nil {
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, nativeLargeRequestLimit), &input) != nil || input.Request.Controller == nil {
 			nativeResponse(w, 400, map[string]string{"error": "invalid_native_launch_admission"})
 			return
 		}

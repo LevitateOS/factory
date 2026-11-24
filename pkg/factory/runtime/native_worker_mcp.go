@@ -59,7 +59,7 @@ func nativeWorkerMCP(lifetime context.Context, p NativeExecution) http.Handler {
 			Secret     string          `json:"secret"`
 			Payload    json.RawMessage `json:"payload"`
 		}
-		if strictjson.Decode(http.MaxBytesReader(w, r.Body, factory.MCPMaxSubmissionPayload+40960), &input) != nil || len(input.Intent) > 16384 ||
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, nativeWorkerMCPRequestLimit), &input) != nil || len(input.Intent) > 16384 ||
 			!factory.ValidMCPSecret(input.Secret) || !factory.ValidID(input.Capability) || len(input.Payload) == 0 || len(input.Payload) > factory.MCPMaxSubmissionPayload+8192 {
 			nativeResponse(w, 400, map[string]string{"error": "invalid_native_worker_request"})
 			return
