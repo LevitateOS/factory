@@ -86,7 +86,10 @@ func (c *Coordinator) reconcilePublishedPublication(ctx context.Context, p facto
 		}
 	}
 	corrections := CorrectionReport{}
-	c.reconcileRecordedCorrection(ctx, &p, a, &corrections)
+	if c.reconcileRecordedCorrection(ctx, &p, a, &corrections) {
+		// The corrector child's own pass resubmits it.
+		correctionWait(&corrections, p.ID, "lookup_unconfirmed")
+	}
 	reportCorrectionOutcomes(report, &corrections)
 	if len(p.Corrections) > 0 {
 		last := p.Corrections[len(p.Corrections)-1]

@@ -166,8 +166,14 @@ func checkCorrectionPublished(admission *correctionAdmission, report *Correction
 // correction, refusing new writes while one already settled this
 // call or the source head went stale.
 func (c *Coordinator) checkRecordedCorrection(ctx context.Context, admission *correctionAdmission, runID string, report *CorrectionReport) bool {
-	c.reconcileRecordedCorrection(ctx, &admission.p, admission.a, report)
+	unsent := c.reconcileRecordedCorrection(ctx, &admission.p, admission.a, report)
 	if len(report.Errors) != 0 || len(report.Fenced) != 0 || len(report.Waits) != 0 || len(report.Corrected) != 0 {
+		return false
+	}
+	// Only the run that recorded an unsent correction resubmits it, under
+	// the same identity. Another run never opens a second identity behind it.
+	if unsent && admission.p.Corrections[len(admission.p.Corrections)-1].RunID != runID {
+		correctionWait(report, admission.p.ID, "lookup_unconfirmed")
 		return false
 	}
 	// A child admitted for an older publication head may finish after a
@@ -641,33 +647,42 @@ func (c *Coordinator) journalCorrectionReport(ctx context.Context, p *factory.Pu
 // reconcileRecordedCorrection reconciles one in-flight recorded correction
 // by lookup before any new write, and links a recovered commit exactly
 // like the live path. Anything unattributed fences the publication.
-func (c *Coordinator) reconcileRecordedCorrection(ctx context.Context, p *factory.Publication, a factory.Assignment, report *CorrectionReport) {
+//
+// It reports unsent when the correction was recorded but no native record
+// or effect exists for it: the submit failed or the process stopped before
+// capture. Like an initial publication in that state, it is resubmitted
+// under its recorded identity rather than held; the caller decides who may.
+func (c *Coordinator) reconcileRecordedCorrection(ctx context.Context, p *factory.Publication, a factory.Assignment, report *CorrectionReport) (unsent bool) {
 	if len(p.Corrections) == 0 {
-		return
+		return false
 	}
 	op := &p.Corrections[len(p.Corrections)-1]
 	if op.Attempts == 0 || op.Effect == factory.OpEffectNotCommitted || op.Effect == factory.OpEffectIndeterminate ||
 		(op.Effect == factory.OpEffectCommitted && op.Completion == factory.OpCompletionComplete) {
-		return
+		return false
 	}
 	outcome, err := c.Publication.LookupOp(ctx, op.OperationID)
 	if err != nil {
 		c.correctionCallError(report, p.ID, err)
-		return
+		return false
 	}
 	if outcome.NotObserved {
+		if op.Effect == "" {
+			return true
+		}
 		correctionWait(report, p.ID, "lookup_unconfirmed")
-		return
+		return false
 	}
 	// The correction row carries the child run independently of the
 	// credential-free native intent, so recovery attributes the new head
 	// to the same settled result that registered it.
 	if !c.adoptCorrectionOutcome(ctx, p, outcome, report) {
-		return
+		return false
 	}
 	if p.Corrections[len(p.Corrections)-1].Effect == factory.OpEffectCommitted {
 		c.linkCorrection(ctx, p, a, report)
 	}
+	return false
 }
 
 // adoptCorrectionOutcome adopts one observed correction outcome into the
