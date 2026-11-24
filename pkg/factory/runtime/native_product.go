@@ -115,7 +115,8 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 					return application.Coordinator.LatestDispatchObservation(int64(repository)), nil
 				}},
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
-		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
+		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible},
+			Artifacts: factoryservice.Artifacts{Source: application.Store, Visibility: bound.visible}},
 	}
 	product.Work, product.Runs = bound.bindWork(application, &view)
 	reads := nativeCollaborationReads{bound}
