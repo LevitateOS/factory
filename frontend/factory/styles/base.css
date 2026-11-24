@@ -63,3 +63,52 @@
 .soda-factory-app > main {
   min-width: 0;
 }
+
+/* Control defaults for the standalone envelope. Every selector is wrapped in
+   :where() so it carries zero specificity and component rules keep winning. */
+:where(.soda-factory-root) :where(button, .ui.button) {
+  min-height: var(--soda-workspace-control);
+  padding: 0 14px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: var(--soda-button-radius);
+  color: var(--soda-page-text);
+  background: var(--soda-page-surface);
+  font: var(--soda-font-button);
+}
+:where(.soda-factory-root) :where(button, .ui.button):where(:hover:not(:disabled, .disabled)) {
+  background: var(--soda-page-hover);
+}
+:where(.soda-factory-root) :where(.ui.primary.button) {
+  border-color: var(--soda-button-primary-border);
+  color: var(--soda-button-primary-text);
+  background: var(--soda-button-primary-bg);
+}
+:where(.soda-factory-root) :where(.ui.primary.button):where(:hover:not(:disabled, .disabled)) {
+  background: var(--soda-button-primary-hover);
+}
+:where(.soda-factory-root) :where(button, .ui.button):where(:disabled, .disabled) {
+  color: var(--soda-page-muted);
+  background: var(--soda-page-selected);
+}
+:where(.soda-factory-root)
+  :where(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color']),
+    select,
+    textarea
+  ) {
+  border: 1px solid var(--soda-page-edge);
+  border-radius: var(--soda-button-radius);
+  color: var(--soda-page-text);
+  background: var(--soda-page-surface);
+}
+:where(.soda-factory-root)
+  :where(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color']),
+    select
+  ) {
+  min-height: var(--soda-workspace-control);
+  padding: 0 10px;
+}
+:where(.soda-factory-root) :where(textarea) {
+  padding: 8px 10px;
+}
