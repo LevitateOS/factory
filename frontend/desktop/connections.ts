@@ -42,6 +42,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   const disconnect = document.querySelector<HTMLButtonElement>('#connection-disconnect')!;
   const find = document.querySelector<HTMLFormElement>('#repository-find')!;
   const name = document.querySelector<HTMLInputElement>('#repository-name')!;
+  const details = document.querySelector<HTMLDetailsElement>('#connection-details')!;
   let ready = false,
     epoch = -1,
     profile = '',
@@ -56,6 +57,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   // Account/repository are user choices; selected is only the current binding.
   let resumeRequested = false;
   let accountsCurrent = false;
+  // Launch opens the last project, or the only saved account, once per window;
+  // a window opened for a project opens that instead.
+  let autoOpened = false,
+    targetRead = false;
   let known: readonly Account[] = [],
     discovered: Repository[] = [];
   let message = 'Choose a saved account to connect.';
@@ -72,7 +77,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     framed();
   }
   const reconnectHere = () => choose(connection, wanted, fountainRepository),
-    disconnectHere = () => choose('');
+    disconnectHere = () => {
+      remember(undefined);
+      return choose('');
+    };
   // Every project action reuses this window's own connection path.
   const projects = new DesktopProjects({
     accounts: () => (accountsCurrent ? known : []),
@@ -117,16 +125,44 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       else document.querySelector<HTMLElement>('#github-sign-in')?.focus();
     },
   });
+  // The last project this window opened. Each profile has its own webview
+  // storage, so this is the profile's last project.
+  interface Last {
+    connection: string;
+    repository: string;
+    enrolled: string;
+  }
+  const lastKey = 'factory.last-project';
+  function remembered(): Last | undefined {
+    try {
+      const value = object(JSON.parse(localStorage.getItem(lastKey) ?? 'null'));
+      check(typeof value.connection === 'string' && id(value.repository) && typeof value.enrolled === 'string');
+      return {connection: value.connection, repository: value.repository, enrolled: value.enrolled};
+    } catch {
+      return undefined;
+    }
+  }
+  function remember(value: Last | undefined) {
+    try {
+      if (value) localStorage.setItem(lastKey, JSON.stringify(value));
+      else localStorage.removeItem(lastKey);
+    } catch {}
+  }
   // A window opened for a project starts with that account and repository
   // through the same path as resuming a saved choice.
   void core.invoke<{connection: string; repository: string} | null>('factory_window_target').then((target) => {
     if (!target || connection || selected || pending) return;
+    autoOpened = true;
     connection = target.connection;
     wanted = target.repository;
     resumeRequested = true;
+  }).catch(() => {}).finally(() => {
+    targetRead = true;
     if (accountsCurrent) api.accounts(known);
-  }).catch(() => {});
+  });
   function render() {
+    // Nothing to fold away until a project is open or opening.
+    if (!selected && !busy) details.open = true;
     const options = JSON.stringify(
       known.map((account) => [account.connection, account.label, account.account, account.state, account.provider, account.origin])
     );
@@ -304,6 +340,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       message = value.repository
         ? `Connected to ${value.repository.name}.`
         : 'Connected. Choose a repository to browse its feed and issues.';
+      if (remote) {
+        remember({connection: account, repository: remote, enrolled});
+        details.open = false;
+      }
       if (!remote) await discover(captured, 1);
     } catch (error) {
       if (live(captured)) {
@@ -486,6 +526,21 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
               : account?.state === 'refresh_pending'
                 ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
                 : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
+      }
+      const stored = known.filter((account) => account.state === 'stored');
+      if (!autoOpened && targetRead && ready && !document.hidden && !connection && !busy && stored.length) {
+        autoOpened = true;
+        const last = remembered(),
+          github = stored.filter((account) => account.provider === 'github');
+        if (last && stored.some((account) => account.connection === last.connection)) {
+          details.open = false;
+          void choose(last.connection, last.repository, last.enrolled);
+          return;
+        }
+        if (github.length === 1) {
+          void choose(github[0]!.connection);
+          return;
+        }
       }
       if (resumeRequested && ready && !document.hidden && !busy && account?.state === 'stored') {
         if (product && selected?.generation === epoch) {

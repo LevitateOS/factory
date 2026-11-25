@@ -142,8 +142,8 @@ impl Client {
                                     "affiliation",
                                     "owner,collaborator,organization_member".into(),
                                 ),
-                                ("sort", "created".into()),
-                                ("direction", "asc".into()),
+                                ("sort", "updated".into()),
+                                ("direction", "desc".into()),
                             ],
                             token,
                         )
