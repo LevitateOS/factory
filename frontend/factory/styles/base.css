@@ -78,8 +78,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-/* The Factory symbol (assets/branding/source/factory-symbol.svg); the front
-   plate follows the text colour, so it is dark on light and white on dark. */
+/* The symbol inside the wordmark (shared/factory-mark.ts). */
 .soda-factory-wordmark svg {
   flex: 0 0 auto;
   width: 24px;

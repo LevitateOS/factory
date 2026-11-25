@@ -1,6 +1,7 @@
 import {LitElement, html, nothing} from 'lit';
 import type {TemplateResult} from 'lit';
 import type {Observed} from './controller-view.js';
+import {renderFactoryWordmark} from '../factory/shared/factory-mark.js';
 
 /** What the sign-in controllers already know; nothing here is a new read. */
 export interface FirstRunFacts {
@@ -110,6 +111,7 @@ export class SodaDesktopFirstRun extends LitElement {
     const steps = this.steps();
     return html`<div class="first-run">
       <header>
+        ${renderFactoryWordmark()}
         <h2>Set up Factory</h2>
         <p>Four steps to your first project. You can stop after any step and pick it up again from Accounts.</p>
       </header>

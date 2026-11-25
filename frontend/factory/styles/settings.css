@@ -166,6 +166,10 @@ soda-desktop-first-run {
   flex-direction: column;
   gap: 20px;
 }
+.first-run > header .soda-factory-wordmark {
+  padding: 0 0 16px;
+  color: var(--soda-page-text);
+}
 .first-run > header h2 {
   margin: 0;
   font: 800 36px/1.12 "Barlow Condensed", "Arial Narrow", sans-serif;
