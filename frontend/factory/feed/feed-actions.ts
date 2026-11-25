@@ -240,7 +240,7 @@ function decision(c: FilledCommunication): TemplateResult {
 
 function question(c: FilledCommunication, entryKey: string): TemplateResult {
   const ask = c.kind === 'ask';
-  return html`<section class="soda-action-question">
+  return html`<section class="soda-action-question" data-question=${ask ? (c.questionState ?? 'open') : 'recorded'}>
     <div class="soda-question-mark" aria-hidden="true">?</div>
     <div>
       <h4>
