@@ -153,7 +153,7 @@ for (const name of ['soda-desktop', 'factory-dev', 'soda-factory-muse', 'soda-fa
 }
 for (const owner of ['soda-factory-broker', 'soda-factory-worker']) {
   const directory = resolve(root, 'cmd', owner, 'systemd');
-  for (const name of await readdir(directory)) {
+  for (const name of (await readdir(directory)).sort()) {
     if (!/\.(service|socket)(\.in)?$/.test(name)) throw Error('Unknown execution service asset: ' + name);
     await copyFile(resolve(directory, name), resolve(execution, 'systemd', name));
     executionFiles.push('systemd\t' + name);

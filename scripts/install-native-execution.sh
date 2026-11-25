@@ -115,7 +115,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+# Manifests list entries by target path, so payload inventory order never
+# changes their bytes. Older installs may carry another order; compare those
+# through the same canonical form and look prior digests up by path.
+canonical_manifest() { head -n 2 -- "$1"; tail -n +3 -- "$1" | LC_ALL=C sort -t $'\t' -k3,3; }
 printf 'user=%s\nuid=%s\n' "$execution_user" "$execution_uid" > "$stage/manifest"
+: > "$stage/entries"
 index=0
 for source in "${binaries[@]}" "${units[@]}"; do
   target=${targets[index]}
@@ -127,19 +132,21 @@ for source in "${binaries[@]}" "${units[@]}"; do
     sed -e "s/@DESKTOP_USER@/$execution_user/g" -e "s/@DESKTOP_UID@/$execution_uid/g" -- "$source" | install -m "$mode" /dev/stdin "$stage/$index"
   fi
   digest=$(sha256sum "$stage/$index"); digest=${digest%% *}
-  printf '%s\t%s\t%s\n' "$digest" "$mode" "${target#"${install_root%/}"}" >> "$stage/manifest"
+  printf '%s\t%s\t%s\n' "$digest" "$mode" "${target#"${install_root%/}"}" >> "$stage/entries"
   ((index+=1))
 done
+LC_ALL=C sort -t $'\t' -k3,3 -- "$stage/entries" >> "$stage/manifest"
+[[ -z "$(cut -f3 -- "$stage/entries" | LC_ALL=C sort | uniq -d)" ]] || { echo 'Invalid execution payload inventory.' >&2; exit 1; }
 prior_manifest=
 if [[ -e "$state/upgrade" || -L "$state/upgrade" ]]; then
-  [[ -f "$state/upgrade" && ! -L "$state/upgrade" ]] && cmp -s -- "$stage/manifest" "$state/upgrade" || { echo 'A different interrupted execution upgrade is retained.' >&2; exit 1; }
+  [[ -f "$state/upgrade" && ! -L "$state/upgrade" ]] && cmp -s -- "$stage/manifest" <(canonical_manifest "$state/upgrade") || { echo 'A different interrupted execution upgrade is retained.' >&2; exit 1; }
 fi
 if [[ -e "$state/manifest" || -L "$state/manifest" ]]; then
   [[ -f "$state/manifest" && ! -L "$state/manifest" && "$(stat -c %u -- "$state/manifest")" == "$EUID" ]] || exit 1
-  if ! cmp -s -- "$stage/manifest" "$state/manifest"; then
+  if ! cmp -s -- "$stage/manifest" <(canonical_manifest "$state/manifest"); then
     [[ -n "$upgrade_from" && "$(sha256sum "$state/manifest" | cut -d' ' -f1)" == "$upgrade_from" ]] || { echo 'Execution upgrade requires the exact installed prior manifest digest.' >&2; exit 1; }
     # This upgrade changes bytes, not the selected user or installed paths.
-    cmp -s <(cut -f2,3 "$stage/manifest") <(cut -f2,3 "$state/manifest") || { echo 'Execution upgrade changes user, permissions or payload paths.' >&2; exit 1; }
+    cmp -s <(cut -f2,3 "$stage/manifest") <(canonical_manifest "$state/manifest" | cut -f2,3) || { echo 'Execution upgrade changes user, permissions or payload paths.' >&2; exit 1; }
     prior_manifest="$state/prior.$upgrade_from.manifest"
     if [[ -e "$prior_manifest" || -L "$prior_manifest" ]]; then
       [[ -f "$prior_manifest" && ! -L "$prior_manifest" ]] && cmp -s -- "$prior_manifest" "$state/manifest" || exit 1
@@ -162,7 +169,7 @@ for target in "${targets[@]}"; do
     [[ -f "$target" && ! -L "$target" && "$(stat -c %u -- "$target")" == "$EUID" && "$(stat -c %a -- "$target")" == "$(stat -c %a -- "$stage/$index")" ]] || { echo "Execution installation file changed: $target" >&2; exit 1; }
     if ! cmp -s -- "$stage/$index" "$target"; then
       [[ -n "$prior_manifest" ]] || { echo "Execution installation file changed: $target" >&2; exit 1; }
-      expected=$(sed -n "$((index+3))p" "$state/manifest"); expected=${expected%%$'\t'*}
+      expected=$(awk -F '\t' -v path="${target#"${install_root%/}"}" 'NR > 2 && $3 == path { print $1 }' "$state/manifest")
       [[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$expected" ]] || { echo "Execution prior file changed: $target" >&2; exit 1; }
     fi
   elif [[ -n "$prior_manifest" ]]; then
