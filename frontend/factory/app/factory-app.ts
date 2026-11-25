@@ -657,43 +657,59 @@ export class SodaFactoryApp extends LitElement {
           <span>Jump to…</span><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
         ${port && context?.destinations?.includes('projects')
-          ? html`<nav class="soda-factory-all-projects" aria-label="Projects">
-              <button
-                type="button"
-                aria-current=${context.route.kind === 'projects' ? 'page' : 'false'}
-                @click=${() => this.navigate({kind: 'projects'})}
-              >
-                All projects
-              </button>
-              ${port.create && context.destinations.includes('project-new')
-                ? html`<button
-                    type="button"
-                    aria-current=${context.route.kind === 'project-new' ? 'page' : 'false'}
-                    @click=${() => this.navigate({kind: 'project-new'})}
-                  >
-                    New project
-                  </button>`
-                : ''}
-            </nav>`
-          : ''}
-        ${listed.length
-          ? html`<nav class="soda-factory-other-projects" aria-label="Your projects">
-              ${listed.map((row) => {
-                const mark = projectMark(row);
-                const here = row.connection === 'current';
-                return html`<button
+          ? html`<section class="soda-factory-projects" aria-label="Projects">
+              <div class="soda-factory-projects-head">
+                <button
                   type="button"
-                  aria-current=${here ? 'true' : 'false'}
-                  ?disabled=${(row.connection === 'sign_in' && !port?.signIn) || this.openingProject}
-                  title=${row.name + (mark ? ' · ' + mark.detail : '')}
-                  @click=${() => (here ? this.navigate({kind: 'feed', ...(repository ? {repository} : {})}) : void this.openProject(context!, row))}
+                  class="soda-factory-projects-all"
+                  aria-label="All projects"
+                  aria-current=${context.route.kind === 'projects' ? 'page' : 'false'}
+                  @click=${() => this.navigate({kind: 'projects'})}
                 >
-                  <span class="soda-factory-other-name">${row.name}</span>${mark
-                    ? html`<span class="soda-factory-other-mark" data-mark=${mark.kind}>${mark.label}</span>`
-                    : ''}
-                </button>`;
-              })}
-            </nav>`
+                  Projects
+                </button>
+                ${port.create && context.destinations.includes('project-new')
+                  ? html`<button
+                      type="button"
+                      class="soda-factory-projects-new"
+                      aria-label="New project"
+                      title="New project"
+                      aria-current=${context.route.kind === 'project-new' ? 'page' : 'false'}
+                      @click=${() => this.navigate({kind: 'project-new'})}
+                    >
+                      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+                    </button>`
+                  : ''}
+              </div>
+              ${listed.length
+                ? html`<nav aria-label="Your projects">
+                    ${listed.map((row) => {
+                      const mark = projectMark(row);
+                      const here = row.connection === 'current';
+                      const slash = row.name.indexOf('/');
+                      const owner = slash > 0 ? row.name.slice(0, slash) : '';
+                      const name = slash > 0 ? row.name.slice(slash + 1) : row.name;
+                      const status = mark && mark.kind !== 'needs' ? mark : undefined;
+                      return html`<button
+                        type="button"
+                        class="soda-factory-project-row"
+                        aria-current=${here ? 'true' : 'false'}
+                        ?disabled=${(row.connection === 'sign_in' && !port.signIn) || this.openingProject}
+                        title=${row.name + (mark ? ' · ' + mark.detail : '')}
+                        @click=${() => (here ? this.navigate({kind: 'feed', ...(repository ? {repository} : {})}) : void this.openProject(context, row))}
+                      >
+                        <span class="soda-factory-project-row-name">${name}</span>
+                        <span class="soda-factory-project-row-meta"
+                          >${owner}${owner && status ? ' · ' : ''}${status
+                            ? html`<span data-mark=${status.kind}>${status.label}</span>`
+                            : ''}</span
+                        >
+                        ${mark?.kind === 'needs' ? html`<span class="soda-factory-project-row-count" aria-label=${mark.detail}>${mark.label}</span>` : ''}
+                      </button>`;
+                    })}
+                  </nav>`
+                : ''}
+            </section>`
           : ''}
         <div class="soda-factory-sidebar-foot">
           ${foot.length

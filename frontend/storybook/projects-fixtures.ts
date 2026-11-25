@@ -24,7 +24,7 @@ export const projectStoryRows: readonly FactoryProject[] = [
   row('10', 'alex/archive', 'not_connected', {needsYou: 0, working: [], dispatch: 'none'}),
   row('11', 'beta/docs', 'sign_in', {needsYou: 3, working: [], dispatch: 'open'}, 'beta-team'),
   row('12', 'gamma/lab', 'connected'),
-  {...row('13', 'delta/moved', 'connected'), refused: 'GitHub refused Factory access to this repository. If its organization restricts OAuth apps, an owner has to approve Factory.'},
+  {...row('13', 'factory-test-repos/factory-installed-github-check-20261109', 'connected'), refused: 'GitHub refused Factory access to this repository. If its organization restricts OAuth apps, an owner has to approve Factory.'},
 ];
 
 /** A fake host port that counts what the UI asks of it. Each call is mirrored

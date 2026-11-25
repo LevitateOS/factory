@@ -110,44 +110,109 @@
   background: var(--soda-page-text);
   font-weight: 600;
 }
-/* With a project list: All projects above, other projects collapsed below. */
-.soda-factory-all-projects button,
-.soda-factory-other-projects button {
-  padding-left: 8px;
+/* Projects: a heading that opens the full page, a + for a new project, then
+   one two-line row per project (repository name, then owner and any status),
+   so long names never wrap word by word around a badge. */
+.soda-factory-projects {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
-.soda-factory-other-projects {
-  gap: 1px;
-}
-.soda-factory-other-projects button {
+.soda-factory-projects-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
+  padding: 0 4px;
 }
-/* The project open in this window stays in the list, marked. */
-.soda-factory-other-projects button[aria-current="true"] {
+.soda-factory-projects-head button {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+.soda-factory-projects-all {
+  flex: 1;
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--soda-page-muted);
+  font: 600 12px/16px "IBM Plex Mono", monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.soda-factory-projects-new {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--soda-page-muted);
+}
+.soda-factory-projects-new svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.soda-factory-projects-head button:hover:not(:disabled) {
+  color: var(--soda-page-text);
   background: var(--soda-page-hover);
-  font-weight: 600;
 }
-.soda-factory-other-name {
+.soda-factory-projects-head button[aria-current="page"] {
+  color: var(--soda-page-text);
+  background: var(--soda-page-hover);
+}
+.soda-factory-sidebar .soda-factory-projects nav {
+  gap: 1px;
+}
+.soda-factory-sidebar .soda-factory-project-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-left: 2px solid transparent;
+}
+.soda-factory-project-row-name,
+.soda-factory-project-row-meta {
+  grid-column: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.soda-factory-other-mark {
-  flex: none;
-  padding: 0 6px;
-  border: 1px solid var(--soda-page-edge);
+.soda-factory-project-row-name {
+  font: 500 15px/20px Barlow, Arial, sans-serif;
+}
+.soda-factory-project-row-meta {
+  color: var(--soda-page-muted);
   font: var(--soda-font-caption);
 }
-.soda-factory-other-mark[data-mark="needs"] {
-  border-color: var(--soda-page-action);
+.soda-factory-project-row-meta [data-mark="refused"],
+.soda-factory-project-row-meta [data-mark="paused"] {
+  color: var(--soda-page-warning);
+}
+.soda-factory-project-row-meta [data-mark="sign-in"] {
+  color: var(--soda-page-text);
+}
+.soda-factory-project-row-count {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 20px;
+  padding: 0 6px;
+  text-align: center;
   color: var(--soda-page-on-action);
   background: var(--soda-page-action);
+  font: 600 12px/20px "IBM Plex Mono", monospace;
 }
-.soda-factory-other-mark[data-mark="paused"] {
-  border-color: var(--soda-page-warning-edge);
-  color: var(--soda-page-warning);
-  background: var(--soda-page-warning-bg);
+/* The project open in this window: an accent edge and a stronger name. */
+.soda-factory-sidebar .soda-factory-project-row[aria-current="true"] {
+  border-left-color: var(--soda-page-action);
+  background: var(--soda-page-hover);
+}
+.soda-factory-project-row[aria-current="true"] .soda-factory-project-row-name {
+  font-weight: 700;
 }
 /* Host-declared destinations such as Settings sit at the foot, above the account. */
 .soda-factory-sidebar-foot {
