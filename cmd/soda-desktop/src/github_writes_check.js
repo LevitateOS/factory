@@ -59,9 +59,9 @@
     await until(() => !name.disabled, 'repository discovery unavailable');
     name.value = fixture.name;
     document.querySelector('#repository-find').requestSubmit();
-    await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to') ||
+    await until(() => document.querySelector('#repository-name').dataset.repository === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to') ||
       /could not|unavailable/i.test(document.querySelector('#connection-status').textContent), 'fixture repository not connected');
-    if (document.querySelector('#factory-repository').value !== fixture.repository || !document.querySelector('#connection-status').textContent.includes('Connected to')) {
+    if (document.querySelector('#repository-name').dataset.repository !== fixture.repository || !document.querySelector('#connection-status').textContent.includes('Connected to')) {
       const session = await invoke('factory_prepare_connection', {connection: __CONNECTION__, repository: fixture.repository});
       let detail = 'unexpected direct connection';
       try { await invoke('factory_connect', {session}); } catch (error) { detail = String(error).slice(0, 240); }

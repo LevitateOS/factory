@@ -165,7 +165,7 @@ export async function mountDeveloper(core: Core) {
       generation: context.generation,
       binding: context.binding,
       account: document.querySelector<HTMLSelectElement>('#factory-account')?.value ?? '',
-      repository: document.querySelector<HTMLSelectElement>('#factory-repository')?.value ?? '',
+      repository: document.querySelector<HTMLInputElement>('#repository-name')?.dataset.repository ?? '',
     });
   const describe = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();

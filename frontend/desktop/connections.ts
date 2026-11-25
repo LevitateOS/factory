@@ -29,7 +29,7 @@ function repository(value: unknown): Repository {
  * hold it outside the document, so its controls are found through it. */
 export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignInPlacement, panel: HTMLElement) {
   const accounts = panel.querySelector<HTMLSelectElement>('#factory-account')!;
-  const repositories = panel.querySelector<HTMLSelectElement>('#factory-repository')!;
+  const suggestions = panel.querySelector<HTMLDataListElement>('#repository-options')!;
   const status = panel.querySelector<HTMLElement>('#connection-status')!;
   const more = panel.querySelector<HTMLButtonElement>('#repository-more')!;
   const reconnect = panel.querySelector<HTMLButtonElement>('#connection-reconnect')!;
@@ -181,15 +181,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     const projects = JSON.stringify(discovered.map((repo) => [repo.external_id, repo.name, repo.private]));
     if (projects !== repositoryOptions) {
       repositoryOptions = projects;
-      repositories.replaceChildren(
-        new Option('Choose a repository', ''),
-        ...discovered.map(
-          (repo) => new Option(repo.name + (repo.private === true ? ' · Private' : ''), repo.external_id)
-        )
-      );
+      suggestions.replaceChildren(...discovered.map((repo) => new Option(repo.private === true ? 'Private' : '', repo.name)));
     }
-    repositories.value = discovered.some((repo) => repo.external_id === wanted) ? wanted : '';
-    repositories.disabled = !selected || busy;
     more.hidden = !nextPage;
     more.disabled = busy || !selected;
     reconnect.disabled =
@@ -200,6 +193,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       !known.some((account) => account.connection === connection && account.state === 'stored');
     disconnect.disabled = !connection && !pending;
     name.disabled = (!selected && !fountain()) || busy;
+    // Checks and developer scopes read the open repository from here.
+    name.dataset.repository = selected?.repository?.external_id ?? '';
     find.querySelector<HTMLButtonElement>('button')!.disabled = name.disabled;
     status.textContent = message;
     // With a project open, its own card on Projects shows the connection and
@@ -323,6 +318,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       }
       pending = undefined;
       selected = value;
+      if (value.repository) name.value = value.repository.name;
       const metadata = discovered.find((repo) => repo.external_id === remote);
       product = new DesktopProduct(core, value, profile, navigate, signIn.sections, projects, metadata?.default_branch);
       projects.connected(product.transport);
@@ -361,19 +357,21 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     void choose(accounts.value);
   });
   // With a project open the list is read only when the person reaches for it.
-  repositories.addEventListener('focus', () => {
+  name.addEventListener('focus', () => {
     if (discovered.length || busy || !selected) return;
     const captured = serial;
     void discover(captured, 1)
       .catch(() => {
-        if (live(captured)) message = 'Your repositories could not be listed. Open one by name instead.';
+        if (live(captured)) message = 'Your repositories could not be listed. Enter owner/name instead.';
       })
       .finally(() => {
         if (serial === captured) render();
       });
   });
-  repositories.addEventListener('change', () => {
-    void choose(connection, repositories.value, fountainRepository);
+  // Picking a suggestion opens it; typing only filters the suggestions.
+  name.addEventListener('input', (event) => {
+    const picked = !(event instanceof InputEvent) || event.inputType === 'insertReplacementText';
+    if (picked && discovered.some((repo) => repo.name === name.value)) find.requestSubmit();
   });
   reconnect.addEventListener('click', () => void reconnectHere());
   disconnect.addEventListener('click', () => void disconnectHere());
@@ -410,6 +408,12 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     } catch {
       message = 'Enter a repository URL on the selected host or owner/name.';
       render();
+      return;
+    }
+    // A repository already in the list needs no lookup.
+    const listed = !fountain() && discovered.find((repo) => repo.name.toLowerCase() === value.toLowerCase());
+    if (listed) {
+      void choose(connection, listed.external_id);
       return;
     }
     busy = true;

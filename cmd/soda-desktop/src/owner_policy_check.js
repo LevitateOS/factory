@@ -21,9 +21,9 @@
     await until(() => [...document.querySelector('#factory-account').options].some(o => o.value === __CONNECTION__), 'saved fixture account');
     const account = document.querySelector('#factory-account');
     account.value = __CONNECTION__; account.dispatchEvent(new Event('change', {bubbles: true}));
-    const repository = document.querySelector('#factory-repository');
-    await until(() => !repository.disabled && [...repository.options].some(o => o.value === '123'), 'observed repository');
-    repository.value = '123'; repository.dispatchEvent(new Event('change', {bubbles: true}));
+    const repository = document.querySelector('#repository-name');
+    await until(() => !repository.disabled && [...repository.list.options].some(o => o.value === 'owned/repo'), 'observed repository');
+    repository.value = 'owned/repo'; document.querySelector('#repository-find').requestSubmit();
     await until(() => document.querySelector('#connection-status').textContent === 'Connected to owned/repo.', 'native product binding');
     const app = document.querySelector('soda-factory-app');
     button(app.querySelector('nav[aria-label="Factory"]'), 'Work').click();
@@ -150,15 +150,15 @@
     const revision = disabled.policy.revision;
     assert(button(roles, 'Enroll automation policy').disabled, 'withdrawn funding permitted reenrollment');
     // Actual repository and account replacement retire the preceding transport.
-    await until(() => [...repository.options].some(option => option.value === '124'), 'second observed repository');
-    repository.value = '124'; repository.dispatchEvent(new Event('change', {bubbles: true}));
+    await until(() => [...repository.list.options].some(option => option.value === 'owned/other'), 'second observed repository');
+    repository.value = 'owned/other'; document.querySelector('#repository-find').requestSubmit();
     await until(() => document.querySelector('#connection-status').textContent === 'Connected to owned/other.', 'repository replacement');
     let refused = false;
     try { await context.transport.request(`${path}/policy`, {method: 'PUT', body: JSON.stringify({...change, expected_revision: revision})}); } catch { refused = true; }
     assert(refused, 'previous repository retained mutation authority');
     account.value = __OTHER_CONNECTION__; account.dispatchEvent(new Event('change', {bubbles: true}));
-    await until(() => !repository.disabled && [...repository.options].some(option => option.value === '123'), 'second account catalogue');
-    repository.value = '123'; repository.dispatchEvent(new Event('change', {bubbles: true}));
+    await until(() => !repository.disabled && [...repository.list.options].some(option => option.value === 'owned/repo'), 'second account catalogue');
+    repository.value = 'owned/repo'; document.querySelector('#repository-find').requestSubmit();
     await until(() => document.querySelector('#connection-status').textContent === 'Connected to owned/repo.', 'account replacement');
     button(app.querySelector('nav[aria-label="Factory"]'), 'Work').click();
     await until(() => {

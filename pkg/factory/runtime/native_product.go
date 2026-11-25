@@ -200,6 +200,12 @@ func nativeProductResourceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, factoryservice.ErrPlacementAdminRequired):
 		nativeProductError(w, 403, "repository_admin_required", "Current repository administration access is required.")
 	default:
+		// A connector refusal names its fixed reason, so a failed connection says why.
+		var port *NativePortError
+		if errors.As(err, &port) && port.Code != "" {
+			nativeProductError(w, http.StatusServiceUnavailable, "authority_unavailable", "Current Factory account admission is unavailable ("+port.Code+").")
+			return
+		}
 		nativeProductUnavailable(w)
 	}
 }

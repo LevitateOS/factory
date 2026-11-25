@@ -309,7 +309,12 @@ pub(super) async fn factory_connect(
                 canonical(&reply.body["actor"]),
                 reply.body["host"].as_str().is_some_and(registry)
             );
-            return Err("Factory account could not be connected".into());
+            return Err(match reply.body["error"]["message"].as_str()
+                .filter(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
+            {
+                Some(reason) => format!("Factory account could not be connected: {reason}"),
+                None => format!("Factory account could not be connected (HTTP {}).", reply.status),
+            });
         }
         let repository = if let Some(remote) = &selection.repository {
             let catalog = call(

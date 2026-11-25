@@ -770,9 +770,9 @@ async fn issue_read_journey(app: &tauri::AppHandle, connection: &str) -> Result<
       try{
         await until(()=>[...document.querySelector('#factory-account').options].some(o=>o.value===__CONNECTION__),'saved account');
         const accounts=document.querySelector('#factory-account');accounts.value=__CONNECTION__;accounts.dispatchEvent(new Event('change',{bubbles:true}));
-        const repositories=document.querySelector('#factory-repository');
-        await until(()=>!repositories.disabled&&[...repositories.options].some(o=>o.value==='9007199254740993'),'repository catalogue');
-        repositories.value='9007199254740993';repositories.dispatchEvent(new Event('change',{bubbles:true}));
+        const repositories=document.querySelector('#repository-name');
+        await until(()=>!repositories.disabled&&[...repositories.list.options].some(o=>o.value==='owner/repo'),'repository catalogue');
+        repositories.value='owner/repo';document.querySelector('#repository-find').requestSubmit();
         await until(()=>document.querySelector('#connection-status').textContent==='Connected to owner/repo.','repository selection');
         await until(()=>app.querySelector('soda-factory-feed'),'shared feed');
         nav('Issues');await until(()=>app.querySelector('.soda-issue-title:not([disabled])'),'issue list');
@@ -1781,8 +1781,8 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         await openRepository('rust-lang/rust');nav('New issue');
         await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'original repository draft restored');
         if(__SESSION_LIFECYCLE__){
-          const repositorySelect=document.querySelector('#factory-repository');
-          const selectedRepository=repositorySelect.value;
+          const repositorySelect=document.querySelector('#repository-name');
+          const selectedRepository=repositorySelect.dataset.repository;
           const visibility=[];
           const observeVisibility=()=>visibility.push(document.hidden);
           document.addEventListener('visibilitychange',observeVisibility);
@@ -1793,12 +1793,12 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
           await until(()=>!document.hidden&&visibility.includes(true)&&visibility.at(-1)===false,'native hide/restore');
           document.removeEventListener('visibilitychange',observeVisibility);
           await until(()=>document.querySelector('#connection-status').textContent==='Connected to rust-lang/rust.','restored native selection');
-          assert(accountSelect.value===__CONNECTION__&&repositorySelect.value===selectedRepository,'hide/restore lost selection');
+          assert(accountSelect.value===__CONNECTION__&&repositorySelect.dataset.repository===selectedRepository,'hide/restore lost selection');
           nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'hide/restore draft');
           for(const cycle of [1,2]){
             await invoke('report',{stage:'signin-session-unavailable-'+cycle,error:null});
             await until(()=>accountSelect.disabled&&document.querySelector('#connection-reconnect').disabled&&document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'unavailable account retires product');
-            assert(accountSelect.value===__CONNECTION__&&repositorySelect.value===selectedRepository,'unknown status erased selection');
+            assert(accountSelect.value===__CONNECTION__&&repositorySelect.dataset.repository===selectedRepository,'unknown status erased selection');
             assert(document.querySelector('#github-accounts button').disabled,'unknown status left stale account action enabled');
             if(cycle===2)document.querySelector('#connection-disconnect').click();
             await invoke('report',{stage:'signin-session-retired-'+cycle,error:null});

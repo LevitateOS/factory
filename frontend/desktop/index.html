@@ -24,20 +24,22 @@
           <option value="">Choose an account</option>
         </select></label
       >
-      <label
-        >Your repositories
-        <select id="factory-repository" disabled>
-          <option value="">Choose a repository</option>
-        </select></label
-      >
-      <button id="repository-more" type="button" hidden>Load more repositories</button>
+      <!-- One combobox: type to filter your repositories, pick one, or enter owner/name or a URL. -->
       <form id="repository-find">
         <label
-          >Or open by name
-          <input id="repository-name" placeholder="owner/name or repository URL" autocomplete="off" disabled
+          >Repository
+          <input
+            id="repository-name"
+            list="repository-options"
+            placeholder="Search your repositories, or owner/name or URL"
+            autocomplete="off"
+            spellcheck="false"
+            disabled
         /></label>
-        <button type="submit" disabled>Open repository</button>
+        <datalist id="repository-options"></datalist>
+        <button type="submit" disabled>Open</button>
       </form>
+      <button id="repository-more" type="button" hidden>Load more repositories</button>
       <p id="connection-status" role="status">Choose a saved account to connect.</p>
       <div class="desktop-connections-actions">
         <button id="connection-reconnect" type="button" disabled>Reconnect</button>

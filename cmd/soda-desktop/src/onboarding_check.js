@@ -32,7 +32,7 @@
     await until(() => !name.disabled, 'repository discovery');
     input(name, fixture.name);
     document.querySelector('#repository-find').requestSubmit();
-    await until(() => document.querySelector('#factory-repository').value === fixture.repository &&
+    await until(() => document.querySelector('#repository-name').dataset.repository === fixture.repository &&
       document.querySelector('#connection-status').textContent.includes('Connected to'), 'connected fixture');
     const app = document.querySelector('soda-factory-app');
     await click(app.querySelector('nav[aria-label="Factory"]'), 'Work');
