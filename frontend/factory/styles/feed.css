@@ -3251,10 +3251,10 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   align-items: flex-start;
   gap: 10px;
   margin: 0;
-  padding: 10px 12px;
+  padding: 12px;
   border: 0;
-  border-radius: 8px;
-  background: var(--soda-feed-tint);
+  border-radius: 0;
+  background: var(--soda-page-selected);
   font: var(--soda-font-meta);
   color: var(--soda-page-text);
 }
@@ -3270,7 +3270,7 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   height: 24px;
   margin-top: 1px;
   overflow: hidden;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--soda-feed-role-color, var(--soda-page-muted));
   color: #fff;
   display: grid;
@@ -3571,12 +3571,30 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   max-width: 560px;
 }
 /* JEV can't run a stage on this server: say so in warning colours, no dots. */
-.soda-feed .soda-feed-outcome[data-tone='blocked'] {
-  background: var(--soda-page-warning-bg);
-  color: var(--soda-page-warning);
-}
-.soda-feed .soda-feed-outcome[data-tone='blocked'] .soda-feed-outcome-who {
+.soda-feed .soda-feed-card .soda-feed-outcome[data-tone='blocked'] {
+  border: 1px dashed var(--soda-page-muted);
+  background: var(--soda-page-selected);
   color: var(--soda-page-text);
+}
+.soda-feed-card .soda-feed-authoring-label {
+  padding: 1px 8px;
+  border: 1px dashed var(--soda-page-muted);
+  color: var(--soda-feed-neu);
+  font: 500 12px/18px Barlow, Arial, sans-serif;
+}
+.soda-feed-outcome-body > button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--soda-page-text);
+  border-radius: 0;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
+  font: 500 13px/20px var(--soda-font-mono-family);
+}
+.soda-feed-outcome-body > button:is([data-post-product-change], [data-clarification='true']) {
+  border-color: var(--soda-page-action);
+  background: var(--soda-page-action);
+  color: var(--soda-page-on-action);
 }
 
 /* Needs me rail: the list stays one column; the rail sits to its right on wide

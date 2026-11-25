@@ -430,6 +430,7 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
               data-post-revise=${outcome.postId}
               data-post-repository=${outcome.productRepository}
               data-message-kind=${outcome.messageKind}
+              data-clarification=${outcome.needsClarification ? 'true' : 'false'}
             >
               ${outcome.needsClarification ? 'Answer clarification' : `Edit ${outcome.messageKind} and retry`}
             </button>`
