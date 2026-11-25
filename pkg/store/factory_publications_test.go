@@ -159,7 +159,6 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			policy.IntentMinutes++
 			if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 				t.Fatal(err)
 			}

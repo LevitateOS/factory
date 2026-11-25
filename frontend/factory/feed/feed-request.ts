@@ -21,7 +21,6 @@ const settingNames: Readonly<Record<string, string>> = {
 
 const units: Readonly<Record<string, [string, string]>> = {
   runs: ['concurrent run', 'concurrent runs'],
-  minutes: ['minute', 'minutes'],
 };
 
 export function renderFeedRequest(

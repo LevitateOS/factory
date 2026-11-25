@@ -18,13 +18,10 @@ import (
 	"github.com/levitateos/factory/pkg/project"
 )
 
-// The fixed approved-check route shares one allowance across every accepted
-// revision and explicit Retry of the same stable intent.
+// MaxAppVerificationRunMinutes bounds one application verification run.
 const (
-	DefaultAppVerificationRuns          = 2
-	DefaultAppVerificationActiveMinutes = 60
-	MaxAppVerificationRunMinutes        = 30
-	DefaultDeliveryRepairRuns           = 2
+	MaxAppVerificationRunMinutes = 30
+	DefaultDeliveryRepairRuns    = 2
 )
 
 // DeliverySubject binds one app verification to its accepted intent

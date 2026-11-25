@@ -80,11 +80,11 @@ func answerFormSchema() *jsonschema.Schema {
 // explains the request and links the person to the setting; it grants
 // nothing. factory.FeedRequest.Validate enforces the same rules on every call.
 func requestSchema() *jsonschema.Schema {
-	return &jsonschema.Schema{Type: "object", Description: "Optional: ask the person to raise an allowance or grant access in Settings. allowance: setting capacity (unit runs, 1-64 concurrent runs) or sponsorships (unit minutes, 1-10080); amount is the total you need. access: setting policy, operator_grant, sponsorships or environment_grant, with no amount. reason and blocks are plain text on one line. Do not also send options, answer_form or addressed_to. The request stays open until the recorded setting meets it or someone replies.", Properties: map[string]*jsonschema.Schema{
+	return &jsonschema.Schema{Type: "object", Description: "Optional: ask the person to raise an allowance or grant access in Settings. allowance: setting capacity (unit runs, 1-64 concurrent runs); amount is the total you need. access: setting policy, operator_grant, sponsorships or environment_grant, with no amount. reason and blocks are plain text on one line. Do not also send options, answer_form or addressed_to. The request stays open until the recorded setting meets it or someone replies.", Properties: map[string]*jsonschema.Schema{
 		"kind":    {Type: "string", Enum: []any{factory.RequestAllowance, factory.RequestAccess}},
 		"setting": {Type: "string", Enum: []any{factory.SettingCapacity, factory.SettingSponsorships, factory.SettingPolicy, factory.SettingOperatorGrant, factory.SettingEnvironmentGrant}},
 		"amount":  {Type: "integer"},
-		"unit":    {Type: "string", Enum: []any{"runs", "minutes"}},
+		"unit":    {Type: "string", Enum: []any{"runs"}},
 		"reason":  {Type: "string", MaxLength: ptrInt(400), Description: "Why you need it."},
 		"blocks":  {Type: "string", MaxLength: ptrInt(160), Description: "Optional: the work that waits on it."},
 	}, Required: []string{"kind", "setting", "reason"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}

@@ -37,7 +37,6 @@ export function progressStoryPeer(
     merge_method: 'squash',
     required_checks: ['build'],
     reassessment_minutes: 30,
-    intent_minutes: 12,
     judgments: null as Record<string, unknown> | null,
     attempt_limits: {active_minutes: 30, correction_cycles: 2, review_rounds: 2, max_children: 1},
     roles: {

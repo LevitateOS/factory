@@ -200,7 +200,7 @@ func fundDispatchPacketAttemptTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 		case factory.SubjectCompletion:
 			return insertReassessmentAttemptAllowanceTx(ctx, tx, a, grants.policy.ReassessmentMinutes, run.Deadline, now)
 		case factory.SubjectIntent:
-			return insertIntentAttemptAllowanceTx(ctx, tx, a, grants.policy.IntentMinutes, run.Deadline, now)
+			return insertIntentAttemptAllowanceTx(ctx, tx, a, grants.policy.AttemptLimits.ActiveMinutes, run.Deadline, now)
 		case factory.SubjectDelivery:
 			return insertDeliveryAttemptAllowanceTx(ctx, tx, a, grants.policy.AttemptLimits.ActiveMinutes, run.Deadline, now)
 		case factory.SubjectStall:

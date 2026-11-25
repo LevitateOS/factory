@@ -171,14 +171,6 @@ command identities and principal attribution stay intact. The browser action
 body cannot choose actor, owner or principal; current native permission/session,
 settled verification evidence and funding gates still apply.
 
-Verification-allowance increases also take canonical ownership and command
-attribution separately. The Fountain adapter supplies the native session
-principal; the store authorizes the current canonical intent owner under its
-existing transaction lock. New commands no longer label a canonical owner key as
-a native actor. Replay keeps the captured command and its original principal,
-returns current limits/usage and cannot reset a later increase. Body fields
-cannot override the admitted actor, owner or principal.
-
 Opaque native intake proofs retain their provider JSON. Capture reverses the
 canonical actor/repository and checks the admitted native author. Lookup-only
 proof decoding maps native subjects on the adopted host; the shared private

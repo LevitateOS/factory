@@ -466,9 +466,7 @@ func timeOnlyFailure(repository int64, failure *planWait) DispatchError {
 // timeOnlyScope resolves the root's native revision and funded minutes
 // from recorded state: the sealed evidence bracket and the
 // policy-admitted reassessment horizon for completion roots, the lowest
-// valid revision and the policy-admitted intent horizon for intent
-// roots. An unfunded intent posture waits for explicit funding; it
-// never launches on omission.
+// valid revision and the policy run time limit for intent roots.
 func timeOnlyScope(ctx context.Context, deps DispatchDeps, repository int64, subject factory.ExecutionSubject) (int64, int, *planWait, *planWait) {
 	fail := func(detail string) (int64, int, *planWait, *planWait) {
 		return 0, 0, nil, waitFor(DispatchErrStore, detail)
@@ -478,25 +476,14 @@ func timeOnlyScope(ctx context.Context, deps DispatchDeps, repository int64, sub
 		if err != nil {
 			return fail("policy unreadable")
 		}
-		if policy.IntentMinutes < 1 {
-			return 0, 0, waitFor(WaitAllowance, "intent root is unfunded; explicit funding required"), nil
-		}
-		return 1, policy.IntentMinutes, nil, nil
+		return 1, policy.AttemptLimits.ActiveMinutes, nil, nil
 	}
 	if subject.Kind == factory.SubjectDelivery {
 		policy, err := deps.Store.RepositoryPolicy(ctx, repository)
 		if err != nil {
 			return fail("policy unreadable")
 		}
-		remaining, err := deps.Store.RemainingAppVerificationSeconds(ctx, repository, subject.Delivery.IntentID, time.Now())
-		if err != nil {
-			return fail("application verification allowance unreadable")
-		}
-		minutes := min(policy.AttemptLimits.ActiveMinutes, factory.MaxAppVerificationRunMinutes, int(remaining/60))
-		if minutes < 1 {
-			return 0, 0, waitFor(WaitAllowance, "application verification intent allowance is exhausted (2 runs / 60 active minutes)"), nil
-		}
-		return 1, minutes, nil, nil
+		return 1, min(policy.AttemptLimits.ActiveMinutes, factory.MaxAppVerificationRunMinutes), nil, nil
 	}
 	if subject.Kind == factory.SubjectStall && subject.Stall != nil {
 		record, err := deps.Store.StallRepairRecord(ctx, repository, subject.Stall.StallID)

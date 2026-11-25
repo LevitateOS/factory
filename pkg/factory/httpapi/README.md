@@ -657,15 +657,6 @@ retain their canonical outcomes. `AcceptanceDecisionError` also serves work
 readback; there is one refusal renderer, with sanitized host authority errors.
 No preview or construction dispatches work or replaces the journal.
 
-Verification-allowance GET/POST belongs to `Requests.Handler`. Its existing
-service retains private owner checks, current administration, exact repository
-admission, command replay, increasing finite limits, usage and revision CAS.
-POST requires a separate host-supplied `Principal`; bodies cannot select it.
-Queries refuse, commands use bounded strict JSON, and host admission is checked
-after decoding and before successful disclosure. Replays return current limits
-and usage while keeping captured command attribution. These operations launch
-no checks, runtime, work driver or model call.
-
 `Workers.Handler` owns the fixed `/mcp` route, POST-only/browser-Origin rules,
 capability-header and Bearer/HMAC authentication, admitted scope/state/expiry
 checks, generic refusals and bounded request-body handoff. It retains a private

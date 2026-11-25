@@ -140,7 +140,7 @@ func TestDecomposeRootAdmitsThroughDecomposeGuard(t *testing.T) {
 	if allowance.Intent == nil || allowance.Intent.IntentID != intentID || allowance.Intent.OwnerID != 7 {
 		t.Fatalf("intent allowance mis-scoped: %+v", allowance.Intent)
 	}
-	if allowance.Limits.ActiveMinutes != 30 || !allowance.Active || allowance.Closed {
+	if allowance.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes || !allowance.Active || allowance.Closed {
 		t.Fatalf("intent allowance mis-funded: %+v", allowance.Limits)
 	}
 }
@@ -236,7 +236,7 @@ func TestIntentDistinctRootCannotRefillSameRevision(t *testing.T) {
 	}
 	assertDispatchPacketAbsent(t, db, a2)
 	prior := readIntentAllowance(t, db, a.ID)
-	if !prior.Active || prior.Limits.ActiveMinutes != 30 {
+	if !prior.Active || prior.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("first intent allowance disturbed: %+v", prior)
 	}
 }
@@ -284,7 +284,7 @@ func TestIntentFailedRootCannotRefillSameRevision(t *testing.T) {
 	}
 	assertDispatchPacketAbsent(t, db, a2)
 	settled := readIntentAllowance(t, db, a.ID)
-	if settled.Active || !settled.Closed || settled.Limits.ActiveMinutes != 30 {
+	if settled.Active || !settled.Closed || settled.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("settled intent allowance disturbed: %+v", settled)
 	}
 }
@@ -340,7 +340,7 @@ func TestIntentSucceededRootCannotRefillSameRevision(t *testing.T) {
 		t.Fatalf("settled intent revision funded a second root: %d allowances", funded)
 	}
 	settled := readIntentAllowance(t, db, a.ID)
-	if settled.Active || !settled.Closed || settled.Limits.ActiveMinutes != 30 {
+	if settled.Active || !settled.Closed || settled.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("settled intent allowance disturbed: %+v", settled)
 	}
 	nextRevision := "d" + strings.Repeat("c", 24)
@@ -358,11 +358,11 @@ func TestIntentSucceededRootCannotRefillSameRevision(t *testing.T) {
 		t.Fatalf("successor revision root refused: %v", err)
 	}
 	fundedNext := readIntentAllowance(t, db, a3.ID)
-	if !fundedNext.Active || fundedNext.Limits.ActiveMinutes != 30 {
+	if !fundedNext.Active || fundedNext.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("successor revision allowance not funded: %+v", fundedNext)
 	}
 	kept := readIntentAllowance(t, db, a.ID)
-	if kept.Active || !kept.Closed || kept.Limits.ActiveMinutes != 30 {
+	if kept.Active || !kept.Closed || kept.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("prior success-settled allowance disturbed: %+v", kept)
 	}
 }
@@ -412,11 +412,11 @@ func TestIntentNewRevisionFundsNextAttempt(t *testing.T) {
 		t.Fatalf("next revision root refused: %v", err)
 	}
 	funded := readIntentAllowance(t, db, a2.ID)
-	if !funded.Active || funded.Limits.ActiveMinutes != 30 {
+	if !funded.Active || funded.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("next revision allowance not funded: %+v", funded)
 	}
 	prior := readIntentAllowance(t, db, a.ID)
-	if prior.Active || !prior.Closed || prior.Limits.ActiveMinutes != 30 {
+	if prior.Active || !prior.Closed || prior.Limits.ActiveMinutes != factory.DefaultAttemptLimits().ActiveMinutes {
 		t.Fatalf("prior revision allowance disturbed: %+v", prior)
 	}
 }

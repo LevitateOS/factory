@@ -142,13 +142,6 @@ func deliveryRetryPriorTx(ctx context.Context, tx *sql.Tx, repository int64, pri
 	if head != prior.Subject.Delivery.AcceptedRevision {
 		return prior, ErrExplicitRetryIneligible
 	}
-	remaining, err := remainingAppVerificationSecondsTx(ctx, tx, repository, prior.Subject.Delivery.IntentID, time.Now())
-	if err != nil {
-		return prior, err
-	}
-	if remaining < 60 {
-		return prior, ErrExplicitRetryIneligible
-	}
 	if _, _, err = applicationVerificationInputsTx(ctx, tx, prior); err != nil {
 		return prior, err
 	}

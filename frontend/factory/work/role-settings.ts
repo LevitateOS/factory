@@ -212,7 +212,6 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
     required_checks: policy.required_checks,
     attempt_limits: policy.attempt_limits,
     reassessment_minutes: policy.reassessment_minutes,
-    intent_minutes: policy.intent_minutes,
     publish_actor: policyActor(policy.publish_actor),
     create_actor: policyActor(policy.create_actor),
     review_actor: policyActor(policy.review_actor),

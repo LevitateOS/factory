@@ -46,8 +46,8 @@ type FeedRequest struct {
 }
 
 // requestSettings lists which requests each setting can satisfy: access, and
-// allowance in its unit up to the setting's own save bound (Capacity and
-// Sponsorship validation). Settings absent here take no request.
+// allowance in its unit up to the setting's own save bound (Capacity
+// validation). Settings absent here take no request.
 var requestSettings = map[string]struct {
 	access bool
 	unit   string
@@ -56,7 +56,7 @@ var requestSettings = map[string]struct {
 	SettingPolicy:           {access: true},
 	SettingOperatorGrant:    {access: true},
 	SettingEnvironmentGrant: {access: true},
-	SettingSponsorships:     {access: true, unit: "minutes", max: 10080},
+	SettingSponsorships:     {access: true},
 	SettingCapacity:         {unit: "runs", max: 64},
 }
 

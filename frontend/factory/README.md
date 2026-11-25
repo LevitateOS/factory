@@ -921,32 +921,6 @@ reload can safely replay the original durable request. The nine-source closure
 imports no host code. Native profile/process-crash recovery, cross-document
 ownership, historical import and actual provider effects remain unqualified.
 
-`work/verification-allowance.ts` defines the shared verification-limit control;
-Project Work and request places import it directly. The response/command types
-and decoder live in `api/verification-allowance.ts`, and exact pending increases
-live in `work/allowance-record.ts`. The eight-source closure has no host imports.
-`VerificationAllowanceContext` supplies shared transport, canonical repository,
-intent ID and the stable admitted `commandScope` reference. Hosts retire it on
-account/profile changes. Before an increase, the control resolves identity and
-checks the current private request still names that intent/repository.
-
-An increase persists exact command ID, expected revision and cumulative limits
-before POST, and recovers across remount/reload without submitting automatically.
-Unavailable/malformed/foreign/conflicting storage is preserved; failed writes
-retain the chosen change in the document without dispatch. Unknown outcomes and
-recovered refusals retain the same request. Only the first known CAS conflict
-settles a refused change and requires a fresh read. A matching recorded command
-receipt is required to settle a POST; its current totals may exceed the requested
-totals after a later increase. A fresh read naming that exact command as current
-head with matching totals can also confirm it without another POST. Late replies
-cannot erase replacements or publish after retirement. Failed removal retains
-the document tombstone. Reads/actions abort with binding/generation retirement;
-failed reads disable increases and denied reads clear private facts. Increasing
-limits preserves usage and never starts verification. Eight declared stories
-include read-only, loading, offline, denied, lost reply, recovery and stale revision.
-Native persistence, cross-document ownership, historical import and real effects
-remain unqualified by these browser peers.
-
 `work/repair-funding.ts` defines the shared repository repair grant/revoke and
 charge/episode history control, with contracts in `api/repair-response.ts` and
 exact pending storage in `work/repair-record.ts`. Both Fountain settings surfaces

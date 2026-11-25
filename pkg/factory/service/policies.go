@@ -35,7 +35,6 @@ type PolicyChange struct {
 	RequiredChecks         []string                         `json:"required_checks"`
 	ExpectedRevision       int64                            `json:"expected_revision"`
 	ReassessmentMinutes    int                              `json:"reassessment_minutes"`
-	IntentMinutes          int                              `json:"intent_minutes"`
 	Enabled                bool                             `json:"enabled"`
 	Paused                 bool                             `json:"paused"`
 	AutomaticExternalPulls bool                             `json:"automatic_external_pulls"`
@@ -148,8 +147,6 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 		Publish: publish, Create: create, Review: review, Resolve: resolve, Merge: merge,
 		AttemptLimits:       factory.EffectiveAttemptLimits(in.AttemptLimits),
 		ReassessmentMinutes: factory.EffectiveReassessmentMinutes(in.ReassessmentMinutes),
-		// Zero remains explicitly unfunded; omission cannot invent intent credit.
-		IntentMinutes: in.IntentMinutes,
 	}
 	if in.AutomationReviewer != nil {
 		automation, err := bind(*in.AutomationReviewer, factory.OpReviewSubmit)

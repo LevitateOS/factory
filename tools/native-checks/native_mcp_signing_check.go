@@ -10920,9 +10920,8 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 		if e != nil {
 			return e
 		}
-		if !policy.Enabled || policy.IntentMinutes == 0 {
+		if !policy.Enabled {
 			policy.Enabled = true
-			policy.IntentMinutes = 5
 			if e = db.SaveRepositoryPolicy(ctx, policy); e != nil {
 				return e
 			}

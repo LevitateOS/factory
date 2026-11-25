@@ -122,11 +122,7 @@ func validateDeliveryRootTx(ctx context.Context, tx *sql.Tx, a factory.Assignmen
 }
 
 func insertDeliveryAttemptAllowanceTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, minutes int, deadline, now time.Time) error {
-	remaining, err := remainingAppVerificationSecondsTx(ctx, tx, a.Repository, a.Subject.Delivery.IntentID, now)
-	if err != nil {
-		return err
-	}
-	minutes = min(minutes, factory.MaxAppVerificationRunMinutes, int(remaining/60))
+	minutes = min(minutes, factory.MaxAppVerificationRunMinutes)
 	if minutes < 1 {
 		return factory.ErrAttemptTimeExhausted
 	}
@@ -134,7 +130,7 @@ func insertDeliveryAttemptAllowanceTx(ctx context.Context, tx *sql.Tx, a factory
 	if err := allowance.Validate(); err != nil {
 		return err
 	}
-	remaining = allowance.RemainingSeconds(now)
+	remaining := allowance.RemainingSeconds(now)
 	if remaining <= 0 || !deadline.After(now) || deadline.After(time.Unix(now.Unix()+remaining, 0)) {
 		return factory.ErrAttemptTimeExhausted
 	}
@@ -144,35 +140,6 @@ func insertDeliveryAttemptAllowanceTx(ctx context.Context, tx *sql.Tx, a factory
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,0,$2,0,$3)`, a.Repository, a.ID, string(raw))
 	return err
-}
-
-// RemainingAppVerificationSeconds is the spend-free planning view. Packet
-// admission repeats this read while holding the stable intent head lock.
-func (s *Store) RemainingAppVerificationSeconds(ctx context.Context, repository int64, intent string, now time.Time) (int64, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-	remaining, err := remainingAppVerificationSecondsTx(ctx, tx, repository, intent, now)
-	if err != nil {
-		return 0, err
-	}
-	return remaining, tx.Commit()
-}
-
-func remainingAppVerificationSecondsTx(ctx context.Context, tx *sql.Tx, repository int64, intent string, now time.Time) (int64, error) {
-	if repository <= 0 || !project.ValidDecisionID(intent) {
-		return 0, errors.New("invalid application verification allowance scope")
-	}
-	view, err := verificationAllowanceStatusTx(ctx, tx, intent, now)
-	if err != nil {
-		return 0, err
-	}
-	if view.Remaining.Runs < 1 {
-		return 0, nil
-	}
-	return view.Remaining.ActiveSeconds, nil
 }
 
 // Only the controller-owned F10 join establishes a verified accepted scope.

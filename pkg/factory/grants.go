@@ -51,10 +51,9 @@ func ValidAutomaticMergeMethod(method string) bool {
 // Queued actions and finite funding records use the command ledger. Standing
 // settings use their own revisions directly.
 const (
-	CommandRetry                 = "retry"
-	CommandFeedPostRetry         = "feed-post-retry"
-	CommandRetryImplementation   = "retry_implementation"
-	CommandVerificationAllowance = "verification-allowance"
+	CommandRetry               = "retry"
+	CommandFeedPostRetry       = "feed-post-retry"
+	CommandRetryImplementation = "retry_implementation"
 	// CommandRepairGrant authorizes one repository's finite D15 stall
 	// repair scope: the explicit sponsor, revision chain and run,
 	// judgment and active-minute bounds. Repair funding never silently
@@ -77,7 +76,7 @@ const (
 func SettingsCommandType(typ string) bool {
 	switch typ {
 	case CommandAdoptExternalPull, CommandRetryReview, CommandPrepareMerge, CommandPublishRetained, CommandFundRetained, CommandRetry, CommandRetryImplementation, CommandCompletionRetry, CommandFeedPostRetry,
-		CommandRepairGrant, CommandIntentExecutionLimit, CommandRepairCharge, CommandVerificationAllowance, CommandDeliveryRepair:
+		CommandRepairGrant, CommandIntentExecutionLimit, CommandRepairCharge, CommandDeliveryRepair:
 		return true
 	default:
 		return false
@@ -211,7 +210,6 @@ type RepositoryPolicy struct {
 	MergeMethod            string                   `json:"merge_method"`
 	AttemptLimits          AttemptLimits            `json:"attempt_limits"`
 	ReassessmentMinutes    int                      `json:"reassessment_minutes"`
-	IntentMinutes          int                      `json:"intent_minutes"`
 	Enabled                bool                     `json:"enabled"`
 	Paused                 bool                     `json:"paused"`
 	AutomaticExternalPulls bool                     `json:"automatic_external_pulls"`
@@ -244,12 +242,6 @@ func (p RepositoryPolicy) Validate() error {
 	}
 	if p.ReassessmentMinutes < MinReassessmentMinutes || p.ReassessmentMinutes > MaxReassessmentMinutes {
 		return errors.New("policy reassessment minutes outside their bound")
-	}
-	// Intent minutes carry no omission fill and no upper cap: zero is the
-	// valid unfunded posture, and funding enforces the finite-positive
-	// bound from the allowance rule. Only a negative horizon refuses here.
-	if p.IntentMinutes < 0 {
-		return errors.New("policy intent minutes outside their bound")
 	}
 	if err := p.AttemptLimits.Validate(); err != nil {
 		return err

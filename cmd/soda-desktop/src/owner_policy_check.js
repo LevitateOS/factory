@@ -152,7 +152,7 @@
     const actor = value => { const {kind, ...ref} = value; return ref; };
     const change = {expected_revision: p.revision, enabled: p.enabled, paused: p.paused, target_branch: p.target_branch, merge_method: p.merge_method,
       required_checks: ['fixture/check', 'fixture/concurrent'], roles: p.roles, judgments: p.judgments, attempt_limits: p.attempt_limits,
-      reassessment_minutes: p.reassessment_minutes, intent_minutes: p.intent_minutes,
+      reassessment_minutes: p.reassessment_minutes,
       publish_actor: actor(p.publish_actor), create_actor: actor(p.create_actor), review_actor: actor(p.review_actor), merge_actor: actor(p.merge_actor)};
     assert((await api('PUT', `${path}/policy`, change)).status === 200, 'competing policy revision');
     await click('Save role selections');

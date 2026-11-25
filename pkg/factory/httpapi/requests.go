@@ -42,8 +42,6 @@ func (s Requests) Handler() http.Handler {
 	register(http.MethodGet, "/api/factory/intents/{intentID}", s.revision)
 	register(http.MethodGet, "/api/factory/intents/{intentID}/revisions", s.scopeHistory)
 	register(http.MethodGet, "/api/factory/intents/{intentID}/overview", s.overview)
-	register(http.MethodGet, "/api/factory/intents/{intentID}/verification-allowance", s.verificationAllowance)
-	register(http.MethodPost, "/api/factory/intents/{intentID}/verification-allowance", s.verificationAllowance)
 	return mux
 }
 
