@@ -202,6 +202,14 @@ func nativeProductResourceError(w http.ResponseWriter, err error) {
 	default:
 		// A connector refusal names its fixed reason, so a failed connection says why.
 		var port *NativePortError
+		if errors.As(err, &port) && port.Code == "github_forbidden" {
+			nativeProductError(w, 403, "repository_forbidden", "GitHub refused Factory access to this repository. If its organization restricts OAuth apps, an owner has to approve Factory.")
+			return
+		}
+		if errors.As(err, &port) && port.Code == "github_not_visible" {
+			nativeProductError(w, 404, "repository_not_found", "Repository is not visible.")
+			return
+		}
 		if errors.As(err, &port) && port.Code != "" {
 			nativeProductError(w, http.StatusServiceUnavailable, "authority_unavailable", "Current Factory account admission is unavailable ("+port.Code+").")
 			return

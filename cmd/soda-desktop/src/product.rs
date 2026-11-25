@@ -312,6 +312,8 @@ pub(super) async fn factory_connect(
             return Err(match reply.body["error"]["message"].as_str()
                 .filter(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
             {
+                // A repository refusal is about the repository, not the account.
+                Some(reason) if reply.body["error"]["code"].as_str().is_some_and(|code| code.starts_with("repository_")) => reason.to_owned(),
                 Some(reason) => format!("Factory account could not be connected: {reason}"),
                 None => format!("Factory account could not be connected (HTTP {}).", reply.status),
             });

@@ -299,6 +299,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       return;
     }
     let session: string | undefined;
+    let refused = '';
     try {
       session = await core.invoke<string>('factory_prepare_connection', {
         connection: account,
@@ -343,12 +344,20 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
           typeof error === 'string'
             ? `Could not connect. ${error}`
             : 'Could not connect. Refresh Factory status and try reconnecting.';
+        // A repository that will not open leaves the account itself usable.
+        if (remote && !fountain()) refused = typeof error === 'string' ? `Could not open that repository. ${error}` : message;
       }
     } finally {
       if (serial === captured) {
         busy = false;
         render();
       }
+    }
+    if (!refused || serial !== captured) return;
+    await choose(account);
+    if (connection === account && selected && !selected.repository && !busy) {
+      message = refused;
+      render();
     }
   }
   accounts.addEventListener('change', () => {
