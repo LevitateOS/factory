@@ -21,6 +21,14 @@ type PostCapture struct {
 type PostCommands struct {
 	Posts   Posts
 	Capture PostCapture
+	// Wake asks the service lifetime to advance requests now. Nil waits for its next pass.
+	Wake func()
+}
+
+func (s PostCommands) wake() {
+	if s.Wake != nil {
+		s.Wake()
+	}
 }
 
 var (
@@ -82,6 +90,7 @@ func (s PostCommands) Submit(ctx context.Context, actor collaboration.ActorID, a
 	if err := s.Posts.Store.RecordIssueMakerIntake(ctx, id, revision); err != nil {
 		return empty, err
 	}
+	defer s.wake()
 	if err := s.refresh(ctx, actor, id, revision, "Could not read this repository's issues using your current access. Retry the request."); err != nil {
 		return empty, err
 	}
@@ -131,6 +140,7 @@ func (s PostCommands) Retry(ctx context.Context, actor collaboration.ActorID, id
 		return empty, err
 	}
 	if !replayed {
+		defer s.wake()
 		// Only this newly committed transition owns best-effort capture. A
 		// historical receipt never recaptures or mutates a later intake/head.
 		message := "Could not refresh this request's issues using your current repository access. Try again."

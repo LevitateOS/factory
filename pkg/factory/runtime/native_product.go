@@ -71,7 +71,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	}
 	posts := factoryservice.Posts{Store: application.Store, Visibility: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
 		return bound.visible(ctx, actor, collaboration.RepositoryID(repository))
-	}, WriteAccess: bound.writeAccess}
+	}, WriteAccess: bound.writeAccess, Collaborators: application.Background().Collaborators()}
 	product := factoryhttp.Product{Store: application.Store, Host: bound.binding.Host.ID, Actor: bound.binding.Actor.ID,
 		Principal: strconv.FormatInt(int64(bound.binding.Actor.ID), 10), AuthorName: identity.Account.Login,
 		Current: func(w http.ResponseWriter, r *http.Request) bool {
@@ -127,7 +127,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	postContext := factoryservice.PostContext{Posts: posts, Issues: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, q factoryservice.PostIssueQuery) (collaboration.Page[collaboration.Issue], error) {
 		return (factoryservice.CollaborationIssues{Source: reads}).Read(ctx, actor, repository, factoryservice.CollaborationIssueQuery{Cursor: q.Cursor, Number: q.Number, Limit: q.Limit})
 	}}
-	commands := factoryservice.PostCommands{Posts: posts, Capture: factoryservice.PostCapture{Context: postContext.Capture}}
+	commands := factoryservice.PostCommands{Posts: posts, Capture: factoryservice.PostCapture{Context: postContext.Capture}, Wake: application.Coordinator.RequestCommentDrive}
 	if effects, ok := application.IssueEffects.(*nativeIssueEffects); ok {
 		capture := factoryservice.IssueIntakeCapture{Posts: posts, Effects: effects.CapturedIssueEffects, Authorize: func(ctx context.Context, q factoryservice.IssueIntakeRequest) (factory.IssueIntakeScope, json.RawMessage, error) {
 			return effects.authorize(ctx, bound, q)

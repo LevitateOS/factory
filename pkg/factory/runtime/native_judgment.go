@@ -197,6 +197,7 @@ func (s NativeJudgments) JudgePost(ctx context.Context, input factoryservice.Pos
 		_, err = effects.savedAccount(ctx, int64(proof.Scope.Repository), proof.Scope.Actor, proof.Connection)
 		return err
 	}
+	chooser.expired = func(err error) bool { return errors.Is(err, factoryservice.ErrCapturedIssueAuthority) }
 	return (&factoryservice.ChoicePostJudge{Chooser: chooser}).JudgePost(ctx, input)
 }
 
@@ -207,8 +208,10 @@ type nativeRepositoryJudgment struct {
 	sourcePost     string
 	sourceRevision int64
 	admit          func(context.Context) error
-	worker         *factory.MCPCapability
-	retryCommand   string
+	// expired names an admission failure the author must refresh by retrying.
+	expired      func(error) bool
+	worker       *factory.MCPCapability
+	retryCommand string
 }
 
 type nativeJudgmentProcess struct {
@@ -338,8 +341,8 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 	var capture factory.NativeJudgmentCapture
 	fresh := false
 	if errors.Is(err, store.ErrNotFound) {
-		if s.admit == nil || s.admit(ctx) != nil {
-			return empty, factoryservice.ErrPostJudgmentPending
+		if err := s.admitted(ctx); err != nil {
+			return empty, err
 		}
 		selection, tool, e := s.selection(ctx)
 		if e != nil {
@@ -383,13 +386,16 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 		return empty, control.ErrPriorityUnavailable
 	}
 	current := s.Store.CheckNativeJudgmentSource(ctx, capture)
-	if current == nil && (s.admit == nil || s.admit(ctx) != nil) {
-		current = factoryservice.ErrCapturedIssueSource
+	if current == nil {
+		current = s.admitted(ctx)
 	}
 	matchingInput := capture.PromptSHA256 == sha && capture.OutputKind == outputKind && (capture.OptionsSHA256 == optionsDigest || (outputKind == "" && capture.OptionsSHA256 == ""))
 	if cmd.Finished != "" {
 		if !matchingInput {
 			return empty, control.ErrPriorityUnavailable
+		}
+		if errors.Is(current, factoryservice.ErrPostIssueContext) {
+			return empty, current
 		}
 		if current != nil {
 			return empty, factoryservice.ErrPostJudgmentPending
@@ -426,8 +432,11 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 	if !matchingInput {
 		return empty, control.ErrPriorityUnavailable
 	}
-	if s.Store.CheckNativeJudgmentSource(ctx, capture) != nil || s.admit == nil || s.admit(ctx) != nil {
+	if s.Store.CheckNativeJudgmentSource(ctx, capture) != nil {
 		return empty, factoryservice.ErrPostJudgmentPending
+	}
+	if err := s.admitted(ctx); err != nil {
+		return empty, err
 	}
 	return outcome, nil
 }
@@ -460,7 +469,9 @@ func finishNativeJudgment(ctx context.Context, native NativeExecution, capture f
 					keys = append(keys, key)
 				}
 				boundOptions := capture.OptionsSHA256 != "" && factory.NativeJudgmentOptionsDigest(keys) == capture.OptionsSHA256
-				if request == nil && capture.SourcePost == "" && boundOptions {
+				// Background reconciliation has no caller options; the bound digest proves
+				// these keys are exactly the offered ones, for request routing too.
+				if request == nil && boundOptions {
 					request = &factory.PriorityRequest{}
 					for _, key := range keys {
 						request.Candidates = append(request.Candidates, factory.PriorityCandidate{ID: key})
@@ -496,4 +507,19 @@ func (s nativeRepositoryJudgment) selection(ctx context.Context) (factory.RoleSe
 		return factory.RoleSelection{}, execution.ToolObservation{}, factoryservice.ErrPostJudgmentPending
 	}
 	return *policy.Judgments, tool, nil
+}
+
+// admitted rechecks the captured request authority. Expired authority never
+// renews itself, so it stalls for an author retry instead of waiting.
+func (s nativeRepositoryJudgment) admitted(ctx context.Context) error {
+	if s.admit == nil {
+		return factoryservice.ErrPostJudgmentPending
+	}
+	if err := s.admit(ctx); err != nil {
+		if s.expired != nil && s.expired(err) {
+			return factoryservice.ErrPostIssueContext
+		}
+		return factoryservice.ErrPostJudgmentPending
+	}
+	return nil
 }

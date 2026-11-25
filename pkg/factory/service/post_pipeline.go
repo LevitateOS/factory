@@ -315,6 +315,13 @@ func drivePostJudgment(ctx context.Context, st *store.Store, wired *PostCollabor
 	}
 	_ = st.NotePostStall(ctx, pipe.SourcePost, "")
 	judgment, err := wired.Judge.JudgePost(ctx, input)
+	if errors.Is(err, ErrPostIssueContext) {
+		// Captured request authority expired before routing. Only the author's
+		// retry captures fresh authority; waiting would never settle.
+		_ = st.NotePostProgress(ctx, pipe.SourcePost, err.Error())
+		_ = st.NotePostStall(ctx, pipe.SourcePost, PostStalledContext)
+		return false, nil
+	}
 	if errors.Is(err, ErrPostJudgmentPending) {
 		_ = st.NotePostProgress(ctx, pipe.SourcePost, "Request assessment is waiting for its selected judgment source or the original model result.")
 		return false, nil

@@ -182,6 +182,9 @@ func (s Posts) project(ctx context.Context, actor collaboration.ActorID, detail 
 			response["stalled"] = stalled
 		} else if stall, err := s.Store.PostStall(ctx, detail.Record.ID); err == nil && stall != "" && pipe.AdmitPostJudgment() && response["stalled"] == nil {
 			response["stalled"] = stall
+			if stall == PostStalledContext && detail.Record.Author == author {
+				response["can_retry"] = true
+			}
 		}
 	}
 	if view, err := s.Store.PostProductChange(ctx, detail, pipe, int64(actor)); err == nil && view != nil {

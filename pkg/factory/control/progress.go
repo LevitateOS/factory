@@ -270,6 +270,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	// provider discovery and delivery do not re-read unchanged repositories on
 	// every worker tick; a terminal or explicit command wakes them immediately.
 	if standingPreparationCursor != nil && !terminalObserved && time.Now().Before(c.nextPassiveProgress) {
+		c.driveRequestedComments(ctx)
 		_ = c.recoverCreationStep(ctx, true)
 		_ = c.driveCompletions(ctx, c.completionDriveDeps(), true)
 		c.observeProgressStage("retry_preparation")
@@ -345,4 +346,24 @@ func (c *Coordinator) driveRequestedMerges(ctx context.Context) bool {
 		c.reconcileMerge(ctx, m, &report)
 	}
 	return len(publications) > 0
+}
+
+// RequestCommentDrive lets a newly submitted or retried feed request start on
+// the next worker tick instead of behind the five-minute passive poll.
+func (c *Coordinator) RequestCommentDrive() {
+	c.ownerMu.Lock()
+	c.requestedComments = true
+	c.ownerMu.Unlock()
+}
+
+// driveRequestedComments runs one bounded comment page for a requested wake.
+// The full passive pass drives comments itself, so it needs no wake.
+func (c *Coordinator) driveRequestedComments(ctx context.Context) {
+	c.ownerMu.Lock()
+	requested := c.requestedComments
+	c.requestedComments = false
+	c.ownerMu.Unlock()
+	if requested && c.CommentDrive != nil {
+		c.CommentDrive(ctx)
+	}
 }

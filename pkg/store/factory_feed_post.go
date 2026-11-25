@@ -907,7 +907,13 @@ func retryFeedPostTx(ctx context.Context, tx *sql.Tx, id, author string, expecte
 	if err := tx.QueryRowContext(ctx, `SELECT NOT COALESCE((data->>'issue_context_revision')::bigint=$2,false) FROM factory_feed_posts WHERE id=$1`, id, revision).Scan(&needsContext); err != nil {
 		return err
 	}
-	refreshContext := needsContext && judgment == factory.PostJudgmentPending && draft == factory.PostDraftPending && effect == factory.PostEffectPending
+	// An unrouted request whose captured issue authority expired is refreshed
+	// the same way: no judgment was applied, so a retry reassesses it.
+	var grantExpired bool
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE((data->'issue_intake_grant'->'scope'->>'expires')::bigint<=$2,false) FROM factory_post_intakes WHERE post=$1`, id, at).Scan(&grantExpired); err != nil {
+		return err
+	}
+	refreshContext := (needsContext || grantExpired) && judgment == factory.PostJudgmentPending && draft == factory.PostDraftPending && effect == factory.PostEffectPending
 	var unstartedWait bool
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(data->'authoring'->>'state'='waiting' AND COALESCE(data->'authoring'->>'run','')='',false) FROM factory_post_intakes WHERE post=$1`, id).Scan(&unstartedWait); err != nil {
 		return err

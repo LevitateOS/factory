@@ -117,6 +117,8 @@ type Coordinator struct {
 	nextPassiveProgress time.Time
 	// ownerMu protects command wakes; their durable rows stay in Store.
 	requestedMerges map[string]struct{}
+	// ownerMu also protects a submitted or retried feed request's wake.
+	requestedComments bool
 	// ownerMu also protects the bounded child-result recovery cursor.
 	publicationChildCursor string
 	// The progress gate protects the bounded recovery and verification cursors below.
