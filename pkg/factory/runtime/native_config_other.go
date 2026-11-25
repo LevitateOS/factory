@@ -1,13 +1,13 @@
-//go:build !linux
+//go:build !linux && !darwin
 
 package runtime
 
 import "errors"
 
 func nativePrivateDirectory(string) error {
-	return errors.New("native backend bootstrap requires supported Linux file admission")
+	return errors.New("native backend bootstrap requires supported Linux or macOS file admission")
 }
 
 func nativePrivateInput(string, int64) ([]byte, error) {
-	return nil, errors.New("native backend bootstrap requires supported Linux file admission")
+	return nil, errors.New("native backend bootstrap requires supported Linux or macOS file admission")
 }

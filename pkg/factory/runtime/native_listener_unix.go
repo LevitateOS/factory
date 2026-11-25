@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 package runtime
 
 import (
@@ -82,8 +84,8 @@ func nativePeerContext(ctx context.Context, conn net.Conn) context.Context {
 	if conn, ok := conn.(*net.UnixConn); ok {
 		if raw, err := conn.SyscallConn(); err == nil {
 			if err := raw.Control(func(fd uintptr) {
-				identity, err := unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
-				peer = err == nil && identity.Uid == uint32(os.Geteuid())
+				uid, ok := nativePeerUID(int(fd))
+				peer = ok && uid == uint32(os.Geteuid())
 			}); err != nil {
 				peer = false
 			}
