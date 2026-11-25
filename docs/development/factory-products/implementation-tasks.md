@@ -211,6 +211,231 @@ Historical recommendations are not new requirements. Normal coding
 agents may do routine security engineering; a user-started Daybreak session is
 required only for work or checks that look like hacking.
 
+## JEV connection (2026-11-25)
+
+**Current scoped continuation: NOT STARTED.** The owner agreed the
+[JEV connection design](jev-connection-design.md) and its three defaults:
+
+1. When JEV is sure, work starts immediately, with "Give it to someone else".
+2. One TypeSafe key per Mac, with an optional model pin per project.
+3. The long-context header stays off, so an oversized post becomes a Problem.
+
+Screens are on the design canvas page "7 · JEV". The Muse stand-in was removed
+in `07e6ea6b`, so every JEV consumer is unwired until these slices land.
+
+Do the slices in order. Each slice delivers its behavior across Rust, Go and Lit
+before the next one starts.
+
+**Rules for every slice:**
+
+- **Bounded requests first.** Each slice proves bounded TypeSafe request counts
+  with controlled replies before any connected attempt. This applies the
+  GitHub request-amplification rule to TypeSafe.
+- **Ask before connected use.** A connected check uses a TypeSafe key that the
+  user pastes into the app, and runs only after the user is asked. Nothing reads
+  a key from local secrets.
+- **Keep the cost bounded.** Each connected check sends at most a handful of
+  requests, well under $0.01.
+
+### J1 — Connect a TypeSafe key (Rust, shell UI)
+
+**Behavior:**
+
+- First-run step 3 and the Accounts JEV card can connect, check, replace and
+  remove a key, as drawn on `JevAccounts` and `JevFirstRun`.
+- The sidebar's "This computer" box shows the JEV line in three states:
+  connected, not connected and refused.
+
+**Rust (`lib/desktop-runtime`):**
+
+- `credentials::Provider::Typesafe`, kept through the existing `keyring.rs`
+  path that never shows a dialog.
+- A non-secret record next to the key in `private_fs`.
+- A `jev_provider.rs` connector with these operations:
+  - verify: `GET /v1/models`
+  - check
+  - replace: verify the new key, then swap
+  - remove
+  - set the default model
+- A base-URL override that works only in check builds, for controlled replies.
+
+**Desktop (`cmd/soda-desktop/src/jev.rs`):**
+
+- IPC commands `jev_status`, `jev_connect`, `jev_check`, `jev_set_model` and
+  `jev_remove`, following the pattern in `signin.rs`.
+
+**Lit (`frontend/desktop/accounts.ts`, `first-run.ts`):**
+
+- The JEV card and the first-run step 3, with all states from the artboard.
+
+**Verify:**
+
+- **Controlled replies** through the existing credential operation check:
+  - 200 stores the key.
+  - 401 stores nothing.
+  - Offline gives "can't reach".
+  - Replace keeps the old key when the new one fails.
+  - Remove deletes the item.
+  - The key never appears in logs or in the profile record.
+- **Signed build (designated requirement `identifier`):** connect a key the
+  user pastes, relaunch, Check now, then Remove. There must be no Keychain
+  dialog at any point.
+
+**Done when** both checks pass and the UI states match the artboard. Commit.
+
+### J2 — One ask path, first consumer: Feed routing (Rust, Go, Lit)
+
+**Behavior:**
+
+- A new Feed post is routed by JEV, and the routed agent picks it up.
+- The post shows "Decided" with "How I decided": question, probabilities,
+  rule, model, tokens and cost. It also has "Give it to someone else".
+- When JEV is unsure, the post asks who should take it.
+- The five stall posts from `JevFeed` replace `stalled_jev`.
+
+**Rust:**
+
+- `jev_ask`: `POST /v1/systemone` with a 30 s timeout.
+- The error classes from the design.
+- One rate gate per Mac, which honors `retry-after`.
+- A refused key stops all asks without calling TypeSafe.
+- `inspect_jev` for Go, over `/api/native/execution`.
+
+**Go:**
+
+- `pkg/factory/runtime/native_jev.go`, with a single
+  `ask(ctx, decision)` function:
+  1. Resolve the model.
+  2. Write a command-journal row keyed by purpose, subject and digest. A paid
+     answer is reused and never asked again.
+  3. Validate the answer with the kept `control` validators. They now take a
+     reply body instead of an `*http.Response`.
+  4. Apply the rule in code.
+  5. On busy or offline, store `retry_at`, which the single retry scheduler
+     picks up.
+  6. Resume work when `inspect_jev` reports connected.
+- Question wording goes in `jev_questions.go`; thresholds stay in `judgment.go`.
+- The usage receipt lives in the command outcome, with no new table: versioned
+  model, input and output tokens, and attempt.
+- `PostStalled` gains the five reasons.
+- `PostJudge` is wired in `native_server.go`.
+- Delete the Go HTTP and key-file code: `postSystemOne`,
+  `postPriorityRequest`, `readPriorityKeyFile`, `TypeSafeKeyReadable`, and the
+  `APIKeyFile` and `Client` fields.
+
+**Lit (`frontend/factory/feed`):**
+
+- The stall posts.
+- The "How I decided" panel, which extends the existing `jev` decision record
+  in `factory_feed_record.go`.
+- "Give it to someone else".
+
+**Verify:**
+
+- **Native check with controlled replies:**
+  - 200 routes the post with exactly one request.
+  - 401 marks the key refused, and the next decision sends no request.
+  - 429 with `retry-after` makes exactly one retry after the gate opens.
+  - 529 and offline wait, then resume.
+  - 400 and 422 post a Problem without retrying.
+  - A restart reuses an answered journal row without sending again.
+  - The key appears in neither logs nor PostgreSQL.
+- **Connected check, after asking the user:** one post on an authorized test
+  repository, routed by real JEV. Check its receipt in the journal and on the
+  post.
+
+**Done when** both checks pass. Commit.
+
+### J3 — Plan review, priority and delivery (Go, Lit)
+
+**Behavior:**
+
+- **Plan review:**
+  - At or above 0.70, the plan starts.
+  - At or below 0.30, JEV asks for a new plan.
+  - Between the two, the post asks the user ("Start this plan" or "Ask for a
+    new plan"). The user's choice is recorded as the plan-review approval.
+  - This replaces the `ErrJudgmentUnavailable` refusal in
+    `checkIssuePlanReviewTx`.
+- **Priority** picks the next work. When JEV is unsure, the order the user set
+  stays.
+- **Delivery** uses `SelectDelivery` with the existing thresholds. When JEV is
+  unsure, it asks the user before delivering.
+
+**Verify:**
+
+- The J2 native check, extended:
+  - each consumer sends one request per decision
+  - the unsure band goes to the user
+  - the approval provenance is stored
+- Restore the plan-review advancement test removed in `07e6ea6b` as a real
+  check through the controlled replies.
+
+**Done when** the checks pass. Commit.
+
+### J4 — Context choice, contributions and worker consultations (Go, Rust)
+
+**Behavior:**
+
+- **ContextChooser and CurrentChooser:** one Noul per candidate. Candidates at
+  or above 0.30 are included; when unsure, the agent gets the wider set.
+- **Contribution judgments** run through the same `ask`.
+- **Worker MCP:** `SystemOneForWorker` is restored in `native_worker_mcp.go`
+  and charged to its run.
+- Update the stale "matches Rust MAX_MUSE_INPUT" limit comment in
+  `native_mcp_signing.go`.
+
+**Verify:**
+
+- The native check through controlled replies, with one request per worker
+  question batch.
+- The offline worker-profile journey gets back its Builder, Inspector and Fixer
+  coverage.
+
+**Done when** the checks pass. Commit.
+
+### J5 — Settings, usage and status everywhere (Go, Lit)
+
+**Behavior:**
+
+- **Settings decisions block,** as on `JevSettings`. It covers both states,
+  the table of what JEV is asked and what Factory does with it, and this
+  project's month usage.
+- **Project model pin** in policy.
+- **Usage totals:** `GET /api/jev/usage` sums the receipts in the command
+  outcomes. Accounts shows the total for all projects this month.
+- **Status:** `repository_status.go` gains `jev {state, waiting}`. The project
+  list badge and the quick-jump entries read it, as on `JevElsewhere`.
+
+**Verify:**
+
+- Developer CLI `ui tree` on the running app shows each state.
+- Usage sums match the receipts from J2–J4.
+
+**Done when** both checks pass. Commit.
+
+### J6 — Connected qualification on the signed app
+
+**Behavior:** the whole journey on a signed build, with a key the user pastes,
+on an authorized test repository:
+
+1. Connect.
+2. Route a post.
+3. Plan check.
+4. Delivery decision.
+5. Revoke the key in the TypeSafe console, which should give the refused post.
+6. Replace the key, which should resume the work.
+7. Remove the key.
+
+Record the results once here. Update A25 in
+`standalone-assumptions-audit.md` to say JEV is connected.
+
+**Needs from the user:**
+
+- the key
+- the go-ahead for test-repository writes
+- revoking the old key in the console
+
 ## Where to continue
 
 Q01 is Complete within its source/native scope. Q02 is Complete within its

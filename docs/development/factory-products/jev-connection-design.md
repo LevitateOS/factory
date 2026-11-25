@@ -1,9 +1,9 @@
 # Connecting JEV: backend and wiring design
 
-Status: design for review, 2026-11-25. No code has been written for it. The
+Status: agreed design, 2026-11-25. No code has been written for it yet. The
 screens are on page "7 · JEV" of the design canvas
 (<https://claude.ai/artifact/PqHcR4ENgouTMcfES9bDsC#page-jev>, private to its
-owner). The implementation plan comes after this design is agreed.
+owner). The design was agreed on 2026-11-25; the slices are in [implementation-tasks.md](implementation-tasks.md#jev-connection-2026-11-25).
 
 ## What has to be true
 
