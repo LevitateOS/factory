@@ -1,4 +1,4 @@
-//! Official stable selection and actual installed ELF identity. The native host
+//! Official stable selection and actual installed executable identity. The native host
 //! reuses an installed CLI when available, otherwise acquires its private copy.
 //! Go and the webview cannot choose a path. Discovery never executes a launcher
 //! or reads its login.
@@ -109,7 +109,7 @@ impl Tools {
                 continue;
             }
             // Official launchers keep muse-bin-VERSION beside the launcher.
-            // Resolve symlinks, then use the existing channel/manifest/ELF checks;
+            // Resolve symlinks, then use the existing channel, manifest and executable checks;
             // neither a shell script nor a reported version is executable proof.
             let launcher = launcher.canonicalize()?;
             return Self::new(Some(launcher.parent().ok_or_else(refused)?), profile);
@@ -125,6 +125,7 @@ impl Tools {
         {
             return Err(refused());
         }
+        let cache = profile.join("native-tools").join("muse");
         let directory = directory
             .map(|directory| -> io::Result<PathBuf> {
                 let directory = directory.canonicalize()?;
@@ -138,11 +139,12 @@ impl Tools {
                 Ok(directory)
             })
             .transpose()?;
+        let state = if cache.is_dir() { "checking" } else { "not_set_up" };
         Ok(Self {
             directory,
-            cache: profile.join("native-tools").join("muse"),
+            cache,
             status: Mutex::new(ToolStatus {
-                state: "checking",
+                state: state,
                 upstream_version: None,
                 selected_version: None,
                 checked_at_unix: None,
@@ -234,7 +236,7 @@ impl Tools {
         let mut response = self
             .client
             .get(&artifact.url)
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(1800))
             .send()
             .await
             .map_err(|error| {
@@ -252,7 +254,12 @@ impl Tools {
         }
         let mut length = 0u64;
         let mut hash = Sha256::new();
-        while let Some(bytes) = response.chunk().await.map_err(|_| refused())? {
+        // A large release may take minutes; a stalled transfer may not.
+        while let Some(bytes) = tokio::time::timeout(Duration::from_secs(30), response.chunk())
+            .await
+            .map_err(|_| refused())?
+            .map_err(|_| refused())?
+        {
             length = length.checked_add(bytes.len() as u64).ok_or_else(refused)?;
             if length > artifact.size {
                 return Err(refused());
@@ -362,6 +369,15 @@ impl Tools {
     pub async fn refresh(&self) -> io::Result<ToolSelection> {
         self.select(true).await
     }
+    /// A provider is set up once the user chose it: sign-in, an update check
+    /// or a run creates its private cache. Background checks never download
+    /// a CLI the user has not chosen.
+    pub async fn refresh_chosen(&self) -> io::Result<Option<ToolSelection>> {
+        if !self.cache.is_dir() {
+            return Ok(None);
+        }
+        self.refresh().await.map(Some)
+    }
     pub fn status(&self) -> io::Result<ToolStatus> {
         self.status
             .lock()
@@ -402,6 +418,8 @@ impl Tools {
                 return Ok(selection.clone());
             }
         }
+        private_directory(self.cache.parent().ok_or_else(refused)?)?;
+        private_directory(&self.cache)?;
         {
             let mut status = self.status.lock().map_err(|_| refused())?;
             status.state = "checking";
@@ -432,9 +450,11 @@ impl Tools {
             return Err(refused());
         }
         let manifest: Manifest = self.metadata(&manifest_url).await?;
-        let (platform, file) = match std::env::consts::ARCH {
-            "x86_64" => ("x86_linux", "muse-x86-linux"),
-            "aarch64" => ("aarch64_linux", "muse-aarch64-linux"),
+        let (platform, file) = match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("linux", "x86_64") => ("x86_linux", "muse-x86-linux"),
+            ("linux", "aarch64") => ("aarch64_linux", "muse-aarch64-linux"),
+            ("macos", "x86_64") => ("x86_macos", "muse-x86-macos"),
+            ("macos", "aarch64") => ("aarch64_macos", "muse-aarch64-macos"),
             _ => return Err(refused()),
         };
         let artifact = manifest.artifacts.get(platform).ok_or_else(refused)?;
@@ -573,6 +593,15 @@ fn same_file(a: &std::fs::Metadata, b: &std::fs::Metadata) -> bool {
         && a.ctime() == b.ctime()
         && a.ctime_nsec() == b.ctime_nsec()
 }
+/// The host's own executable format: ELF on Linux; thin 64-bit or universal
+/// Mach-O on macOS.
+fn native_executable(magic: &[u8]) -> bool {
+    if cfg!(target_os = "macos") {
+        matches!(magic, [0xcf, 0xfa, 0xed, 0xfe] | [0xca, 0xfe, 0xba, 0xbe])
+    } else {
+        magic == b"\x7fELF"
+    }
+}
 fn verify(path: &Path, size: u64, expected: &str) -> io::Result<(PathBuf, std::fs::Metadata)> {
     let mut file = OpenOptions::new()
         .read(true)
@@ -594,7 +623,7 @@ fn verify(path: &Path, size: u64, expected: &str) -> io::Result<(PathBuf, std::f
         if count == 0 {
             break;
         }
-        if read == 0 && (count < 4 || &bytes[..4] != b"\x7fELF") {
+        if read == 0 && (count < 4 || !native_executable(&bytes[..4])) {
             return Err(refused());
         }
         read += count as u64;

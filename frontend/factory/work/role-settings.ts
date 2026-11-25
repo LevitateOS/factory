@@ -13,6 +13,7 @@ interface RoleContext {
 const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review', 'factory-judgment': 'Judgments'} as const;
 const judgmentRole = 'factory-judgment';
 const toolStatusLabels = {
+  not_set_up: 'Muse is not set up yet. Sign in to Muse to download and verify it.',
   checking: 'Checking Muse for the current release.',
   downloading: 'Downloading the current Muse release.',
   ready: 'Muse is verified.',

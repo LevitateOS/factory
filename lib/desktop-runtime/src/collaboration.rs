@@ -457,7 +457,7 @@ impl Owner {
                         if let Some(tools) = tools {
                             // Check/update the selected installation outside product RPCs.
                             // Retirement cancels pending downloads with this owner.
-                            let _ = tools.refresh().await;
+                            let _ = tools.refresh_chosen().await;
                         }
                     }
                 });

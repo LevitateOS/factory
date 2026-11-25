@@ -72,11 +72,9 @@ impl MuseSignIn {
 }
 pub(super) fn status(app: &tauri::AppHandle, label: &str) -> View {
     let tool_status = tools(app).ok().and_then(|tools| tools.status().ok());
-    let available = MuseLogin::available() && tool_status.as_ref().is_some_and(|status| {
-        status.state == "ready" && status.checked_at_unix.is_some_and(|checked| {
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).is_ok_and(|now| now.as_secs().saturating_sub(checked) < Tools::REFRESH.as_secs())
-        })
-    });
+    // Signing in is how a user chooses Muse: the sign-in task downloads and
+    // verifies the current release before the CLI's own login starts.
+    let available = MuseLogin::available() && tool_status.is_some();
     app.state::<Desktop>().muse_signin.view(label, app.state::<Desktop>().generation(), available, tool_status)
 }
 #[tauri::command]
@@ -121,7 +119,7 @@ pub(super) async fn muse_sign_in(window: WebviewWindow, app: tauri::AppHandle) -
     caller(&window)?;
     let epoch = app.state::<Desktop>().generation();
     let native_tools = tools(&app)?;
-    if !status(&app, window.label()).available { return Err("Muse sign-in is unavailable until its current release is verified".into()); }
+    if !status(&app, window.label()).available { return Err("Muse sign-in is unavailable in this Factory installation".into()); }
     let state = app.state::<Desktop>();
     let _transition = state.muse_signin.transition.lock().await;
     let label = window.label().to_owned();

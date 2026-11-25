@@ -6,13 +6,15 @@ license = "Apache-2.0"
 publish = false
 description = "Isolated Factory worker socket boundary"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+soda-execution-protocol = { path = "../../lib/execution-protocol" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
 base64 = "=0.23.1"
 time = { version = "=0.3.55", features = ["parsing"] }
 tokio = { workspace = true, default-features = true, features = ["io-util", "macros", "net", "rt", "time"] }
 soda-native-process = { path = "../../lib/native-process" }
-soda-execution-protocol = { path = "../../lib/execution-protocol" }

@@ -32,9 +32,11 @@ substitute version-number compatibility guesses. Keep the chosen model/profile
 and resource limits unchanged by a CLI update.
 
 The native Muse owner discovers an existing installation and checks official stable
-metadata, manifests and executable integrity before selection. Its joined refresh
-owner checks every five minutes and before new work when due. A missing current
-ELF is downloaded without authentication into a private, version/digest-addressed
+metadata, manifests and executable integrity before selection. Nothing is checked
+or downloaded until the user chooses Muse: signing in, checking for an update or
+starting work creates its private cache. After that its joined refresh owner
+checks every five minutes and before new work when due. A missing current
+executable for the host (ELF on Linux, Mach-O on macOS) is downloaded without authentication into a private, version/digest-addressed
 Factory cache; the user's launcher, login and retained binaries are preserved.
 The actual public-artifact acquisition/Go readback/restart check is recorded in
 A16 of the standalone assumptions audit. Discovery with no installed launcher

@@ -1,10 +1,12 @@
 //! Fixed trusted provider connector. Untrusted workspace commands remain in the
 //! isolated worker; this process lets Muse read its own saved authentication.
 //! Launched only by the native owner in a dedicated delegated user service.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
 mod connector {
     use sha2::{Digest, Sha256};
     use soda_execution_protocol::{MuseInvocation, MuseObservation, MAX_MUSE_INPUT};
+    #[cfg(target_os = "linux")]
     use soda_native_process::{Executable, Invocation, Limits, Observation, Processes};
     use std::collections::BTreeMap;
     use std::ffi::{OsStr, OsString};
@@ -47,6 +49,7 @@ mod connector {
         file.write_all(bytes)?;
         file.sync_all()
     }
+    #[cfg(target_os = "linux")]
     fn process_owner(root: &Path, run: &str, service: &str) -> io::Result<Processes> {
         let value = fs::read_to_string("/proc/self/cgroup")?;
         let path = value
@@ -221,6 +224,22 @@ mod connector {
         }
         Ok(file)
     }
+    // Execute exactly the verified bytes. Linux re-opens the held descriptor;
+    // macOS has no fexecve, so the private 0500 cache path must still name
+    // the same inode as the hashed descriptor.
+    #[cfg(target_os = "linux")]
+    fn tool_program(_path: &Path, file: &File) -> io::Result<std::path::PathBuf> {
+        Ok(format!("/proc/self/fd/{}", file.as_raw_fd()).into())
+    }
+    #[cfg(not(target_os = "linux"))]
+    fn tool_program(path: &Path, file: &File) -> io::Result<std::path::PathBuf> {
+        let held = file.metadata()?;
+        let named = path.symlink_metadata()?;
+        if !named.is_file() || held.dev() != named.dev() || held.ino() != named.ino() {
+            return Err(refused("Muse protocol executable identity changed"));
+        }
+        Ok(path.to_path_buf())
+    }
     fn inspect_tool(path: &Path, expected: &str, mode: &str) -> io::Result<()> {
         let root = std::env::current_dir()?;
         private(&root)?;
@@ -254,7 +273,7 @@ mod connector {
             }
             _ => return Err(refused("Muse protocol probe mode invalid")),
         }
-        let error = Command::new(format!("/proc/self/fd/{}", file.as_raw_fd()))
+        let error = Command::new(tool_program(path, &file)?)
             .args(argv).env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
             .env("HOME", &root).env("TMPDIR", root.join("tmp"))
             .stdin(Stdio::null()).exec();
@@ -264,7 +283,7 @@ mod connector {
         let root = std::env::current_dir()?;
         private(&root)?;
         let file = tool_file(path, expected)?;
-        let mut command = Command::new(format!("/proc/self/fd/{}", file.as_raw_fd()));
+        let mut command = Command::new(tool_program(path, &file)?);
         command.arg("login").env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
             .env("TMPDIR", root.join("tmp")).env("BROWSER", "/usr/bin/false").stdin(Stdio::null());
         for name in ["HOME", "USER", "LOGNAME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"] {
@@ -272,6 +291,7 @@ mod connector {
         }
         Err(command.exec())
     }
+    #[cfg(target_os = "linux")]
     fn observation(
         request: &MuseInvocation,
         state: &Observation,
@@ -335,6 +355,7 @@ mod connector {
         output.flush()
     }
 
+    #[cfg(target_os = "linux")]
     fn retain_terminal(
         root: &Path,
         request: &MuseInvocation,
@@ -370,6 +391,14 @@ mod connector {
         if args.len() != 1 {
             return Err(refused("Muse connector arguments invalid"));
         }
+        connect()
+    }
+    #[cfg(not(target_os = "linux"))]
+    fn connect() -> io::Result<()> {
+        Err(refused("Muse connector run launch is not installed on this host"))
+    }
+    #[cfg(target_os = "linux")]
+    fn connect() -> io::Result<()> {
         let root = std::env::current_dir()?;
         private(&root)?;
         let descriptor = unsafe { libc::dup(0) };
@@ -514,11 +543,11 @@ mod connector {
 }
 
 fn main() {
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     if let Err(error) = connector::run() {
         eprintln!("Factory Muse connector: {error}");
         std::process::exit(1);
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(unix))]
     std::process::exit(1);
 }

@@ -61,6 +61,8 @@ func (p NativeExecution) MuseLoginSource(ctx context.Context) (factoryservice.Sp
 		switch status.State {
 		case "ready":
 			valid = valid && status.SelectedVersion != "" && status.UpstreamVersion == status.SelectedVersion && status.CheckedAtUnix > 0 && status.Origin != "" && status.Error == ""
+		case "not_set_up":
+			valid = valid && status.SelectedVersion == "" && status.Error == ""
 		case "checking":
 		case "downloading":
 			valid = valid && status.UpstreamVersion != ""

@@ -11,7 +11,7 @@ interface View {
   prompt: {user_code: string; verification_uri: string; expires_at: number} | null;
   error: string | null;
   tools: {
-    state: 'checking' | 'downloading' | 'ready' | 'unavailable';
+    state: 'not_set_up' | 'checking' | 'downloading' | 'ready' | 'unavailable';
     upstream_version: string | null;
     selected_version: string | null;
     checked_at_unix: number | null;
@@ -117,7 +117,9 @@ export class SodaDesktopMuse extends ControllerView<MuseLogin> {
       ready = c.ready;
     const toolPhase = !ready
       ? 'Muse updates are unavailable until Factory is ready.'
-      : !tool || tool.state === 'checking'
+      : tool?.state === 'not_set_up'
+        ? 'Factory downloads and verifies Muse when you sign in or check for an update.'
+        : !tool || tool.state === 'checking'
         ? 'Checking the current Muse release…'
         : tool.state === 'downloading'
           ? `Downloading Muse${tool.upstream_version ? ' ' + tool.upstream_version : ''}…`
@@ -144,7 +146,7 @@ export class SodaDesktopMuse extends ControllerView<MuseLogin> {
             {
               idle: view.available
                 ? 'Muse keeps its own saved login. Sign in here when needed.'
-                : 'Muse sign-in is unavailable until its current release is verified.',
+                : 'Muse sign-in is unavailable in this Factory installation.',
               requesting: 'Requesting a Muse sign-in code…',
               waiting: 'Confirm the matching code on Meta to sign in.',
               complete: 'Muse sign-in finished. Refresh agent roles to use this login.',
