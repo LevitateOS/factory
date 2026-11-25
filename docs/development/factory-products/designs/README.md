@@ -1,7 +1,8 @@
 # Factory desktop designs
 
 These are exported from the design canvas behind
-[frontend-pages-plan.md](../frontend-pages-plan.md), as it stood on 2026-11-25.
+[frontend-pages-plan.md](../frontend-pages-plan.md), as it stood on 2026-11-25
+(canvas version 30, with the Factory logo).
 They are a copy and will not update when the canvas changes. The live canvas is
 <https://claude.ai/artifact/PqHcR4ENgouTMcfES9bDsC>, which is private to its owner
 unless they share it.
@@ -35,6 +36,7 @@ interactive HTML posts stay unavailable.
 | Settings | [png/Settings.png](png/Settings.png) |
 | Sidebar with project list | [png/Nav.png](png/Nav.png) |
 | Jump to (Ctrl K) | [png/Jump.png](png/Jump.png) |
+| Factory logo | [png/Brand.png](png/Brand.png) |
 
 ## 3 · Request and work
 
