@@ -36,21 +36,39 @@ export function renderFactoryWatch(view: FactoryWatchPresentation, commands: Fac
           </div>
         </details>
       </div>
-      ${
-        !view.watching && view.canWatch
-          ? html`<button type="button" class="ui primary button" @click=${commands.watch}>${view.watchLabel}</button>`
-          : ''
-      }
+      <div class="soda-watch-bar">
+        <p class=${'soda-terminal-status' + (!view.notice ? ' soda-visually-hidden' : '')} role="status" tabindex="-1">
+          ${view.message}
+        </p>
+        ${
+          view.watching
+            ? html`<span class="soda-watch-live">Watching. Read only.</span>`
+            : ''
+        }
+        ${
+          !view.watching && view.canWatch
+            ? html`<button type="button" class="ui primary button" @click=${commands.watch}>${view.watchLabel}</button>`
+            : ''
+        }
+        ${
+          view.watching
+            ? html`<button type="button" class="ui button" ?disabled=${view.disabled} @click=${commands.stop}>
+                Stop watching
+              </button>`
+            : ''
+        }
+      </div>
+      <!-- Xterm exclusively owns this stable, unconditional node's descendants. -->
+      <div
+        class="soda-terminal-screen"
+        ?hidden=${!view.screenVisible}
+        aria-label=${`Read-only factory output for ${view.title}`}
+      ></div>
       ${
         view.watching
-          ? html`<button type="button" class="ui button" ?disabled=${view.disabled} @click=${commands.stop}>
-              Stop watching
-            </button>`
+          ? html`<p class="soda-watch-note">Stopping this view does not stop the run. The run continues without this view.</p>`
           : ''
       }
-      <p class=${'soda-terminal-status' + (!view.notice ? ' soda-visually-hidden' : '')} role="status" tabindex="-1">
-        ${view.message}
-      </p>
       ${
         view.technical
           ? html`<details class="soda-factory-technical">
@@ -59,12 +77,6 @@ export function renderFactoryWatch(view: FactoryWatchPresentation, commands: Fac
             </details>`
           : ''
       }
-      <!-- Xterm exclusively owns this stable, unconditional node's descendants. -->
-      <div
-        class="soda-terminal-screen"
-        ?hidden=${!view.screenVisible}
-        aria-label=${`Read-only factory output for ${view.title}`}
-      ></div>
     </section>
   `;
 }

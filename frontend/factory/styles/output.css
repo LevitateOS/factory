@@ -120,3 +120,55 @@ soda-factory-watch {
   overflow: hidden;
   clip-path: inset(50%);
 }
+/* Watch layout: a status bar above the output, a note below it. */
+.soda-factory-root .soda-factory > .soda-watch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--soda-space-2);
+  flex-shrink: 0;
+  padding: var(--soda-space-1) var(--soda-space-2);
+  border: 1px solid var(--soda-page-text);
+  border-bottom: 0;
+}
+.soda-watch-bar > .soda-terminal-status {
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  font: var(--soda-font-meta);
+  color: var(--soda-page-muted);
+}
+.soda-watch-bar > .soda-terminal-status.soda-visually-hidden {
+  flex: 0 0 auto;
+}
+.soda-watch-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  font: var(--soda-font-meta);
+}
+.soda-watch-live::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--soda-page-success);
+}
+.soda-factory-root .soda-factory > .soda-terminal-screen {
+  border: 1px solid var(--soda-page-text);
+}
+.soda-factory-root .soda-watch-note {
+  margin: 0;
+  padding: var(--soda-space-1) var(--soda-space-2);
+  flex-shrink: 0;
+  font: var(--soda-font-meta);
+  color: var(--soda-page-muted);
+}
+.soda-factory-root soda-factory-watch > .soda-factory-unavailable {
+  flex: 1;
+  align-self: flex-start;
+  padding: 32px;
+  border: 1px dashed var(--soda-page-muted);
+  background: var(--soda-page-surface);
+}

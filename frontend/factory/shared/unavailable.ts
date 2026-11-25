@@ -4,6 +4,7 @@ import type {TemplateResult} from 'lit';
 /** Features a host may declare it cannot serve, by the context field it sets to false. */
 export const hostFeatures = {
   repairFundingAvailable: {title: 'Repository repair funding', detail: 'No repair grant is assumed.'},
+  watchAvailable: {title: 'Live run output', detail: 'Output appears in Work detail when the run ends.'},
   activityAvailable: {title: 'Activity visibility', detail: 'Factory activity is unavailable.'},
 } as const;
 export type HostFeature = keyof typeof hostFeatures;

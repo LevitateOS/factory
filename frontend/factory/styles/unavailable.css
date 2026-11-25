@@ -1,0 +1,16 @@
+/* The shared "Unavailable in this app" presentation (shared/unavailable.ts). */
+.soda-factory-unavailable {
+  border-style: dashed;
+}
+.soda-factory-unavailable dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.soda-factory-unavailable dt {
+  font: var(--soda-font-label);
+}
+.soda-factory-unavailable dd {
+  margin: 0;
+  color: var(--soda-page-muted);
+}

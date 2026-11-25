@@ -1,4 +1,5 @@
 import {LitElement} from 'lit';
+import {renderUnavailable} from '../shared/unavailable.js';
 import {renderFactoryWatch} from './watch-view.js';
 import {WatchScreen} from './watch-screen.js';
 import {factoryOutputCursor, factoryOutputFrame, factoryClosedReason} from '../api/output-response.js';
@@ -106,6 +107,7 @@ export class SodaFactoryWatch extends LitElement {
     return `${this.binding?.role || 'factory'} · ${target}`;
   }
   protected render() {
+    if (this.binding?.watchAvailable === false) return renderUnavailable('soda-watch-unavailable', ['watchAvailable']);
     const disabled = this.disposed || this.state === 'stale';
     return renderFactoryWatch(
       {
@@ -204,7 +206,8 @@ export class SodaFactoryWatch extends LitElement {
       );
   }
   async watch(resume = false) {
-    if (this.disposed || !this.binding || this.state === 'stale' || this.watching) return;
+    if (this.disposed || !this.binding || this.binding.watchAvailable === false || this.state === 'stale' || this.watching)
+      return;
     if (!resume) {
       this.screen.clear();
       this.cursor = 0;

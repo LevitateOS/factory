@@ -23,3 +23,15 @@ export const Ended: Story = {args: {state: 'ended'}};
 export const PermissionDenied: Story = {args: {state: 'denied'}};
 export const Offline: Story = {args: {state: 'offline'}};
 export const InvalidStream: Story = {args: {state: 'invalid'}};
+
+/** A host that declares live output unavailable: nothing is read and no connection opens. */
+export const Unavailable: Story = {
+  render: () => {
+    const peer = watchStoryPeer('live');
+    const view = new SodaFactoryWatch();
+    view.configure({...peer.context, watchAvailable: false}, async () => watchRenderer);
+    Object.assign(globalThis, {sodaWatchCalls: {connections: peer.peers, reads: peer.reads}});
+    queueMicrotask(() => void view.watch());
+    return view;
+  },
+};

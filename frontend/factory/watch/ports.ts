@@ -29,6 +29,8 @@ export interface FactoryWatchContext {
   readonly role: string;
   readonly issue?: string;
   readonly attempt?: string;
+  /** The host declares live output unavailable: render that, open no connection. */
+  readonly watchAvailable?: boolean;
 }
 export interface FactoryWatchResume {
   readonly generation: string;

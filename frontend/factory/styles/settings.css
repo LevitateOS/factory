@@ -92,21 +92,6 @@
 .soda-factory-sections button {
   margin: 0 8px 12px 0;
 }
-.soda-factory-unavailable {
-  border-style: dashed;
-}
-.soda-factory-unavailable dl {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-.soda-factory-unavailable dt {
-  font: var(--soda-font-label);
-}
-.soda-factory-unavailable dd {
-  margin: 0;
-  color: var(--soda-page-muted);
-}
 /* Accounts: host sign-in sections. A host may show the same sections outside
    the frame (for example before any connection) under the same class. */
 .soda-factory-accounts .soda-factory-sections > section > h2 {
