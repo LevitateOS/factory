@@ -14,12 +14,15 @@ import {
 } from './feed-actions.js';
 import type {FactoryRepositoryLinks} from '../app/navigation.js';
 import './feed-artifact.js';
+import {renderFeedAssumption} from './feed-assumption.js';
 
 /** One card's real links: hrefs come only from the repository's SodaOS places. */
 export interface FeedCardLinks {
   places?: FactoryRepositoryLinks;
   /** The viewer's native user id: Open request shows only on their own requests. */
   viewer?: string;
+  /** The host's draft scope: answers written from a card are retained under it. */
+  scope?: string;
   /** The entry's verified delivery id (the result card's event identity). */
   delivery?: string;
   /** Origin of a Ready app the viewer may open for that delivery. */
@@ -48,6 +51,7 @@ const factoryEvents: Readonly<Record<string, FactoryEvent>> = {
   // Drafts are captioned as proposals below; recorded F11 posts are decisions.
   F11: {presentation: 'decision', caption: 'Decision', level: 'post'},
   F12: {presentation: 'blocker', caption: 'Waiting on allowance', level: 'post'},
+  F13: {presentation: 'question', caption: 'Assumption challenge', level: 'post'},
 };
 
 export function factoryEvent(id: string | undefined): FactoryEvent | undefined {
@@ -100,6 +104,11 @@ export function renderFeedCommunication(
 ): TemplateResult {
   const c = filledCommunication(communication);
   const {places} = links;
+  if (c.assumption)
+    return renderFeedAssumption(
+      c,
+      artifacts && {transport: artifacts.transport, signal: artifacts.signal, scope: links.scope, viewer: links.viewer}
+    );
   const ownRequest =
     c.intentSource !== undefined && links.viewer !== undefined && c.intentSource.owner === links.viewer;
   const event = factoryEvent(c.componentId);

@@ -3881,3 +3881,66 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
     top: 20px;
   }
 }
+/* Assumption challenge (F13): assumed, consequence and recommendation, then
+   the owner's answer. Square, page tokens; the answer controls share one row. */
+.soda-feed-assumption {
+  display: grid;
+  gap: 12px;
+}
+.soda-feed-assumption > *,
+.soda-feed-assumption h4,
+.soda-feed-assumption p {
+  margin: 0;
+}
+.soda-feed-assumption h4 {
+  font: 600 13px/18px Barlow, Arial, sans-serif;
+  color: var(--soda-page-muted);
+}
+.soda-feed-assumption p {
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.soda-feed-assumption-recommended {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--soda-feed-neu-bg);
+}
+.soda-feed-assumption-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.soda-feed-assumption-actions .ui.button {
+  min-height: 44px;
+  margin: 0;
+  border-radius: 0;
+}
+.soda-feed-assumption-actions input {
+  flex: 1 1 200px;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 0;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
+  font: 400 15px/1.4 Barlow, Arial, sans-serif;
+}
+.soda-feed-assumption-answer {
+  padding-left: 10px;
+  border-left: 3px solid var(--soda-feed-line);
+}
+.soda-feed-assumption-hold,
+.soda-feed-assumption-message {
+  font-size: 14px;
+  color: var(--soda-page-muted);
+}
+.soda-feed-assumption-actions .ui.primary.button {
+  border: 1px solid var(--soda-feed-attn);
+  background: var(--soda-feed-attn);
+  color: var(--soda-feed-on-attn);
+}

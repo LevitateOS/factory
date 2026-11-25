@@ -237,6 +237,21 @@ export interface FeedCommunication {
   after?: string;
   intentSource?: {intent: string; revision: string; predecessor?: string; state: string; owner?: string};
   planSource?: {attemptRoot: string; plan: string; digest: string; sourceCommit: string; generation?: number};
+  assumption?: FeedAssumption;
+}
+
+// FeedAssumption is one recorded assumption challenge (F13). State, decision
+// and correction are served from the build request head on every read.
+export interface FeedAssumption {
+  intent: string;
+  idea: string;
+  owner: string;
+  assumption: string;
+  consequence: string;
+  recommendation: string;
+  state?: 'open' | 'answered' | 'closed';
+  decision?: 'accept' | 'decline' | 'edit';
+  correction?: string;
 }
 
 // FeedPayload is one record's typed result. At most one family is set;

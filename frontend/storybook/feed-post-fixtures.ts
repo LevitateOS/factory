@@ -207,6 +207,57 @@ export const asks: FeedPostSpecimen[] = [
       {parent_id: 'a1ce'.padStart(32, '0'), parent_author: 'Alex'}
     )
   ),
+  specimen(
+    'assumption challenge · open',
+    'Everyone on the project may search every library item.',
+    record(
+      'Factory',
+      communication({
+        kind: 'system',
+        component_id: 'F13',
+        scope: 'Build request',
+        title: 'One consequential assumption still needs your decision',
+        summary: 'Everyone on the project may search every library item.',
+        assumption: {
+          intent: 'd' + '1'.repeat(24),
+          idea: 'd' + '2'.repeat(24),
+          owner: '1',
+          assumption: 'Everyone on the project may search every library item.',
+          consequence: 'Search needs per-person visibility, which changes the index in #12.',
+          recommendation: "Confirm whether 'Everyone on the project may search every library item.' holds, or explain the correction.",
+          state: 'open',
+        },
+      }),
+      'needs_you'
+    )
+  ),
+  specimen(
+    'assumption challenge · answered',
+    'Removed items leave search at once.',
+    record(
+      'Factory',
+      communication({
+        kind: 'system',
+        component_id: 'F13',
+        scope: 'Build request',
+        title: 'Assumption answered',
+        summary: 'A removed item may stay in results until the next index pass.',
+        assumption: {
+          intent: 'd' + '1'.repeat(24),
+          idea: 'd' + '3'.repeat(24),
+          owner: '1',
+          assumption: 'A removed item may stay in results until the next index pass.',
+          consequence: 'If removal must be immediate, removing an item also updates the index.',
+          recommendation:
+            "Confirm whether 'A removed item may stay in results until the next index pass.' holds, or explain the correction.",
+          state: 'answered',
+          decision: 'edit',
+          correction: 'Removed items leave search at once.',
+        },
+      }),
+      'decided'
+    )
+  ),
 ];
 
 // The Progress sheet: work that is moving, checks, unlocks and handovers.

@@ -838,6 +838,7 @@ export class SodaFactoryFeed extends LitElement {
     return {
       ...(places ? {places} : {}),
       ...(this.viewerID ? {viewer: this.viewerID} : {}),
+      ...(this.current?.host.draftScope ? {scope: this.current.host.draftScope} : {}),
       ...(delivery ? {delivery} : {}),
       ...(appOrigin ? {appOrigin} : {}),
     };
@@ -1392,6 +1393,9 @@ export class SodaFactoryFeed extends LitElement {
       }}
       @input=${(event: Event) => {
         if (this.live(serial)) this.onDraft(event);
+      }}
+      @soda-feed-assumption-answered=${() => {
+        if (this.live(serial)) void this.readLatest(false);
       }}
     >
       ${this.current?.global ? '' : this.renderProjectPost()}

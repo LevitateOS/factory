@@ -41,6 +41,7 @@ import {
   attentionText,
   planningCancelledNotice,
   runPlanWork,
+  decideIdea,
   newDecisionID,
   savedReviewRead,
 } from '../api/request-response.js';
@@ -2986,17 +2987,7 @@ export class SodaIntent extends LitElement {
       delete restored.actor;
       return restored;
     }
-    const next: ProductIdea = {...idea, decision};
-    if (correction !== undefined) next.correction = correction;
-    else if (decision !== 'edit') delete next.correction;
-    if (decision === 'pending' || !this.actorValid()) {
-      delete next.provenance;
-      delete next.actor;
-    } else {
-      next.provenance = 'human';
-      next.actor = this.actor;
-    }
-    return next;
+    return decideIdea(idea, decision, this.actorValid() ? this.actor : '', correction);
   }
   private decide = (id: string, decision: ProductIdea['decision'], correction?: string) => {
     if (!this.revision || this.busy || this.blocked) return;

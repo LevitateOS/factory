@@ -409,6 +409,26 @@ export function newDecisionID(): string {
     'd' + Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => byte.toString(16).padStart(2, '0')).join('')
   );
 }
+/** One idea with the owner's decision. Human provenance binds the deciding
+ * owner; without an actor, or back to pending, the idea carries none. */
+export function decideIdea(
+  idea: ProductIdea,
+  decision: ProductIdea['decision'],
+  actor: string,
+  correction?: string
+): ProductIdea {
+  const next: ProductIdea = {...idea, decision};
+  if (correction !== undefined) next.correction = correction;
+  else if (decision !== 'edit') delete next.correction;
+  if (decision === 'pending' || !actor) {
+    delete next.provenance;
+    delete next.actor;
+  } else {
+    next.provenance = 'human';
+    next.actor = actor;
+  }
+  return next;
+}
 export function planActionBody(revision: string, operation: string): Record<string, unknown> {
   check(decisionID(revision) && (operation === 'propose_intent' || operation === 'decomposition_options'));
   return {revision, operation};
