@@ -30,8 +30,9 @@ func (s nativeProductAccount) targetTip(ctx context.Context, target string) (nat
 	return tip, err
 }
 
-// CaptureCompletionLocal brackets the existing SQL material with the selected
-// account's current target tip. Recorded preparation alone is not a current tip.
+// CaptureCompletionLocal pairs the existing SQL material with the selected
+// account's current target tip; the completion pass compares captures taken
+// before and after its listing. Recorded preparation alone is not a current tip.
 func (s NativeInputSource) CaptureCompletionLocal(ctx context.Context, repository int64) (factory.CompletionLocal, error) {
 	var empty factory.CompletionLocal
 	authority, err := s.Store.CompletionSourceContext(ctx, repository)
@@ -42,20 +43,13 @@ func (s NativeInputSource) CaptureCompletionLocal(ctx context.Context, repositor
 	if err != nil {
 		return empty, err
 	}
-	before, err := account.targetTip(ctx, authority.TargetBranch)
+	tip, err := account.targetTip(ctx, authority.TargetBranch)
 	if err != nil {
 		return empty, err
 	}
-	local, err := s.Store.CaptureCompletionLocalAtSource(ctx, repository, authority, before.Tip)
+	local, err := s.Store.CaptureCompletionLocalAtSource(ctx, repository, authority, tip.Tip)
 	if err != nil {
 		return empty, err
-	}
-	after, err := account.targetTip(ctx, authority.TargetBranch)
-	if err != nil {
-		return empty, err
-	}
-	if before != after {
-		return empty, errors.New(control.HoldInventoryMaterial)
 	}
 	return local, account.current(ctx)
 }

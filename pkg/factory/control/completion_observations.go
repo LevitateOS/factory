@@ -129,11 +129,9 @@ func bracketPagedIssueObservations(ctx context.Context, deps CompletionDriveDeps
 		if !page.Complete {
 			continue
 		}
-		if !progress.Confirming {
-			progress.Confirming = true
-			continue
-		}
-		if progress.Confirmed != len(collector.Issues) {
+		// One listing is the inventory. Progress saved while it was listing a
+		// second time to confirm finishes that pass.
+		if progress.Confirming && progress.Confirmed != len(collector.Issues) {
 			return bracketResult{hold: HoldInventoryRevision}
 		}
 		confirmed, err := deps.CaptureLocal(ctx, repository)

@@ -52,14 +52,8 @@ func (s *nativeIssueEffects) AuthorizeIssueMaker(ctx context.Context, scope fact
 	if issue.Number != scope.Issue {
 		return factoryservice.ErrCapturedIssueAuthority
 	}
-	capabilities, err := (nativeCollaborationReads{account}).ReadCapabilities(ctx, proof.Scope.Actor, proof.Scope.Repository, factoryservice.CapabilityQuery{Subject: "issue", Number: issue.Number})
-	if err != nil {
-		return err
-	}
-	if capabilities.Issue == nil || *capabilities.Issue != issue || capabilities.Actions[collaboration.CommentIssue].State != collaboration.Allowed {
-		return factoryservice.ErrCapturedIssueUnavailable
-	}
-	// Provider reads must not extend the captured source's lifetime or reinstate a
+	// Each refinement comment reads the issue before it writes, so access is
+	// not asked here. Reads must not extend the captured source's lifetime or reinstate a
 	// withdrawn request before the role is admitted to paid execution.
 	return s.currentSource(ctx, proof, raw)
 }

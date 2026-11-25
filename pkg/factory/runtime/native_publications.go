@@ -241,10 +241,6 @@ func (p NativePublication) ObservePublication(ctx context.Context, w factory.Pub
 	if int64(account.binding.Actor.ID) != w.ActorID {
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
-	before, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
-	if err != nil {
-		return empty, err
-	}
 	raw, err := p.refs(ctx, account, w)
 	if err != nil {
 		return empty, err
@@ -254,14 +250,11 @@ func (p NativePublication) ObservePublication(ctx context.Context, w factory.Pub
 			return empty, err
 		}
 	}
-	after, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
+	inputs, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
 		return empty, err
 	}
-	if before.Revision != after.Revision {
-		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
-	}
-	return factory.PublicationObservation{TargetRef: publication.PublicationRef(), TargetTip: raw.Tip, Comparison: raw.Comparison, NativeRev: after.Revision, ObservedUnix: time.Now().Unix()}, nil
+	return factory.PublicationObservation{TargetRef: publication.PublicationRef(), TargetTip: raw.Tip, Comparison: raw.Comparison, NativeRev: inputs.Revision, ObservedUnix: time.Now().Unix()}, nil
 }
 func nativePublicationOutcome(w factory.PublicationWork, kind string, o collaboration.OperationLookup) factory.OperationOutcome {
 	if o.Record == nil {

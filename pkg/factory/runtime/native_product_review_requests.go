@@ -132,6 +132,7 @@ func (s nativeHumanReviewRequests) PrepareHumanReviewRequest(ctx context.Context
 	if err != nil {
 		return empty, err
 	}
+	pullID := ""
 	if q.Requested {
 		requests, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadReviewRequests(ctx, q.Actor, q.Repository, q.Number)
 		if err != nil {
@@ -146,15 +147,20 @@ func (s nativeHumanReviewRequests) PrepareHumanReviewRequest(ctx context.Context
 		if requests.Limits == nil || target.Kind == "team" && !requests.Limits.Teams || manual >= requests.Limits.Maximum {
 			return empty, factoryservice.ErrHumanReviewRequestAdmission
 		}
+		pullID = requests.Pull.ExternalID
+	} else {
+		page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadPulls(ctx, q.Actor, q.Repository, factoryservice.CollaborationPullQuery{Number: q.Number, Limit: 1})
+		if err != nil {
+			return empty, err
+		}
+		if len(page.Items) == 1 {
+			pullID = page.Items[0].Ref.ExternalID
+		}
 	}
-	page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadPulls(ctx, q.Actor, q.Repository, factoryservice.CollaborationPullQuery{Number: q.Number, Limit: 1})
-	if err != nil {
-		return empty, err
-	}
-	if len(page.Items) != 1 || !nativeRemoteID(page.Items[0].Ref.ExternalID) {
+	if !nativeRemoteID(pullID) {
 		return empty, factoryservice.ErrHumanReviewRequestAdmission
 	}
-	p := nativeReviewRequestPreparation{Version: 1, Account: s.identity.Account.ExternalID, NotAfter: time.Now().Add(5 * time.Minute).Unix(), Request: nativeReviewRequestWrite{Repository: s.repository.ExternalID, PullID: page.Items[0].Ref.ExternalID, Number: uint64(q.Number), Target: target, Requested: q.Requested}}
+	p := nativeReviewRequestPreparation{Version: 1, Account: s.identity.Account.ExternalID, NotAfter: time.Now().Add(5 * time.Minute).Unix(), Request: nativeReviewRequestWrite{Repository: s.repository.ExternalID, PullID: pullID, Number: uint64(q.Number), Target: target, Requested: q.Requested}}
 	raw, err := json.Marshal(p)
 	if err != nil {
 		return empty, err

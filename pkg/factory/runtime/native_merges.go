@@ -168,10 +168,6 @@ func (p NativeMerges) observeMerge(ctx context.Context, w factory.MergeWork, pro
 	if int64(account.binding.Actor.ID) != w.ActorID {
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
-	before, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
-	if err != nil {
-		return fail("accepted_inputs_before", err)
-	}
 	publication, err := p.Store.PublicationByID(ctx, w.PublicationID)
 	if err != nil {
 		return fail("publication", err)
@@ -228,14 +224,11 @@ func (p NativeMerges) observeMerge(ctx context.Context, w factory.MergeWork, pro
 	if err != nil {
 		return fail("provider_merge", err)
 	}
-	after, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
+	inputs, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
-		return fail("accepted_inputs_after", err)
+		return fail("accepted_inputs", err)
 	}
-	if before.Revision != after.Revision {
-		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
-	}
-	observed.NativeRev = after.Revision
+	observed.NativeRev = inputs.Revision
 	observed.ReviewID, observed.ReviewEvent = review.ReviewID, review.Event
 	return observed, nil
 }
