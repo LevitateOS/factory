@@ -5,7 +5,7 @@ interface FeedRole {
 }
 
 const roles: readonly FeedRole[] = [
-  {label: 'Issue Maker', aliases: ['issue_maker']},
+  {label: 'Issue Maker', aliases: ['issue_maker'], portrait: 'issue-maker'},
   {label: 'Product Lead', aliases: ['product_lead'], portrait: 'product-lead'},
   {label: 'Architect', aliases: ['architect'], portrait: 'architect'},
   {label: 'Builder', aliases: ['builder'], portrait: 'builder'},
@@ -21,17 +21,6 @@ const roleLabels = new Map(roles.flatMap((role) => role.aliases.map((key) => [ke
 export const feedRolePortraits: Readonly<Record<string, string>> = Object.fromEntries(
   roles.flatMap((role) => (role.portrait ? [[role.label, `role-portraits/ps1-v1/${role.portrait}.png`]] : []))
 );
-
-// roleInitials is the avatar text for a known role label without a portrait,
-// such as Issue Maker → IM. Other labels (people, "Post") return undefined.
-export function roleInitials(label: string | undefined): string | undefined {
-  if (label === undefined || !roles.some((role) => role.label === label)) return;
-  return label
-    .split(/\s+/)
-    .map((word) => word.charAt(0))
-    .join('')
-    .toUpperCase();
-}
 
 export function roleKey(actor: string | undefined): string {
   return (actor ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
