@@ -18,11 +18,17 @@ enum RequestRoute {
     RecoveryObservation,
     RecoveryRetirement,
     RecoveryPending,
+    /// One account-admitted live run-output response.
+    Output,
 }
 
 type Result<T> = std::result::Result<T, String>;
 const MAX_REQUESTS: usize = 16;
 const WAIT: Duration = Duration::from_secs(20);
+/// Bounds one live-output response and the native operation admitting it.
+/// Go ends its response sooner and the viewer renews from its cursor.
+pub(crate) const OUTPUT_WAIT: Duration = Duration::from_secs(300);
+const OUTPUT_BYTES: usize = 32 * 1024 * 1024;
 struct Completion {
     result: Result<Response>,
     // Keep admission bounded even when a caller does not poll its response.
@@ -49,6 +55,7 @@ struct Job {
     target: String,
     body: Vec<u8>,
     operation: Option<String>,
+    chunks: Option<mpsc::Sender<Vec<u8>>>,
     reply: Reply,
     cancelled: watch::Receiver<bool>,
     permit: OwnedSemaphorePermit,
@@ -151,6 +158,7 @@ impl Products {
         body: &[u8],
         operation: Option<&str>,
         route: RequestRoute,
+        chunks: Option<mpsc::Sender<Vec<u8>>>,
         reply: Reply,
     ) -> Result<Cancel> {
         let supported = match route {
@@ -190,6 +198,21 @@ impl Products {
                     && !body.is_empty()
                     && operation.is_none()
             }
+            RequestRoute::Output => {
+                method == "GET"
+                    && body.is_empty()
+                    && operation.is_some()
+                    && chunks.is_some()
+                    && target
+                        .strip_prefix("/api/factory/runs/")
+                        .and_then(|rest| rest.split_once("/output?cursor="))
+                        .is_some_and(|(run, cursor)| {
+                            !run.is_empty()
+                                && run.len() <= 64
+                                && run.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                                && cursor.parse::<i64>().is_ok_and(|value| value >= 0 && value.to_string() == cursor)
+                        })
+            }
             RequestRoute::RecoveryPending => {
                 method == "GET"
                     && body.is_empty()
@@ -209,6 +232,7 @@ impl Products {
             65536
         };
         if !supported
+            || chunks.is_some() != matches!(route, RequestRoute::Output)
             || target.len() > 2048
             || target.bytes().any(|b| b.is_ascii_control())
             || body.len() > body_limit
@@ -230,6 +254,7 @@ impl Products {
                 target: target.into(),
                 body: body.into(),
                 operation: operation.map(str::to_owned),
+                chunks,
                 reply,
                 cancelled: observe,
                 permit,
@@ -322,12 +347,35 @@ impl Products {
         operation: Option<&str>,
         route: RequestRoute,
     ) -> impl std::future::Future<Output = Result<Response>> {
+        self.scoped(method, target, body, operation, route, None, WAIT)
+    }
+    /// One live-output response: each body chunk goes to `chunks` as Go writes
+    /// it. Dropping the future (or the receiver) cancels the request.
+    pub(crate) fn admitted_output(
+        &self,
+        target: &str,
+        operation: &str,
+        chunks: mpsc::Sender<Vec<u8>>,
+    ) -> impl std::future::Future<Output = Result<Response>> {
+        self.scoped("GET", target, &[], Some(operation), RequestRoute::Output, Some(chunks), OUTPUT_WAIT)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn scoped(
+        &self,
+        method: &str,
+        target: &str,
+        body: &[u8],
+        operation: Option<&str>,
+        route: RequestRoute,
+        chunks: Option<mpsc::Sender<Vec<u8>>>,
+        wait: Duration,
+    ) -> impl std::future::Future<Output = Result<Response>> {
         let (reply, response) = oneshot::channel();
-        let admission = self.submit(method, target, body, operation, route, Reply::Async(reply));
+        let admission = self.submit(method, target, body, operation, route, chunks, Reply::Async(reply));
         let alive = self.alive.clone();
         async move {
             let _cancel = admission?;
-            let completion = tokio::time::timeout(WAIT, response)
+            let completion = tokio::time::timeout(wait, response)
                 .await
                 .map_err(|_| "native product request timed out")?
                 .map_err(|_| "native product request retired")?;
@@ -345,6 +393,7 @@ impl Products {
             body,
             None,
             RequestRoute::Product,
+            None,
             Reply::Blocking(reply),
         )?;
         let completion = response
@@ -369,6 +418,17 @@ async fn run(mut job: Job, channel: NativeChannel, alive: Arc<AtomicBool>) {
     };
     let result = if !alive.load(Ordering::SeqCst) {
         Err("native runtime is retired".into())
+    } else if let Some(chunks) = job.chunks.take() {
+        // A slow or departed consumer ends the response; nothing is buffered.
+        let mut each = |data: &[u8]| chunks.try_send(data.to_vec()).map_err(|_| soda_unix_http::Error::Consumer);
+        tokio::select! {
+            biased;
+            _ = job.cancelled.changed() => Err("native product request cancelled".into()),
+            reply = soda_unix_http::stream_authenticated_async(&channel.socket, &job.method, &job.target, "soda-native", &job.body, &channel.key,
+                &headers, OUTPUT_WAIT, Limits {header_bytes:16384,body_bytes:OUTPUT_BYTES}, &mut each) =>
+                reply.map(|status| Response { status, content_type: None, body: Vec::new() })
+                    .map_err(|_| "native output response ended".into()),
+        }
     } else {
         tokio::select! {
             biased;

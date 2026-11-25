@@ -520,6 +520,17 @@ impl NativeSupervisor {
         self.collaboration
             .admit(self.products.clone(), credentials, capability, repository)
     }
+    /// Admit one live run-output response for a GitHub account; see
+    /// `NativeRequest::output`. Fountain output stays unavailable.
+    pub fn admit_product_output(
+        &self,
+        credentials: Arc<crate::credentials::Credentials>,
+        capability: crate::credentials::TokenCapability,
+        repository: String,
+    ) -> Result<crate::collaboration::NativeRequest> {
+        self.collaboration
+            .admit_output(self.products.clone(), credentials, capability, Some(repository))
+    }
     pub fn admit_fountain_product(
         &self,
         credentials: Arc<crate::credentials::Credentials>,

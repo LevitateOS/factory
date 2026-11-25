@@ -38,6 +38,8 @@ pub enum Error {
     Protocol,
     Deadline,
     BodyTooLarge,
+    /// The streaming consumer refused a chunk.
+    Consumer,
 }
 
 /// Perform one non-retried HTTP/1 request. The timeout covers Unix connect,
@@ -94,7 +96,7 @@ fn request_with_authorization(
         .enable_time()
         .build()
         .map_err(|_| Error::Connect)?;
-    runtime.block_on(request_inner(
+    runtime.block_on(buffered(
         socket,
         method,
         target,
@@ -123,7 +125,7 @@ pub async fn request_authenticated_async(
 ) -> Result<Response, Error> {
     let deadline = Instant::now() + timeout;
     let work_deadline = deadline - Duration::from_millis(10).min(timeout / 4);
-    request_inner(
+    buffered(
         socket,
         method,
         target,
@@ -136,6 +138,79 @@ pub async fn request_authenticated_async(
         limits,
     )
     .await
+}
+
+/// Await one authenticated native call whose response body arrives over time.
+/// Each body chunk goes to `each` as it is read; `limits.body_bytes` bounds the
+/// whole body and `timeout` the whole call. A consumer error ends the call.
+/// Returns the status; dropping the future closes its owned driver/socket.
+pub async fn stream_authenticated_async(
+    socket: &Path,
+    method: &str,
+    target: &str,
+    host: &str,
+    body: &[u8],
+    bearer: &str,
+    headers: &[(&str, &str)],
+    timeout: Duration,
+    limits: Limits,
+    each: &mut (dyn FnMut(&[u8]) -> Result<(), Error> + Send),
+) -> Result<u16, Error> {
+    let deadline = Instant::now() + timeout;
+    let work_deadline = deadline - Duration::from_millis(10).min(timeout / 4);
+    let (status, _) = request_inner(
+        socket,
+        method,
+        target,
+        host,
+        body,
+        Some(bearer),
+        headers,
+        work_deadline,
+        deadline,
+        limits,
+        each,
+    )
+    .await?;
+    Ok(status)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn buffered(
+    socket: &Path,
+    method: &str,
+    target: &str,
+    host: &str,
+    body: &[u8],
+    bearer: Option<&str>,
+    headers: &[(&str, &str)],
+    work_deadline: Instant,
+    deadline: Instant,
+    limits: Limits,
+) -> Result<Response, Error> {
+    let mut collected = Vec::new();
+    let (status, content_type) = request_inner(
+        socket,
+        method,
+        target,
+        host,
+        body,
+        bearer,
+        headers,
+        work_deadline,
+        deadline,
+        limits,
+        &mut |data| {
+            collected.extend_from_slice(data);
+            Ok(())
+        },
+    )
+    .await?;
+    Ok(Response {
+        status,
+        content_type,
+        body: collected,
+    })
 }
 
 struct AbortDriver(tokio::task::AbortHandle);
@@ -156,7 +231,8 @@ async fn request_inner(
     work_deadline: Instant,
     deadline: Instant,
     limits: Limits,
-) -> Result<Response, Error> {
+    each: &mut (dyn FnMut(&[u8]) -> Result<(), Error> + Send),
+) -> Result<(u16, Option<String>), Error> {
     let stream = timeout_at(work_deadline, UnixStream::connect(socket))
         .await
         .map_err(|_| Error::Deadline)?
@@ -207,7 +283,7 @@ async fn request_inner(
             .send_request(request)
             .await
             .map_err(|error| map_protocol_error(&error))?;
-        collect_response(response, limits.body_bytes, work_deadline).await
+        collect_response(response, limits.body_bytes, work_deadline, each).await
     };
     let outcome = match timeout_at(work_deadline, operation).await {
         Ok(result) => result,
@@ -236,7 +312,8 @@ async fn collect_response(
     response: HttpResponse<Incoming>,
     cap: usize,
     deadline: Instant,
-) -> Result<Response, Error> {
+    each: &mut (dyn FnMut(&[u8]) -> Result<(), Error> + Send),
+) -> Result<(u16, Option<String>), Error> {
     let status = response.status().as_u16();
     let content_type = response
         .headers()
@@ -244,7 +321,7 @@ async fn collect_response(
         .and_then(|value| value.to_str().ok())
         .filter(|value| value.len() <= 256)
         .map(str::to_owned);
-    let mut body = Vec::new();
+    let mut length = 0usize;
     let mut incoming = response.into_body();
     loop {
         let frame = timeout_at(deadline, incoming.frame())
@@ -253,20 +330,14 @@ async fn collect_response(
         let Some(frame) = frame else { break };
         let frame = frame.map_err(|error| map_protocol_error(&error))?;
         if let Ok(data) = frame.into_data() {
-            if data.len() > cap.saturating_add(1).saturating_sub(body.len()) {
+            if data.len() > cap.saturating_sub(length) {
                 return Err(Error::BodyTooLarge);
             }
-            body.extend_from_slice(&data);
-            if body.len() > cap {
-                return Err(Error::BodyTooLarge);
-            }
+            length += data.len();
+            each(&data)?;
         }
     }
-    Ok(Response {
-        status,
-        content_type,
-        body,
-    })
+    Ok((status, content_type))
 }
 
 fn map_protocol_error(error: &hyper::Error) -> Error {

@@ -117,6 +117,25 @@ impl NativeRequest {
         }
     }
 }
+impl NativeRequest {
+    /// Stream one live-output response into `chunks`; see `admit_output`.
+    pub fn output(
+        self,
+        target: &str,
+        chunks: tokio::sync::mpsc::Sender<Vec<u8>>,
+    ) -> impl std::future::Future<Output = Result<u16>> {
+        let request = self.products.admitted_output(target, &self.id, chunks);
+        async move {
+            let mut cancelled = self.scope.cancelled.subscribe();
+            tokio::select! {
+                biased;
+                _ = cancelled.wait_for(|cancelled| *cancelled) => Err("native operation cancelled".into()),
+                _ = tokio::time::sleep_until(self.scope.deadline.into()) => Err("native operation expired".into()),
+                result = request => result.map(|response| response.status),
+            }
+        }
+    }
+}
 impl Drop for NativeRequest {
     fn drop(&mut self) {
         self.scope.cancelled.send_replace(true);
@@ -263,7 +282,19 @@ impl Port {
         capability: TokenCapability,
         repository: Option<String>,
     ) -> Result<NativeRequest> {
-        self.admit_scoped(products, credentials, capability, repository, None)
+        self.admit_scoped(products, credentials, capability, repository, None, LIFETIME)
+    }
+    /// One live-output response. Its operation outlives an ordinary request so
+    /// Go's local account checks keep answering for the bounded response; the
+    /// provider is still observed once, when Go binds the request.
+    pub(crate) fn admit_output(
+        &self,
+        products: Products,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        repository: Option<String>,
+    ) -> Result<NativeRequest> {
+        self.admit_scoped(products, credentials, capability, repository, None, crate::product::OUTPUT_WAIT)
     }
     pub(crate) fn admit_fountain(
         &self,
@@ -273,7 +304,7 @@ impl Port {
         repository: String,
         client: Arc<crate::fountain_provider::Client>,
     ) -> Result<NativeRequest> {
-        self.admit_scoped(products, credentials, capability, Some(repository), Some(client))
+        self.admit_scoped(products, credentials, capability, Some(repository), Some(client), LIFETIME)
     }
     fn admit_scoped(
         &self,
@@ -282,6 +313,7 @@ impl Port {
         capability: TokenCapability,
         repository: Option<String>,
         fountain: Option<Arc<crate::fountain_provider::Client>>,
+        lifetime: Duration,
     ) -> Result<NativeRequest> {
         let account = capability.account();
         let provider = match &fountain {
@@ -313,7 +345,7 @@ impl Port {
             capability,
             fountain,
             repository,
-            deadline: Instant::now() + LIFETIME,
+            deadline: Instant::now() + lifetime,
             cancelled,
             write_claimed: AtomicBool::new(false),
             _permit: permit,

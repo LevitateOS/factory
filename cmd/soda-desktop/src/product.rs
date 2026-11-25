@@ -37,6 +37,7 @@ struct Selection {
 struct Job {
     window: String,
     selection: String,
+    output: bool,
     active: Arc<AtomicBool>,
     task: tauri::async_runtime::JoinHandle<()>,
 }
@@ -665,6 +666,7 @@ pub(super) fn factory_product_request(
         Job {
             window: window.label().into(),
             selection: session,
+            output: false,
             active,
             task,
         },
@@ -696,4 +698,149 @@ pub(super) async fn factory_product_cancel(
         let _ = job.task.await;
     }
     Ok(())
+}
+/// Admit one live-output response for the selected GitHub repository. Go
+/// observes the provider once for the binding; later checks stay local.
+async fn output(
+    desktop: &Desktop,
+    selection: &Selection,
+    target: &str,
+    chunks: tokio::sync::mpsc::Sender<Vec<u8>>,
+) -> Result<u16, String> {
+    current(desktop, selection)?;
+    let credentials = desktop.credentials()?;
+    let capability = credentials
+        .capability(&selection.connection)
+        .await
+        .map_err(|_| "Factory account is unavailable")?;
+    current(desktop, selection)?;
+    if capability.account().provider != soda_desktop_runtime::credentials::Provider::Github
+        || selection.fountain_repository.is_some()
+    {
+        return Err("Live output is unavailable for this account".into());
+    }
+    let request = {
+        let runtime = desktop.runtime.lock().unwrap();
+        current(desktop, selection)?;
+        let runtime = runtime.as_ref().ok_or("Factory is unavailable")?;
+        runtime.admit_product_output(
+            credentials,
+            capability,
+            selection.repository.clone().ok_or("Choose a repository")?,
+        )?
+    };
+    let status = request.output(target, chunks).await?;
+    current(desktop, selection)?;
+    Ok(status)
+}
+/// Frames the shared Watch view admits; anything else from Go is dropped.
+fn output_frame(line: &[u8]) -> Option<Value> {
+    let value: Value = serde_json::from_slice(line).ok()?;
+    matches!(value["type"].as_str(), Some("status" | "output" | "closed")).then_some(value)
+}
+/// One read-only live-output response for this window's selection, delivered
+/// as Watch frames and then `{"type":"end","status":N}`. A window has one: a
+/// newer request replaces it. Window close, account change and
+/// `factory_product_cancel` end it; the run itself is never touched.
+#[tauri::command]
+pub(super) fn factory_product_output(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    session: String,
+    run: String,
+    cursor: u64,
+    channel: tauri::ipc::Channel<InvokeResponseBody>,
+) -> Result<String, String> {
+    product_caller(&window)?;
+    if run.is_empty()
+        || run.len() > 64
+        || !run.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        || cursor > 256 << 20
+    {
+        return Err("invalid Factory run output request".into());
+    }
+    let target = format!("/api/factory/runs/{run}/output?cursor={cursor}");
+    let desktop = app.state::<Desktop>();
+    let selection = desktop
+        .product
+        .selections
+        .lock()
+        .unwrap()
+        .get(window.label())
+        .filter(|s| s.id == session)
+        .cloned()
+        .ok_or("Factory connection retired")?;
+    current(&desktop, &selection)?;
+    if selection.binding.lock().unwrap().is_none() {
+        return Err("Factory account is not connected".into());
+    }
+    let id = desktop.product.id();
+    let active = Arc::new(AtomicBool::new(true));
+    let mut jobs = desktop.product.jobs.lock().unwrap();
+    let replaced: Vec<_> = jobs
+        .iter()
+        .filter(|(_, j)| j.output && j.window == window.label())
+        .map(|(id, _)| id.clone())
+        .collect();
+    for job in replaced.into_iter().filter_map(|id| jobs.remove(&id)) {
+        job.active.store(false, Ordering::SeqCst);
+        job.task.abort();
+    }
+    if jobs.len() >= 16 {
+        return Err("native product request limit reached".into());
+    }
+    let task_app = app.clone();
+    let task_id = id.clone();
+    let task_active = active.clone();
+    let task = tauri::async_runtime::spawn(async move {
+        let desktop = task_app.state::<Desktop>();
+        let deliver = |message: Value| {
+            // Serialize delivery with retirement, replacement and cancellation.
+            let selections = desktop.product.selections.lock().unwrap();
+            let _jobs = desktop.product.jobs.lock().unwrap();
+            if selections
+                .get(&selection.window)
+                .is_some_and(|s| s.id == selection.id)
+                && current(&desktop, &selection).is_ok()
+                && task_active.load(Ordering::SeqCst)
+            {
+                let _ = channel.send(InvokeResponseBody::Json(message.to_string()));
+            }
+        };
+        let (chunks, mut received) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+        let response = output(&desktop, &selection, &target, chunks);
+        let forward = async {
+            let mut pending = Vec::new();
+            while let Some(chunk) = received.recv().await {
+                pending.extend_from_slice(&chunk);
+                while let Some(end) = pending.iter().position(|&b| b == b'\n') {
+                    let line: Vec<u8> = pending.drain(..=end).collect();
+                    if let Some(frame) = output_frame(&line[..end]) {
+                        deliver(frame);
+                    }
+                }
+                if pending.len() > 65536 {
+                    break;
+                }
+            }
+        };
+        let status = tokio::select! {
+            biased;
+            _ = cancelled(&selection) => None,
+            (status, ()) = async { tokio::join!(response, forward) } => status.ok(),
+        };
+        deliver(serde_json::json!({"type":"end","status":status}));
+        desktop.product.jobs.lock().unwrap().remove(&task_id);
+    });
+    jobs.insert(
+        id.clone(),
+        Job {
+            window: window.label().into(),
+            selection: session,
+            output: true,
+            active,
+            task,
+        },
+    );
+    Ok(id)
 }
