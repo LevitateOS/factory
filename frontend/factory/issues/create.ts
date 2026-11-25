@@ -382,6 +382,7 @@ export class SodaFactoryIssueCreate extends LitElement {
                   ${!pending.cancel ? html`<button type="button" ?disabled=${this.busy || blocked} @click=${() => this.act('cancel')}>Cancel submission</button>` : ''}
                 `
               : html`<button
+                  class="soda-issue-primary"
                   type="button"
                   ?disabled=${this.busy || blocked || !this.allowed || !validIssueWriting(title, body)}
                   @click=${() => this.act('submit')}
