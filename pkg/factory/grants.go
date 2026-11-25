@@ -270,8 +270,10 @@ func (p RepositoryPolicy) ValidateForWrite() error {
 }
 
 func checkPolicyCheckNames(p RepositoryPolicy) error {
-	if len(p.Checks) == 0 || len(p.Checks) > MaxRequiredChecks {
-		return errors.New("policy requires a nonempty bounded check set")
+	// Checks gate automatic merges. A new project has no CI yet, so its first
+	// policy may name none while automation stays off.
+	if len(p.Checks) == 0 && p.Enabled || len(p.Checks) > MaxRequiredChecks {
+		return errors.New("enabled policy requires a nonempty bounded check set")
 	}
 	seen := make(map[string]bool, len(p.Checks))
 	for _, check := range p.Checks {

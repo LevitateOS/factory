@@ -35,13 +35,26 @@ export class PlacementController {
   private retired = false;
   private readonly listeners = new Set<() => void>();
   private readonly path: string;
+  private readonly first: Promise<void>;
 
   constructor(
     private readonly transport: FactoryTransport,
     private readonly repository: string
   ) {
     this.path = `repositories/${repository}/factory/placement`;
-    void this.run(false);
+    this.first = this.run(false);
+  }
+  /** New project: the same steps as this computer's Execution controller
+   * buttons, taken once because the person asked for agents to work here. True
+   * when this computer controls the repository and both permissions are recorded. */
+  async useThisComputer() {
+    await this.first;
+    const ours = () => this.placement?.state === 'active' && this.placement.runtime === this.runtime;
+    if (this.known && this.canSelect && (!this.placement || this.placement.state === 'inactive')) await this.run('controller');
+    if (this.known && this.canConfigure && !this.capacityRevision) await this.run('capacity', 1);
+    if (this.known && this.canConfigure && !this.operatorActive && ours()) await this.run('permission');
+    if (this.known && this.canConfigure && !this.environmentActive && ours()) await this.run('environment');
+    return this.known && ours() && this.operatorActive && this.environmentActive;
   }
   retire() {
     this.retired = true;

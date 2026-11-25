@@ -22,18 +22,20 @@ export function projectRepositoryName(name: string) {
 /** New project: one name, an optional sentence and who can see it. The host
  * creates the repository, connects this window to it and opens its Feed. */
 export class SodaFactoryNewProject extends LitElement {
-  static properties = {name: {state: true}, description: {state: true}, visibility: {state: true}, busy: {state: true}, message: {state: true}};
+  static properties = {name: {state: true}, description: {state: true}, visibility: {state: true}, busy: {state: true}, message: {state: true}, here: {state: true}};
   declare private name: string;
   declare private description: string;
   declare private visibility: FactoryNewProject['visibility'];
   declare private busy: boolean;
   declare private message: string;
+  declare private here: boolean;
   private current: FactoryNewProjectContext | undefined;
   constructor() {
     super();
     this.name = this.description = this.message = '';
     this.visibility = 'private';
     this.busy = false;
+    this.here = true;
   }
   protected createRenderRoot() {
     return this;
@@ -61,7 +63,7 @@ export class SodaFactoryNewProject extends LitElement {
     this.busy = true;
     this.message = '';
     try {
-      await context.port.create({name, description: this.description.trim().replace(/\s+/g, ' ').slice(0, 350), visibility: this.visibility});
+      await context.port.create({name, description: this.description.trim().replace(/\s+/g, ' ').slice(0, 350), visibility: this.visibility, useThisComputer: this.here});
     } catch (error) {
       if (this.current !== context) return;
       const text = error instanceof Error ? error.message : '';
@@ -113,6 +115,10 @@ export class SodaFactoryNewProject extends LitElement {
           <label><input type="radio" name="visibility" value="private" .checked=${this.visibility === 'private'} @change=${() => (this.visibility = 'private')} /> Only people you invite</label>
           <label><input type="radio" name="visibility" value="public" .checked=${this.visibility === 'public'} @change=${() => (this.visibility = 'public')} /> Anyone</label>
         </fieldset>
+        <label>
+          <input type="checkbox" name="here" .checked=${this.here} ?disabled=${this.busy} @change=${(event: Event) => (this.here = (event.target as HTMLInputElement).checked)} />
+          Let agents work on this project on this computer, in their own separate copies of it
+        </label>
         <button type="submit" data-tone="primary" ?disabled=${this.busy || !name} aria-busy=${this.busy ? 'true' : 'false'}>
           ${this.busy ? 'Creating…' : 'Create project'}
         </button>

@@ -197,6 +197,114 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
   return {policy, roles, accounts, sources, editable, bindings, options};
 }
 
+const covers = (accounts: readonly Account[], role: Role, connection: string) =>
+  accounts.some((account) => account.connection === connection && account.active && account.roles.includes(role));
+
+// authorizeLogins lets each chosen login run the roles it was chosen for,
+// through the existing sponsorship command, before the policy names it. It
+// returns the updated logins, or the same array when nothing was needed.
+async function authorizeLogins(context: RoleContext, signal: AbortSignal, saved: Account[], roles: Selections) {
+  const needed = new Map<string, Set<string>>();
+  for (const role of Object.keys(roleNames) as Role[]) {
+    const account = roles[role].account;
+    if (account && !covers(saved, role, account)) needed.set(account, (needed.get(account) ?? new Set()).add(role));
+  }
+  if (!needed.size) return saved;
+  const accounts = [...saved];
+  for (const [connection, added] of needed) {
+    const stored = accounts.find((account) => account.connection === connection);
+    if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) throw new RoleSaveError('Refresh before saving again.', 409);
+    const granted = [...new Set([...(stored?.active ? stored.roles : []), ...added])];
+    const response = await context.transport.request(`repositories/${context.repository}/factory/sponsorships/${connection}`, {
+      method: 'PUT',
+      signal,
+      body: JSON.stringify({expected_revision: stored?.revision ?? 0, roles: granted, active: true}),
+    });
+    if (!response.ok)
+      throw new RoleSaveError(
+        response.status === 409 || response.status === 412
+          ? 'This login changed. Refresh before saving again.'
+          : 'This login cannot run work yet. Check the computer and workspace permission, then refresh roles.',
+        response.status
+      );
+    const receipt = object(await readSodaJSON(response));
+    check(Number.isSafeInteger(receipt.revision) && receipt.revision === (stored?.revision ?? 0) + 1);
+    const account: Account = {connection, active: true, roles: granted, revision: Number(receipt.revision), owner: context.actor, native: true};
+    accounts.splice(0, accounts.length, ...accounts.filter((other) => other.connection !== connection), account);
+  }
+  return accounts;
+}
+
+async function readSettings(context: RoleContext, signal: AbortSignal): Promise<Settings> {
+  const path = `repositories/${context.repository}/factory`;
+  const [status, access] = await Promise.all([
+    context.transport.request(path, {method: 'GET', signal}),
+    context.transport.request(`${path}/access`, {method: 'GET', signal}),
+  ]);
+  check(status.ok && access.ok);
+  return settings(await readSodaJSON(status), await readSodaJSON(access), context.repository);
+}
+
+/** The policy actor slots a first policy needs, each bound to the window's own
+ * account; undefined when any slot has no single binding for it. */
+function accountActors(bindings: readonly Record<string, unknown>[], actor: string | undefined, controllerGrant = '') {
+  if (!actor || !id(actor)) return;
+  const required = !!controllerGrant;
+  const actors: Record<string, Record<string, unknown>> = {};
+  for (const [slot, kind] of Object.entries({
+    publish_actor: 'git.ref.publish',
+    create_actor: 'pull_request.create',
+    review_actor: 'pull_request.review.submit',
+    merge_actor: 'pull_request.merge',
+    ...(required ? {execution_actor: 'execution.launch'} : {}),
+  })) {
+    const matches = bindings.filter((ref) => ref.actor_id === actor && ref.kind === kind);
+    if (matches.length !== 1) return;
+    actors[slot] = {...policyActor(matches[0]), ...(required ? {controller_grant_id: controllerGrant} : {})};
+  }
+  return actors;
+}
+
+/** The only model Muse runs agents with. */
+const museModel = 'muse-spark-1.3-contributor';
+
+/** First settings for a project that has none, so its first Feed post is read
+ * right away: every role uses this computer's Muse login, merges squash into
+ * the default branch with no required checks, and automation stays off until
+ * the person turns it on in Settings. Returns false, changing nothing, when the
+ * project already has settings or needs a choice only the person can make. */
+export async function setUpNewProject(context: RoleContext, signal: AbortSignal): Promise<boolean> {
+  const view = await readSettings(context, signal);
+  const source = view.sources.find((candidate) => candidate.authorizable);
+  const options = view.options;
+  const actors = accountActors(view.bindings, context.actor);
+  if (view.policy !== null || !view.editable || !source || !options || options.controllerGrantRequired || !actors || !options.mergeMethods.length) return false;
+  const selection = (model: string) => ({account: source.connection, harness: 'muse', model, profile: {effort: 'low'}});
+  const roles: Selections = {
+    'soda-coder': selection(museModel),
+    'soda-reviewer': selection(museModel),
+    [judgmentRole]: selection(source.judgmentModels.includes(museModel) ? museModel : (source.judgmentModels[0] ?? museModel)),
+  };
+  await authorizeLogins(context, signal, view.accounts, roles);
+  const response = await context.transport.request(`repositories/${context.repository}/factory/policy`, {
+    method: 'PUT',
+    signal,
+    body: JSON.stringify({
+      expected_revision: 0,
+      ...policySelections(roles),
+      enabled: false,
+      paused: false,
+      automatic_external_pulls: false,
+      target_branch: options.targetBranch,
+      merge_method: options.mergeMethods.includes('squash') ? 'squash' : options.mergeMethods[0],
+      required_checks: [],
+      ...actors,
+      automation_reviewer: null,
+    }),
+  });
+  return response.ok;
+}
+
 // The existing policy command owns CAS, current permissions and actor bindings.
 // Preserve unrelated policy settings while editing roles and captured limits.
 function policyChange(policy: Record<string, unknown>, roles: Selections) {
@@ -299,14 +407,8 @@ export class SodaFactoryRoleSettings extends LitElement {
     }
     return true;
   }
-  private async read(context: RoleContext, signal: AbortSignal): Promise<Settings> {
-    const path = `repositories/${context.repository}/factory`;
-    const [status, access] = await Promise.all([
-      context.transport.request(path, {method: 'GET', signal}),
-      context.transport.request(`${path}/access`, {method: 'GET', signal}),
-    ]);
-    check(status.ok && access.ok);
-    return settings(await readSodaJSON(status), await readSodaJSON(access), context.repository);
+  private read(context: RoleContext, signal: AbortSignal) {
+    return readSettings(context, signal);
   }
   private async refresh() {
     const context = this.current,
@@ -347,9 +449,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     if (this.roles) this.roles = {...this.roles, [role]: {...this.roles[role], [field]: value}};
   }
   private authorized(role: Role, account: string) {
-    return !!this.view?.accounts.some(
-      (source) => source.connection === account && source.active && source.roles.includes(role)
-    );
+    return !!this.view && covers(this.view.accounts, role, account);
   }
   // A login is eligible when it already covers the role or saving can authorize it.
   private eligible(role: Role, account: string) {
@@ -363,56 +463,14 @@ export class SodaFactoryRoleSettings extends LitElement {
     return selected.harness === 'muse' && !!selected.model.trim() &&
       ((initial && role !== judgmentRole && !selected.account) || this.eligible(role, selected.account));
   }
-  // authorizeLogins lets each chosen login run the roles it was chosen for,
-  // through the existing sponsorship command, before the policy names it.
   private async authorizeLogins(context: RoleContext, signal: AbortSignal, view: Settings, roles: Selections) {
-    const needed = new Map<string, Set<string>>();
-    for (const role of Object.keys(roleNames) as Role[]) {
-      const account = roles[role].account;
-      if (account && !this.authorized(role, account)) needed.set(account, (needed.get(account) ?? new Set()).add(role));
-    }
-    const accounts = [...view.accounts];
-    for (const [connection, added] of needed) {
-      const stored = accounts.find((account) => account.connection === connection);
-      if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) throw new RoleSaveError('Refresh before saving again.', 409);
-      const granted = [...new Set([...(stored?.active ? stored.roles : []), ...added])];
-      const response = await context.transport.request(`repositories/${context.repository}/factory/sponsorships/${connection}`, {
-        method: 'PUT',
-        signal,
-        body: JSON.stringify({expected_revision: stored?.revision ?? 0, roles: granted, active: true}),
-      });
-      if (!response.ok)
-        throw new RoleSaveError(
-          response.status === 409 || response.status === 412
-            ? 'This login changed. Refresh before saving again.'
-            : 'This login cannot run work yet. Check the computer and workspace permission, then refresh roles.',
-          response.status
-        );
-      const receipt = object(await readSodaJSON(response));
-      check(Number.isSafeInteger(receipt.revision) && receipt.revision === (stored?.revision ?? 0) + 1);
-      const account: Account = {connection, active: true, roles: granted, revision: Number(receipt.revision), owner: context.actor, native: true};
-      accounts.splice(0, accounts.length, ...accounts.filter((saved) => saved.connection !== connection), account);
-    }
-    if (needed.size && this.live(context, signal)) this.view = {...view, accounts};
+    const accounts = await authorizeLogins(context, signal, view.accounts, roles);
+    if (accounts !== view.accounts && this.live(context, signal)) this.view = {...view, accounts};
   }
   private initialActors() {
-    const actor = this.current?.actor;
-    if (!actor || !id(actor)) return;
-    const actors: Record<string, Record<string, unknown>> = {};
     const required = this.view?.options?.controllerGrantRequired;
     if (required && !/^[a-f0-9]{32}$/.test(this.setup.controllerGrant)) return;
-    for (const [slot, kind] of Object.entries({
-      publish_actor: 'git.ref.publish',
-      create_actor: 'pull_request.create',
-      review_actor: 'pull_request.review.submit',
-      merge_actor: 'pull_request.merge',
-      ...(required ? {execution_actor: 'execution.launch'} : {}),
-    })) {
-      const matches = this.view?.bindings.filter((ref) => ref.actor_id === actor && ref.kind === kind) ?? [];
-      if (matches.length !== 1) return;
-      actors[slot] = {...policyActor(matches[0]), ...(required ? {controller_grant_id: this.setup.controllerGrant} : {})};
-    }
-    return actors;
+    return accountActors(this.view?.bindings ?? [], this.current?.actor, required ? this.setup.controllerGrant : '');
   }
   private checks() {
     return this.setup.checks

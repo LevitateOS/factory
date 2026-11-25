@@ -47,6 +47,8 @@ export interface FactoryNewProject {
   readonly name: string;
   readonly description: string;
   readonly visibility: 'private' | 'public';
+  /** Agents may work on it on this computer, as Settings' Execution controller allows. */
+  readonly useThisComputer: boolean;
 }
 
 export function admitProjectsPort(port: FactoryProjectsPort | undefined) {

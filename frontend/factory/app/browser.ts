@@ -23,6 +23,7 @@ export type {FactoryHostDestination, FactoryRoute} from './routes.js';
 export type {FactoryHostSection} from './host-section.js';
 export {SodaFactoryProjects} from '../projects/page.js';
 export {SodaFactoryNewProject} from '../projects/new.js';
+export {setUpNewProject} from '../work/role-settings.js';
 export type {FactoryProjectsContext} from '../projects/page.js';
 export type {FactoryProject, FactoryProjectConnection, FactoryProjectSummary, FactoryProjectsPort, FactoryNewProject} from '../projects/projects.js';
 export type {FactorySettingsContext} from '../settings/settings.js';

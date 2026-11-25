@@ -1,4 +1,5 @@
 import type {SodaFactoryApp, SodaFactoryIssue, FactoryRoute} from '../factory/app/browser.js';
+import {setUpNewProject} from '../factory/app/browser.js';
 import {check, id, object} from '../factory/api/models.js';
 import type {Account} from './accounts.js';
 import {binding} from './transport.js';
@@ -88,7 +89,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     disconnect: disconnectHere,
     // New project: the window's GitHub account creates the repository, then
     // this window connects to it like any chosen repository.
-    create: async ({name, description, visibility}) => {
+    create: async ({name, description, visibility, useThisComputer}) => {
       const session = selected?.session;
       if (!session || busy || fountain()) throw Error('Connect a GitHub account in this window first.');
       let reply: NativeReply;
@@ -104,6 +105,12 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       const created = repository(object(reply.body).repository);
       discovered = [...discovered.filter((repo) => repo.external_id !== created.external_id), created];
       await choose(connection, created.external_id);
+      // When the person let agents work here, record that like the Execution
+      // controller buttons do, then give the project its first role settings so
+      // its first post is read. Otherwise the post says what Settings needs.
+      const now = product, bound = selected?.repository;
+      if (useThisComputer && now?.placement && bound?.external_id === created.external_id && await now.placement.useThisComputer())
+        await setUpNewProject({transport: now.transport, repository: bound.id, actor: now.selected.identity.actor}, AbortSignal.timeout(20000)).catch(() => {});
     },
     signIn: () => {
       if (product && mounted) navigate({kind: 'accounts'});
