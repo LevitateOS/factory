@@ -34,10 +34,7 @@ export class JevAccount extends Observed {
   private epoch = -1;
   private interaction = 0;
 
-  constructor(
-    private readonly core: Pick<Core, 'invoke'>,
-    private readonly changed: (state: JevState | undefined) => void = () => {}
-  ) {
+  constructor(private readonly core: Pick<Core, 'invoke'>) {
     super();
   }
   get state(): JevState | undefined {
@@ -45,7 +42,6 @@ export class JevAccount extends Observed {
   }
   private set(next: JevStatus | undefined) {
     this.status = next;
-    this.changed(next?.state);
   }
   private async action(command: string, args?: Record<string, unknown>, checking = false) {
     if (!this.ready || this.busy) return false;

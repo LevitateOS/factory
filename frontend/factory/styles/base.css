@@ -165,51 +165,6 @@
 .soda-factory-sidebar-foot nav button {
   padding-left: 8px;
 }
-/* The host's JEV key state: a quiet line when connected, marked when it needs the person. */
-.soda-factory-jev {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 12px;
-  padding: 0;
-  border: 0;
-  color: var(--soda-page-muted);
-  background: none;
-  font: var(--soda-font-caption);
-  text-align: left;
-}
-button.soda-factory-jev {
-  cursor: pointer;
-}
-button.soda-factory-jev:hover {
-  color: var(--soda-page-text);
-  text-decoration: underline;
-}
-.soda-factory-jev::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--soda-page-muted);
-}
-.soda-factory-jev[data-state="connected"]::before {
-  border-color: var(--soda-page-success);
-  background: var(--soda-page-success);
-}
-.soda-factory-jev[data-state="none"] {
-  color: var(--soda-page-warning);
-}
-.soda-factory-jev[data-state="none"]::before {
-  border-color: var(--soda-page-warning-edge);
-  background: var(--soda-page-warning-bg);
-}
-.soda-factory-jev:is([data-state="refused"], [data-state="locked"]) {
-  color: var(--soda-page-action);
-}
-.soda-factory-jev:is([data-state="refused"], [data-state="locked"])::before {
-  border-color: var(--soda-page-action);
-  background: var(--soda-page-action);
-}
 .soda-factory-acting {
   margin: 0;
   padding: 0 12px;

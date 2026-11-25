@@ -5,7 +5,6 @@ import type {Account} from './accounts.js';
 import {MuseLogin, SodaDesktopMuse} from './muse-login.js';
 import {FountainLogin, SodaDesktopFountain} from './fountain-login.js';
 import {JevAccount, SodaDesktopJev} from './jev.js';
-import type {JevState} from './jev.js';
 import {SodaDesktopFirstRun} from './first-run.js';
 
 /** The window's sign-in: one view per provider, placed in `root` until the
@@ -27,15 +26,11 @@ export function mountSignIn(root: HTMLElement, connection: HTMLElement) {
   ]);
   return {
     placement,
-    start(
-      core: Pick<Core, 'invoke'>,
-      accounts?: (accounts: readonly Account[] | undefined) => void,
-      jevChanged?: (state: JevState | undefined) => void
-    ) {
+    start(core: Pick<Core, 'invoke'>, accounts?: (accounts: readonly Account[] | undefined) => void) {
       const github = new GitHubAccounts(core, accounts),
         muse = new MuseLogin(core),
         fountain = new FountainLogin(core),
-        jev = new JevAccount(core, jevChanged);
+        jev = new JevAccount(core);
       placement.firstRun.follow([github, muse, jev]);
       jevView.skip = () => placement.firstRun.skipJev();
       placement.firstRun.facts = () => ({

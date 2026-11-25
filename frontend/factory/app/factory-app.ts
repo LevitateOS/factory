@@ -94,22 +94,11 @@ export interface FactoryAppContext {
   navigate(route: FactoryRoute): void;
 }
 
-/** The JEV key state a desktop host reports: no key, connected, refused by TypeSafe, or unreadable. */
-export type FactoryJevState = 'none' | 'connected' | 'refused' | 'locked';
-const jevLine: Record<FactoryJevState, string> = {
-  none: 'JEV not connected',
-  connected: 'JEV connected',
-  refused: 'JEV key refused',
-  locked: 'JEV key locked',
-};
-
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
-  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, scheme: {type: String}, jev: {attribute: false}};
+  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, scheme: {type: String}};
   declare scheme: 'light' | 'dark' | undefined;
-  /** Host-observed JEV key state for the sidebar; hosts without JEV leave it unset. */
-  declare jev: FactoryJevState | undefined;
   declare private message: string;
   declare private busy: boolean;
   declare private screen: HTMLElement | undefined;
@@ -131,7 +120,6 @@ export class SodaFactoryApp extends LitElement {
     this.screen = undefined;
     this.projectRows = undefined;
     this.scheme = undefined;
-    this.jev = undefined;
     this.addEventListener('library-source-open', this.openLibrarySource);
   }
   protected createRenderRoot() {
@@ -629,14 +617,6 @@ export class SodaFactoryApp extends LitElement {
     ];
     return [...projectItems, ...pages, ...actions];
   }
-  /** One sidebar line for the host's JEV state; it opens Accounts when the host offers it. */
-  private renderJev(context: FactoryAppContext | undefined) {
-    if (!this.jev) return '';
-    const label = jevLine[this.jev];
-    return context?.destinations?.includes('accounts')
-      ? html`<button type="button" class="soda-factory-jev" data-state=${this.jev} @click=${() => this.navigate({kind: 'accounts'})}>${label}</button>`
-      : html`<p class="soda-factory-jev" data-state=${this.jev}>${label}</p>`;
-  }
   protected render() {
     const context = this.current;
     const repository = context?.selectedRepository ?? (context && 'repository' in context.route ? context.route.repository : undefined);
@@ -745,7 +725,6 @@ export class SodaFactoryApp extends LitElement {
                 )}
               </nav>`
             : ''}
-          ${this.renderJev(context)}
           ${context ? html`<p class="soda-factory-acting">Acting as ${context.accountLabel}</p>` : ''}
         </div>
       </aside>

@@ -252,13 +252,14 @@ before the next one starts.
   - Choosing a model and Remove send nothing.
   - No key appears in the profile directory.
 - On the signed app (designated requirement `identifier`):
-  - The sidebar shows "JEV not connected" and opens Accounts.
   - Accounts shows the JEV card.
   - An empty or too-short key is refused without a request.
   - The developer tools cannot fill the hidden key field.
 - **Connected run on the signed app with the key the user pasted:**
   - TypeSafe accepted it and the account offers `jev-latest` and `jev-preview`.
-  - After a relaunch, the sidebar showed "JEV connected" with no Keychain dialog.
+  - After a relaunch, Accounts showed JEV connected with no Keychain dialog.
+  - Later removed: the sidebar line that showed only JEV's connection. Every
+    connection (Muse, JEV, GitHub, Fountain) is shown on Accounts alone.
   - Check now made one request and moved `checked_at` forward.
   - The record `jev-<profile>.json` is mode 0600 and holds no key.
   - The app log never mentions the key.
