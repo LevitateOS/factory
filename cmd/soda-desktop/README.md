@@ -257,7 +257,9 @@ Readiness and browser-supplied canonical IDs cannot establish this binding.
 factory_prepare_connection retires only its window's selection and returns its
 new handle before account/provider I/O. factory_connect consumes that handle once.
 A superseded pending connect cannot recreate an older selection. Scoped disconnect
-cannot retire a newer handle. factory_repositories uses
+cannot retire a newer handle. open_window may carry a saved connection and
+remote repository; the new window takes it once through factory_window_target
+and selects it through the same prepare/connect path. factory_repositories uses
 the defining headless Rust connector for current account repository discovery;
 selection maps the chosen remote identity through Go. factory_product_request
 accepts only normalized paths under the two shared product API roots, with typed

@@ -32,6 +32,8 @@ import {SodaFactoryAccounts} from '../accounts/accounts.js';
 import type {FactoryAccountsContext} from '../accounts/accounts.js';
 import {admitFactoryRoute, admitHostDestinations, factoryRouteTitle, hostResolves} from './routes.js';
 import type {FactoryHostDestination, FactoryRoute} from './routes.js';
+import {admitProjectsPort} from '../projects/projects.js';
+import type {FactoryProjectsPort} from '../projects/projects.js';
 
 /** Host-resolved ports, never a second workflow model. Host-created DOM enters
  * only as a `FactoryHostSection` (host-section.ts) the shared page places. */
@@ -78,6 +80,8 @@ export interface FactoryAppContext {
   readonly repositoryLabel?: string;
   /** Optional destinations this host resolves; the frame offers and admits only these. */
   readonly destinations?: readonly FactoryHostDestination[];
+  /** Optional retained project list across this host's accounts. */
+  readonly projects?: FactoryProjectsPort;
   readonly route: FactoryRoute;
   resolve(route: FactoryRoute, signal: AbortSignal): Promise<FactoryScreen>;
   navigate(route: FactoryRoute): void;
@@ -133,6 +137,7 @@ export class SodaFactoryApp extends LitElement {
       );
       admitFactoryRoute(context.route);
       admitHostDestinations(context.destinations);
+      admitProjectsPort(context.projects);
       check(hostResolves(context.route, context.destinations));
       check(context.selectedRepository === undefined || id(context.selectedRepository));
       check(

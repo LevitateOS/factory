@@ -6,7 +6,7 @@ mod developer_protocol;
 use product::{
     factory_connect, factory_disconnect, factory_find_repository, factory_open_link,
     factory_prepare_connection, factory_product_cancel, factory_product_request,
-    factory_repositories,
+    factory_repositories, factory_window_target,
 };
 mod signin;
 use signin::{github_refresh, github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
@@ -521,10 +521,14 @@ fn open_window(
     window: WebviewWindow,
     app: tauri::AppHandle,
     state: tauri::State<'_, Desktop>,
+    target: Option<product::WindowTarget>,
 ) -> Result<(), String> {
     caller(&window)?;
     let label = format!("view-{}", state.windows.fetch_add(1, Ordering::SeqCst));
-    open(&app, &label)
+    if let Some(target) = target {
+        state.product.aim(&label, target)?;
+    }
+    open(&app, &label).inspect_err(|_| drop(state.product.retire(Some(&label))))
 }
 #[tauri::command]
 fn close_window(window: WebviewWindow) -> Result<(), String> {
@@ -721,6 +725,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_repositories,
         factory_product_request,
         factory_product_cancel,
+        factory_window_target,
         factory_command,
         factory_stream,
         cancel_stream,
@@ -762,6 +767,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_repositories,
         factory_product_request,
         factory_product_cancel,
+        factory_window_target,
         open_window,
         close_window,
         quit_factory,

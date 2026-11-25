@@ -21,6 +21,7 @@ export {SodaRequestError} from '../api/models.js';
 export type {FactoryAppContext, FactoryScreen} from './factory-app.js';
 export type {FactoryHostDestination, FactoryRoute} from './routes.js';
 export type {FactoryHostSection} from './host-section.js';
+export type {FactoryProject, FactoryProjectConnection, FactoryProjectSummary, FactoryProjectsPort} from '../projects/projects.js';
 export type {FactorySettingsContext} from '../settings/settings.js';
 export type {FactoryAccountsContext} from '../accounts/accounts.js';
 export type {FactoryTransport} from '../api/transport.js';

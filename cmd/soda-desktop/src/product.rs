@@ -39,12 +39,28 @@ struct Job {
     active: Arc<AtomicBool>,
     task: tauri::async_runtime::JoinHandle<()>,
 }
+/// The account and repository a user asked a new window to open. It is only a
+/// starting choice: the window still selects through the ordinary connection path.
+#[derive(Clone, Serialize, serde::Deserialize)]
+pub(super) struct WindowTarget {
+    connection: String,
+    repository: String,
+}
 pub(super) struct Connections {
     selections: Mutex<HashMap<String, Arc<Selection>>>,
     jobs: Mutex<HashMap<String, Job>>,
+    targets: Mutex<HashMap<String, WindowTarget>>,
     next: AtomicU64,
 }
 impl Connections {
+    /// Holds a new window's starting choice until that window takes it once.
+    pub(super) fn aim(&self, window: &str, target: WindowTarget) -> Result<(), String> {
+        if !registry(&target.connection) || !canonical(&Value::String(target.repository.clone())) {
+            return Err("invalid Factory account or repository selection".into());
+        }
+        self.targets.lock().unwrap().insert(window.into(), target);
+        Ok(())
+    }
     pub(super) fn developer_binding(&self, window: &str) -> Value {
         self.selections.lock().unwrap().get(window).map(|s| {
             serde_json::json!({"selection":s.id,"connection":s.connection,"repository":s.repository,"binding":*s.binding.lock().unwrap(),"retired":*s.cancelled.borrow()})
@@ -54,6 +70,7 @@ impl Connections {
         Self {
             selections: Mutex::new(HashMap::new()),
             jobs: Mutex::new(HashMap::new()),
+            targets: Mutex::new(HashMap::new()),
             next: AtomicU64::new(1),
         }
     }
@@ -72,6 +89,7 @@ impl Connections {
     // Mark every selection retired before cancelling tasks. Callers join the
     // returned handles outside locks; no product I/O holds child/lifecycle locks.
     pub fn retire(&self, window: Option<&str>) -> Vec<tauri::async_runtime::JoinHandle<()>> {
+        self.targets.lock().unwrap().retain(|name, _| window.is_some_and(|w| w != name));
         let mut selections = self.selections.lock().unwrap();
         selections.retain(|name, selection| {
             if window.is_none_or(|w| w == name) {
@@ -238,6 +256,13 @@ pub(super) async fn factory_prepare_connection(
     join(retired).await;
     current(&desktop, &selection)?;
     Ok(selection.id.clone())
+}
+
+/// The starting choice for this window, given once; the main window has none.
+#[tauri::command]
+pub(super) fn factory_window_target(window: WebviewWindow, app: tauri::AppHandle) -> Result<Option<WindowTarget>, String> {
+    caller(&window)?;
+    Ok(app.state::<Desktop>().product.targets.lock().unwrap().remove(window.label()))
 }
 
 #[tauri::command]

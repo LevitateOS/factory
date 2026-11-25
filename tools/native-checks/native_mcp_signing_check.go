@@ -14657,10 +14657,10 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 			} else if valid = valid && status == 200 && listed && len(rows) == phase.entries; valid {
 				first, _ := rows[0].(map[string]any)
 				latest, _ := first["latest_post"].(map[string]any)
-				valid = first["repository"] == strconv.FormatInt(int64(repository), 10) && first["needs_you"] == float64(phase.needs) && latest["id"] == phase.latest && latest["title"] == phase.title && latest["actor"] == "builder"
-				for _, row := range rows[1:] {
+				valid = first["repository"] == strconv.FormatInt(int64(repository), 10) && first["external_id"] == "123" && first["needs_you"] == float64(phase.needs) && latest["id"] == phase.latest && latest["title"] == phase.title && latest["actor"] == "builder"
+				for i, row := range rows[1:] {
 					other, _ := row.(map[string]any)
-					valid = valid && other["dispatch"] == "none" && other["needs_you"] == float64(0) && other["latest_post"] == nil && other["connection"] == connection.Connection
+					valid = valid && other["external_id"] == phase.added[i].ExternalID && other["dispatch"] == "none" && other["needs_you"] == float64(0) && other["latest_post"] == nil && other["connection"] == connection.Connection
 				}
 			}
 			if !valid {
@@ -14742,7 +14742,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	inventoryMode.Store(false)
 	fmt.Println("PASS: real Go material reader accepts version1 compound pages, refuses a compound kind absent from the frozen prior contract, rejects unknown versions/mixed payloads at the first input read, and preserves closing withdrawal refusal with no provider/model/write.")
 	fmt.Println("PASS: production material reader projects complete native-paired discussion pages through existing decoders, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Three declared native reads, no provider/model/write.")
-	fmt.Println("PASS: actual Go native HTTP/PG project list for one and three opened repositories uses exactly one repository read (the binding's selection) and no identity read; an open ask counts as needs-you until a reply arrives; a failed selection read refuses the whole list. Provider replies declared.")
+	fmt.Println("PASS: actual Go native HTTP/PG project list for one and three opened repositories uses exactly one repository read (the binding's selection) and no identity read, and each row carries its provider repository id; an open ask counts as needs-you until a reply arrives; a failed selection read refuses the whole list. Provider replies declared.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access, Work and retired run status each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
 	return nil
 }

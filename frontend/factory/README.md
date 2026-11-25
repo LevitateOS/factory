@@ -39,6 +39,14 @@ an "Unavailable in this app" panel listing features the host sets to `false`
 `accounts` (`accounts/accounts.ts`) is an Accounts page with no repository scope:
 it only places the host's sign-in sections and sends nothing itself.
 
+A host may also supply the optional `projects` port (`projects/projects.ts`):
+retained project rows with a host-opaque key, name, account label, provider,
+connection state (`current`, `connected`, `not_connected`, `sign_in`), an
+optional summary and an `asOf` time, plus `open(key, 'here' | 'window')` and
+optional `reconnect`, `disconnect` and `signIn`. The host decides when the
+list is read (`list(signal, {refresh: true})` asks for a new read); the UI never
+sees connection ids or sessions. A host that omits the port keeps its frame.
+
 A host contributes host-only presentation to a shared page with
 `FactoryHostSection` (`app/host-section.ts`): a page-unique `id`, a plain-text
 `title` and `mount(signal)` returning the host's element. The page admits the

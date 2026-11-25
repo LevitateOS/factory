@@ -6,6 +6,7 @@ import type {Binding, Core, NativeReply} from './transport.js';
 import {DesktopProduct, readRoute, routeURL} from './product.js';
 import {SodaDesktopPlacement} from './placement.js';
 import type {SignInPlacement} from './sign-in.js';
+import {DesktopProjects} from './projects.js';
 
 interface Repository {
   external_id: string;
@@ -69,6 +70,36 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     app.inert = value;
     framed();
   }
+  const reconnectHere = () => choose(connection, wanted, fountainRepository),
+    disconnectHere = () => choose('');
+  // Every project action reuses this window's own connection path.
+  const projects = new DesktopProjects({
+    accounts: () => (accountsCurrent ? known : []),
+    window: () => ({connection, wanted, repository: selected?.repository ?? undefined, connected: !!selected && !app.inert}),
+    choose: (account, remote) => {
+      if (account !== connection) {
+        discovered = [];
+        nextPage = 0;
+      }
+      return choose(account, remote);
+    },
+    openWindow: (account, remote) => core.invoke('open_window', {target: {connection: account, repository: remote}}),
+    reconnect: reconnectHere,
+    disconnect: disconnectHere,
+    signIn: () => {
+      if (product && mounted) navigate({kind: 'accounts'});
+      else document.querySelector<HTMLElement>('#github-sign-in')?.focus();
+    },
+  });
+  // A window opened for a project starts with that account and repository
+  // through the same path as resuming a saved choice.
+  void core.invoke<{connection: string; repository: string} | null>('factory_window_target').then((target) => {
+    if (!target || connection || selected || pending) return;
+    connection = target.connection;
+    wanted = target.repository;
+    resumeRequested = true;
+    if (accountsCurrent) api.accounts(known);
+  }).catch(() => {});
   function render() {
     const options = JSON.stringify(
       known.map((account) => [account.connection, account.label, account.account, account.state, account.provider, account.origin])
@@ -231,8 +262,9 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       pending = undefined;
       selected = value;
       const metadata = discovered.find((repo) => repo.external_id === remote);
-      product = new DesktopProduct(core, value, profile, navigate, signIn.sections, metadata?.default_branch);
+      product = new DesktopProduct(core, value, profile, navigate, signIn.sections, projects, metadata?.default_branch);
       placement.controller = product.placement;
+      projects.connected(product.transport);
       placementRoot.hidden = !product.placement;
       const route = readRoute();
       navigate(
@@ -270,12 +302,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   repositories.addEventListener('change', () => {
     void choose(connection, repositories.value, fountainRepository);
   });
-  reconnect.addEventListener('click', () => {
-    void choose(connection, wanted, fountainRepository);
-  });
-  disconnect.addEventListener('click', () => {
-    void choose('');
-  });
+  reconnect.addEventListener('click', () => void reconnectHere());
+  disconnect.addEventListener('click', () => void disconnectHere());
   more.addEventListener('click', () => {
     const captured = serial;
     busy = true;
@@ -368,10 +396,11 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       render();
     }
   });
-  return {
+  const api = {
     refresh(available: boolean, generation: number, identity: string | null) {
       const changedProfile = identity !== null && profile !== '' && profile !== identity;
       if (changedProfile) {
+        projects.forget();
         connection = '';
         wanted = '';
         discovered = [];
@@ -442,4 +471,5 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       render();
     },
   };
+  return api;
 }
