@@ -57,3 +57,20 @@ body {
 .desktop-connections p {
   margin: 8px 0 0;
 }
+.soda-desktop-app-icon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.soda-desktop-app-icon legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.soda-desktop-app-icon label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

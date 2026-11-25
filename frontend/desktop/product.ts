@@ -7,6 +7,7 @@ import {DesktopTransport} from './transport.js';
 import {upfrontCapabilities} from '../factory/work/work-view.js';
 import {PlacementController, placementView} from './placement.js';
 import {desktopWatchSource, watchRenderer} from './watch.js';
+import {SodaDesktopAppIcon} from './app-icon.js';
 
 export function routeURL(route: FactoryRoute): string {
   const query = new URLSearchParams({view: route.kind});
@@ -273,14 +274,15 @@ export class DesktopProduct {
         return {kind: 'library', context: {transport, repository: route.repository}};
       case 'settings': {
         const placement = this.placement;
+        const appIcon = {id: 'app-icon', title: 'App icon', mount: () => new SodaDesktopAppIcon(this.core)};
         return {
           kind: 'settings',
           context: {
             transport,
             repository: route.repository,
             sections: placement
-              ? [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}]
-              : [],
+              ? [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}, appIcon]
+              : [appIcon],
             repairFundingAvailable: true,
             activityAvailable: true,
           },

@@ -1,5 +1,6 @@
 #[cfg(feature = "native-check")]
 mod bridge;
+mod app_icon;
 mod product;
 mod developer;
 mod developer_protocol;
@@ -126,6 +127,7 @@ impl Lifecycle {
 struct Desktop {
     developer: developer::Developer,
     paths: Paths,
+    app_icon: Mutex<app_icon::AppIcon>,
     runtime: Mutex<Option<NativeSupervisor>>,
     credentials: Mutex<Option<Arc<Credentials>>>,
     lifecycle: Mutex<Lifecycle>,
@@ -666,6 +668,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     let state = Desktop {
         developer: developer::Developer::new(developer_mode, parent)?,
+        app_icon: Mutex::new(app_icon::AppIcon::read(&paths.profile)),
         paths,
         runtime: Mutex::new(None),
         credentials: Mutex::new(None),
@@ -735,6 +738,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         open_window,
         close_window,
         quit_factory,
+        app_icon::app_icon_status,
+        app_icon::app_icon_select,
         developer::developer_context,
         developer::developer_reply,
         check::report
@@ -777,6 +782,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         open_window,
         close_window,
         quit_factory,
+        app_icon::app_icon_status,
+        app_icon::app_icon_select,
         developer::developer_context,
         developer::developer_reply
     ]);
@@ -823,6 +830,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(tauri::generate_context!())?;
     app.run(|app, event| {
+        if let RunEvent::Ready = event {
+            // After Tauri's own debug-build icon, so the saved choice wins.
+            let icon = *app.state::<Desktop>().app_icon.lock().unwrap_or_else(|e| e.into_inner());
+            app_icon::apply(app, icon);
+        }
         if let RunEvent::ExitRequested { code, api, .. } = event {
             if code.is_none() {
                 api.prevent_exit();

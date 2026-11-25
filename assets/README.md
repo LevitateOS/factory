@@ -10,6 +10,7 @@ Imported from `~/Projects/soda-os` (source HEAD `bc1d3e0dbec48dfaa6a20f9d0453ad3
 | `branding/raster/` | Transparent PNG exports of those masters: the 512px dark symbol and 1068×256 horizontal logos. The 512px light symbol is the app icon, `branding/icons/hicolor/512x512/apps/factory.png` |
 | `branding/web/` | Web favicons and Apple touch icon |
 | `branding/icons/hicolor/` | System icons from 16px to 512px |
+| `branding/icons/app/` | macOS Dock icons: dark (default) and light 1024px tiles on the Apple icon grid, chosen in desktop Settings |
 | `branding/installer/` | Current light/dark raster logos, export manifest, and Anaconda CSS |
 | `branding/cockpit/` | Stock Cockpit branding/theme CSS, retained images/static preview, and the retired workspace's upstream provenance archive |
 | `branding/fonts/` | Self-hosted Barlow Condensed, Barlow and IBM Plex Mono, plus retained Fraunces WOFF2 faces, CSS, exact-version provenance and OFL licenses |

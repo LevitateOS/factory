@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Factory">
+  <!-- macOS app icon grid: 824px tile with 100px margins on a 1024px canvas. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26262a"/>
+      <stop offset="1" stop-color="#0c0c0d"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)" filter="url(#shadow)"/>
+  <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+  <g transform="translate(272 272) scale(3.75)">
+    <path fill="#df001b" fill-rule="evenodd" d="M40 0H128V88L88 128H0V40Z M22 83.33L48 66V82L74 64.67V110H22Z"/>
+    <path fill="#ffffff" fill-rule="evenodd" d="M0 56L48 24V56L96 24V104L72 128H0Z M24 84L48 68V84L72 68V108H24Z"/>
+  </g>
+</svg>
