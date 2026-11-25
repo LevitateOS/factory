@@ -152,6 +152,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.Checks = factoryhttp.CollaborationChecks{Service: factoryservice.CollaborationChecks{Source: reads}}
 	product.RepositoryCatalog = factoryhttp.CollaborationRepositories{Service: factoryservice.CollaborationRepositories{Source: reads}}
 	product.CapabilityReads = factoryhttp.CollaborationCapabilities{Service: factoryservice.CollaborationCapabilities{Source: reads}}
+	product.Projects = factoryhttp.Projects{Service: factoryservice.ProjectSummaries{Store: application.Store, Scope: bound.projectScope}}
 	product.HumanComments = factoryhttp.HumanComments{Service: application.HumanComments(nativeHumanComments{bound})}
 	product.HumanIssueCreates = factoryhttp.HumanIssueCreates{Service: application.HumanIssueCreates(nativeHumanIssueCreates{bound})}
 	product.HumanBranchCreates = factoryhttp.HumanBranchCreates{Service: application.HumanBranchCreates(nativeHumanBranchCreates{bound})}
@@ -345,6 +346,16 @@ func (b *nativeProductAccount) visibility(ctx context.Context, actor collaborati
 func (b *nativeProductAccount) visible(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
 	_, err := b.visibility(ctx, actor, repository)
 	return err
+}
+
+// projectScope admits the retained project list for this request's account.
+// The binding's single provider observation already proved the account; the
+// list adds no provider read and never widens current repository visibility.
+func (b *nativeProductAccount) projectScope(ctx context.Context, actor collaboration.ActorID) (collaboration.ProfileID, error) {
+	if actor != b.binding.Actor.ID {
+		return "", factoryservice.ErrRepositoryHidden
+	}
+	return b.binding.Profile.ID, ctx.Err()
 }
 func (b *nativeProductAccount) writeAccess(ctx context.Context, actor collaboration.ActorID, repository int64) error {
 	observed, err := b.repositoryObservation(ctx, actor, collaboration.RepositoryID(repository))

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -322,25 +323,47 @@ func RecordState(stage, outcome, verdict, pubStage, mergeStage string, completed
 	}
 }
 
+// deliveryCarriedOn lists the effective delivery actions SodaOS carries out
+// by itself, plus the empty action of a receipt without a decision. Every
+// other recorded action waits for the person.
+var deliveryCarriedOn = []string{factory.DeliveryEffectiveReady, factory.DeliveryEffectiveReview, ""}
+
 // judgmentState classifies one judgment milestone: a delivery receipt by
 // its effective decision, a priority receipt as decided.
 func judgmentState(judgment *factory.FeedJudgment) factory.FeedState {
 	if judgment.Kind != "delivery" {
 		return factory.FeedStateDecided
 	}
-	switch judgment.Effective {
-	case "ready_to_merge":
-		return factory.FeedStateDone
-	case "review_again":
-		return factory.FeedStateInProgress
-	case "":
-		if judgment.Outcome != "" {
-			return factory.FeedStateDecided
-		}
-		return factory.FeedStateInfo
-	default:
+	switch {
+	case !slices.Contains(deliveryCarriedOn, judgment.Effective):
 		return factory.FeedStateNeedsYou
+	case judgment.Effective == factory.DeliveryEffectiveReady:
+		return factory.FeedStateDone
+	case judgment.Effective == factory.DeliveryEffectiveReview:
+		return factory.FeedStateInProgress
+	case judgment.Outcome != "":
+		return factory.FeedStateDecided
+	default:
+		return factory.FeedStateInfo
 	}
+}
+
+// feedNeedsYouSQL is the one definition of what waits for the person in a
+// repository, selecting one row per waiting item: an open ask (a live
+// question with no feedReplySQL reply, the feed's "open" question state) and
+// a delivery judgment whose effective action is outside deliveryCarriedOn
+// (judgmentState's needs_you). repository is the SQL expression for the
+// repository key; carried is the placeholder bound to deliveryCarriedOn.
+func feedNeedsYouSQL(repository, carried string) string {
+	return `SELECT p.id FROM factory_feed_posts p WHERE p.repository=` + repository + `
+ AND p.data->'communication'->>'kind'='ask'
+ AND NOT COALESCE((p.data->>'deleted')::boolean,false) AND NOT COALESCE((p.data->>'revoked')::boolean,false)
+ AND NOT EXISTS(SELECT 1 FROM factory_feed_posts c WHERE ` + feedReplySQL + `)
+ UNION ALL SELECT j.snapshot FROM factory_priority_judgments j
+ JOIN factory_publications pub ON (pub.data->>'id')=(j.data->'input'->>'publication_id')
+ JOIN factory_assignments a ON a.id=pub.assignment
+ WHERE a.repository=` + repository + ` AND j.data->>'kind'='` + factory.DeliveryReceiptKind + `'
+ AND NOT (COALESCE(j.data->'decision'->>'effective','') = ANY(` + carried + `))`
 }
 
 // feedPayloadCap bounds one previewed list inside a typed payload;

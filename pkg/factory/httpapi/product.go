@@ -49,6 +49,7 @@ type Product struct {
 	HumanPullCreates    HumanPullCreates
 	RepositoryCatalog   CollaborationRepositories
 	CapabilityReads     CollaborationCapabilities
+	Projects            Projects
 }
 
 // ProductRoutes owns only route registration. Account identity, service ports and
@@ -89,6 +90,7 @@ const (
 	productHumanPullCreates
 	productHumanIssueCreates
 	productHumanBranchCreates
+	productProjects
 )
 
 // Handler retains the host-bound interface. Native hosts with changing accounts
@@ -182,6 +184,7 @@ func NewProductRoutes() *ProductRoutes {
 		mux.Handle("POST "+stateBase+"/commands/{command}/cancel", productHumanStates)
 	}
 	mux.Handle("/api/factory/identity", productIdentity)
+	mux.Handle("/api/factory/projects", productProjects)
 	mux.Handle("/api/factory/repositories", productFeed)
 	mux.Handle("/api/factory/feed", productFeed)
 	mux.Handle("/api/factory/feed/", productFeed)
@@ -367,5 +370,13 @@ func (route productRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		branchCreates := s.HumanBranchCreates
 		branchCreates.Host, branchCreates.Actor, branchCreates.Current = s.Host, s.Actor, current
 		serve(branchCreates.Handler(), branchCreates.Service.Store)
+	case productProjects:
+		projects := s.Projects
+		if projects.Service.Scope == nil {
+			http.NotFound(w, r)
+			return
+		}
+		projects.Host, projects.Actor, projects.Current = s.Host, s.Actor, current
+		serve(projects.Handler(), projects.Service.Store)
 	}
 }

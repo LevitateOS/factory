@@ -204,6 +204,13 @@ func applyFeedCommunicationDetail(detail *FeedPostDetail, raw []byte) error {
 	return nil
 }
 
+// feedReplySQL matches a live reply c to its question p: a post in the same
+// repository whose parent or source is p. A question with no such reply is
+// open, both in feedQuestionStates and in feedNeedsYouSQL.
+const feedReplySQL = `c.repository=p.repository
+ AND (c.data->>'parent_id'=p.id OR (c.data->'source'->>'kind'='post' AND c.data->'source'->>'id'=p.id))
+ AND NOT COALESCE((c.data->>'deleted')::boolean,false) AND NOT COALESCE((c.data->>'revoked')::boolean,false)`
+
 // feedQuestionStates derives response arrival without mutating the original
 // question or claiming that the answer was adopted by the worker.
 func (s *Store) feedQuestionStates(ctx context.Context, details map[string]FeedPostDetail) error {
@@ -222,11 +229,9 @@ func (s *Store) feedQuestionStates(ctx context.Context, details map[string]FeedP
 	// claiming anything about unrecorded replies.
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,bool_or(c.data->'communication'->>'kind'='answer'),
  bool_or(c.data->'communication'->>'kind'='answer' AND r.data->'resolution'->>'resolution'='incorporated')
- FROM factory_feed_posts p JOIN factory_feed_posts c ON c.repository=p.repository
- AND (c.data->>'parent_id'=p.id OR (c.data->'source'->>'kind'='post' AND c.data->'source'->>'id'=p.id))
+ FROM factory_feed_posts p JOIN factory_feed_posts c ON `+feedReplySQL+`
  LEFT JOIN factory_feed_posts r ON r.repository=c.repository AND r.data->'resolution'->>'post'=c.id
- WHERE p.id=ANY($1) AND NOT COALESCE((c.data->>'deleted')::boolean,false) AND NOT COALESCE((c.data->>'revoked')::boolean,false)
- GROUP BY p.id`, ids)
+ WHERE p.id=ANY($1) GROUP BY p.id`, ids)
 	if err != nil {
 		return err
 	}
