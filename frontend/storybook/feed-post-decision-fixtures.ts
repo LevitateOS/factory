@@ -408,6 +408,71 @@ export const closingTheLoop: FeedPostSpecimen[] = [
     )
   ),
   specimen(
+    'ask · ordinary, reply received',
+    'Should search ignore case?',
+    record(
+      'Architect',
+      communication({
+        kind: 'ask',
+        scope: '#12',
+        title: 'Should search ignore case?',
+        question: 'Should search ignore case?',
+        question_state: 'replied',
+        summary: 'Alex replied: yes, ignore case.',
+      }),
+      'decided'
+    )
+  ),
+  specimen(
+    'ask · reply received, then incorporated',
+    'Which fields should search match?',
+    record(
+      'Architect',
+      communication({
+        kind: 'ask',
+        scope: '#12',
+        title: 'Which fields should search match?',
+        question: 'Which fields should search match?',
+        question_state: 'incorporated',
+        summary: 'Alex replied: title, type and source post.',
+      }),
+      'decided'
+    )
+  ),
+  specimen(
+    'ask · urgent, incorporated',
+    'Should removed entries keep their history?',
+    record(
+      'Architect',
+      communication({
+        kind: 'ask',
+        severity: 'warning',
+        scope: '#12',
+        title: 'Should removed entries keep their history?',
+        question: 'Should removed entries keep their history?',
+        question_state: 'incorporated',
+        summary: 'Alex replied: keep it for 30 days.',
+      }),
+      'decided'
+    )
+  ),
+  specimen(
+    'suggest · incorporated',
+    'Show the filter count beside the heading',
+    record(
+      'Strategist',
+      communication({
+        kind: 'suggest',
+        title: 'Show the filter count beside the heading',
+        before: 'The count appears below the list.',
+        after: 'The count appears beside the heading.',
+        disposition: 'incorporated',
+        disposition_reason: 'The count now sits beside the heading in #14.',
+      }),
+      'decided'
+    )
+  ),
+  specimen(
     'create_issue · refine_issue (Issue Maker)',
     'Writing issues for “finding older work”',
     record(
