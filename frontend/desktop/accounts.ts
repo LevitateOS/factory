@@ -1,3 +1,8 @@
+import {html} from 'lit';
+import {repeat} from 'lit/directives/repeat.js';
+import type {Core} from './transport.js';
+import {ControllerView, Observed} from './controller-view.js';
+
 export interface Account {
   connection: string;
   provider: string;
@@ -13,209 +18,199 @@ interface SignIn {
   prompt: {user_code: string; verification_uri: string; expires_at: number} | null;
   error: string | null;
 }
-interface Core {
-  invoke<T>(command: string, args?: unknown): Promise<T>;
-}
+const idle = (): SignIn => ({attempt: 0, phase: 'idle', prompt: null, error: null});
 
-/** Undefined means unobserved status; an empty list means observed account removal. */
-export function mountAccounts(core: Core, changed: (accounts: readonly Account[] | undefined) => void = () => {}) {
-  const status = document.querySelector<HTMLElement>('#github-status')!;
-  const begin = document.querySelector<HTMLButtonElement>('#github-sign-in')!;
-  const cancel = document.querySelector<HTMLButtonElement>('#github-cancel')!;
-  const open = document.querySelector<HTMLButtonElement>('#github-open')!;
-  const prompt = document.querySelector<HTMLElement>('#github-prompt')!;
-  const code = document.querySelector<HTMLElement>('#github-user-code')!;
-  const expiry = document.querySelector<HTMLElement>('#github-expiry')!;
-  const list = document.querySelector<HTMLUListElement>('#github-accounts')!;
-  const rows = new Map<string, {row: HTMLLIElement; name: HTMLSpanElement; refresh: HTMLButtonElement; remove: HTMLButtonElement}>();
-  let generation = -1,
-    ready = false,
-    reading = false,
-    busy = false;
-  let view: SignIn = {attempt: 0, phase: 'idle', prompt: null, error: null};
-  let accounts: Account[] = [];
-  let accountsCurrent = false;
-  let localError: string | null = null;
-  let readError: string | null = null;
-  let interaction = 0;
+/** GitHub device-code sign-in and saved accounts for one window. Rust keeps the
+ * credentials; this controller owns the public view state and every request, and
+ * views only render it. `changed` receives undefined for unobserved status and
+ * an empty list for observed account removal. */
+export class GitHubAccounts extends Observed {
+  /** False until the first status refresh. */
+  started = false;
+  ready = false;
+  busy = false;
+  view: SignIn = idle();
+  accounts: Account[] = [];
+  accountsCurrent = false;
+  localError: string | null = null;
+  readError: string | null = null;
+  private generation = -1;
+  private reading = false;
+  private interaction = 0;
 
-  function render() {
-    const active = ['requesting', 'waiting', 'verifying', 'saving'].includes(view.phase);
-    begin.disabled = !ready || busy || active;
-    begin.textContent = accounts.length ? 'Add GitHub account' : 'Sign in to GitHub';
-    cancel.hidden = !active;
-    cancel.disabled = busy || view.phase === 'saving';
-    prompt.hidden = !ready || view.phase !== 'waiting' || !view.prompt;
-    open.disabled = busy || prompt.hidden;
-    if (!prompt.hidden && view.prompt) {
-      if (code.textContent !== view.prompt.user_code) code.textContent = view.prompt.user_code;
-      const seconds = Math.max(0, view.prompt.expires_at - Math.floor(Date.now() / 1000));
-      expiry.textContent = seconds ? `Code expires in ${Math.ceil(seconds / 60)} minutes.` : 'This code has expired.';
-    } else code.textContent = '';
-    if (!ready) status.textContent = 'Saved accounts are unavailable until Factory is ready.';
-    else if (readError ?? localError ?? view.error) status.textContent = (readError ?? localError ?? view.error)!;
-    else
-      status.textContent = {
-        idle: accounts.length ? 'Your saved GitHub accounts.' : 'Sign in to access your GitHub repositories.',
-        requesting: 'Requesting a GitHub sign-in code…',
-        waiting: 'Approve sign-in on GitHub to continue.',
-        verifying: 'Verifying your GitHub account…',
-        saving: 'Saving your account…',
-        complete: 'GitHub account saved.',
-        cancelled: 'GitHub sign-in cancelled.',
-        failed: 'GitHub sign-in could not finish. Try again.',
-      }[view.phase];
-    const keep = new Set(accounts.map((account) => account.connection));
-    for (const [connection, value] of rows)
-      if (!keep.has(connection)) {
-        value.row.remove();
-        rows.delete(connection);
+  constructor(
+    private readonly core: Pick<Core, 'invoke'>,
+    private readonly changed: (accounts: readonly Account[] | undefined) => void = () => {}
+  ) {
+    super();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.interaction++;
+        this.accountsCurrent = false;
+        this.changed(undefined);
+        this.notify();
       }
-    for (const account of accounts) {
-      let value = rows.get(account.connection);
-      if (!value) {
-        const row = document.createElement('li'),
-          name = document.createElement('span'),
-          refresh = document.createElement('button'),
-          remove = document.createElement('button');
-        name.setAttribute('role', 'status');
-        row.dataset.connection = account.connection;
-        remove.type = 'button';
-        refresh.type = 'button';
-        refresh.textContent = 'Refresh login';
-        refresh.addEventListener('click', () => void action(async (captured) => {
-          const next = await core.invoke<SignIn>('github_refresh', {connection: account.connection});
-          if (captured === generation && ready) view = next;
-        }));
-        remove.textContent = 'Remove from Factory';
-        remove.addEventListener(
-          'click',
-          () =>
-            void action(async () => {
-              changed(accounts.filter((value) => value.connection !== account.connection));
-              await core.invoke('credential_withdraw', {connection: account.connection});
-            })
-        );
-        row.append(name, refresh, remove);
-        list.append(row);
-        value = {row, name, refresh, remove};
-        rows.set(account.connection, value);
-      }
-      const state = {
-        stored: 'Saved',
-        expired: 'Expired',
-        refresh_pending: 'Refresh unconfirmed',
-        locked: 'Unlock your desktop keyring',
-        withdrawn: 'Removed',
-      }[account.state];
-      const workflow = account.grant?.scope === undefined
-        ? 'Workflow permission not recorded'
-        : account.grant.scope.split(/[,\s]+/).includes('workflow')
-          ? 'Workflow edits allowed by saved grant'
-          : 'Sign in again to allow workflow edits';
-      value.name.textContent = `${account.label ?? account.account} · ${state} · ${workflow}`;
-      value.remove.disabled = busy || !ready || !accountsCurrent;
-      value.refresh.hidden = !account.grant?.refresh_available;
-      value.refresh.disabled = busy || !ready || !accountsCurrent || active || !['stored','expired'].includes(account.state);
-    }
+    });
   }
-  async function read() {
-    if (reading || !ready) return;
-    reading = true;
-    const captured = generation;
-    const capturedInteraction = interaction;
+  get active() {
+    return ['requesting', 'waiting', 'verifying', 'saving'].includes(this.view.phase);
+  }
+  private async read() {
+    if (this.reading || !this.ready) return;
+    this.reading = true;
+    const captured = this.generation;
+    const capturedInteraction = this.interaction;
     try {
       const [next, saved] = await Promise.all([
-        core.invoke<SignIn>('github_sign_in_status'),
-        core.invoke<Account[]>('credential_status'),
+        this.core.invoke<SignIn>('github_sign_in_status'),
+        this.core.invoke<Account[]>('credential_status'),
       ]);
-      if (captured !== generation || capturedInteraction !== interaction || !ready) return;
-      if (next.phase !== view.phase) localError = null;
-      readError = null;
-      view = next;
-      accounts = saved.filter((account) => account.provider === 'github');
-      accountsCurrent = true;
-      changed(saved.filter((account) => account.provider === 'github' || account.provider === 'fountain'));
-      render();
+      if (captured !== this.generation || capturedInteraction !== this.interaction || !this.ready) return;
+      if (next.phase !== this.view.phase) this.localError = null;
+      this.readError = null;
+      this.view = next;
+      this.accounts = saved.filter((account) => account.provider === 'github');
+      this.accountsCurrent = true;
+      this.changed(saved.filter((account) => account.provider === 'github' || account.provider === 'fountain'));
+      this.notify();
     } catch (error) {
-      if (captured === generation && capturedInteraction === interaction) {
-        readError =
-          typeof error === 'string'
-            ? error
-            : 'Could not read saved account status. Refresh Factory status and try again.';
-        accountsCurrent = false;
-        changed(undefined);
-        render();
+      if (captured === this.generation && capturedInteraction === this.interaction) {
+        this.readError =
+          typeof error === 'string' ? error : 'Could not read saved account status. Refresh Factory status and try again.';
+        this.accountsCurrent = false;
+        this.changed(undefined);
+        this.notify();
       }
     } finally {
-      reading = false;
+      this.reading = false;
     }
   }
-  async function action(work: (captured: number) => Promise<void>) {
-    if (busy || !ready) return;
-    busy = true;
-    interaction++;
-    localError = null;
-    render();
-    const captured = generation;
+  private async action(work: (captured: number) => Promise<void>) {
+    if (this.busy || !this.ready) return;
+    this.busy = true;
+    this.interaction++;
+    this.localError = null;
+    this.notify();
+    const captured = this.generation;
     try {
       await work(captured);
     } catch (error) {
-      if (captured === generation)
-        localError = typeof error === 'string' ? error : 'This account action could not finish. Try again.';
+      if (captured === this.generation)
+        this.localError = typeof error === 'string' ? error : 'This account action could not finish. Try again.';
     } finally {
-      busy = false;
-      render();
-      void read();
+      this.busy = false;
+      this.notify();
+      void this.read();
     }
   }
-  begin.addEventListener(
-    'click',
-    () =>
-      void action(async (captured) => {
-        const next = await core.invoke<SignIn>('github_sign_in');
-        if (captured === generation && ready) view = next;
-      })
-  );
-  cancel.addEventListener(
-    'click',
-    () =>
-      void action(async (captured) => {
-        const next = await core.invoke<SignIn>('github_sign_in_cancel', {attempt: view.attempt});
-        if (captured === generation && ready) view = next;
-      })
-  );
-  open.addEventListener(
-    'click',
-    () =>
-      void action(async () => {
-        await core.invoke('github_sign_in_open', {attempt: view.attempt});
-      })
-  );
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      interaction++;
-      accountsCurrent = false;
-      changed(undefined);
-      render();
+  signIn() {
+    void this.action(async (captured) => {
+      const next = await this.core.invoke<SignIn>('github_sign_in');
+      if (captured === this.generation && this.ready) this.view = next;
+    });
+  }
+  cancel() {
+    void this.action(async (captured) => {
+      const next = await this.core.invoke<SignIn>('github_sign_in_cancel', {attempt: this.view.attempt});
+      if (captured === this.generation && this.ready) this.view = next;
+    });
+  }
+  open() {
+    void this.action(async () => {
+      await this.core.invoke('github_sign_in_open', {attempt: this.view.attempt});
+    });
+  }
+  refreshLogin(connection: string) {
+    void this.action(async (captured) => {
+      const next = await this.core.invoke<SignIn>('github_refresh', {connection});
+      if (captured === this.generation && this.ready) this.view = next;
+    });
+  }
+  remove(connection: string) {
+    void this.action(async () => {
+      this.changed(this.accounts.filter((value) => value.connection !== connection));
+      await this.core.invoke('credential_withdraw', {connection});
+    });
+  }
+  async refresh(available: boolean, epoch: number) {
+    this.started = true;
+    this.ready = available;
+    if (this.generation !== epoch) {
+      this.generation = epoch;
+      this.accounts = [];
+      this.localError = null;
+      this.readError = null;
+      this.view = idle();
+      this.accountsCurrent = false;
+      this.changed(undefined);
     }
-  });
-  return async (available: boolean, epoch: number) => {
-    ready = available;
-    if (generation !== epoch) {
-      generation = epoch;
-      accounts = [];
-      localError = null;
-      readError = null;
-      view = {attempt: 0, phase: 'idle', prompt: null, error: null};
-      accountsCurrent = false;
-      changed(undefined);
+    if (!this.ready) {
+      this.accountsCurrent = false;
+      this.changed(undefined);
     }
-    if (!ready) {
-      accountsCurrent = false;
-      changed(undefined);
-    }
-    render();
-    await read();
-  };
+    this.notify();
+    await this.read();
+  }
 }
+
+const accountState = {
+  stored: 'Saved',
+  expired: 'Expired',
+  refresh_pending: 'Refresh unconfirmed',
+  locked: 'Unlock your desktop keyring',
+  withdrawn: 'Removed',
+} as const;
+const phaseStatus = (saved: boolean) =>
+  ({
+    idle: saved ? 'Your saved GitHub accounts.' : 'Sign in to access your GitHub repositories.',
+    requesting: 'Requesting a GitHub sign-in code…',
+    waiting: 'Approve sign-in on GitHub to continue.',
+    verifying: 'Verifying your GitHub account…',
+    saving: 'Saving your account…',
+    complete: 'GitHub account saved.',
+    cancelled: 'GitHub sign-in cancelled.',
+    failed: 'GitHub sign-in could not finish. Try again.',
+  }) as const;
+
+/** Presentation of one GitHubAccounts controller; it sends nothing of its own. */
+export class SodaDesktopGitHub extends ControllerView<GitHubAccounts> {
+  protected render() {
+    const c = this.controller;
+    if (!c) return html``;
+    const view = c.view,
+      active = c.active;
+    const prompt = c.ready && view.phase === 'waiting' ? view.prompt : null;
+    const seconds = prompt ? Math.max(0, prompt.expires_at - Math.floor(Date.now() / 1000)) : 0;
+    const status = !c.started
+      ? 'Opening saved accounts…'
+      : !c.ready
+        ? 'Saved accounts are unavailable until Factory is ready.'
+        : (c.readError ?? c.localError ?? view.error) || phaseStatus(c.accounts.length > 0)[view.phase];
+    return html`<p id="github-status" role="status">${status}</p>
+      <button id="github-sign-in" type="button" ?disabled=${!c.ready || c.busy || active} @click=${() => c.signIn()}>${c.accounts.length ? 'Add GitHub account' : 'Sign in to GitHub'}</button>
+      <div id="github-prompt" ?hidden=${!prompt}>
+        <p>Enter this code at <span>github.com/login/device</span>:</p>
+        <code id="github-user-code" role="status" tabindex="0" aria-label="GitHub verification code">${prompt?.user_code ?? ''}</code>
+        <p id="github-expiry" role="status">${prompt ? (seconds ? `Code expires in ${Math.ceil(seconds / 60)} minutes.` : 'This code has expired.') : ''}</p>
+        <p>GitHub will ask for repository and profile access.</p>
+        <button id="github-open" type="button" ?disabled=${c.busy || !prompt} @click=${() => c.open()}>Open GitHub</button>
+      </div>
+      <button id="github-cancel" type="button" ?hidden=${!active} ?disabled=${c.busy || view.phase === 'saving'} @click=${() => c.cancel()}>Cancel sign-in</button>
+      <ul id="github-accounts" aria-label="Saved GitHub accounts">${repeat(
+        c.accounts,
+        (account) => account.connection,
+        (account) => {
+          const workflow =
+            account.grant?.scope === undefined
+              ? 'Workflow permission not recorded'
+              : account.grant.scope.split(/[,\s]+/).includes('workflow')
+                ? 'Workflow edits allowed by saved grant'
+                : 'Sign in again to allow workflow edits';
+          // Row order (name, refresh, remove) is what the native sign-in check drives.
+          const refreshable = !c.busy && c.ready && c.accountsCurrent && !active && ['stored', 'expired'].includes(account.state);
+          return html`<li data-connection=${account.connection}><span role="status"><strong>${account.label ?? account.account}</strong> · ${accountState[account.state]} · ${workflow}</span><button type="button" ?hidden=${!account.grant?.refresh_available} ?disabled=${!refreshable} @click=${() => c.refreshLogin(account.connection)}>Refresh login</button><button type="button" ?disabled=${c.busy || !c.ready || !c.accountsCurrent} @click=${() => c.remove(account.connection)}>Remove from Factory</button></li>`;
+        }
+      )}</ul>`;
+  }
+}
+customElements.define('soda-desktop-github', SodaDesktopGitHub);

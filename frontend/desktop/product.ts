@@ -1,5 +1,5 @@
 import {SodaRequestError} from '../factory/app/browser.js';
-import type {FactoryAppContext, FactoryRoute, FactoryScreen} from '../factory/app/browser.js';
+import type {FactoryAppContext, FactoryHostSection, FactoryRoute, FactoryScreen} from '../factory/app/browser.js';
 import type {FactoryFeedHost, FactoryRepositoryLinks} from '../factory/app/navigation.js';
 import {admitFactoryRoute} from '../factory/app/routes.js';
 import {check, id, object, readSodaJSON} from '../factory/api/models.js';
@@ -41,6 +41,8 @@ export class DesktopProduct {
     readonly selected: Binding,
     profile: string,
     private navigate: (route: FactoryRoute) => void,
+    /** The sign-in sections for the Accounts page; their controllers outlive this connection. */
+    private accounts: readonly FactoryHostSection[],
     private defaultBranch?: string
   ) {
     this.transport = new DesktopTransport(core, selected, profile);
@@ -76,7 +78,7 @@ export class DesktopProduct {
       ...this.selected.identity,
       accountLabel: this.selected.account_label,
       ...(this.selected.repository ? {selectedRepository: this.selected.repository.id, repositoryLabel: this.selected.repository.name} : {}),
-      destinations: ['settings'],
+      destinations: ['settings', 'accounts'],
       route,
       resolve: (route, signal) => this.resolve(route, AbortSignal.any([this.lifetime.signal, signal])),
       navigate: (route) => {
@@ -287,6 +289,8 @@ export class DesktopProduct {
           },
         };
       }
+      case 'accounts':
+        return {kind: 'accounts', context: {transport, sections: this.accounts}};
       case 'watch':
         throw Error('Native execution is unavailable');
     }

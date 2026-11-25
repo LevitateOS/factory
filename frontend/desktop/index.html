@@ -19,57 +19,7 @@
         <button id="quit" type="button">Quit Factory</button>
       </nav>
     </header>
-    <section class="desktop-accounts" aria-labelledby="muse-heading">
-      <h1 id="muse-heading">Muse</h1>
-      <p id="muse-status" role="status">Checking Muse sign-in…</p>
-      <p id="muse-tool-status" role="status">Checking the current Muse release…</p>
-      <button id="muse-check-update" type="button" disabled>Check Muse update</button>
-      <button id="muse-sign-in" type="button" disabled>Sign in to Muse</button>
-      <div id="muse-prompt" hidden>
-        <p>Confirm this code on Meta:</p>
-        <code id="muse-user-code" tabindex="0" aria-label="Muse verification code"></code>
-        <button id="muse-open" type="button">Open Meta</button>
-      </div>
-      <button id="muse-cancel" type="button" hidden>Cancel sign-in</button>
-    </section>
-    <section class="desktop-accounts" aria-labelledby="fountain-heading">
-      <h1 id="fountain-heading">Fountain</h1>
-      <p id="fountain-status" role="status">Checking saved accounts…</p>
-      <form id="fountain-login">
-        <label>Fountain address <input id="fountain-origin" type="url" placeholder="https://fountain.example" required /></label>
-        <label><input id="fountain-control-consent" type="checkbox" /> Request automation control access</label>
-        <label><input id="fountain-issues-consent" type="checkbox" /> Issue collaboration only</label>
-        <p>Issue-only access permits supported issue reads and writes. It grants no code access, execution, PR publication or merge authority.</p>
-        <p>Control access permits a separate repository authorization. It does not select a runtime, authorize work or fund inference.</p>
-        <button id="fountain-sign-in" type="submit" disabled>Sign in to Fountain</button>
-      </form>
-      <button id="fountain-open" type="button" hidden>Continue in browser</button>
-      <button id="fountain-cancel" type="button" hidden>Cancel sign-in</button>
-      <ul id="fountain-accounts" aria-label="Saved Fountain accounts"></ul>
-      <form id="fountain-enroll">
-        <label>Account <select id="fountain-account" aria-label="Fountain account"></select></label>
-        <label>Repository <input id="fountain-repository" placeholder="owner/repository" required /></label>
-        <button id="fountain-enroll-submit" type="submit" disabled>Enroll repository</button>
-        <button id="fountain-enroll-status" type="button" disabled>Check enrollment</button>
-        <button id="fountain-enroll-withdraw" type="button" disabled>Withdraw enrollment</button>
-      </form>
-      <p id="fountain-enrollment" role="status">Enrollment grants repository read access. Execution and publication need separate authorization.</p>
-      <soda-factory-runtime-controller id="fountain-controller"></soda-factory-runtime-controller>
-    </section>
-    <section class="desktop-accounts" aria-labelledby="github-heading">
-      <h1 id="github-heading">GitHub</h1>
-      <p id="github-status" role="status">Opening saved accounts…</p>
-      <button id="github-sign-in" type="button" disabled>Sign in to GitHub</button>
-      <div id="github-prompt" hidden>
-        <p>Enter this code at <span>github.com/login/device</span>:</p>
-        <code id="github-user-code" role="status" tabindex="0" aria-label="GitHub verification code"></code>
-        <p id="github-expiry" role="status"></p>
-        <p>GitHub will ask for repository and profile access.</p>
-        <button id="github-open" type="button">Open GitHub</button>
-      </div>
-      <button id="github-cancel" type="button" hidden>Cancel sign-in</button>
-      <ul id="github-accounts" aria-label="Saved GitHub accounts"></ul>
-    </section>
+    <section id="sign-in" class="soda-factory-root soda-factory-accounts" aria-label="Accounts"></section>
     <section class="desktop-connections" aria-label="Factory connection">
       <label
         >Account

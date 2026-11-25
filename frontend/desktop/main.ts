@@ -1,7 +1,5 @@
 import {SodaFactoryApp} from '../factory/app/browser.js';
-import {mountAccounts} from './accounts.js';
-import {mountMuseLogin} from './muse-login.js';
-import {mountFountainLogin} from './fountain-login.js';
+import {mountSignIn} from './sign-in.js';
 import {mountConnections} from './connections.js';
 import type {Core} from './transport.js';
 import {mountDeveloper} from './developer.js';
@@ -15,10 +13,9 @@ interface RuntimeStatus {
 const core = (window as unknown as {__TAURI__: {core: Core}}).__TAURI__.core;
 const app = new SodaFactoryApp();
 document.querySelector('#application')!.replaceChildren(app);
-const connections = mountConnections(core, app);
-const refreshAccounts = mountAccounts(core, (accounts) => connections.accounts(accounts));
-const refreshMuse = mountMuseLogin(core);
-const refreshFountain = mountFountainLogin(core);
+const signIn = mountSignIn(document.querySelector<HTMLElement>('#sign-in')!);
+const connections = mountConnections(core, app, signIn.placement);
+const refreshSignIn = signIn.start(core, (accounts) => connections.accounts(accounts));
 const status = document.querySelector<HTMLElement>('#runtime-status')!;
 const retry = document.querySelector<HTMLButtonElement>('#retry')!;
 let reading = false,
@@ -28,10 +25,8 @@ async function refresh() {
   reading = true;
   try {
     const value = await core.invoke<RuntimeStatus>('runtime_status');
-    if (value.generation !== epoch) {
-      epoch = value.generation;
-      app.context = undefined;
-    }
+    // connections.refresh retires the frame for a new generation or failure.
+    epoch = value.generation;
     status.textContent =
       value.phase === 'ready'
         ? value.execution_error ? 'Ready for browsing. Agent execution is unavailable.' : 'Ready'
@@ -43,12 +38,11 @@ async function refresh() {
     retry.hidden = value.phase !== 'failed' && !(value.phase === 'ready' && value.execution_error);
     retry.textContent = value.phase === 'ready' ? 'Retry execution' : 'Retry startup';
     connections.refresh(value.phase === 'ready', value.generation, value.profile);
-    await Promise.all([refreshAccounts(value.phase === 'ready', value.generation), refreshMuse(value.phase === 'ready', value.generation), refreshFountain(value.phase === 'ready', value.generation)]);
+    await refreshSignIn(value.phase === 'ready', value.generation);
   } catch {
     status.textContent = 'Factory is unavailable. Your saved work is kept.';
-    app.context = undefined;
     connections.refresh(false, epoch, null);
-    await Promise.all([refreshAccounts(false, epoch), refreshMuse(false, epoch), refreshFountain(false, epoch)]);
+    await refreshSignIn(false, epoch);
   } finally {
     reading = false;
   }

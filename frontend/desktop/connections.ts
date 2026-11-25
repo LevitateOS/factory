@@ -5,6 +5,7 @@ import {binding} from './transport.js';
 import type {Binding, Core, NativeReply} from './transport.js';
 import {DesktopProduct, readRoute, routeURL} from './product.js';
 import {SodaDesktopPlacement} from './placement.js';
+import type {SignInPlacement} from './sign-in.js';
 
 interface Repository {
   external_id: string;
@@ -23,7 +24,7 @@ function repository(value: unknown): Repository {
   );
   return {external_id: row.external_id, name: row.name, private: row.private, default_branch: row.default_branch};
 }
-export function mountConnections(core: Core, app: SodaFactoryApp) {
+export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignInPlacement) {
   // The connection panel keeps its controller view for routes other than
   // Settings, which shows its own view of the same controller.
   const placementRoot = document.querySelector<HTMLElement>('#runtime-placement')!;
@@ -61,6 +62,13 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     mounted = '';
   let fragmentObserver: MutationObserver | undefined;
   const live = (captured: number) => ready && serial === captured && !document.hidden;
+  // Sign-in views live on the Accounts page only while the frame has a context
+  // and accepts input; otherwise the desktop shows them outside the frame.
+  const framed = () => signIn.frame(mounted !== '' && !app.inert);
+  function inert(value: boolean) {
+    app.inert = value;
+    framed();
+  }
   function render() {
     const options = JSON.stringify(
       known.map((account) => [account.connection, account.label, account.account, account.state, account.provider, account.origin])
@@ -116,6 +124,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     pending = undefined;
     app.context = undefined;
     mounted = '';
+    framed();
     if (old) void core.invoke('factory_disconnect', {session: old}).catch(() => {});
   }
   function navigate(route: FactoryRoute) {
@@ -133,6 +142,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       if (mounted !== view) {
         mounted = view;
         app.context = context;
+        framed();
       }
       if (context.route.kind === 'pull') app.querySelector<import('../factory/pulls/detail.js').SodaFactoryPull>('soda-factory-pull')?.selectTab(context.route.tab ?? 'conversation');
       if (location.hash !== hash) history.pushState(null, '', hash);
@@ -178,7 +188,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   }
   async function choose(account: string, remote = '', enrolled = '') {
     resumeRequested = false;
-    app.inert = false;
+    inert(false);
     const captured = ++serial;
     const previousRepository = selected?.repository?.external_id;
     clear();
@@ -221,7 +231,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       pending = undefined;
       selected = value;
       const metadata = discovered.find((repo) => repo.external_id === remote);
-      product = new DesktopProduct(core, value, profile, navigate, metadata?.default_branch);
+      product = new DesktopProduct(core, value, profile, navigate, signIn.sections, metadata?.default_branch);
       placement.controller = product.placement;
       placementRoot.hidden = !product.placement;
       const route = readRoute();
@@ -352,7 +362,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       resumeRequested = !!connection;
       ++serial;
       product?.suspend();
-      app.inert = true;
+      inert(true);
       busy = false;
       message = connection ? 'Connection suspended while Factory is hidden.' : 'Choose a saved account to connect.';
       render();
@@ -384,7 +394,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       accountsCurrent = values !== undefined;
       if (values === undefined) {
         ++serial;
-        if (product) { product.suspend(); app.inert = true; } else clear();
+        if (product) { product.suspend(); inert(true); } else clear();
         busy = false;
         resumeRequested = !!connection;
         message =
@@ -422,7 +432,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
           busy = true; resumeRequested = false;
           void current.resume().then(() => {
             if (!live(captured) || product !== current) return;
-            app.inert = false; message = 'Connected.'; void app.refresh();
+            inert(false); message = 'Connected.'; void app.refresh();
           }).catch(() => {
             if (live(captured) && product === current) { resumeRequested = true; clear(); message = 'Connection changed. Reconnect to continue. Saved drafts are kept.'; }
           }).finally(() => { if (serial === captured) {busy = false; render();} });

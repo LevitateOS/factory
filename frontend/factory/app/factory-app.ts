@@ -28,6 +28,8 @@ import {SodaFactoryWatch} from '../watch/watch.js';
 import type {FactoryWatchContext, FactoryWatchRenderer} from '../watch/ports.js';
 import {SodaFactorySettings} from '../settings/settings.js';
 import type {FactorySettingsContext} from '../settings/settings.js';
+import {SodaFactoryAccounts} from '../accounts/accounts.js';
+import type {FactoryAccountsContext} from '../accounts/accounts.js';
 import {admitFactoryRoute, admitHostDestinations, factoryRouteTitle, hostResolves} from './routes.js';
 import type {FactoryHostDestination, FactoryRoute} from './routes.js';
 
@@ -60,7 +62,8 @@ export type FactoryScreen =
       readonly kind: 'settings';
       /** The frame supplies the actor, account label, scope and project name. */
       readonly context: Omit<FactorySettingsContext, 'actor' | 'accountLabel' | 'scope' | 'repositoryLabel'>;
-    };
+    }
+  | {readonly kind: 'accounts'; readonly context: FactoryAccountsContext};
 
 export interface FactoryAppContext {
   readonly transport: FactoryTransport;
@@ -432,6 +435,15 @@ export class SodaFactoryApp extends LitElement {
         };
         return view;
       }
+      case 'accounts': {
+        check(route.kind === 'accounts');
+        const view = new SodaFactoryAccounts();
+        this.own(view, () => {
+          view.context = undefined;
+        });
+        view.context = ports.context;
+        return view;
+      }
       case 'watch': {
         check(
           route.kind === 'watch' &&
@@ -513,8 +525,13 @@ export class SodaFactoryApp extends LitElement {
         : []),
     ];
     const project = context?.repositoryLabel?.trim();
-    const settings: FactoryRoute | undefined =
-      repository && context?.destinations?.includes('settings') ? {kind: 'settings', repository} : undefined;
+    // Host-declared destinations at the foot: project settings, then account sign-ins.
+    const foot: {label: string; route: FactoryRoute}[] = [
+      ...(repository && context?.destinations?.includes('settings')
+        ? [{label: 'Settings', route: {kind: 'settings' as const, repository}}]
+        : []),
+      ...(context?.destinations?.includes('accounts') ? [{label: 'Accounts', route: {kind: 'accounts' as const}}] : []),
+    ];
     return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''}>
       <aside class="soda-factory-sidebar">
         <p class="soda-factory-wordmark">Factory</p>
@@ -534,15 +551,17 @@ export class SodaFactoryApp extends LitElement {
           </nav>
         </div>
         <div class="soda-factory-sidebar-foot">
-          ${settings
-            ? html`<nav aria-label="Project settings">
-                <button
-                  type="button"
-                  aria-current=${context?.route.kind === 'settings' ? 'page' : 'false'}
-                  @click=${() => this.navigate(settings)}
-                >
-                  Settings
-                </button>
+          ${foot.length
+            ? html`<nav aria-label="Settings and accounts">
+                ${foot.map(
+                  (link) => html`<button
+                    type="button"
+                    aria-current=${context?.route.kind === link.route.kind ? 'page' : 'false'}
+                    @click=${() => this.navigate(link.route)}
+                  >
+                    ${link.label}
+                  </button>`
+                )}
               </nav>`
             : ''}
           ${context ? html`<p class="soda-factory-acting">Acting as ${context.accountLabel}</p>` : ''}

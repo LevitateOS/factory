@@ -2,6 +2,7 @@ import type {Meta, StoryObj} from '@storybook/web-components-vite';
 import {SodaFactoryApp} from './factory-app.js';
 import {appStoryPeer} from '../../storybook/app-fixtures.js';
 import type {AppStoryState} from '../../storybook/app-fixtures.js';
+import {disconnectedSignInStory} from '../../storybook/sign-in-fixtures.js';
 
 const meta = {
   title: 'Factory/Application',
@@ -9,7 +10,7 @@ const meta = {
   argTypes: {
     state: {
       control: 'select',
-      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings'],
+      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts'],
     },
   },
   render: ({state}, context) => {
@@ -29,3 +30,9 @@ export const IssueList: Story = {args: {state: 'issues'}};
 export const NewIssue: Story = {args: {state: 'issue-new'}};
 export const IssueAndFactoryFacts: Story = {args: {state: 'issue'}};
 export const Settings: Story = {args: {state: 'settings'}};
+export const Accounts: Story = {args: {state: 'accounts'}};
+/** The desktop's sign-in region, shown while the frame has no context. */
+export const SignInWithoutConnection: Story = {
+  args: {state: 'disconnected'},
+  render: (_, context) => disconnectedSignInStory(context.globals.scheme === 'dark' ? 'dark' : 'light'),
+};

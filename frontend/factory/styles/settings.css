@@ -1,16 +1,18 @@
-/* Project settings: an in-page index beside framed sections. Composed
+/* Project settings and Accounts: a page header above framed sections
+   (.soda-factory-sections). Settings adds an in-page index. Composed and host
    components keep their own markup; these rules only lay it out. */
-.soda-factory-settings > header {
+:is(.soda-factory-settings, .soda-factory-accounts) > header {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin-bottom: 24px;
 }
-.soda-factory-settings h2 {
+.soda-factory-settings h2,
+.soda-factory-accounts > header h2 {
   margin: 0;
   font: 800 28px/1.1 "Barlow Condensed", "Arial Narrow", sans-serif;
 }
-.soda-factory-settings > header p {
+:is(.soda-factory-settings, .soda-factory-accounts) > header p {
   margin: 0;
   color: var(--soda-page-muted);
   font: var(--soda-font-meta);
@@ -42,7 +44,7 @@
 .soda-factory-settings-layout > nav button:hover {
   text-decoration: underline;
 }
-.soda-factory-settings-sections {
+.soda-factory-sections {
   flex: 999 1 480px;
   min-width: 0;
   max-width: 760px;
@@ -50,44 +52,44 @@
   flex-direction: column;
   gap: 24px;
 }
-.soda-factory-settings-sections > * {
+.soda-factory-sections > * {
   scroll-margin-top: 16px;
   padding: 20px;
   border: 1px solid var(--soda-page-edge);
   background: var(--soda-page-surface);
 }
-.soda-factory-settings-sections h3 {
+.soda-factory-sections h3 {
   margin: 0 0 8px;
   font: 700 24px/1.2 "Barlow Condensed", "Arial Narrow", sans-serif;
 }
-.soda-factory-settings-sections p {
+.soda-factory-sections p {
   margin: 0 0 12px;
 }
-.soda-factory-settings-sections fieldset {
+.soda-factory-sections fieldset {
   min-width: 0;
   margin: 0 0 16px;
   padding: 12px 16px;
   border: 1px solid var(--soda-page-edge);
 }
-.soda-factory-settings-sections legend {
+.soda-factory-sections legend {
   padding: 0 4px;
   font: var(--soda-font-label);
 }
-.soda-factory-settings-sections label {
+.soda-factory-sections label {
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin: 0 0 12px;
 }
-.soda-factory-settings-sections label:has(> input[type="checkbox"]) {
+.soda-factory-sections label:has(> input[type="checkbox"]) {
   flex-direction: row;
   align-items: baseline;
   gap: 8px;
 }
-.soda-factory-settings-sections :is(input:not([type="checkbox"]), select, textarea) {
+.soda-factory-sections :is(input:not([type="checkbox"]), select, textarea) {
   max-width: 100%;
 }
-.soda-factory-settings-sections button {
+.soda-factory-sections button {
   margin: 0 8px 12px 0;
 }
 .soda-factory-settings-unavailable {
@@ -105,6 +107,63 @@
   margin: 0;
   color: var(--soda-page-muted);
 }
+/* Accounts: host sign-in sections. A host may show the same sections outside
+   the frame (for example before any connection) under the same class. */
+.soda-factory-accounts .soda-factory-sections > section > h2 {
+  margin: 0 0 8px;
+  font: var(--soda-font-heading);
+}
+.soda-factory-accounts ul {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--soda-page-edge);
+}
+.soda-factory-accounts ul:empty {
+  display: none;
+}
+.soda-factory-accounts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.soda-factory-accounts li:last-child {
+  border-bottom: 0;
+}
+.soda-factory-accounts li > span {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.soda-factory-accounts li button {
+  margin: 0;
+}
+/* A device sign-in code the person types elsewhere. */
+.soda-factory-accounts code {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--soda-page-edge);
+  font: 500 1.4rem/1.2 var(--soda-font-mono-family);
+  letter-spacing: 0.15em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.soda-factory-accounts .soda-factory-sections > :has(.soda-factory-unqualified) {
+  border-style: dashed;
+}
+.soda-factory-accounts .soda-factory-unqualified strong {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 8px;
+  border: 1px dashed var(--soda-page-muted);
+  font: 500 12px/18px var(--soda-font-mono-family);
+}
 @media (max-width: 799px) {
   .soda-factory-settings-layout > nav {
     position: static;
@@ -113,7 +172,7 @@
     flex-wrap: wrap;
     gap: 4px 16px;
   }
-  .soda-factory-settings-sections > * {
+  .soda-factory-sections > * {
     padding: 16px;
   }
 }

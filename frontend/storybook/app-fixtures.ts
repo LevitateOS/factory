@@ -12,8 +12,9 @@ import {issueDetailStoryPeer} from './issue-detail-fixtures.js';
 import {journeyResponse} from './journey-fixtures.js';
 import {issueCreateStoryPeer} from './issue-create-fixtures.js';
 import {PlacementController, placementView} from '../desktop/placement.js';
+import {signInStoryPlacement} from './sign-in-fixtures.js';
 
-export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings';
+export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings' | 'accounts';
 export const appRepository = '7';
 
 /** Composition peer only. All services/renderers are existing declared story
@@ -28,7 +29,9 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
           ? {kind: 'issue-new', repository: appRepository}
           : state === 'settings'
             ? {kind: 'settings', repository: appRepository}
-            : {kind: 'feed', repository: appRepository};
+            : state === 'accounts'
+              ? {kind: 'accounts'}
+              : {kind: 'feed', repository: appRepository};
   let view: SodaFactoryApp | undefined;
   let unavailable = state === 'unavailable',
     held = state === 'loading',
@@ -137,7 +140,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     accountLabel: account,
     selectedRepository: appRepository,
     repositoryLabel: 'acme/factory',
-    destinations: ['settings'],
+    destinations: ['settings', 'accounts'],
     route,
     async resolve(selected, signal) {
       resolved.push(selected);
@@ -268,6 +271,12 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
               activityAvailable: false,
             },
           };
+        }
+        case 'accounts': {
+          // The desktop sign-in views with saved accounts, framed on the page.
+          const placement = signInStoryPlacement(document.createElement('section'), 'saved');
+          placement.frame(true);
+          return {kind: 'accounts', context: {transport: supplied, sections: placement.sections}};
         }
       }
     },

@@ -81,7 +81,7 @@ export class SodaFactorySettings extends LitElement {
         <nav aria-label="Settings sections">
           ${entries.map(([anchor, label]) => html`<button type="button" @click=${() => this.jump(anchor)}>${label}</button>`)}
         </nav>
-        <div class="soda-factory-settings-sections">
+        <div class="soda-factory-sections">
           <div id=${prefix + '-roles'}>${this.roles}</div>
           ${this.mounted.map((section) => renderHostSection(prefix, section))}
           ${unavailable.length
