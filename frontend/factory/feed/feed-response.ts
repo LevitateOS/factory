@@ -222,6 +222,8 @@ export interface FeedCommunication {
   attempts?: string[];
   decision?: string;
   decisionOwnerName?: string;
+  /** True only when the owner comes from a recorded native choice, not a worker's claim. */
+  decisionOwnerVerified?: boolean;
   rationale?: string;
   alternatives?: string[];
   parentId?: string;

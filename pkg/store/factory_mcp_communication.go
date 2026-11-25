@@ -268,6 +268,9 @@ func (s *Store) feedDecisionOwners(ctx context.Context, details map[string]FeedP
 			continue
 		}
 		c := detail.Payload.Communication
+		// Only a recorded native choice vouches for its owner; a worker's
+		// named owner is served as its claim.
+		c.OwnerVerified = c.IntentSource != nil
 		id, err := strconv.ParseInt(c.DecisionOwner, 10, 64)
 		if err != nil {
 			c.DecisionOwnerName = c.DecisionOwner

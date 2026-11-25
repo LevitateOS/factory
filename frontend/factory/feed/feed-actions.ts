@@ -226,7 +226,7 @@ function decision(c: FilledCommunication): TemplateResult {
       <p>${c.decision ?? 'No choice recorded'}</p>
       ${reason(c)}
     </section>
-    ${c.decisionOwnerName ? html`<p class="soda-decision-owner"><span>Decision owner</span><strong>${c.decisionOwnerName}</strong></p>` : ''}
+    ${c.decisionOwnerName ? html`<p class="soda-decision-owner" data-verified=${c.decisionOwnerVerified === true ? 'true' : 'false'}><span>${c.decisionOwnerVerified === true ? 'Decision owner' : 'Owner named by the agent'}</span><strong>${c.decisionOwnerName}</strong></p>` : ''}
     ${
       c.alternatives.length
         ? html`<details class="soda-action-more">

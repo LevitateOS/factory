@@ -61,6 +61,7 @@ type FeedCommunication struct {
 	Decision          string                  `json:"decision,omitempty"`
 	DecisionOwner     string                  `json:"decision_owner,omitempty"`
 	DecisionOwnerName string                  `json:"decision_owner_name,omitempty"`
+	OwnerVerified     bool                    `json:"decision_owner_verified,omitempty"` // served: owner from a recorded native choice
 	Rationale         string                  `json:"rationale,omitempty"`
 	Alternatives      []string                `json:"alternatives,omitempty"`
 	ParentID          string                  `json:"parent_id,omitempty"`
@@ -256,7 +257,7 @@ func (c FeedCommunication) Validate() error {
 	// its own technical choice by leaving the owner blank, or names
 	// the authorized owner it references. The revision actor always
 	// stays the logging worker.
-	if c.DecisionOwnerName != "" {
+	if c.DecisionOwnerName != "" || c.OwnerVerified {
 		return errors.New("decision owner name is served, not submitted")
 	}
 	if c.DecisionOwner != "" {
