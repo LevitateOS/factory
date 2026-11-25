@@ -11,6 +11,8 @@ export interface FactoryProjectSummary {
   /** Assigned roles, with the issue each works on when it has one. */
   readonly working: readonly {readonly role: string; readonly issue?: string}[];
   readonly dispatch: 'open' | 'closed' | 'none';
+  /** While closed, the recorded cause, such as policy_disabled or control_paused. */
+  readonly pausedBy?: string;
   readonly latestPost?: {readonly id: string; readonly title: string; readonly author?: string; readonly actor: string; readonly at?: number};
 }
 
@@ -88,7 +90,9 @@ function admitProject(value: unknown): FactoryProject | undefined {
       latestPost = {id: post.id, title: post.title, actor: post.actor,
         ...(post.author ? {author: post.author as string} : {}), ...(post.at ? {at: post.at as number} : {})};
     }
-    summary = {needsYou: found.needsYou, working, dispatch: found.dispatch as 'open' | 'closed' | 'none', ...(latestPost ? {latestPost} : {})};
+    if (found.pausedBy !== undefined && (!plain(found.pausedBy, 256) || !found.pausedBy)) return;
+    summary = {needsYou: found.needsYou, working, dispatch: found.dispatch as 'open' | 'closed' | 'none',
+      ...(found.pausedBy ? {pausedBy: found.pausedBy as string} : {}),...(latestPost ? {latestPost} : {})};
   }
   if (row.refused !== undefined && (!plain(row.refused, 512) || !row.refused)) return;
   return {key: row.key, name: row.name, accountLabel: row.accountLabel, provider: row.provider,
@@ -110,4 +114,33 @@ export function admitProjectRows(value: unknown): FactoryProject[] {
     if (rows.length === 50) break;
   }
   return rows;
+}
+
+const pauses: Record<string, readonly [string, string]> = {
+  control_paused: ['Paused', 'Someone paused this project. Resume it on its Work page.'],
+  project_stop: ['Stopped', 'This project was stopped. Start it again on its Work page.'],
+  policy_disabled: ['Automation off', 'Automation is turned off in this project’s settings.'],
+  policy_paused: ['Automation paused', 'Automation is paused in this project’s settings.'],
+  operator_grant_withdrawn: ['Access withdrawn', 'Factory’s permission to work on this repository was withdrawn.'],
+  sponsorship_withdrawn: ['No funding', 'The funding for runs on this project was withdrawn.'],
+  environment_grant_withdrawn: ['No environment', 'The environment agents run in was withdrawn.'],
+};
+
+/** Why Factory is not starting work on a project, as a short label and a
+ * sentence; undefined while its work is open or was never set up. */
+export function projectPause(summary: FactoryProjectSummary | undefined): {label: string; detail: string} | undefined {
+  if (summary?.dispatch !== 'closed') return;
+  const [label, detail] = pauses[summary.pausedBy ?? ''] ?? ['Paused', 'Factory is not starting new work on this project.'];
+  return {label, detail};
+}
+
+/** The one thing a project row most needs said, for compact lists: signing in,
+ * a refused open, posts waiting on the person, or paused work. */
+export function projectMark(row: FactoryProject): {label: string; kind: 'sign-in' | 'refused' | 'needs' | 'paused'; detail: string} | undefined {
+  if (row.connection === 'sign_in') return {label: 'Sign in', kind: 'sign-in', detail: 'Sign in to this account again to open it.'};
+  if (row.refused) return {label: 'No access', kind: 'refused', detail: row.refused};
+  const needs = row.summary?.needsYou ?? 0;
+  if (needs) return {label: String(needs), kind: 'needs', detail: needs + (needs === 1 ? ' post needs you' : ' posts need you')};
+  const pause = projectPause(row.summary);
+  return pause ? {...pause, kind: 'paused'} : undefined;
 }

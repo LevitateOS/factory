@@ -124,6 +124,11 @@
   justify-content: space-between;
   gap: 8px;
 }
+/* The project open in this window stays in the list, marked. */
+.soda-factory-other-projects button[aria-current="true"] {
+  background: var(--soda-page-hover);
+  font-weight: 600;
+}
 .soda-factory-other-name {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -175,6 +180,10 @@
   gap: 8px 16px;
   padding: 8px 32px;
   border-bottom: 1px solid var(--soda-page-edge);
+}
+/* With no project open and no status there is nothing to show. */
+.soda-factory-content > header[data-empty] {
+  display: none;
 }
 /* The open project's name, then its pages as a row of tabs. */
 .soda-factory-project {

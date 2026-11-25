@@ -41,6 +41,7 @@ function opened(value: unknown, asOf: number): Opened {
   check(id(row.repository) && typeof row.external_id === 'string' && id(row.external_id));
   check(text(row.name, 512) && !!row.name && typeof row.connection === 'string' && /^[a-f0-9]{32}$/.test(row.connection));
   check(row.dispatch === 'open' || row.dispatch === 'closed' || row.dispatch === 'none');
+  check(row.paused_by === undefined || (text(row.paused_by, 256) && /^[a-z_]+$/.test(row.paused_by)));
   check(Number.isSafeInteger(row.needs_you) && Number(row.needs_you) >= 0 && Number(row.needs_you) <= 99);
   check(Array.isArray(row.working) && row.working.length <= 8);
   const working = row.working.map((value) => {
@@ -59,7 +60,7 @@ function opened(value: unknown, asOf: number): Opened {
   }
   return {
     repository: row.repository, external: row.external_id, name: row.name, connection: row.connection, asOf,
-    summary: {needsYou: row.needs_you as number, working, dispatch: row.dispatch, ...(latestPost ? {latestPost} : {})},
+    summary: {needsYou: row.needs_you as number, working, dispatch: row.dispatch, ...(row.paused_by ? {pausedBy: row.paused_by as string} : {}), ...(latestPost ? {latestPost} : {})},
   };
 }
 

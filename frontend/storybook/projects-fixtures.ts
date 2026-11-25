@@ -20,7 +20,7 @@ export const projectStoryRows: readonly FactoryProject[] = [
     dispatch: 'open',
     latestPost: {id: 'p2', title: 'Waiting on allowance', actor: 'factory', at: asOf - 90000},
   }),
-  row('9', 'alex/notes', 'connected', {needsYou: 0, working: [], dispatch: 'closed', latestPost: {id: 'p3', title: 'Dispatch paused until Monday', actor: 'jev', author: 'Alex'}}),
+  row('9', 'alex/notes', 'connected', {needsYou: 0, working: [], dispatch: 'closed', pausedBy: 'sponsorship_withdrawn', latestPost: {id: 'p3', title: 'Dispatch paused until Monday', actor: 'jev', author: 'Alex'}}),
   row('10', 'alex/archive', 'not_connected', {needsYou: 0, working: [], dispatch: 'none'}),
   row('11', 'beta/docs', 'sign_in', {needsYou: 3, working: [], dispatch: 'open'}, 'beta-team'),
   row('12', 'gamma/lab', 'connected'),

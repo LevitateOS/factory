@@ -2,7 +2,7 @@ import {LitElement, html} from 'lit';
 import {check} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {feedRolePortraits, roleLabel} from '../feed/roles.js';
-import {admitProjectRows} from './projects.js';
+import {admitProjectRows, projectPause} from './projects.js';
 import type {FactoryProject, FactoryProjectsPort} from './projects.js';
 import {admitHostSections, mountHostSections, renderHostSection} from '../app/host-section.js';
 import type {FactoryHostSection, MountedHostSection} from '../app/host-section.js';
@@ -125,7 +125,8 @@ export class SodaFactoryProjects extends LitElement {
     const tags = [];
     if (row.refused) tags.push(html`<span class="soda-factory-tag" data-tone="paused">No access</span>`);
     if (row.summary?.needsYou) tags.push(html`<span class="soda-factory-tag" data-tone="needs">Needs you · ${row.summary.needsYou}</span>`);
-    if (row.summary?.dispatch === 'closed') tags.push(html`<span class="soda-factory-tag" data-tone="paused">Paused</span>`);
+    const pause = projectPause(row.summary);
+    if (pause) tags.push(html`<span class="soda-factory-tag" data-tone="paused" title=${pause.detail}>${pause.label}</span>`);
     return tags;
   }
   private working(row: FactoryProject) {
@@ -157,7 +158,8 @@ export class SodaFactoryProjects extends LitElement {
           ${here ? html`<span class="soda-factory-tag" data-tone="here">Open in this window</span>` : ''}
         </div>
         ${row.refused && row.connection !== 'sign_in' ? html`<p class="soda-factory-project-refused" role="note">${row.refused}</p>` : ''}
-        <p class="soda-factory-project-meta">${row.provider} · ${row.accountLabel} · as of ${projectAsOf(row.asOf)}${row.summary ? ' · dispatch ' + row.summary.dispatch : ''}</p>
+        ${projectPause(row.summary) ? html`<p class="soda-factory-project-latest">${projectPause(row.summary)!.detail}</p>` : ''}
+        <p class="soda-factory-project-meta">${row.provider} · ${row.accountLabel} · as of ${projectAsOf(row.asOf)}</p>
         ${this.working(row)}
         ${post
           ? html`<p class="soda-factory-project-latest">Latest post: “${post.title}” · ${post.author ?? roleLabel(post.actor)}${post.at ? ' · ' + projectAsOf(post.at) : ''}</p>`

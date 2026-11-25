@@ -21,13 +21,15 @@ const (
 // ProjectSummary is one repository a profile connection has opened, with
 // retained Factory facts as of the read. It is never access evidence.
 // Dispatch is open or closed from the recorded gate, or none when no gate
-// was ever recorded. NeedsYou counts feedNeedsYouSQL up to its cap.
+// was ever recorded; PausedBy names its first recorded cause while closed.
+// NeedsYou counts feedNeedsYouSQL up to its cap.
 type ProjectSummary struct {
 	Repository collaboration.RepositoryID `json:"repository,string"`
 	ExternalID string                     `json:"external_id"`
 	Name       string                     `json:"name"`
 	Connection collaboration.ConnectionID `json:"connection"`
 	Dispatch   string                     `json:"dispatch"`
+	PausedBy   string                     `json:"paused_by,omitempty"`
 	Working    []ProjectWork              `json:"working"`
 	NeedsYou   int                        `json:"needs_you"`
 	LatestPost *ProjectPost               `json:"latest_post"`
@@ -59,6 +61,7 @@ func (s *Store) ProjectSummaries(ctx context.Context, profile collaboration.Prof
 	rows, err := s.db.QueryContext(ctx, `WITH clock AS (SELECT now() AS as_of), projects AS (
  SELECT r.id,r.external_id,r.name,rc.connection,
   CASE WHEN d.repository IS NULL THEN 'none' WHEN d.open THEN 'open' ELSE 'closed' END AS dispatch,
+  CASE WHEN d.open IS FALSE THEN COALESCE(d.data->'active_causes'->>0,d.data->>'cause','') ELSE '' END AS paused_by,
   COALESCE(w.items,'[]'::jsonb) AS working,
   (SELECT count(*) FROM (`+feedNeedsYouSQL("r.id", "$3")+` LIMIT $5) waiting) AS needs_you,
   lp.id AS post,lp.seq,lp.title,lp.author,lp.actor,lp.at
@@ -76,7 +79,7 @@ func (s *Store) ProjectSummaries(ctx context.Context, profile collaboration.Prof
   ORDER BY p.seq DESC LIMIT 1) lp ON true
  WHERE c.profile=$1
  ORDER BY lp.seq DESC NULLS LAST,r.name,r.id,rc.connection LIMIT $2)
-SELECT clock.as_of,p.id,p.external_id,p.name,p.connection,p.dispatch,p.working,p.needs_you,p.post,p.title,p.author,p.actor,p.at
+SELECT clock.as_of,p.id,p.external_id,p.name,p.connection,p.dispatch,p.paused_by,p.working,p.needs_you,p.post,p.title,p.author,p.actor,p.at
 FROM clock LEFT JOIN projects p ON true ORDER BY p.seq DESC NULLS LAST,p.name,p.id,p.connection`,
 		profile, limit, deliveryCarriedOn, factory.AssignmentAssigned, ProjectNeedsYouCap, ProjectWorkingLimit)
 	if err != nil {
@@ -87,11 +90,11 @@ FROM clock LEFT JOIN projects p ON true ORDER BY p.seq DESC NULLS LAST,p.name,p.
 	summaries := []ProjectSummary{}
 	for rows.Next() {
 		var repository sql.NullInt64
-		var external, name, connection, dispatch, post, title, author, actor sql.NullString
+		var external, name, connection, dispatch, pausedBy, post, title, author, actor sql.NullString
 		var working []byte
 		var needs sql.NullInt64
 		var at sql.NullInt64
-		if err := rows.Scan(&asOf, &repository, &external, &name, &connection, &dispatch, &working, &needs, &post, &title, &author, &actor, &at); err != nil {
+		if err := rows.Scan(&asOf, &repository, &external, &name, &connection, &dispatch, &pausedBy, &working, &needs, &post, &title, &author, &actor, &at); err != nil {
 			return nil, time.Time{}, err
 		}
 		if !repository.Valid {
@@ -106,7 +109,7 @@ FROM clock LEFT JOIN projects p ON true ORDER BY p.seq DESC NULLS LAST,p.name,p.
 			return nil, time.Time{}, err
 		}
 		summary := ProjectSummary{Repository: collaboration.RepositoryID(repository.Int64), ExternalID: external.String, Name: name.String,
-			Connection: collaboration.ConnectionID(connection.String), Dispatch: dispatch.String, NeedsYou: int(needs.Int64), Working: []ProjectWork{}}
+			Connection: collaboration.ConnectionID(connection.String), Dispatch: dispatch.String, PausedBy: pausedBy.String, NeedsYou: int(needs.Int64), Working: []ProjectWork{}}
 		for _, item := range items {
 			assignment := factory.Assignment{Phase: item.Phase}
 			if item.IssueMaker {

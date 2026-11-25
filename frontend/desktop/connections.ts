@@ -279,6 +279,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     inert(false);
     const captured = ++serial;
     const previousRepository = selected?.repository?.external_id;
+    // Where this window was, so a repository that will not open can return there.
+    const previous = selected && !fountain() ? {connection, repository: previousRepository ?? ''} : undefined;
     clear();
     connection = account;
     wanted = remote;
@@ -360,8 +362,9 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       }
     }
     if (!refused || serial !== captured) return;
-    await choose(account);
-    if (connection === account && selected && !selected.repository && !busy) {
+    const back = previous && previous.repository !== remote ? previous : {connection: account, repository: ''};
+    await choose(back.connection, back.repository);
+    if (connection === back.connection && selected && (selected.repository?.external_id ?? '') === back.repository && !busy) {
       message = refused;
       render();
     }

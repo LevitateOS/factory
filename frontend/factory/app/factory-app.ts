@@ -32,7 +32,7 @@ import type {FactoryHostSection} from './host-section.js';
 import type {FactoryAccountsContext} from '../accounts/accounts.js';
 import {admitFactoryRoute, admitHostDestinations, factoryRouteTitle, hostResolves} from './routes.js';
 import type {FactoryHostDestination, FactoryRoute} from './routes.js';
-import {admitProjectRows, admitProjectsPort} from '../projects/projects.js';
+import {admitProjectRows, admitProjectsPort, projectMark} from '../projects/projects.js';
 import type {FactoryProject, FactoryProjectsPort} from '../projects/projects.js';
 import {SodaFactoryProjects} from '../projects/page.js';
 import {SodaFactoryNewProject} from '../projects/new.js';
@@ -97,7 +97,7 @@ export interface FactoryAppContext {
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
-  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, scheme: {type: String}};
+  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, scheme: {type: String}};
   declare scheme: 'light' | 'dark' | undefined;
   declare private message: string;
   declare private busy: boolean;
@@ -105,7 +105,8 @@ export class SodaFactoryApp extends LitElement {
   /** The host's kept project list for the sidebar; undefined until read or without the port. */
   declare private projectRows: readonly FactoryProject[] | undefined;
   private projectsPort: FactoryProjectsPort | undefined;
-  private openingProject = false;
+  /** A project is opening; its buttons wait. Reactive, so they come back when it ends. */
+  declare private openingProject: boolean;
   private current: FactoryAppContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
@@ -119,6 +120,7 @@ export class SodaFactoryApp extends LitElement {
     this.busy = false;
     this.screen = undefined;
     this.projectRows = undefined;
+    this.openingProject = false;
     this.scheme = undefined;
     this.addEventListener('library-source-open', this.openLibrarySource);
   }
@@ -585,21 +587,15 @@ export class SodaFactoryApp extends LitElement {
     const port = context.projects;
     const projectItems: JumpItem[] = port
       ? (this.projectRows ?? []).map((row) => {
-          const summary = row.summary;
+          const mark = projectMark(row);
           const meta =
             row.connection === 'current'
               ? 'Current'
-              : row.connection === 'sign_in'
-                ? 'Sign in again'
-                : row.refused
-                  ? 'No access'
-                  : summary?.needsYou
-                  ? summary.needsYou + (summary.needsYou === 1 ? ' needs you' : ' need you')
-                  : summary?.dispatch === 'closed'
-                    ? 'Paused'
-                    : row.connection === 'not_connected'
-                      ? 'Other account'
-                      : row.accountLabel;
+              : mark
+                ? mark.kind === 'needs' ? mark.detail : mark.label
+                : row.connection === 'not_connected'
+                  ? 'Other account'
+                  : row.accountLabel;
           return {
             group: 'Projects',
             label: row.name,
@@ -639,7 +635,7 @@ export class SodaFactoryApp extends LitElement {
     ];
     const project = context?.repositoryLabel?.trim();
     const port = context?.projects;
-    const others = port ? (this.projectRows ?? []).filter((row) => row.connection !== 'current') : [];
+    const listed = port ? this.projectRows ?? [] : [];
     // Host-declared destinations at the foot: project settings, then account sign-ins.
     const foot: {label: string; route: FactoryRoute}[] = [
       ...(repository && context?.destinations?.includes('settings')
@@ -680,19 +676,20 @@ export class SodaFactoryApp extends LitElement {
                 : ''}
             </nav>`
           : ''}
-        ${others.length
-          ? html`<nav class="soda-factory-other-projects" aria-label="Other projects">
-              ${others.map((row) => {
-                const mark =
-                  row.connection === 'sign_in' ? 'Sign in' : row.refused ? 'No access' : row.summary?.needsYou ? String(row.summary.needsYou) : row.summary?.dispatch === 'closed' ? 'Paused' : '';
+        ${listed.length
+          ? html`<nav class="soda-factory-other-projects" aria-label="Your projects">
+              ${listed.map((row) => {
+                const mark = projectMark(row);
+                const here = row.connection === 'current';
                 return html`<button
                   type="button"
+                  aria-current=${here ? 'true' : 'false'}
                   ?disabled=${(row.connection === 'sign_in' && !port?.signIn) || this.openingProject}
-                  title=${row.name + (row.refused && row.connection !== 'sign_in' ? ' · ' + row.refused : mark ? ' · ' + (row.summary?.needsYou && row.connection !== 'sign_in' ? mark + ' need you' : mark) : '')}
-                  @click=${() => void this.openProject(context!, row)}
+                  title=${row.name + (mark ? ' · ' + mark.detail : '')}
+                  @click=${() => (here ? this.navigate({kind: 'feed', ...(repository ? {repository} : {})}) : void this.openProject(context!, row))}
                 >
                   <span class="soda-factory-other-name">${row.name}</span>${mark
-                    ? html`<span class="soda-factory-other-mark" data-mark=${row.connection === 'sign_in' ? 'sign-in' : row.refused ? 'refused' : row.summary?.needsYou ? 'needs' : 'paused'}>${mark}</span>`
+                    ? html`<span class="soda-factory-other-mark" data-mark=${mark.kind}>${mark.label}</span>`
                     : ''}
                 </button>`;
               })}
@@ -717,8 +714,8 @@ export class SodaFactoryApp extends LitElement {
       </aside>
       <div class="soda-factory-content">
         <!-- The open project's name and its pages run across the top; the status sits at the end. -->
-        <header>
-          <div class="soda-factory-project">
+        <header ?data-empty=${!repository && !this.message.trim()}>
+          ${repository ? html`<div class="soda-factory-project">
             ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
             <nav aria-label="Factory">
               ${links.map(
@@ -732,7 +729,7 @@ export class SodaFactoryApp extends LitElement {
                 </button>`
               )}
             </nav>
-          </div>
+          </div>` : ''}
           <p role="status" ?hidden=${!this.message.trim()}>${this.message}</p>
         </header>
         <main
