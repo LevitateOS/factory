@@ -1535,6 +1535,19 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         command("reconcile-retained-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
     } else {
         command("check-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+        // The shell's artifact path: exact file bytes and media type, not JSON,
+        // including a binary reply above the ordinary 2 MiB response ceiling.
+        let published:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("native-worker-artifacts.json"))?)?;
+        let large:Vec<u8>=(0..2*1024*1024+4099usize).map(|i|((i*31+i/251)&0xff) as u8).collect();
+        for (field,media,expected) in [("text","text/plain",b"actual admitted native worker artifact\n".to_vec()),("binary","application/octet-stream",large)] {
+            let id=published[field].as_str().filter(|id|id.len()==32).ok_or("published artifact identity absent")?;
+            let path=format!("/api/factory/artifacts/{id}?repository={repository}");
+            ensure(soda_desktop_runtime::product_artifact_read("GET",&path),"artifact read was not recognized as a byte reply")?;
+            let request=supervisor.admit_fountain_product(credentials.clone(),credentials.capability(connection).await?,grant.repository.id.clone(),client.clone())?;
+            let reply=request.request("GET",&path,&[]).await?;
+            ensure(reply.status==200&&reply.content_type.as_deref()==Some(media)&&reply.body==expected,&format!("native artifact read changed {field} status, media type or bytes"))?;
+        }
+        println!("PASS: native custody reads the worker text artifact and a {}-byte binary artifact through the shared Go route with exact status, media type and bytes",2*1024*1024+4099);
         command("acknowledge-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
         supervisor.start_execution_coordinator().await?;
         command("settled-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;

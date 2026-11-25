@@ -6877,7 +6877,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return nil
 		}
 		var id string
-		if err = rawDB.QueryRowContext(ctx, `SELECT id FROM factory_feed_artifacts WHERE assignment=$1 AND complete`, cap.AssignmentID).Scan(&id); err != nil {
+		if err = rawDB.QueryRowContext(ctx, `SELECT id FROM factory_feed_artifacts WHERE assignment=$1 AND name='native-worker.txt' AND complete`, cap.AssignmentID).Scan(&id); err != nil {
 			return err
 		}
 		artifact, content, err := db.FeedArtifact(ctx, repository, id)
@@ -6885,6 +6885,22 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return errors.New("actual worker artifact bytes were not retained")
 		}
 		fmt.Println("PASS: public Go-admitted native launch; live MCP activation, actual worker artifact bytes and terminal process/custody/root receipt")
+		if os.Getenv("SODA_NATIVE_CHECK_CONTROLLER") == "1" {
+			// A declared binary row above the 2 MiB JSON response ceiling beside the
+			// worker's text artifact; the Rust check reads both through native custody.
+			large := make([]byte, 2*1024*1024+4099)
+			for i := range large {
+				large[i] = byte(i*31 + i/251)
+			}
+			binary := factory.MCPInputDigest([]byte("artifact\n" + cap.AssignmentID + "\nnative-worker-binary"))[:32]
+			if _, err = rawDB.ExecContext(ctx, `INSERT INTO factory_feed_artifacts(id,repository,assignment,name,media_type,content,complete) VALUES($1,$2,$3,'native-worker.bin','application/octet-stream',$4,true) ON CONFLICT(id) DO NOTHING`, binary, repository, cap.AssignmentID, large); err != nil {
+				return err
+			}
+			encoded, _ := json.Marshal(map[string]string{"text": id, "binary": binary})
+			if err = os.WriteFile(filepath.Join(profile, "native-worker-artifacts.json"), encoded, 0o600); err != nil {
+				return err
+			}
+		}
 		if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
 			return retainJudgmentEvidence(ctx, config, repository, cap.ID, 3)
 		}

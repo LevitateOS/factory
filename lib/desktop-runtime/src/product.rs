@@ -361,6 +361,12 @@ async fn run(mut job: Job, channel: NativeChannel, alive: Arc<AtomicBool>) {
     if let Some(operation) = &job.operation {
         headers.push(("X-Soda-Native-Operation", operation));
     }
+    // Only an artifact read carries file bytes; every JSON reply keeps 2 MiB.
+    let body_bytes = if crate::product_artifact_read(&job.method, &job.target) {
+        crate::PRODUCT_ARTIFACT_BYTES + 64 * 1024
+    } else {
+        2 * 1024 * 1024
+    };
     let result = if !alive.load(Ordering::SeqCst) {
         Err("native runtime is retired".into())
     } else {
@@ -368,7 +374,7 @@ async fn run(mut job: Job, channel: NativeChannel, alive: Arc<AtomicBool>) {
             biased;
             _ = job.cancelled.changed() => Err("native product request cancelled".into()),
             reply = request_authenticated_async(&channel.socket, &job.method, &job.target, "soda-native", &job.body, &channel.key,
-                &headers, WAIT, Limits {header_bytes:16384,body_bytes:2*1024*1024}) =>
+                &headers, WAIT, Limits {header_bytes:16384,body_bytes}) =>
                 reply.map_err(|_| "native product response is unavailable".into()),
         }
     };

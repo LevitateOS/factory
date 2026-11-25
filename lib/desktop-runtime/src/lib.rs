@@ -31,7 +31,9 @@ mod product;
 #[cfg(target_os = "linux")]
 mod product_request;
 #[cfg(target_os = "linux")]
-pub use product_request::{product_request_body_limit, ProductRequest};
+pub use product_request::{
+    product_artifact_read, product_request_body_limit, ProductRequest, PRODUCT_ARTIFACT_BYTES,
+};
 #[cfg(target_os = "linux")]
 pub mod supervisor;
 

@@ -5,14 +5,16 @@ import {id} from '../api/models.js';
 
 /** A host-admitted runtime/account lifetime, scoped to this artifact's repository. */
 export interface FeedArtifactContext {
-  readonly transport: FactoryTransport;
+  /** A host whose webview cannot follow `blob:` downloads saves the bytes
+   * itself and returns the saved file name; others keep the plain link. */
+  readonly transport: FactoryTransport & {saveArtifact?(name: string, content: Blob): Promise<string>};
   readonly repository: string;
   readonly generation: string;
   readonly signal: AbortSignal;
 }
 const maxBytes = 8 * 1024 * 1024;
 const textBytes = 64 * 1024;
-const empty = () => ({busy: false, open: false, error: '', url: '', text: '', truncated: false});
+const empty = () => ({busy: false, open: false, error: '', url: '', text: '', truncated: false, saving: false, saved: ''});
 const mediaType = (artifact: FeedArtifact) => artifact.mediaType.toLowerCase().split(';')[0]?.trim() ?? '';
 
 export class SodaFeedArtifact extends LitElement {
@@ -20,6 +22,7 @@ export class SodaFeedArtifact extends LitElement {
   declare private state: ReturnType<typeof empty>;
   private current: FeedArtifactContext | undefined;
   private source: FeedArtifact | undefined;
+  private blob: Blob | undefined;
   private cancel: AbortController | undefined;
   private serial = 0;
   private retired = () => this.reset();
@@ -72,7 +75,20 @@ export class SodaFeedArtifact extends LitElement {
     this.cancel?.abort();
     this.cancel = undefined;
     if (this.state.url) URL.revokeObjectURL(this.state.url);
+    this.blob = undefined;
     this.state = empty();
+  }
+  private async save(serial: number, context: FeedArtifactContext, artifact: FeedArtifact) {
+    const blob = this.blob;
+    if (!blob || !context.transport.saveArtifact || !this.live(serial, context, artifact) || this.state.saving) return;
+    this.state = {...this.state, saving: true, error: '', saved: ''};
+    try {
+      const saved = await context.transport.saveArtifact(artifact.name, blob);
+      if (this.live(serial, context, artifact)) this.state = {...this.state, saving: false, saved};
+    } catch {
+      if (this.live(serial, context, artifact))
+        this.state = {...this.state, saving: false, error: 'The artifact could not be saved. Try again.'};
+    }
   }
   private bindingLive(context: FeedArtifactContext) {
     return (
@@ -152,7 +168,9 @@ export class SodaFeedArtifact extends LitElement {
       const isText = type.startsWith('text/') || ['application/json', 'application/xml'].includes(type);
       const text = isText ? await blob.slice(0, textBytes).text() : '';
       if (!this.live(serial, context, artifact) || signal.aborted) return;
+      this.blob = blob;
       this.state = {
+        ...empty(),
         busy: false,
         open: true,
         error: '',
@@ -215,7 +233,20 @@ export class SodaFeedArtifact extends LitElement {
                             ${this.state.truncated ? html`<p class="soda-feed-block-note">Showing the first 64 KiB. Download for the complete file.</p>` : ''}`
                         : html`<p>This file is available to download.</p>`
               }
-              <a href=${this.state.url} download=${artifact.name}>Download ${artifact.name}</a>
+              ${
+                context.transport.saveArtifact
+                  ? html`<button
+                        type="button"
+                        ?disabled=${this.state.saving}
+                        @click=${() => void this.save(serial, context, artifact)}
+                      >
+                        ${this.state.saving ? 'Saving…' : `Download ${artifact.name}`}
+                      </button>
+                      ${this.state.saved
+                        ? html`<p class="soda-feed-block-note" role="status">Saved to Downloads as ${this.state.saved}.</p>`
+                        : ''}`
+                  : html`<a href=${this.state.url} download=${artifact.name}>Download ${artifact.name}</a>`
+              }
             </div>`
           : ''
       }

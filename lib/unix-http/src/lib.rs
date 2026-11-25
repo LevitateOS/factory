@@ -26,6 +26,8 @@ pub struct Limits {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Response {
     pub status: u16,
+    /// The response's own media type, when it sent a bounded printable one.
+    pub content_type: Option<String>,
     pub body: Vec<u8>,
 }
 
@@ -236,6 +238,12 @@ async fn collect_response(
     deadline: Instant,
 ) -> Result<Response, Error> {
     let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get(hyper::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| value.len() <= 256)
+        .map(str::to_owned);
     let mut body = Vec::new();
     let mut incoming = response.into_body();
     loop {
@@ -254,7 +262,11 @@ async fn collect_response(
             }
         }
     }
-    Ok(Response { status, body })
+    Ok(Response {
+        status,
+        content_type,
+        body,
+    })
 }
 
 fn map_protocol_error(error: &hyper::Error) -> Error {

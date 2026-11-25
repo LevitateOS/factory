@@ -52,6 +52,29 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
     }
 }
 
+/// Go's feed artifact ceiling (`factory.MaxFeedArtifactBytes`).
+pub const PRODUCT_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
+
+/// The one product read whose reply is the artifact's own bytes, not JSON:
+/// `GET /api/factory/artifacts/{id}?repository={id}`. Its reply alone may
+/// exceed the ordinary response ceiling, and the shell returns it as bytes.
+pub fn product_artifact_read(method: &str, target: &str) -> bool {
+    let Some((artifact, repository)) = target
+        .strip_prefix("/api/factory/artifacts/")
+        .and_then(|rest| rest.split_once("?repository="))
+    else {
+        return false;
+    };
+    method == "GET"
+        && artifact.len() == 32
+        && artifact
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && repository
+            .parse::<i64>()
+            .is_ok_and(|id| id > 0 && id.to_string() == repository)
+}
+
 /// Shared product HTTP operations, never provider requests or native URLs.
 /// Native custody and selected-resource scope are supplied independently.
 #[derive(Deserialize)]

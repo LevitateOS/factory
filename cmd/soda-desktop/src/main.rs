@@ -6,7 +6,7 @@ mod developer_protocol;
 use product::{
     factory_connect, factory_disconnect, factory_find_repository, factory_open_link,
     factory_prepare_connection, factory_product_cancel, factory_product_request,
-    factory_repositories, factory_window_target,
+    factory_repositories, factory_save_artifact, factory_window_target,
 };
 mod signin;
 use signin::{github_refresh, github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
@@ -725,6 +725,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_repositories,
         factory_product_request,
         factory_product_cancel,
+        factory_save_artifact,
         factory_window_target,
         factory_command,
         factory_stream,
@@ -767,6 +768,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_repositories,
         factory_product_request,
         factory_product_cancel,
+        factory_save_artifact,
         factory_window_target,
         open_window,
         close_window,

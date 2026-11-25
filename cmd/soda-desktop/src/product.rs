@@ -9,6 +9,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
+use tauri::ipc::InvokeResponseBody;
 use tauri::{Manager, WebviewWindow};
 use tokio::sync::watch;
 
@@ -133,6 +134,25 @@ async fn call(
     path: &str,
     body: &[u8],
 ) -> Result<Reply, String> {
+    json(exchange(desktop, selection, method, path, body).await?)
+}
+fn json(response: soda_unix_http::Response) -> Result<Reply, String> {
+    Ok(Reply {
+        status: response.status,
+        body: if response.body.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&response.body).map_err(|_| "invalid native product response")?
+        },
+    })
+}
+async fn exchange(
+    desktop: &Desktop,
+    selection: &Selection,
+    method: &str,
+    path: &str,
+    body: &[u8],
+) -> Result<soda_unix_http::Response, String> {
     current(desktop, selection)?;
     let credentials = desktop.credentials()?;
     let capability = credentials
@@ -165,14 +185,7 @@ async fn call(
     };
     let response = request.request(method, path, body).await?;
     current(desktop, selection)?;
-    Ok(Reply {
-        status: response.status,
-        body: if response.body.is_empty() {
-            Value::Null
-        } else {
-            serde_json::from_slice(&response.body).map_err(|_| "invalid native product response")?
-        },
-    })
+    Ok(response)
 }
 async fn cancelled(selection: &Selection) {
     let mut receiver = selection.cancelled.subscribe();
@@ -473,10 +486,130 @@ pub(super) async fn factory_open_link(
     .map_err(|_| "web link is unavailable")?
 }
 
+/// Saves an artifact the window already read through its connected selection.
+/// The webview cannot follow `blob:` downloads (navigation admits only the
+/// app page), so the bytes arrive as a raw IPC body and land in the user's
+/// download directory under a sanitized new name; nothing is overwritten.
+#[tauri::command]
+pub(super) async fn factory_save_artifact(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
+    product_caller(&window)?;
+    let header = |name: &str| {
+        request
+            .headers()
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .ok_or("invalid artifact download")
+    };
+    let session = header("x-factory-session")?;
+    let name = file_name(&percent_decoded(header("x-factory-name")?)?);
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("invalid artifact download".into());
+    };
+    if bytes.len() > soda_desktop_runtime::PRODUCT_ARTIFACT_BYTES {
+        return Err("artifact exceeds the download limit".into());
+    }
+    let bytes = bytes.clone();
+    let desktop = app.state::<Desktop>();
+    let selection = desktop.product.selected(window.label(), session)?;
+    if selection.binding.lock().unwrap().is_none() {
+        return Err("Factory account is not connected".into());
+    }
+    current(&desktop, &selection)?;
+    let directory = app
+        .path()
+        .download_dir()
+        .ok()
+        .filter(|path| path.is_absolute() && path.is_dir())
+        .ok_or("Downloads folder is unavailable")?;
+    tauri::async_runtime::spawn_blocking(move || save(&directory, &name, &bytes))
+        .await
+        .map_err(|_| "artifact could not be saved")?
+}
+fn percent_decoded(value: &str) -> Result<String, String> {
+    let (raw, mut bytes) = (value.as_bytes(), Vec::with_capacity(value.len()));
+    let mut index = 0;
+    while index < raw.len() {
+        if raw[index] == b'%' {
+            let pair = raw.get(index + 1..index + 3).and_then(|pair| std::str::from_utf8(pair).ok());
+            bytes.push(pair.and_then(|pair| u8::from_str_radix(pair, 16).ok()).ok_or("invalid artifact name")?);
+            index += 3;
+        } else {
+            bytes.push(raw[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(bytes).map_err(|_| "invalid artifact name".into())
+}
+/// One path component: no separators, controls or leading dots, bounded length.
+fn file_name(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .map(|c| if c.is_control() || matches!(c, '/' | '\\') { '_' } else { c })
+        .take(120)
+        .collect();
+    let cleaned = cleaned.trim().trim_start_matches('.').trim();
+    if cleaned.is_empty() { "artifact".into() } else { cleaned.into() }
+}
+fn save(directory: &std::path::Path, name: &str, bytes: &[u8]) -> Result<String, String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let (stem, extension) = match name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() && extension.chars().count() <= 16 => (stem, format!(".{extension}")),
+        _ => (name, String::new()),
+    };
+    for attempt in 0..100 {
+        let candidate = if attempt == 0 { name.to_owned() } else { format!("{stem} ({attempt}){extension}") };
+        // create_new is O_EXCL: an existing file or link is never followed or replaced.
+        match std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.join(&candidate)) {
+            Ok(mut file) => {
+                let written = file.write_all(bytes).and_then(|()| file.sync_all());
+                if written.is_err() {
+                    let _ = std::fs::remove_file(directory.join(&candidate));
+                    return Err("artifact could not be saved".into());
+                }
+                return Ok(candidate);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err("artifact could not be saved".into()),
+        }
+    }
+    Err("too many files already use this artifact name".into())
+}
 #[derive(Serialize)]
-pub(super) struct Completion {
+struct Completion {
     reply: Option<Reply>,
     error: Option<&'static str>,
+}
+/// A JSON completion, or an artifact read's bytes as one raw message:
+/// a 4-byte big-endian header length, the JSON header
+/// `{status, content_type, length}`, then exactly `length` body bytes.
+fn completion(result: Result<soda_unix_http::Response, String>, artifact: bool) -> InvokeResponseBody {
+    let reply = match result {
+        Ok(response) if artifact => {
+            let header = serde_json::json!({
+                "status": response.status,
+                "content_type": response.content_type.as_deref().unwrap_or("application/octet-stream"),
+                "length": response.body.len(),
+            })
+            .to_string();
+            let mut frame = Vec::with_capacity(4 + header.len() + response.body.len());
+            frame.extend_from_slice(&(header.len() as u32).to_be_bytes());
+            frame.extend_from_slice(header.as_bytes());
+            frame.extend_from_slice(&response.body);
+            return InvokeResponseBody::Raw(frame);
+        }
+        Ok(response) => json(response).ok(),
+        Err(_) => None,
+    };
+    let completion = Completion {
+        error: reply.is_none().then_some("Factory request is unavailable. Reconnect your account and try again."),
+        reply,
+    };
+    InvokeResponseBody::Json(serde_json::to_string(&completion).unwrap_or_else(|_| "null".into()))
 }
 #[tauri::command]
 pub(super) fn factory_product_request(
@@ -484,10 +617,11 @@ pub(super) fn factory_product_request(
     app: tauri::AppHandle,
     session: String,
     request: soda_desktop_runtime::ProductRequest,
-    channel: tauri::ipc::Channel<Completion>,
+    channel: tauri::ipc::Channel<InvokeResponseBody>,
 ) -> Result<String, String> {
     product_caller(&window)?;
     let (method, path, body) = request.request()?;
+    let artifact = soda_desktop_runtime::product_artifact_read(method, &path);
     let desktop = app.state::<Desktop>();
     let selections = desktop.product.selections.lock().unwrap();
     let selection = selections
@@ -510,7 +644,8 @@ pub(super) fn factory_product_request(
     let task_active = active.clone();
     let task = tauri::async_runtime::spawn(async move {
         let desktop = task_app.state::<Desktop>();
-        let result = tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = call(&desktop, &selection, method, &path, &body) => result};
+        let result = tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = exchange(&desktop, &selection, method, &path, &body) => result};
+        let message = completion(result, artifact);
         // Serialize delivery with connection retirement and explicit cancellation.
         // A buffered completion is also scoped by session at the UI consumer.
         let selections = desktop.product.selections.lock().unwrap();
@@ -521,19 +656,7 @@ pub(super) fn factory_product_request(
             && current(&desktop, &selection).is_ok()
             && task_active.load(Ordering::SeqCst)
         {
-            let completion = match result {
-                Ok(reply) => Completion {
-                    reply: Some(reply),
-                    error: None,
-                },
-                Err(_) => Completion {
-                    reply: None,
-                    error: Some(
-                        "Factory request is unavailable. Reconnect your account and try again.",
-                    ),
-                },
-            };
-            let _ = channel.send(completion);
+            let _ = channel.send(message);
         }
         jobs.remove(&task_id);
     });

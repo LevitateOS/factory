@@ -10,11 +10,32 @@ interface Completion {
   reply: NativeReply | null;
   error: string | null;
 }
+/** An artifact read arrives as one raw frame: a 4-byte big-endian header
+ * length, the JSON header, then exactly `length` body bytes. */
+interface ArtifactReply {
+  status: number;
+  contentType: string;
+  bytes: Uint8Array<ArrayBuffer>;
+}
+function artifactReply(frame: ArrayBuffer): ArtifactReply {
+  check(frame.byteLength >= 4);
+  const size = new DataView(frame).getUint32(0);
+  check(size <= 1024 && frame.byteLength >= 4 + size);
+  const header = object(JSON.parse(new TextDecoder().decode(new Uint8Array(frame, 4, size))));
+  const bytes = new Uint8Array(frame, 4 + size);
+  check(
+    typeof header.status === 'number' &&
+      typeof header.content_type === 'string' &&
+      header.content_type.length <= 256 &&
+      header.length === bytes.byteLength
+  );
+  return {status: header.status, contentType: header.content_type, bytes};
+}
 interface Channel<T> {
   onmessage: (value: T) => void;
 }
 export interface Core {
-  invoke<T>(command: string, args?: unknown): Promise<T>;
+  invoke<T>(command: string, args?: unknown, options?: {headers: Record<string, string>}): Promise<T>;
   Channel: new <T>() => Channel<T>;
 }
 export interface Binding {
@@ -132,7 +153,7 @@ export class DesktopTransport implements FactoryTransport {
       AbortSignal.timeout(22000),
     ]);
     signal.throwIfAborted();
-    const response = await new Promise<NativeReply>((resolve, reject) => {
+    const response = await new Promise<NativeReply | ArtifactReply>((resolve, reject) => {
       let handle: string | undefined,
         settled = false;
       const cancel = () => {
@@ -141,7 +162,7 @@ export class DesktopTransport implements FactoryTransport {
             .invoke('factory_product_cancel', {session: this.selected.session, request: handle})
             .catch(() => {});
       };
-      const finish = (reply?: NativeReply, error?: unknown) => {
+      const finish = (reply?: NativeReply | ArtifactReply, error?: unknown) => {
         if (settled) return;
         settled = true;
         signal.removeEventListener('abort', aborted);
@@ -152,13 +173,19 @@ export class DesktopTransport implements FactoryTransport {
         cancel();
         finish(undefined, signal.reason);
       };
-      const channel = new this.core.Channel<Completion>();
+      const channel = new this.core.Channel<Completion | ArrayBuffer>();
       channel.onmessage = (value) => {
         if (signal.aborted) {
           aborted();
           return;
         }
-        if (value.error || !value.reply)
+        if (value instanceof ArrayBuffer) {
+          try {
+            finish(artifactReply(value));
+          } catch {
+            finish(undefined, Error('Factory request is unavailable. Reconnect and try again.'));
+          }
+        } else if (value.error || !value.reply)
           finish(undefined, Error('Factory request is unavailable. Reconnect and try again.'));
         else finish(value.reply);
       };
@@ -173,9 +200,30 @@ export class DesktopTransport implements FactoryTransport {
     });
     signal.throwIfAborted();
     check(Number.isInteger(response.status) && response.status >= 200 && response.status <= 599);
+    if ('bytes' in response) {
+      const empty = [204, 304].includes(response.status);
+      return new Response(empty ? null : response.bytes, {
+        status: response.status,
+        headers: {
+          'Content-Type': response.contentType,
+          'Content-Length': String(empty ? 0 : response.bytes.byteLength),
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
     return new Response([204, 304].includes(response.status) ? null : JSON.stringify(response.body), {
       status: response.status,
       headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-store'},
+    });
+  }
+  /** Saves an artifact this selection already read; the webview cannot follow
+   * `blob:` downloads. Returns the file name chosen in the Downloads folder. */
+  async saveArtifact(name: string, content: Blob): Promise<string> {
+    check(!this.retired && !this.suspended && content.size <= 8 * 1024 * 1024);
+    const bytes = new Uint8Array(await content.arrayBuffer());
+    check(!this.retired && !this.suspended);
+    return this.core.invoke<string>('factory_save_artifact', bytes, {
+      headers: {'X-Factory-Session': this.selected.session, 'X-Factory-Name': encodeURIComponent(name)},
     });
   }
 }
