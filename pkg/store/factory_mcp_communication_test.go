@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 )
 
@@ -434,6 +436,17 @@ func TestMCPCommunicationPostsDoNotConsumeFinishCapacity(t *testing.T) {
 func TestMCPCommunicationEveryOutlet(t *testing.T) {
 	s, _ := postgresFixture(t)
 	ctx := context.Background()
+	if err := s.InitializeEmptyCollaborationLedger(ctx); err != nil {
+		t.Fatal(err)
+	}
+	host, err := s.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := s.ObserveCollaborationActor(ctx, host.ID, "decision-owner", "alex")
+	if err != nil {
+		t.Fatal(err)
+	}
 	cap := activateMCPCapability(t, ctx, s, testMCPCapabilityRow())
 	question := ""
 	for _, tool := range factory.MCPCommunicationTools {
@@ -459,6 +472,7 @@ func TestMCPCommunicationEveryOutlet(t *testing.T) {
 		case factory.MCPToolRecordDecision:
 			payload["decision"] = "Use the existing access helper"
 			payload["rationale"] = "Keep the same policy across routes."
+			payload["decision_owner"] = strconv.FormatInt(int64(owner.ID), 10)
 		}
 		raw, _ := json.Marshal(payload)
 		submission := testMCPSubmissionRow(cap, tool, raw)
@@ -472,6 +486,9 @@ func TestMCPCommunicationEveryOutlet(t *testing.T) {
 		detail, err := s.FeedPost(ctx, receipt.Record.ID)
 		if err != nil || detail.Payload == nil || detail.Payload.Communication.Kind != strings.TrimPrefix(string(tool), "factory.") {
 			t.Fatalf("%s absent from stored feed: %+v %v", tool, detail, err)
+		}
+		if tool == factory.MCPToolRecordDecision && detail.Payload.Communication.DecisionOwnerName != "alex" {
+			t.Fatalf("decision owner not named: %+v", detail.Payload.Communication)
 		}
 	}
 }

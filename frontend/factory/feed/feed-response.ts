@@ -221,6 +221,7 @@ export interface FeedCommunication {
   remaining?: string[];
   attempts?: string[];
   decision?: string;
+  decisionOwnerName?: string;
   rationale?: string;
   alternatives?: string[];
   parentId?: string;

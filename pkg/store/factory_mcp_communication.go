@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -251,6 +252,51 @@ func (s *Store) feedQuestionStates(ctx context.Context, details map[string]FeedP
 			state = "incorporated"
 		}
 		detail.Payload.Communication.QuestionState = state
+	}
+	return rows.Err()
+}
+
+// feedDecisionOwners names the owner of each served decision in one query.
+// A numeric owner is a collaboration actor id and is served by its login;
+// an unresolved id serves no name. Free text a worker recorded is already
+// the name.
+func (s *Store) feedDecisionOwners(ctx context.Context, details map[string]FeedPostDetail) error {
+	var ids []int64
+	numeric := map[int64][]*factory.FeedCommunication{}
+	for _, detail := range details {
+		if detail.Payload == nil || detail.Payload.Communication == nil || detail.Payload.Communication.DecisionOwner == "" {
+			continue
+		}
+		c := detail.Payload.Communication
+		id, err := strconv.ParseInt(c.DecisionOwner, 10, 64)
+		if err != nil {
+			c.DecisionOwnerName = c.DecisionOwner
+			continue
+		}
+		if id > 0 {
+			if _, seen := numeric[id]; !seen {
+				ids = append(ids, id)
+			}
+			numeric[id] = append(numeric[id], c)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id,login FROM collaboration_actors WHERE id=ANY($1)`, ids)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		var login string
+		if err := rows.Scan(&id, &login); err != nil {
+			return err
+		}
+		for _, c := range numeric[id] {
+			c.DecisionOwnerName = login
+		}
 	}
 	return rows.Err()
 }

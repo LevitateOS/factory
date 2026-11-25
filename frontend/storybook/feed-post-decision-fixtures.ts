@@ -117,6 +117,7 @@ export const decisions: FeedPostSpecimen[] = [
         rationale: 'A working search answers the request on its own. Filters depend on the result list.',
         items: [{label: 'Search first, filters after'}, {label: 'One combined search screen'}],
         alternatives: ['One combined search screen'],
+        decisionOwnerName: 'Alex',
       }),
       'decided'
     )

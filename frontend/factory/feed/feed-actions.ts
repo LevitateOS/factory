@@ -226,6 +226,7 @@ function decision(c: FilledCommunication): TemplateResult {
       <p>${c.decision ?? 'No choice recorded'}</p>
       ${reason(c)}
     </section>
+    ${c.decisionOwnerName ? html`<p class="soda-decision-owner"><span>Decision owner</span><strong>${c.decisionOwnerName}</strong></p>` : ''}
     ${
       c.alternatives.length
         ? html`<details class="soda-action-more">

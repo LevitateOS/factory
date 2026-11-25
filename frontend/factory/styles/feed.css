@@ -1937,6 +1937,20 @@ soda-factory-library {
   font-size: 15px;
   line-height: 1.5;
 }
+.soda-feed-card .soda-decision-owner {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--soda-feed-line);
+  border-top: 1px solid var(--soda-feed-line);
+  font: var(--soda-font-label);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.soda-feed-card .soda-decision-owner span {
+  color: var(--soda-page-muted);
+}
 .soda-feed-card .soda-decision-choice .soda-action-reason {
   padding-top: 6px;
 }
