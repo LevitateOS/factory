@@ -1220,16 +1220,6 @@ func checkAdmissionLimitsTx(ctx context.Context, t *sql.Tx, repository int64, co
 	if repoAttempts > 1 {
 		return ErrRepositoryFull
 	}
-	var used int
-	err = t.QueryRowContext(ctx, `SELECT COALESCE(SUM(minutes),0) FROM factory_usage WHERE repository=$1 AND connection=$2`,
-		repository, connection).Scan(&used)
-	if err != nil {
-		return err
-	}
-	// The spend cap is soft: any minutes left admit one full run.
-	if grants.sponsorship.AllowanceMinutes-used < 1 {
-		return ErrAllowanceExhausted
-	}
 	return nil
 }
 

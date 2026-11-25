@@ -14,7 +14,6 @@ import (
 type SponsorshipChange struct {
 	ExpectedRevision int64    `json:"expected_revision"`
 	Roles            []string `json:"roles"`
-	AllowanceMinutes int      `json:"allowance_minutes"`
 	Active           bool     `json:"active"`
 }
 
@@ -135,7 +134,7 @@ func (s Sponsorships) Apply(ctx context.Context, actor collaboration.ActorID, pr
 	sponsorship := factory.Sponsorship{
 		Native:     custody.Native,
 		Repository: int64(repository), Revision: in.ExpectedRevision, GrantedBy: int64(actor),
-		Connection: connection, Roles: in.Roles, AllowanceMinutes: in.AllowanceMinutes, Active: in.Active,
+		Connection: connection, Roles: in.Roles, Active: in.Active,
 		GrantID: selected.ID, Generation: custody.Generation, ActorID: selected.UserID, ProjectID: custody.Project,
 	}
 	if err := sponsorship.Validate(); err != nil {

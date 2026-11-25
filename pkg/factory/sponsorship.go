@@ -10,23 +10,22 @@ import (
 )
 
 // Sponsorship authorizes factory use of one provider connection for one
-// repository and its assigned roles within an explicit allowance. It
+// repository and its assigned roles. Use is not capped. It
 // records either an appliance broker grant or a native authentication source,
 // together with its execution actor and workspace. It never copies
 // credential custody. GrantedBy remains the policy sponsor.
 type Sponsorship struct {
-	Native           *NativeSponsorship `json:"native,omitempty"`
-	Roles            []string           `json:"roles"`
-	Repository       int64              `json:"repository,string"`
-	Revision         int64              `json:"revision"`
-	GrantedBy        int64              `json:"granted_by,string"`
-	ActorID          int64              `json:"actor_id,string"`
-	Generation       int64              `json:"generation"`
-	Connection       string             `json:"connection"`
-	GrantID          string             `json:"grant_id"`
-	ProjectID        string             `json:"project_id"`
-	AllowanceMinutes int                `json:"allowance_minutes"`
-	Active           bool               `json:"active"`
+	Native     *NativeSponsorship `json:"native,omitempty"`
+	Roles      []string           `json:"roles"`
+	Repository int64              `json:"repository,string"`
+	Revision   int64              `json:"revision"`
+	GrantedBy  int64              `json:"granted_by,string"`
+	ActorID    int64              `json:"actor_id,string"`
+	Generation int64              `json:"generation"`
+	Connection string             `json:"connection"`
+	GrantID    string             `json:"grant_id"`
+	ProjectID  string             `json:"project_id"`
+	Active     bool               `json:"active"`
 	// Sources admits declared research source refs on this connection
 	// (R10.2). A research subject may only name granted sources; an
 	// empty grant leaves repo-only inquiry.
@@ -97,9 +96,6 @@ func (s Sponsorship) Validate() error {
 			return errors.New("invalid sponsorship role")
 		}
 		seen[role] = true
-	}
-	if s.AllowanceMinutes < 1 || s.AllowanceMinutes > 10080 {
-		return errors.New("invalid sponsorship allowance")
 	}
 	if len(s.Sources) > MaxGrantEntries {
 		return errors.New("sponsorship admits too many sources")

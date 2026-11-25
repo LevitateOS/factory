@@ -206,30 +206,13 @@ func checkHarnessFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, 
 	return nil
 }
 
-// checkLimits enforces appliance, repository-session and sponsorship limits,
-// then gives the run the one per-run limit. Leftover budgets never shorten a
-// run: a nearly spent allowance still admits a full run.
+// checkLimits enforces appliance and repository-session limits, then gives the
+// run the one per-run limit. Use of the selected login is not capped.
 func checkLimits(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, plan *attemptPlan) (*planWait, *planWait) {
 	if wait, failed := checkConcurrencyLimits(ctx, deps, occupancy, plan); wait != nil || failed != nil {
 		return wait, failed
 	}
-	if wait, failed := checkSponsorshipBudget(ctx, deps, plan); wait != nil || failed != nil {
-		return wait, failed
-	}
 	return sizeAttemptDeadline(ctx, deps, plan)
-}
-
-// checkSponsorshipBudget is the one spend cap, checked softly at admission:
-// any minutes left admit one full run, which may overrun the cap by that run.
-func checkSponsorshipBudget(ctx context.Context, deps DispatchDeps, plan *attemptPlan) (*planWait, *planWait) {
-	used, err := deps.Store.UsageTotal(ctx, plan.policy.Repository, plan.sponsorship.Connection)
-	if err != nil {
-		return nil, waitFor(DispatchErrStore, "confirmed usage unreadable")
-	}
-	if plan.sponsorship.AllowanceMinutes-used < 1 {
-		return waitFor(WaitAllowance, "sponsorship allowance is exhausted"), nil
-	}
-	return nil, nil
 }
 
 // sizeAttemptDeadline gives the run the attempt's per-run limit, bounded by

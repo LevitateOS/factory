@@ -38,7 +38,7 @@ func (s NativeJudgments) ContributionsReady(ctx context.Context, review factory.
 	if err != nil {
 		return false, err
 	}
-	err = s.Store.NativeJudgmentReady(ctx, factory.NativeJudgmentCapture{Profile: s.Config.Profile, Repository: review.Repository, Selection: selection}, len(review.Roles))
+	err = s.Store.NativeJudgmentReady(ctx, factory.NativeJudgmentCapture{Profile: s.Config.Profile, Repository: review.Repository, Selection: selection})
 	if errors.Is(err, store.ErrNativeJudgmentSource) || errors.Is(err, store.ErrNotFound) {
 		return false, nil
 	}
