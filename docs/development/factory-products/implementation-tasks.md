@@ -323,11 +323,19 @@ before the next one starts.
   - The old Go HTTP and key-file code is deleted.
 - **Controlled check passed:** `factory-credential-operation-check --typesafe`,
   23 scripted requests.
+- **Connected (2026-11-25, signed app, the user's key):**
+  - A Feed post that had waited for JEV was routed on the next coordinator
+    pass by one real ask.
+  - The answer was `new_issue` at 0.97 from `jev-1.14.0`, using 627 input and
+    61 output tokens.
+  - The `jev.ask` row finished with 1 attempt, and the post's routing holds the
+    receipt. The post handed off to Issue Maker.
+  - No GitHub issue was created. There was no Keychain prompt.
 - **Not done yet:**
   - "Give it to someone else".
   - Moving the routing wording into `jev_questions.go`.
-  - The connected post.
-  - Restart reuse, seen live.
+  - Restart reuse of an answered row, seen live.
+  - "How I decided", seen in the desktop window.
 
 **Behavior:**
 
