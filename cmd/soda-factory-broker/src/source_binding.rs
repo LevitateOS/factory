@@ -431,12 +431,12 @@ impl Context {
     fn create() -> io::Result<Self> {
         state()?;
         let contexts = Path::new(STATE).join("contexts");
-        match DirBuilder::new().mode(0o700).create(&contexts) {
+        match super::traversable_dir(&contexts) {
             Ok(()) => (),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
             Err(error) => return Err(error),
         }
-        private_dir(&contexts, 0o700)?;
+        private_dir(&contexts, super::TRAVERSE)?;
         let mut random = [0u8; 16];
         File::open("/dev/urandom")?.read_exact(&mut random)?;
         let id = random
@@ -444,7 +444,7 @@ impl Context {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let directory = contexts.join(&id);
-        DirBuilder::new().mode(0o700).create(&directory)?;
+        super::traversable_dir(&directory)?;
         Ok(Self {
             id,
             directory,
@@ -456,7 +456,7 @@ impl Context {
             return Ok(());
         }
         manager("stop", "context", &self.id)?;
-        private_dir(&self.directory, 0o700)?;
+        private_dir(&self.directory, super::TRAVERSE)?;
         clear_context(&self.directory)?;
         fs::remove_dir(&self.directory)?;
         self.closed = true;

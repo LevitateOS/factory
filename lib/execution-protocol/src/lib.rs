@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+pub mod host;
 mod muse;
 pub mod workspace;
 pub use muse::{MuseInvocation, MuseMcp, MuseObservation, MAX_MUSE_INPUT, MAX_MUSE_MODEL_STEPS};

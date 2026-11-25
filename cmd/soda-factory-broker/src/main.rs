@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 //! Stages bounded, credential-free Git bundle bytes and asks fixed unprivileged
 //! units to prepare reviewer checkouts. This is not agent execution admission.
 use serde::{Deserialize, Serialize};
@@ -22,8 +22,10 @@ mod source_binding;
 mod task_receipts;
 mod task_workspace;
 
-const SOCKET: &str = "/run/soda-factory/broker.sock";
-const STATE: &str = "/run/soda-factory-broker";
+use soda_execution_protocol::host::BROKER_STATE as STATE;
+fn broker_socket() -> PathBuf {
+    soda_execution_protocol::host::broker_socket()
+}
 const MAX_REQUEST: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
@@ -406,26 +408,24 @@ fn socket(fd: RawFd) -> io::Result<u32> {
     if unsafe { libc::geteuid() } != 0 || unsafe { libc::getuid() } != 0 {
         return Err(denied("broker requires root-owned service"));
     }
+    // systemd sets NoNewPrivileges; a launchd root daemon has no further
+    // privilege to gain, so macOS has no matching check.
+    #[cfg(target_os = "linux")]
     if unsafe { libc::prctl(libc::PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) } != 1 {
         return Err(denied("broker can gain privileges"));
     }
-    let parent = Path::new(SOCKET).parent().expect("fixed socket path");
+    let socket_path = broker_socket();
+    let parent = socket_path.parent().expect("fixed socket path");
     let parent_meta = parent.symlink_metadata()?;
     if !parent_meta.is_dir() || parent_meta.uid() != 0 || parent_meta.mode() & 0o7777 != 0o755 {
         return Err(denied("broker socket parent invalid"));
     }
-    let socket_meta = Path::new(SOCKET).symlink_metadata()?;
+    let socket_meta = socket_path.symlink_metadata()?;
     if !socket_meta.file_type().is_socket() || socket_meta.mode() & 0o7777 != 0o600 {
         return Err(denied("broker socket permissions invalid"));
     }
     let mut kind = 0;
     let mut kind_len = std::mem::size_of_val(&kind) as libc::socklen_t;
-    let mut peer = libc::ucred {
-        pid: 0,
-        uid: 0,
-        gid: 0,
-    };
-    let mut peer_len = std::mem::size_of_val(&peer) as libc::socklen_t;
     let timeout = libc::timeval {
         tv_sec: 3,
         tv_usec: 0,
@@ -439,13 +439,6 @@ fn socket(fd: RawFd) -> io::Result<u32> {
             (&mut kind as *mut i32).cast(),
             &mut kind_len,
         ) == 0
-            && libc::getsockopt(
-                fd,
-                libc::SOL_SOCKET,
-                libc::SO_PEERCRED,
-                (&mut peer as *mut libc::ucred).cast(),
-                &mut peer_len,
-            ) == 0
             && libc::setsockopt(
                 fd,
                 libc::SOL_SOCKET,
@@ -461,49 +454,99 @@ fn socket(fd: RawFd) -> io::Result<u32> {
                 std::mem::size_of_val(&timeout) as libc::socklen_t,
             ) == 0
     };
+    let peer = peer(fd);
     if !valid
         || kind_len as usize != std::mem::size_of_val(&kind)
-        || peer_len as usize != std::mem::size_of_val(&peer)
         || kind != libc::SOCK_STREAM
-        || peer.pid <= 0
-        || peer.uid == 0
-        || peer.uid != socket_meta.uid()
+        || !peer.is_some_and(|(pid, uid)| pid > 0 && uid != 0 && uid == socket_meta.uid())
     {
         return Err(denied("broker peer admission failed"));
     }
-    Ok(peer.uid)
+    Ok(peer.map(|(_, uid)| uid).unwrap_or_default())
+}
+
+/// Kernel-attested peer process and user of a connected Unix stream.
+#[cfg(target_os = "linux")]
+fn peer(fd: RawFd) -> Option<(i32, u32)> {
+    let mut peer = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut length = std::mem::size_of_val(&peer) as libc::socklen_t;
+    let read = unsafe {
+        libc::getsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            (&mut peer as *mut libc::ucred).cast(),
+            &mut length,
+        )
+    };
+    (read == 0 && length as usize == std::mem::size_of_val(&peer)).then_some((peer.pid, peer.uid))
+}
+#[cfg(target_os = "macos")]
+fn peer(fd: RawFd) -> Option<(i32, u32)> {
+    let mut uid = 0;
+    let mut gid = 0;
+    let mut pid: libc::pid_t = 0;
+    let mut length = std::mem::size_of_val(&pid) as libc::socklen_t;
+    let read = unsafe {
+        libc::getpeereid(fd, &mut uid, &mut gid) == 0
+            && libc::getsockopt(
+                fd,
+                libc::SOL_LOCAL,
+                libc::LOCAL_PEERPID,
+                (&mut pid as *mut libc::pid_t).cast(),
+                &mut length,
+            ) == 0
+    };
+    (read && length as usize == std::mem::size_of_val(&pid)).then_some((pid, uid))
 }
 
 fn state() -> io::Result<PathBuf> {
+    // systemd supplies the runtime directory; launchd does not, so the macOS
+    // broker creates its own root-owned state under /private/var/run.
+    #[cfg(target_os = "linux")]
     if std::env::var_os("RUNTIME_DIRECTORY").as_deref() != Some(std::ffi::OsStr::new(STATE)) {
         return Err(denied("broker runtime directory missing"));
     }
     let state = PathBuf::from(STATE);
-    private_dir(&state, 0o700)?;
+    #[cfg(target_os = "macos")]
+    match DirBuilder::new().mode(TRAVERSE).create(&state) {
+        Ok(()) => fs::set_permissions(&state, fs::Permissions::from_mode(TRAVERSE))?,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+        Err(error) => return Err(error),
+    }
+    private_dir(&state, TRAVERSE)?;
     let runs = state.join("runs");
     if !runs.exists() {
-        match DirBuilder::new().mode(0o700).create(&runs) {
-            Ok(()) => (),
+        match DirBuilder::new().mode(TRAVERSE).create(&runs) {
+            Ok(()) => fs::set_permissions(&runs, fs::Permissions::from_mode(TRAVERSE))?,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
             Err(error) => return Err(error),
         }
     }
-    private_dir(&runs, 0o700)?;
+    private_dir(&runs, TRAVERSE)?;
     let preparations = state.join("preparations");
     if !preparations.exists() {
-        match DirBuilder::new().mode(0o700).create(&preparations) {
-            Ok(()) => (),
+        match DirBuilder::new().mode(TRAVERSE).create(&preparations) {
+            Ok(()) => fs::set_permissions(&preparations, fs::Permissions::from_mode(TRAVERSE))?,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
             Err(error) => return Err(error),
         }
     }
-    private_dir(&preparations, 0o700)?;
+    private_dir(&preparations, TRAVERSE)?;
     Ok(runs)
+}
+
+/// Mode of broker directories that isolated units must pass through.
+const TRAVERSE: u32 = soda_execution_protocol::host::TRAVERSE_MODE;
+/// Create a new root directory with `TRAVERSE`, independent of the umask.
+fn traversable_dir(path: &Path) -> io::Result<()> {
+    DirBuilder::new().mode(0o700).create(path)?;
+    fs::set_permissions(path, fs::Permissions::from_mode(TRAVERSE))
 }
 
 fn preparations() -> io::Result<PathBuf> {
     let directory = Path::new(STATE).join("preparations");
-    private_dir(&directory, 0o700)?;
+    private_dir(&directory, TRAVERSE)?;
     Ok(directory)
 }
 
@@ -855,7 +898,7 @@ fn stop_reviewer(run: &str) -> io::Result<()> {
 }
 
 fn relay_runtime(run: &str) -> PathBuf {
-    Path::new("/run/soda-factory-relay").join(run)
+    Path::new(soda_execution_protocol::host::RELAY_RUNTIME).join(run)
 }
 
 fn stop_relay(run: &str) -> io::Result<()> {
@@ -889,11 +932,11 @@ fn stop_agent(run: &str, directory: &Path) -> io::Result<()> {
     }
     manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
     manager_unit("stop", &format!("soda-factory-agent@{run}.service"))?;
-    let socket = Path::new("/run/soda-factory/agents").join(format!("{run}.sock"));
+    let socket = soda_execution_protocol::host::agent_socket(run);
     if socket.exists() {
         return Err(denied("agent socket survived stop"));
     }
-    let runtime = Path::new("/run/soda-factory-agent").join(run);
+    let runtime = Path::new(soda_execution_protocol::host::AGENT_RUNTIME).join(run);
     if runtime.exists() {
         return Err(denied("agent runtime survived stop"));
     }
@@ -903,7 +946,7 @@ fn stop_agent(run: &str, directory: &Path) -> io::Result<()> {
 fn preparation_run(preparations: &Path, run: &str) -> io::Result<Option<PathBuf>> {
     let directory = preparations.join(run);
     match directory.symlink_metadata() {
-        Ok(_) => private_dir(&directory, 0o700).map(|()| Some(directory)),
+        Ok(_) => private_dir(&directory, TRAVERSE).map(|()| Some(directory)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
@@ -950,12 +993,20 @@ fn prepared_checkout(directory: &Path) -> io::Result<()> {
 }
 
 fn runtime_capacity(extra: u64) -> io::Result<()> {
+    // Linux keeps run state on the memory-backed /run; macOS keeps it on the
+    // system volume's /private/var/run and bounds it by the same reserve.
+    #[cfg(target_os = "linux")]
     let path = c"/run";
-    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
-    if unsafe { libc::statfs(path.as_ptr(), filesystem.as_mut_ptr()) } != 0
-        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
+    #[cfg(target_os = "macos")]
+    let path = c"/private/var/run";
+    #[cfg(target_os = "linux")]
     {
-        return Err(denied("broker runtime filesystem is not tmpfs"));
+        let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+        if unsafe { libc::statfs(path.as_ptr(), filesystem.as_mut_ptr()) } != 0
+            || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
+        {
+            return Err(denied("broker runtime filesystem is not tmpfs"));
+        }
     }
     let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
     if unsafe { libc::statvfs(path.as_ptr(), space.as_mut_ptr()) } != 0 {
@@ -1044,7 +1095,7 @@ fn prepare(
     let reserved = preparation_quota::capacity(&preparations, MAX_PREPARATION_CHARGE)?;
     runtime_capacity(reserved + MAX_PREPARATION_CHARGE)?;
     let directory = preparations.join(run);
-    DirBuilder::new().mode(0o700).create(&directory)?;
+    traversable_dir(&directory)?;
     let output = directory.join("output");
     DirBuilder::new().mode(0o700).create(&output)?;
     let mut file = OpenOptions::new()
@@ -1351,7 +1402,7 @@ fn arm_agent(
         } else {
             manager_unit("start", &unit)?;
         }
-        let socket = Path::new("/run/soda-factory/agents").join(format!("{run}.sock"));
+        let socket = soda_execution_protocol::host::agent_socket(run);
         let parent = socket.parent().expect("fixed agent socket parent");
         private_dir(parent, 0o755)?;
         let metadata = socket.symlink_metadata()?;
@@ -1407,7 +1458,7 @@ fn attest_agent(
         prompt_sha256,
         true,
     )?;
-    let socket = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
+    let socket = soda_execution_protocol::host::agent_socket(run);
     let metadata = socket.symlink_metadata()?;
     if !metadata.file_type().is_socket() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o600
     {
@@ -1620,8 +1671,8 @@ fn execute_agent<R: Read, W: Write>(
     };
     let directory = PathBuf::from(STATE).join("preparations").join(run);
     let result = (|| {
-        private_dir(&directory, 0o700)?;
-        let path = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
+        private_dir(&directory, TRAVERSE)?;
+        let path = soda_execution_protocol::host::agent_socket(run);
         let mut worker = UnixStream::connect(&path)?;
         worker.set_read_timeout(Some(agent_start_time(run)?))?;
         worker.set_write_timeout(Some(Duration::from_secs(120)))?;
@@ -1807,8 +1858,8 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     agent_stopped?;
     relay_stopped?;
     for path in [
-        PathBuf::from(format!("/run/soda-factory/agents/{run}.sock")),
-        Path::new("/run/soda-factory-agent").join(run),
+        soda_execution_protocol::host::agent_socket(run),
+        Path::new(soda_execution_protocol::host::AGENT_RUNTIME).join(run),
     ] {
         match path.symlink_metadata() {
             Err(error) if error.kind() == io::ErrorKind::NotFound => (),

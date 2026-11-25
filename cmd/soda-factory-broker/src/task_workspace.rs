@@ -56,7 +56,7 @@ pub(super) fn serve<R: Read, W: Write>(
     )?;
     let directory = PathBuf::from(STATE).join("preparations").join(run);
     let result = (|| {
-        let path = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
+        let path = soda_execution_protocol::host::agent_socket(run);
         let mut worker = UnixStream::connect(&path)?;
         worker.set_read_timeout(Some(agent_start_time(run)?))?;
         worker.set_write_timeout(Some(Duration::from_secs(3)))?;
