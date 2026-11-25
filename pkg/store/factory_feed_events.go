@@ -61,6 +61,7 @@ var factoryFeedEvents = []string{
 	"F10", // application outcomes verified
 	"F11", // design decision recorded
 	"F12", // coder-time allowance exhausted
+	"F13", // assumption challenge waiting for the person
 }
 
 // NoteAllowanceExhausted records one durable allowance-exhausted notice for
@@ -151,7 +152,7 @@ func EventState(status string) factory.FeedState {
 		"intent:rejected", "allowance:exhausted",
 		"publication:failed", "publication:fenced", "publication:withdrawn":
 		return factory.FeedStateProblem
-	case "run:needs-human":
+	case "run:needs-human", "assumption:open":
 		return factory.FeedStateNeedsYou
 	case "preparation:waiting", "verification:waiting", "dispatch:paused":
 		return factory.FeedStateWaiting
@@ -161,7 +162,7 @@ func EventState(status string) factory.FeedState {
 		"plan:recorded", "takeover:copied", "dependency:released",
 		"native_issue:created", "native_pr:created":
 		return factory.FeedStateDone
-	case "intent:declined":
+	case "intent:declined", "assumption:answered":
 		return factory.FeedStateDecided
 	default:
 		return factory.FeedStateInfo

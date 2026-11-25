@@ -53,6 +53,9 @@ func (s *Store) SaveIntentRevisionWithReview(ctx context.Context, r factory.Inte
 	if !same {
 		return ErrCommandConflict
 	}
+	if err := recordAssumptionChallengesTx(ctx, tx, r, review.Challenges); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

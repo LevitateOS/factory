@@ -350,10 +350,11 @@ func judgmentState(judgment *factory.FeedJudgment) factory.FeedState {
 
 // feedNeedsYouSQL is the one definition of what waits for the person in a
 // repository, selecting one row per waiting item: an open ask (a live
-// question with no feedReplySQL reply, the feed's "open" question state) and
-// a delivery judgment whose effective action is outside deliveryCarriedOn
-// (judgmentState's needs_you). repository is the SQL expression for the
-// repository key; carried is the placeholder bound to deliveryCarriedOn.
+// question with no feedReplySQL reply, the feed's "open" question state), a
+// delivery judgment whose effective action is outside deliveryCarriedOn
+// (judgmentState's needs_you) and an open assumption challenge
+// (feedAssumptionSQL). repository is the SQL expression for the repository
+// key; carried is the placeholder bound to deliveryCarriedOn.
 func feedNeedsYouSQL(repository, carried string) string {
 	return `SELECT p.id FROM factory_feed_posts p WHERE p.repository=` + repository + `
  AND p.data->'communication'->>'kind'='ask'
@@ -363,7 +364,10 @@ func feedNeedsYouSQL(repository, carried string) string {
  JOIN factory_publications pub ON (pub.data->>'id')=(j.data->'input'->>'publication_id')
  JOIN factory_assignments a ON a.id=pub.assignment
  WHERE a.repository=` + repository + ` AND j.data->>'kind'='` + factory.DeliveryReceiptKind + `'
- AND NOT (COALESCE(j.data->'decision'->>'effective','') = ANY(` + carried + `))`
+ AND NOT (COALESCE(j.data->'decision'->>'effective','') = ANY(` + carried + `))
+ UNION ALL SELECT p.id FROM factory_feed_posts p WHERE p.repository=` + repository + `
+ AND NOT COALESCE((p.data->>'deleted')::boolean,false) AND NOT COALESCE((p.data->>'revoked')::boolean,false)
+ AND ` + feedAssumptionOpenSQL("p")
 }
 
 // feedPayloadCap bounds one previewed list inside a typed payload;

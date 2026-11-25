@@ -32,8 +32,11 @@ func MCPIsCommunication(tool MCPTool) bool {
 // FeedCommunication carries content only. Attribution, repository, issue, run,
 // assignment and time come from the authenticated capability and stored work.
 type FeedCommunication struct {
-	IntentSource    *FeedIntentSource  `json:"intent_source,omitempty"`
-	PlanSource      *FeedPlanSource    `json:"plan_source,omitempty"`
+	IntentSource *FeedIntentSource `json:"intent_source,omitempty"`
+	PlanSource   *FeedPlanSource   `json:"plan_source,omitempty"`
+	// Assumption is a server-written assumption challenge (F13); its served
+	// state comes from the build request head, never from a worker.
+	Assumption      *FeedAssumption    `json:"assumption,omitempty"`
 	Commits         []FeedCommit       `json:"commits,omitempty"`
 	Source          *FeedSourceExcerpt `json:"source,omitempty"`
 	LibraryItemID   string             `json:"library_item_id,omitempty"`
@@ -81,6 +84,26 @@ type FeedIntentSource struct {
 	Predecessor string `json:"predecessor,omitempty"`
 	State       string `json:"state"`
 	Owner       int64  `json:"owner,string"`
+}
+
+// FeedAssumption is one recorded assumption challenge: the assumed behaviour,
+// its consequence and the recommended resolution for one idea of a build
+// request. Intent, Idea and the texts are stored with the event. State,
+// Decision and Correction are served from the request head on every read:
+// open while the head is a draft and the idea is still pending, answered once
+// the head records a decision, closed when the question no longer applies.
+// Answering goes through the ordinary build request save; this record grants
+// no authority.
+type FeedAssumption struct {
+	Intent         string `json:"intent"`
+	Idea           string `json:"idea"`
+	Owner          int64  `json:"owner,string"`
+	Assumption     string `json:"assumption"`
+	Consequence    string `json:"consequence"`
+	Recommendation string `json:"recommendation"`
+	State          string `json:"state,omitempty"`
+	Decision       string `json:"decision,omitempty"`
+	Correction     string `json:"correction,omitempty"`
 }
 
 // FeedPlanSource identifies the immutable native plan revision, separately
@@ -138,7 +161,7 @@ func DecodeMCPCommunication(tool MCPTool, payload []byte) (FeedCommunication, er
 			return out, errors.New("post resolution comes from its recorded disposition")
 		}
 	}
-	for _, field := range []string{"library_item_id", "library_revision", "intent_source", "plan_source"} {
+	for _, field := range []string{"library_item_id", "library_revision", "intent_source", "plan_source", "assumption"} {
 		if _, exists := fields[field]; exists {
 			return out, errors.New("canonical source references are assigned by the server")
 		}

@@ -386,6 +386,9 @@ func (s *Store) FeedPost(ctx context.Context, id string) (FeedPostDetail, error)
 		if err := s.feedPostResolutions(ctx, details); err != nil {
 			return FeedPostDetail{}, err
 		}
+		if err := s.feedAssumptionStates(ctx, details); err != nil {
+			return FeedPostDetail{}, err
+		}
 		out = details[out.Record.ID]
 	}
 	return out, nil
@@ -582,6 +585,9 @@ func (s *Store) FeedPostDetails(ctx context.Context, ids []string) (map[string]F
 		return nil, err
 	}
 	if err := s.feedPostResolutions(ctx, out); err != nil {
+		return nil, err
+	}
+	if err := s.feedAssumptionStates(ctx, out); err != nil {
 		return nil, err
 	}
 	return out, nil

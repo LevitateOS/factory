@@ -73,12 +73,17 @@ func TestSaveIntentReviewAtomicallyAndRead(t *testing.T) {
 func TestSaveIntentReviewExactReplay(t *testing.T) {
 	s, _ := postgresFixture(t)
 	ctx := context.Background()
-	const intent, basis, result = "d010000000000000000000000", "d111111111111111111111112", "d222222222222222222222223"
-	if err := s.SaveIntentRevision(ctx, reviewFixtureRevision(basis, intent, "")); err != nil {
+	const intent, basis, result, answer = "d010000000000000000000000", "d111111111111111111111112", "d222222222222222222222223", "d333333333333333333333334"
+	idea := factory.ProductIdea{ID: "d555555555555555555555556", Description: "Everyone on the project may search every library item", Consequence: "Search needs per-person visibility otherwise", Assumption: true, Decision: "pending", Source: "assumption", Provenance: "autonomous", Material: true}
+	base := reviewFixtureRevision(basis, intent, "")
+	base.Repository = 7
+	if err := s.SaveIntentRevision(ctx, base); err != nil {
 		t.Fatal(err)
 	}
 	revision := reviewFixtureRevision(result, intent, basis)
+	revision.Repository, revision.Ideas = 7, []factory.ProductIdea{idea}
 	review := reviewFixtureReview(intent, basis, result)
+	review.Challenges = []factory.AssumptionChallenge{{Idea: idea.ID, Assumption: idea.Description, Consequence: idea.Consequence, Recommendation: factory.RecommendAssumptionResolution(idea)}}
 	if err := s.SaveIntentRevisionWithReview(ctx, revision, review); err != nil {
 		t.Fatal(err)
 	}
@@ -89,6 +94,55 @@ func TestSaveIntentReviewExactReplay(t *testing.T) {
 	if err != nil || reviewJSON(t, stored) != reviewJSON(t, review) {
 		t.Fatalf("replay changed the review: %+v %v", stored, err)
 	}
+	// The challenge is one feed card that waits for the person; answering it
+	// through the ordinary request save (the feed path) records the answer
+	// once, and a retry of the same revision replays without a second record.
+	challenge := func(wantState string, wantWaiting int) {
+		t.Helper()
+		var ids []string
+		rows, err := s.db.QueryContext(ctx, `SELECT id FROM factory_feed_posts WHERE data->>'event_identity'=$1`, "assumption:"+intent+":"+idea.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, id)
+		}
+		if err := rows.Close(); err != nil || len(ids) != 1 {
+			t.Fatalf("challenge cards=%v %v", ids, err)
+		}
+		details, err := s.FeedPostDetails(ctx, ids)
+		card := details[ids[0]].Payload.Communication.Assumption
+		if err != nil || card == nil || card.State != wantState || EventState(details[ids[0]].Status) != map[string]factory.FeedState{"open": factory.FeedStateNeedsYou, "answered": factory.FeedStateDecided}[wantState] {
+			t.Fatalf("challenge served %+v status=%s %v", card, details[ids[0]].Status, err)
+		}
+		var waiting int
+		if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM (`+feedNeedsYouSQL("7", "$1")+`) w`, deliveryCarriedOn).Scan(&waiting); err != nil || waiting != wantWaiting {
+			t.Fatalf("needs you=%d want %d %v", waiting, wantWaiting, err)
+		}
+		attention, _, _, err := s.SubscribedFeed(ctx, factory.FeedQuery{Repositories: []int64{7}, Limit: 10, View: "attention"})
+		if err != nil || (len(attention) == 1) != (wantWaiting == 1) || (wantWaiting == 1 && attention[0].ID != ids[0]) {
+			t.Fatalf("attention view=%+v %v", attention, err)
+		}
+	}
+	challenge("open", 1)
+	answered := revision
+	answered.ID, answered.Predecessor = answer, result
+	answered.Ideas = []factory.ProductIdea{idea}
+	answered.Ideas[0].Decision, answered.Ideas[0].Provenance, answered.Ideas[0].Actor = "accept", "human", 1
+	for range 2 {
+		if err := s.SaveIntentRevision(ctx, answered); err != nil {
+			t.Fatalf("answer save or retry refused: %v", err)
+		}
+	}
+	var revisions int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM factory_intent_revisions WHERE intent=$1`, intent).Scan(&revisions); err != nil || revisions != 3 {
+		t.Fatalf("answer recorded %d revisions: %v", revisions, err)
+	}
+	challenge("answered", 0)
 }
 
 func TestSaveIntentReviewConflictRefuses(t *testing.T) {
