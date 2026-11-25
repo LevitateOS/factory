@@ -199,6 +199,21 @@ impl ExecutionTicket {
         }
         result
     }
+    /// Live captured output of the isolated worker. CLI-provider transcripts
+    /// stay private: only their final answer reaches the product.
+    pub(super) fn output(&self, offset: u64, timeout: Duration) -> io::Result<super::AgentOutputRead> {
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        let result = match self.view()? {
+            AttemptView::Worker(view) => view.output(offset, timeout),
+            AttemptView::Muse(_) => Err(refused("native CLI transcript is private")),
+        };
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        result
+    }
     pub(super) fn inspect_muse(
         &self,
         timeout: Duration,

@@ -24,6 +24,11 @@ pub const OBSERVATION_REQUEST_BYTES: usize = 9;
 pub const OBSERVATION_MARKER: u8 = b'O';
 // Same fixed-size control frame, with eight zero bytes and no new selector.
 pub const CANCELLATION_MARKER: u8 = b'C';
+// Same fixed-size frame; the eight bytes carry the requested output offset.
+// Output reads are read-only and spend their own budget, never liveness queries.
+pub const OUTPUT_MARKER: u8 = b'P';
+pub const MAX_OUTPUT_QUERIES: u64 = 65_536;
+pub const MAX_OUTPUT_READ: usize = 16 * 1024;
 pub const MAX_APPROVED_BYTES: usize = 128 * 1024;
 pub const MAX_SETUP_FRAME: usize = 600 * 1024;
 pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
@@ -611,6 +616,29 @@ pub struct AgentObserved {
     pub version: u8,
     pub sequence: u64,
     pub live: bool,
+}
+
+/// One output read: `length` raw captured bytes from `offset` follow this header.
+/// `total` is what the process has written so far, never a completion claim.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentOutput {
+    pub kind: String,
+    pub version: u8,
+    pub offset: u64,
+    pub length: usize,
+    pub total: u64,
+    pub live: bool,
+}
+impl AgentOutput {
+    pub fn valid(&self, requested: u64) -> bool {
+        self.kind == "agent_output"
+            && self.version == 1
+            && self.offset == requested.min(self.total)
+            && self.length <= MAX_OUTPUT_READ
+            && self.offset + self.length as u64 <= self.total
+            && self.total <= MAX_OUTPUT as u64
+    }
 }
 
 /// What the root broker's restart inspection found for one profile run.

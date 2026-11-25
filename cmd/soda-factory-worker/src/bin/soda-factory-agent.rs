@@ -1066,7 +1066,7 @@ fn serve() -> io::Result<()> {
             duration_ms,
             harness_profile,
         } => {
-            if version != 3
+            if version != 4
                 || run != args[1]
                 || requested_profile != profile
                 || requested_candidate != candidate

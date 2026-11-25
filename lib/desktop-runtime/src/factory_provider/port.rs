@@ -77,6 +77,10 @@ pub(crate) enum Call {
     Cancel {
         intent: String,
     },
+    Output {
+        intent: String,
+        offset: u64,
+    },
     InspectTool {
         harness: String,
     },
@@ -295,6 +299,11 @@ pub(crate) async fn call(
             }
             return serde_json::to_value(selected).map_err(io::Error::other);
         }
+        Call::Output { intent, offset } => {
+            return tokio::task::spawn_blocking(move || output(&executions, &alive, &intent, offset))
+                .await
+                .map_err(|_| io::Error::other("native output read failed"))?;
+        }
         Call::Inspect { intent } => (intent, false),
         Call::Cancel { intent } => (intent, true),
     };
@@ -303,6 +312,41 @@ pub(crate) async fn call(
     tokio::task::spawn_blocking(move || snapshot(&executions, &alive, &intent, cancel))
         .await
         .map_err(|_| io::Error::other("native execution observation failed"))?
+}
+
+// Read-only and bounded: the live process answers from its capture with its own
+// budget; a settled run answers from its retained receipt. No lifetime effect.
+fn output(executions: &Mutex<Executions>, alive: &AtomicBool, raw: &str, offset: u64) -> io::Result<Value> {
+    use base64::Engine;
+    let intent = LaunchIntent::from_go(raw)?;
+    if intent.muse_login() {
+        return Err(io::Error::other("native CLI transcript is private"));
+    }
+    let binding = ExecutionBinding::from_intent(&intent)?;
+    let (ticket, outcome) = {
+        let mut executions = executions
+            .lock()
+            .map_err(|_| io::Error::other("native registry unavailable"))?;
+        if !alive.load(Ordering::SeqCst) {
+            return Err(io::Error::other("native owner retired"));
+        }
+        (executions.ticket(&binding)?, executions.outcome(&binding)?)
+    };
+    let (read, terminal) = match &outcome {
+        ExecutionOutcome::Complete(result, _) => {
+            let total = result.output.len();
+            let start = (offset as usize).min(total);
+            let end = start + soda_execution_protocol::MAX_OUTPUT_READ.min(total - start);
+            (super::AgentOutputRead { offset: start as u64, total: total as u64, bytes: result.output[start..end].to_vec(), live: false }, Some(result))
+        }
+        _ => (ticket.output(offset, Duration::from_secs(2))?, None),
+    };
+    if !alive.load(Ordering::SeqCst) {
+        return Err(io::Error::other("native owner retired"));
+    }
+    Ok(json!({"intent_digest":intent.digest(),"offset":read.offset,"total":read.total,
+        "data":base64::engine::general_purpose::STANDARD.encode(&read.bytes),"live":read.live,"terminal":terminal.is_some(),
+        "reason":terminal.map(|result| result.reason.as_str()),"exit_code":terminal.and_then(|result| result.exit_code)}))
 }
 
 fn task_binding(

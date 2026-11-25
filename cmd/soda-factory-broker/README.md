@@ -455,6 +455,15 @@ captured for that child at launch. No new socket, worker-selected process addres
 or cross-UID host `/proc` access is introduced. EOF still cancels the worker;
 malformed or lost observations refuse. A complete terminal frame remains a
 separate proof, and does not settle the Go ledger or confirm credential release.
+
+Version 4 adds read-only output reads on that connection: `P` followed by a
+little-endian u64 byte offset. The worker answers with an `agent_output`
+version-1 header (`offset`, `length`, `total`, `live`) followed by at most
+16 KiB of captured terminal bytes. Reads have their own budget of 65,536 and
+share the one-in-flight rule with process queries; the broker validates the
+header against the pending offset before forwarding header and bytes. A read
+never changes process lifetime. Version-3 services refuse version-4 launches,
+so a mismatched installation fails before work starts rather than mid-run.
 A disposable actual-service check on 2026-11-05 received the event before a
 three-second credential-free child exited, matched the terminal identity, and
 stopped a second run after observer refusal. Both agent and relay units were

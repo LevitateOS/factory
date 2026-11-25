@@ -6,10 +6,10 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::workspace::Status;
 use soda_execution_protocol::{
-    AgentExecution as AgentExecuted, AgentExpectation, AgentObserved,
+    AgentExecution as AgentExecuted, AgentExpectation, AgentObserved, AgentOutput,
     AgentStarted as AgentStartedReply, CandidateState, ProfileRunState, StopReason, MAX_EXECUTABLE,
     MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
-    MAX_START_REPLY,
+    MAX_OUTPUT_READ, MAX_START_REPLY,
 };
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
@@ -1498,7 +1498,7 @@ impl Broker {
         stream.set_read_timeout(Some(duration + Duration::from_secs(180)))?;
         let _watch = AgentWatch::watch(&stream, cancellation.clone(), Some(observer.clone()))?;
         let request = serde_json::to_vec(&json!({
-            "kind":"execute_agent","version":3,"run":run,"profile":profile,
+            "kind":"execute_agent","version":4,"run":run,"profile":profile,
             "sha256":sha256,"candidate":candidate,"role":role.as_str(),
             "tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,
             "executable_length":metadata.len(),"prompt_length":prompt.len(),
@@ -1558,6 +1558,16 @@ impl Broker {
             let mut bytes = vec![0u8; length];
             stream.read_exact(&mut bytes)?;
             let value: Value = serde_json::from_slice(&bytes)?;
+            if value["kind"] == "agent_output" {
+                let reply: AgentOutput = serde_json::from_slice(&bytes)?;
+                if reply.length > MAX_OUTPUT_READ {
+                    return Err(refused("agent output reply invalid"));
+                }
+                let mut read = vec![0u8; reply.length];
+                stream.read_exact(&mut read)?;
+                observation.deliver_output(&reply, read)?;
+                continue;
+            }
             if value["kind"] != "agent_observed" {
                 break bytes;
             }

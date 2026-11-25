@@ -194,7 +194,7 @@ pub(super) fn run(
     } else {
         Err(Error::Spawn)
     }));
-    let mut bytes = Vec::new();
+    let mut length = 0usize;
     let mut buffer = [0u8; 16384];
     let mut eof = false;
     let mut exit = None;
@@ -223,8 +223,13 @@ pub(super) fn run(
                 unsafe { libc::read(master.as_raw_fd(), buffer.as_mut_ptr().cast(), buffer.len()) };
             if n > 0 {
                 let n = n as usize;
-                let keep = n.min(input.limits.output_bytes.saturating_sub(bytes.len()));
-                bytes.extend_from_slice(&buffer[..keep]);
+                let keep = n.min(input.limits.output_bytes.saturating_sub(length));
+                shared
+                    .captured
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .extend_from_slice(&buffer[..keep]);
+                length += keep;
                 if keep < n {
                     reason.get_or_insert(StopReason::OutputLimit);
                     break;
@@ -287,7 +292,7 @@ pub(super) fn run(
         {
             let mut state = shared.observation.lock().unwrap_or_else(|e| e.into_inner());
             state.exit = exit;
-            state.output_bytes = bytes.len();
+            state.output_bytes = length;
             state.reason = reason;
         }
         std::thread::sleep(Duration::from_millis(10));
@@ -299,6 +304,8 @@ pub(super) fn run(
         .flatten();
     // Slow artifact I/O starts only after the bounded child/tree control pass.
     // The owner still joins this work; no output write holds a live child owner.
+    // Live readers keep the same bytes until the owner drops this process.
+    let bytes = shared.captured.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let output_complete = output
         .write_all(&bytes)
         .and_then(|_| output.sync_all())

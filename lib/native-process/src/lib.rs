@@ -125,6 +125,8 @@ pub struct Observation {
 }
 struct Shared {
     observation: Mutex<Observation>,
+    // The bounded terminal capture, readable while the process runs.
+    captured: Mutex<Vec<u8>>,
     pidfd: Mutex<Option<File>>,
     cancelled: AtomicBool,
     done: Condvar,
@@ -170,6 +172,19 @@ impl Process {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
+    }
+    /// Read-only copy of captured terminal bytes from `offset`, at most `limit`
+    /// bytes, with the total captured so far. The sealed artifact stays the
+    /// receipt; this grants no input, signal or lifetime authority.
+    pub fn read_output(&self, offset: usize, limit: usize) -> (Vec<u8>, usize) {
+        let captured = self
+            .shared
+            .captured
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let start = offset.min(captured.len());
+        let end = start + limit.min(captured.len() - start);
+        (captured[start..end].to_vec(), captured.len())
     }
     pub fn cancel(&self) {
         self.shared.cancelled.store(true, Ordering::SeqCst);
@@ -305,6 +320,7 @@ impl Processes {
         let scope = self.scopes.create(&invocation, &input.limits)?;
         let shared = Arc::new(Shared {
             pidfd: Mutex::new(None),
+            captured: Mutex::new(Vec::new()),
             observation: Mutex::new(Observation {
                 invocation,
                 system_instance: process::system_instance()?,

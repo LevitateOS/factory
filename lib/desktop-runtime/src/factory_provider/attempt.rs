@@ -61,6 +61,11 @@ impl RunView {
         self.observer.inspect(timeout)
     }
 
+    /// Read captured output with its own query budget; never changes lifetime.
+    pub fn output(&self, offset: u64, timeout: Duration) -> io::Result<super::AgentOutputRead> {
+        self.observer.output(offset, timeout)
+    }
+
     pub fn observe(&self) -> AttemptObservation {
         self.shared
             .observation

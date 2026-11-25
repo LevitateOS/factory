@@ -1681,11 +1681,14 @@ fn execute_agent<R: Read, W: Write>(
             }
             let mut bytes = vec![0u8; length];
             read_worker(&mut worker, &mut bytes, deadline, &mut queries)?;
-            if !queries.accept(&bytes)? {
+            let Some(trailing) = queries.accept(&bytes)? else {
                 break bytes;
-            }
+            };
+            let mut body = vec![0u8; trailing];
+            read_worker(&mut worker, &mut body, deadline, &mut queries)?;
             output.write_all(&(bytes.len() as u32).to_le_bytes())?;
             output.write_all(&bytes)?;
+            output.write_all(&body)?;
             output.flush()?;
         };
         let reply: AgentExecutionReply = serde_json::from_slice(&bytes)
@@ -3062,7 +3065,7 @@ fn serve() -> io::Result<()> {
             harness_profile,
         } => {
             if !harness_profile.valid()
-                || version != 3
+                || version != 4
                 || !id(&run, 32)
                 || !id(&profile, 32)
                 || !id(&sha256, 64)
@@ -3079,7 +3082,7 @@ fn serve() -> io::Result<()> {
             }
             let worker_request = AgentExecutionRequest {
                 kind: "execute_agent",
-                version: 3,
+                version: 4,
                 run: &run,
                 profile: &profile,
                 candidate: &candidate,
