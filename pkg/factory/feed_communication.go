@@ -93,6 +93,10 @@ type PostRequest struct {
 	SourceKind     string `json:"-"`
 	SourceID       string `json:"-"`
 	IdempotencyKey string `json:"idempotency_key"`
+	// Answer is a typed answer to the parent ask. The caller sends no body:
+	// the store checks the answer against the ask's form and records its
+	// plain-text rendering as the body.
+	Answer *FeedQuestionAnswer `json:"answer,omitempty"`
 }
 
 // Validate admits one comment request with its scope, bounded body and
@@ -101,8 +105,11 @@ func (r PostRequest) Validate() error {
 	if r.Repository <= 0 {
 		return errors.New("comment needs its repository scope")
 	}
-	body := strings.TrimSpace(r.Body)
-	if body == "" || utf8.RuneCountInString(r.Body) > PostBodyLimit {
+	if r.Answer != nil {
+		if r.Body != "" || r.ParentID == "" {
+			return errors.New("a typed answer names its question and carries no body")
+		}
+	} else if body := strings.TrimSpace(r.Body); body == "" || utf8.RuneCountInString(r.Body) > PostBodyLimit {
 		return errors.New("comment needs its bounded body")
 	}
 	if r.Issue < 0 {

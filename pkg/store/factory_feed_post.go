@@ -33,12 +33,15 @@ type FeedPostDetail struct {
 	Assignment    string
 	EventIdentity string
 	Payload       *factory.FeedPayload
-	Record        factory.PostRecord
-	Body          string
-	AuthorName    string
-	At            int64
-	Status        string
-	Source        *factory.PostSource
+	// Answer is the typed answer a reply recorded to its ask; Body holds its
+	// plain-text rendering.
+	Answer     *factory.FeedQuestionAnswer
+	Record     factory.PostRecord
+	Body       string
+	AuthorName string
+	At         int64
+	Status     string
+	Source     *factory.PostSource
 }
 
 var ErrInvalidPostDraft = errors.New("invalid issue draft")
@@ -160,10 +163,6 @@ func (s *Store) SaveFeedPostWithSource(ctx context.Context, req factory.PostRequ
 	if author == "" || at <= 0 {
 		return "", 0, errors.New("comment needs its author and time")
 	}
-	var id [16]byte
-	if _, err := rand.Read(id[:]); err != nil {
-		return "", 0, err
-	}
 	fields := map[string]any{
 		"issue": req.Issue, "parent_id": req.ParentID, "edited": false,
 		"deleted": false, "revoked": false, "at": at, "author_name": authorName,
@@ -171,11 +170,17 @@ func (s *Store) SaveFeedPostWithSource(ctx context.Context, req factory.PostRequ
 	if source != nil {
 		fields["source"] = source
 	}
+	if req.Answer != nil {
+		return s.saveQuestionAnswer(ctx, req, author, fields)
+	}
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return "", 0, err
 	}
-	postID := hex.EncodeToString(id[:])
+	postID, err := newFeedPostID()
+	if err != nil {
+		return "", 0, err
+	}
 	result, err := s.db.ExecContext(ctx, `INSERT INTO factory_feed_posts(id,repository,revision,author,body,idempotency,data)
 		VALUES($1,$2,0,$3,$4,$5,$6) ON CONFLICT(repository,author,idempotency) DO NOTHING`,
 		postID, req.Repository, author, req.Body, req.IdempotencyKey, string(data))
@@ -188,6 +193,14 @@ func (s *Store) SaveFeedPostWithSource(ctx context.Context, req factory.PostRequ
 		return postID, 0, nil
 	}
 	return s.FeedPostSubmission(ctx, req.Repository, author, req.IdempotencyKey)
+}
+
+func newFeedPostID() (string, error) {
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(id[:]), nil
 }
 
 // FeedPostSubmission recovers the existing command's current identity and

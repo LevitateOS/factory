@@ -43,6 +43,10 @@ type FeedCommunication struct {
 	LibraryRevision int64              `json:"library_revision,omitempty"`
 	Artifacts       []FeedArtifact     `json:"artifacts,omitempty"`
 	QuestionState   string             `json:"question_state,omitempty"`
+	// AnswerForm is an ask's declared answer shape (feed_question.go);
+	// Answered is served from its first live typed answer reply.
+	AnswerForm *FeedQuestionForm     `json:"answer_form,omitempty"`
+	Answered   *FeedQuestionAnswered `json:"answered,omitempty"`
 	// Disposition and DispositionReason are server-assigned from the
 	// recorded disposition beside the post; worker payloads carrying
 	// them refuse like question_state.
@@ -155,6 +159,9 @@ func DecodeMCPCommunication(tool MCPTool, payload []byte) (FeedCommunication, er
 	}
 	if _, exists := fields["question_state"]; exists {
 		return out, errors.New("question state comes from recorded replies")
+	}
+	if _, exists := fields["answered"]; exists {
+		return out, errors.New("a question's answer comes from its recorded reply")
 	}
 	for _, field := range []string{"disposition", "disposition_reason"} {
 		if _, exists := fields[field]; exists {
@@ -302,6 +309,17 @@ func (c FeedCommunication) Validate() error {
 			return fmt.Errorf("%s needs %s", c.Kind, field)
 		}
 		return nil
+	}
+	if c.AnswerForm != nil {
+		if c.Kind != "ask" {
+			return errors.New("only ask declares an answer form")
+		}
+		if len(c.Options) > 0 {
+			return errors.New("a typed question carries its options in answer_form")
+		}
+		if err := c.AnswerForm.Validate(); err != nil {
+			return err
+		}
 	}
 	switch c.Kind {
 	case "ask":

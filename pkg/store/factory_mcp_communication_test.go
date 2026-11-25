@@ -393,6 +393,67 @@ func TestMCPCommunicationPersistsFeedAndReplay(t *testing.T) {
 	if err != nil || question.Payload.Communication.QuestionState != "answered" {
 		t.Fatalf("explicit answer not reflected: %+v %v", question, err)
 	}
+	// A typed question: the form is strict, the answer is checked against
+	// it, replays by key, and serves as data plus its plain-text body.
+	for _, refused := range []string{
+		`{"kind":"pick_one","options":[{"id":"a","label":"Only"}]}`,
+		`{"kind":"pick_one","options":[{"id":"a","label":"A"},{"id":"a","label":"B"}]}`,
+		`{"kind":"pick_one","options":[{"id":"a","label":"<b>A</b>"},{"id":"b","label":"B"}]}`,
+		`{"kind":"score","low":0,"high":11}`,
+		`{"kind":"slider","low":0,"high":5}`,
+		`{"kind":"yes_no","label":"stray"}`,
+	} {
+		bad := testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Typed","summary":"Typed form","question":"Which?","answer_form":`+refused+`}`))
+		if _, err := s.RecordWorkerPost(ctx, bad); err == nil {
+			t.Fatalf("invalid answer form admitted: %s", refused)
+		}
+	}
+	typed, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Which plan changes do you accept?","summary":"Three changes are proposed.","question":"Which plan changes do you accept?","answer_form":{"kind":"pick_several","options":[{"id":"split","label":"Split #12"},{"id":"defer","label":"Defer export"},{"id":"drop","label":"Drop search"}],"max_picks":2}}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	answerTo := func(key string, answer factory.FeedQuestionAnswer) (string, error) {
+		id, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 7, ParentID: typed.Record.ID, IdempotencyKey: key, Answer: &answer}, "7", "Owner", 2)
+		return id, err
+	}
+	if _, err := answerTo("typed-mismatch", factory.FeedQuestionAnswer{Kind: factory.QuestionPickSeveral, Choices: []string{"split", "defer", "drop"}}); !errors.Is(err, factory.ErrQuestionAnswerInvalid) {
+		t.Fatalf("answer over max_picks admitted: %v", err)
+	}
+	if _, err := answerTo("typed-kind", factory.FeedQuestionAnswer{Kind: factory.QuestionYesNo, Yes: new(bool)}); !errors.Is(err, factory.ErrQuestionAnswerInvalid) {
+		t.Fatalf("answer of another kind admitted: %v", err)
+	}
+	if _, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 7, ParentID: receipt.Record.ID, IdempotencyKey: "untyped-target", Answer: &factory.FeedQuestionAnswer{Kind: factory.QuestionYesNo, Yes: new(bool)}}, "7", "Owner", 2); !errors.Is(err, factory.ErrQuestionAnswerInvalid) {
+		t.Fatalf("typed answer to a free-text question admitted: %v", err)
+	}
+	reply, err := answerTo("typed-answer", factory.FeedQuestionAnswer{Kind: factory.QuestionPickSeveral, Choices: []string{"drop", "split"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, err := answerTo("typed-answer", factory.FeedQuestionAnswer{Kind: factory.QuestionPickSeveral, Choices: []string{"defer"}}); err != nil || again != reply {
+		t.Fatalf("answer replay=%s err=%v", again, err)
+	}
+	if _, err := answerTo("typed-second", factory.FeedQuestionAnswer{Kind: factory.QuestionPickSeveral, Choices: []string{"defer"}}); !errors.Is(err, ErrQuestionAnswered) {
+		t.Fatalf("second typed answer admitted: %v", err)
+	}
+	question, err = s.FeedPost(ctx, typed.Record.ID)
+	if err != nil || question.Payload.Communication.QuestionState != "answered" || question.Payload.Communication.Answered == nil ||
+		question.Payload.Communication.Answered.Post != reply || question.Payload.Communication.Answered.Text != "Split #12; Drop search" ||
+		strings.Join(question.Payload.Communication.Answered.Answer.Choices, ",") != "split,drop" {
+		t.Fatalf("typed answer not served: %+v %v", question.Payload.Communication, err)
+	}
+	discussion, err := s.MCPDiscussion(ctx, cap, typed.Record.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivered := false
+	for _, message := range discussion.Items {
+		if message.ID == reply {
+			delivered = message.Body == "Split #12; Drop search" && message.Answer != nil && strings.Join(message.Answer.Choices, ",") == "split,drop"
+		}
+	}
+	if !delivered {
+		t.Fatalf("worker did not receive the typed answer and its text: %+v", discussion.Items)
+	}
 	// No model/judgment request is invented for an authored worker report.
 	if _, err = s.PostIntake(ctx, receipt.Record.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("worker communication opened pipeline: %v", err)

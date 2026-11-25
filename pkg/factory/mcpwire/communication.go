@@ -30,6 +30,7 @@ func communicationPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	switch tool {
 	case factory.MCPToolAsk:
 		required = append(required, "question")
+		props["answer_form"] = answerFormSchema()
 	case factory.MCPToolAnswer, factory.MCPToolReply:
 		required = append(required, "parent_id")
 	case factory.MCPToolFlag:
@@ -46,4 +47,25 @@ func communicationPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 		required = append(required, "decision", "rationale")
 	}
 	return &jsonschema.Schema{Type: "object", Properties: props, Required: required, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
+}
+
+// answerFormSchema advertises a typed question's answer shape. The person
+// answers in the feed with native controls; you receive the reply's typed
+// answer and its plain-text body. factory.FeedQuestionForm.Validate enforces
+// the same bounds on every call.
+func answerFormSchema() *jsonschema.Schema {
+	text := func(max int, description string) *jsonschema.Schema {
+		return &jsonschema.Schema{Type: "string", MaxLength: ptrInt(max), Description: description}
+	}
+	return &jsonschema.Schema{Type: "object", Description: "Optional typed answer. Omit it for a free-text answer (the default). Labels are plain text on one line, without markup. pick_one: 2-6 options. yes_no: optional yes_means/no_means. score: integer low..high inside 0..10, optional low_label/high_label. pick_several: 2-8 options, optional min_picks/max_picks. value: label, optional unit, number=true for a number. Do not also send options.", Properties: map[string]*jsonschema.Schema{
+		"kind": {Type: "string", Enum: []any{factory.QuestionPickOne, factory.QuestionYesNo, factory.QuestionScore, factory.QuestionPickSeveral, factory.QuestionValue}},
+		"options": {Type: "array", MinItems: ptrInt(2), MaxItems: ptrInt(8), Items: &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{
+			"id": {Type: "string", Pattern: "^[a-z0-9][a-z0-9_-]{0,31}$"}, "label": text(80, "Option label."), "detail": text(240, "Optional line explaining the option."),
+		}, Required: []string{"id", "label"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}},
+		"min_picks": {Type: "integer"}, "max_picks": {Type: "integer"},
+		"yes_means": text(160, "What a yes leads to."), "no_means": text(160, "What a no leads to."),
+		"low": {Type: "integer"}, "high": {Type: "integer"},
+		"low_label": text(40, "Name of the lowest score."), "high_label": text(40, "Name of the highest score."),
+		"label": text(80, "What the value is."), "unit": text(16, "Optional unit."), "number": {Type: "boolean"},
+	}, Required: []string{"kind"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
 }

@@ -7,19 +7,22 @@ package factory
 // can read the original result/context and its reply target without a
 // separate context helper.
 type MCPFeedMessage struct {
-	ID            string              `json:"id"`
-	ParentID      string              `json:"parent_id,omitempty"`
-	Actor         string              `json:"actor"`
-	Author        string              `json:"author"`
-	At            int64               `json:"at"`
-	Status        string              `json:"status"`
-	Summary       string              `json:"summary"`
-	Body          string              `json:"body,omitempty"`
-	Communication *FeedCommunication  `json:"communication,omitempty"`
-	Consultation  *FeedConsultation   `json:"consultation,omitempty"`
-	Source        *PostSource         `json:"source,omitempty"`
-	Contribution  *ContributionReview `json:"contribution,omitempty"`
-	Omitted       []string            `json:"omitted,omitempty"`
+	ID            string             `json:"id"`
+	ParentID      string             `json:"parent_id,omitempty"`
+	Actor         string             `json:"actor"`
+	Author        string             `json:"author"`
+	At            int64              `json:"at"`
+	Status        string             `json:"status"`
+	Summary       string             `json:"summary"`
+	Body          string             `json:"body,omitempty"`
+	Communication *FeedCommunication `json:"communication,omitempty"`
+	// Answer is a person's typed answer to an ask; Body/Summary carry its
+	// plain-text rendering.
+	Answer       *FeedQuestionAnswer `json:"answer,omitempty"`
+	Consultation *FeedConsultation   `json:"consultation,omitempty"`
+	Source       *PostSource         `json:"source,omitempty"`
+	Contribution *ContributionReview `json:"contribution,omitempty"`
+	Omitted      []string            `json:"omitted,omitempty"`
 }
 
 type MCPFeedPage struct {

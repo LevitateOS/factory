@@ -53,6 +53,8 @@ func (s Feed) submitPost(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 404, "repository_not_found", "Repository is not visible.")
 		case errors.Is(err, factoryservice.ErrPostSourceNotFound):
 			writeError(w, 404, "source_not_found", "The parent post is not visible.")
+		case errors.Is(err, factoryservice.ErrPostQuestionAnswered):
+			writeError(w, 409, "question_answered", "The question already has a recorded answer.")
 		default:
 			writeError(w, 503, "store_unavailable", "Could not save the feed post request.")
 		}

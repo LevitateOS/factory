@@ -29,6 +29,7 @@ var (
 	ErrPostAuthorRequired     = errors.New("only the author can revise this request")
 	ErrPostRetryConflict      = errors.New("post retry conflicts with its recorded state")
 	ErrPostCaptureUnavailable = errors.New("post context capture is unavailable")
+	ErrPostQuestionAnswered   = errors.New("the question already has a recorded answer")
 )
 
 func (s PostCommands) Submit(ctx context.Context, actor collaboration.ActorID, authorName string, req factory.PostRequest) (factory.PostResponse, error) {
@@ -55,6 +56,12 @@ func (s PostCommands) Submit(ctx context.Context, actor collaboration.ActorID, a
 			req.SourceKind, req.SourceID = resolved.Kind, resolved.ID
 		}
 		id, revision, err = s.Posts.Store.SaveFeedPostWithSource(ctx, req, author, authorName, time.Now().Unix(), source)
+	}
+	if errors.Is(err, factory.ErrQuestionAnswerInvalid) {
+		return empty, errors.Join(ErrPostInputInvalid, err)
+	}
+	if errors.Is(err, store.ErrQuestionAnswered) {
+		return empty, ErrPostQuestionAnswered
 	}
 	if err != nil {
 		return empty, err

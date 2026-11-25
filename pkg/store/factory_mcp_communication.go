@@ -168,10 +168,12 @@ func applyFeedCommunicationDetail(detail *FeedPostDetail, raw []byte) error {
 		Contribution  *factory.ContributionReview `json:"contribution"`
 		Source        *factory.PostSource         `json:"source"`
 		Work          *mcpSubmittedWork           `json:"work"`
+		Answer        *factory.FeedQuestionAnswer `json:"answer"`
 	}
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return err
 	}
+	detail.Answer = data.Answer
 	if data.Source != nil {
 		detail.Source = data.Source
 		if detail.Record.ParentID == "" && data.Source.Kind == factory.PostSourcePost {
@@ -228,8 +230,11 @@ func (s *Store) feedQuestionStates(ctx context.Context, details map[string]FeedP
 	// The incorporated flag rides the same derivation: an answer the
 	// worker adopted moves its question past answered without
 	// claiming anything about unrecorded replies.
+	// A typed question's first live typed answer is served with it and
+	// counts as its answer.
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,bool_or(c.data->'communication'->>'kind'='answer'),
- bool_or(c.data->'communication'->>'kind'='answer' AND r.data->'resolution'->>'resolution'='incorporated')
+ bool_or(c.data->'communication'->>'kind'='answer' AND r.data->'resolution'->>'resolution'='incorporated'),
+ (array_agg(jsonb_build_object('post',c.id,'text',c.body,'answer',c.data->'answer') ORDER BY c.seq) FILTER (WHERE c.data ? 'answer'))[1]
  FROM factory_feed_posts p JOIN factory_feed_posts c ON `+feedReplySQL+`
  LEFT JOIN factory_feed_posts r ON r.repository=c.repository AND r.data->'resolution'->>'post'=c.id
  WHERE p.id=ANY($1) GROUP BY p.id`, ids)
@@ -240,11 +245,20 @@ func (s *Store) feedQuestionStates(ctx context.Context, details map[string]FeedP
 	for rows.Next() {
 		var id string
 		var answered, incorporated sql.NullBool
-		if err := rows.Scan(&id, &answered, &incorporated); err != nil {
+		var typed []byte
+		if err := rows.Scan(&id, &answered, &incorporated, &typed); err != nil {
 			return err
 		}
 		detail := details[id]
 		state := "replied"
+		if len(typed) != 0 && detail.Payload.Communication.AnswerForm != nil {
+			var recorded factory.FeedQuestionAnswered
+			if err := json.Unmarshal(typed, &recorded); err != nil {
+				return err
+			}
+			detail.Payload.Communication.Answered = &recorded
+			answered = sql.NullBool{Valid: true, Bool: true}
+		}
 		if answered.Valid && answered.Bool {
 			state = "answered"
 		}
