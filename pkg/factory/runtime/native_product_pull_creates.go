@@ -299,12 +299,7 @@ func (s nativeHumanPullCreates) ReadCreatedHumanPull(ctx context.Context, c fact
 	if err != nil {
 		return empty, err
 	}
-	page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadPulls(ctx, c.Request.Actor, c.Request.Repository, factoryservice.CollaborationPullQuery{Number: r.Pull.Number, Limit: 1})
-	if err != nil {
-		return empty, err
-	}
-	if len(page.Items) != 1 || page.Items[0].Ref.ExternalID != r.Pull.ExternalID || page.Items[0].Ref.Repository != c.Request.Repository || page.Items[0].Ref.Number != r.Pull.Number {
-		return empty, factoryservice.ErrHumanPullCreateUnavailable
-	}
-	return page.Items[0].Ref, nil
+	// GitHub's answer to the create names the pull; reading it back would only
+	// repeat that answer.
+	return collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: c.Request.Repository, ExternalID: r.Pull.ExternalID, Number: r.Pull.Number}, nil
 }

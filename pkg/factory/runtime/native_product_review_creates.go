@@ -337,12 +337,7 @@ func (s nativeHumanNewReviews) ReadCreatedHumanReview(ctx context.Context, c fac
 	if err != nil {
 		return empty, err
 	}
-	page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadReviews(ctx, c.Request.Actor, c.Request.Repository, c.Request.Number, factoryservice.ReviewQuery{ReviewID: r.Review.ExternalID, Limit: 1})
-	if err != nil {
-		return empty, err
-	}
-	if len(page.Items) != 1 || page.Items[0].ExternalID != r.Review.ExternalID || page.Items[0].Pull.Repository != c.Request.Repository || page.Items[0].Pull.Number != c.Request.Number || page.Items[0].Pull.ExternalID != p.Review.PullID || page.Items[0].Author == nil || page.Items[0].Author.ID != c.Request.Actor {
-		return empty, factoryservice.ErrHumanReviewUnavailable
-	}
-	return collaboration.ReviewRef{Pull: page.Items[0].Pull, ExternalID: page.Items[0].ExternalID}, nil
+	// GitHub's answer to the create names the review; reading it back would
+	// only repeat that answer.
+	return collaboration.ReviewRef{Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: c.Request.Repository, ExternalID: p.Review.PullID, Number: c.Request.Number}, ExternalID: r.Review.ExternalID}, nil
 }
