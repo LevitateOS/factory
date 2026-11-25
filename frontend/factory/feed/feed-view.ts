@@ -6,7 +6,7 @@ import {postAttemptsExhausted, feedEntryKey} from './feed-response.js';
 import {feedRolePortraits, roleInitials, roleLabel} from './roles.js';
 import {describePostLine, feedStateWords} from './feed-thread.js';
 import type {FeedState, FeedThreadItem} from './feed-thread.js';
-import {renderFeedCommunication} from './feed-communication.js';
+import {questionContext, renderFeedCommunication} from './feed-communication.js';
 import {questionPrompt} from './feed-actions.js';
 import type {FeedCardLinks} from './feed-communication.js';
 import type {FactoryRepositoryLinks} from '../app/navigation.js';
@@ -942,7 +942,7 @@ export function renderFeedPost(
           }
           ${
             question
-              ? html`${questionPrompt(question, model.key)}${renderComposer(model.composer)}`
+              ? html`${questionPrompt(question, model.key, questionContext(artifacts, links))}${renderComposer(model.composer)}`
               : renderCardContent(model, artifacts, links, assetBase)
           }
           ${

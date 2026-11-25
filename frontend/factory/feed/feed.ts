@@ -1397,6 +1397,9 @@ export class SodaFactoryFeed extends LitElement {
       @soda-feed-assumption-answered=${() => {
         if (this.live(serial)) void this.readLatest(false);
       }}
+      @soda-feed-question-answered=${() => {
+        if (this.live(serial)) void this.readLatest(false);
+      }}
     >
       ${this.current?.global ? '' : this.renderProjectPost()}
       <header class="soda-feed-toolbar">

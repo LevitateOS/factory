@@ -1,4 +1,4 @@
-import {asks, communication, humanPost, problems, progress, record, specimen} from './feed-post-fixtures.js';
+import {asks, communication, humanPost, problems, progress, record, specimen, typedQuestions} from './feed-post-fixtures.js';
 import type {FeedPostSpecimen} from './feed-post-fixtures.js';
 
 // The Results sheet: finished work, merges and handovers.
@@ -562,6 +562,7 @@ export const closingTheLoop: FeedPostSpecimen[] = [
 
 export const feedPostSheets = {
   asks,
+  typedQuestions,
   progress,
   problems,
   results,

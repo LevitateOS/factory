@@ -27,6 +27,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<Args>;
 export const Asks: Story = {args: {sheet: 'asks'}};
+export const TypedQuestions: Story = {args: {sheet: 'typedQuestions'}};
 export const Progress: Story = {args: {sheet: 'progress'}};
 export const Problems: Story = {args: {sheet: 'problems'}};
 export const Results: Story = {args: {sheet: 'results'}};

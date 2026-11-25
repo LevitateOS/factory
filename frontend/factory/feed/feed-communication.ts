@@ -15,6 +15,7 @@ import {
 import type {FactoryRepositoryLinks} from '../app/navigation.js';
 import './feed-artifact.js';
 import {renderFeedAssumption} from './feed-assumption.js';
+import type {FeedQuestionContext} from './feed-question.js';
 
 /** One card's real links: hrefs come only from the repository's SodaOS places. */
 export interface FeedCardLinks {
@@ -96,6 +97,14 @@ function componentSummary(summary: string): TemplateResult {
   </details>`;
 }
 
+/** Typed question answers are written from a card with its captured lifetime. */
+export function questionContext(
+  artifacts: FeedArtifactContext | undefined,
+  links: FeedCardLinks
+): FeedQuestionContext | undefined {
+  return artifacts && {transport: artifacts.transport, signal: artifacts.signal, scope: links.scope, repository: artifacts.repository};
+}
+
 export function renderFeedCommunication(
   communication: FeedCommunication,
   entryKey: string,
@@ -129,7 +138,7 @@ export function renderFeedCommunication(
     <h3>${c.title}</h3>
     ${['brief', 'knowledge', 'discussion', 'result'].includes(action) || c.summary === c.title ? '' : componentSummary(c.summary)}
     ${c.severity && action !== 'finding' ? html`<p class="soda-feed-severity" data-severity=${c.severity}>${c.severity === 'critical' ? 'Critical concern' : c.severity === 'warning' ? 'Attention needed' : 'For your information'}</p>` : ''}
-    ${renderFeedAction(c, presentation, entryKey)}
+    ${renderFeedAction(c, presentation, entryKey, questionContext(artifacts, links))}
     ${action === 'proposal' ? '' : dispositionOutcome(c)}
     ${c.source && !['finding', 'correction', 'comparison', 'investigation'].includes(action) ? html`<div class="soda-feed-action">${sourceExcerpt(c.source)}</div>` : ''}
     ${c.commits?.length ? html`<div class="soda-feed-action" data-action="commits">${commitTrail(c.commits)}</div>` : ''}

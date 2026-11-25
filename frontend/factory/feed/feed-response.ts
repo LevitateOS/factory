@@ -238,6 +238,37 @@ export interface FeedCommunication {
   intentSource?: {intent: string; revision: string; predecessor?: string; state: string; owner?: string};
   planSource?: {attemptRoot: string; plan: string; digest: string; sourceCommit: string; generation?: number};
   assumption?: FeedAssumption;
+  /** An ask's declared answer shape; the feed renders it natively. */
+  answerForm?: FeedQuestionForm;
+  /** Served from the ask's first live typed answer reply. */
+  answered?: {post: string; text: string; answer: FeedQuestionAnswer};
+}
+
+// Typed questions (pkg/factory/feed_question.go owns validation and the
+// plain-text rendering; the server checks every answer against its form).
+export type FeedQuestionKind = 'pick_one' | 'yes_no' | 'score' | 'pick_several' | 'value';
+export interface FeedQuestionForm {
+  kind: FeedQuestionKind;
+  options?: {id: string; label: string; detail?: string}[];
+  minPicks?: number;
+  maxPicks?: number;
+  yesMeans?: string;
+  noMeans?: string;
+  low?: number;
+  high?: number;
+  lowLabel?: string;
+  highLabel?: string;
+  label?: string;
+  unit?: string;
+  number?: boolean;
+}
+export interface FeedQuestionAnswer {
+  kind: FeedQuestionKind;
+  choice?: string;
+  choices?: string[];
+  yes?: boolean;
+  score?: number;
+  value?: string;
 }
 
 // FeedAssumption is one recorded assumption challenge (F13). State, decision

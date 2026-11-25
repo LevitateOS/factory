@@ -2,6 +2,8 @@ import {html} from 'lit';
 import type {TemplateResult} from 'lit';
 import type {FeedCommunication, FeedGraphItem, FeedSourceExcerpt} from './feed-response.js';
 import {renderFeedGraph} from './feed-graph.js';
+import {renderTypedQuestion} from './feed-question.js';
+import type {FeedQuestionContext} from './feed-question.js';
 
 // The communication lists every action reads, present even when the server
 // omitted an empty one.
@@ -269,7 +271,7 @@ export function dispositionOutcome(c: FilledCommunication): TemplateResult | str
   </div>`;
 }
 
-function question(c: FilledCommunication, entryKey: string): TemplateResult {
+function question(c: FilledCommunication, entryKey: string, typed?: FeedQuestionContext): TemplateResult {
   const ask = c.kind === 'ask';
   return html`<section class="soda-action-question" data-question=${ask ? (c.questionState ?? 'open') : 'recorded'}>
     <div class="soda-question-mark" aria-hidden="true">?</div>
@@ -279,6 +281,7 @@ function question(c: FilledCommunication, entryKey: string): TemplateResult {
       </h4>
       <p>${c.question ?? c.title}</p>
       ${ask ? questionStatus(c) : ''}
+      ${ask ? renderTypedQuestion(c, entryKey, typed) : ''}
       ${
         ask && c.options.length
           ? html`<div class="soda-feed-answer-options" aria-label="Suggested answers">
@@ -294,7 +297,11 @@ function question(c: FilledCommunication, entryKey: string): TemplateResult {
 
 // An ordinary question reads as conversation: the question once, any
 // suggested answers, and what it affects. The card puts the reply box under it.
-export function questionPrompt(communication: FeedCommunication, entryKey: string): TemplateResult {
+export function questionPrompt(
+  communication: FeedCommunication,
+  entryKey: string,
+  typed?: FeedQuestionContext
+): TemplateResult {
   const c = filledCommunication(communication);
   // Each distinct line once: a summary or question that repeats the title is dropped.
   const lines = [...new Set([c.summary, c.question].filter((line): line is string => !!line && line !== c.title))];
@@ -302,6 +309,7 @@ export function questionPrompt(communication: FeedCommunication, entryKey: strin
     <h3 class="soda-feed-question-text">${c.title}</h3>
     ${questionStatus(c)}
     ${lines.map((line) => html`<p>${line}</p>`)}
+    ${renderTypedQuestion(c, entryKey, typed)}
     ${
       c.options.length
         ? html`<div class="soda-feed-answer-options" aria-label="Suggested answers">
@@ -349,12 +357,17 @@ export function commitTrail(commits: NonNullable<FeedCommunication['commits']>):
   </section>`;
 }
 
-export function renderFeedAction(c: FilledCommunication, presentation: string, entryKey: string): TemplateResult {
+export function renderFeedAction(
+  c: FilledCommunication,
+  presentation: string,
+  entryKey: string,
+  typed?: FeedQuestionContext
+): TemplateResult {
   const action = communicationAction(c, presentation);
   let body: TemplateResult | string;
   switch (action) {
     case 'question':
-      body = question(c, entryKey);
+      body = question(c, entryKey, typed);
       break;
     case 'decision':
       body = decision(c);

@@ -65,12 +65,27 @@ export function humanPost(
 
 /** Serves one sheet as the whole feed page. Replies and other endpoints answer empty or unavailable. */
 export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[]) {
-  const entries = specimens.map((item) => item.entry);
+  const entries = structuredClone(specimens.map((item) => item.entry));
   const transport: FactoryFeedContext['transport'] = {
     generation: 'storybook-feed-post-types',
     assetBase: '/',
     async request(path, init) {
       const method = init?.method ?? 'GET';
+      // A typed answer: the declared peer records it on its question, with
+      // a stand-in for the server's plain-text rendering.
+      if (method === 'POST' && path === 'factory/feed/posts' && typeof init?.body === 'string') {
+        const sent = JSON.parse(init.body) as {parent_id?: string; answer?: Record<string, unknown>};
+        const asked = entries.find((entry) => entry.id === sent.parent_id);
+        const c = (asked?.payload as {communication?: Record<string, unknown>} | undefined)?.communication;
+        if (!asked || !c?.answer_form || !sent.answer || c.answered)
+          return Response.json({error: {code: 'question_answered'}}, {status: c?.answered ? 409 : 400});
+        Object.assign(c, {
+          question_state: 'answered',
+          answered: {post: 'a5'.padStart(32, '0'), text: 'Answer recorded by the workbench peer.', answer: sent.answer},
+        });
+        asked.state = 'decided';
+        return Response.json({post_id: 'a5'.padStart(32, '0'), revision: 0});
+      }
       if (method === 'GET' && path === 'factory/feed/subscription')
         return Response.json({subscriber: '1', repositories: [feedPostRepository], revision: 1});
       if (method === 'GET' && path.startsWith('factory/feed?')) return Response.json({entries, next: '', truncated: false});
@@ -258,6 +273,86 @@ export const asks: FeedPostSpecimen[] = [
       'decided'
     )
   ),
+];
+
+// Typed questions (5.1): each answer kind open and answered. The answered
+// copies carry the reply the server would serve; its text stands in for the
+// server's plain-text rendering.
+function typedAsk(
+  design: string,
+  author: string,
+  title: string,
+  form: Record<string, unknown>,
+  answered?: {text: string; answer: Record<string, unknown>},
+  extra: Record<string, unknown> = {}
+): FeedPostSpecimen {
+  return specimen(
+    design,
+    title,
+    record(
+      author,
+      communication({
+        kind: 'ask',
+        scope: '#12',
+        title,
+        question: title,
+        answer_form: form,
+        question_state: answered ? 'answered' : 'open',
+        ...(answered ? {answered: {post: 'b0b'.padStart(32, '0'), ...answered}} : {}),
+        ...extra,
+      }),
+      answered ? 'decided' : 'needs_you'
+    )
+  );
+}
+const layouts = {
+  kind: 'pick_one',
+  options: [
+    {id: 'in-place', label: 'Open in place', detail: 'The row expands inside the list. Nothing else moves.'},
+    {id: 'beside', label: 'Open beside the list', detail: 'The list stays on the left; the result opens on the right.'},
+  ],
+};
+const merge = {kind: 'yes_no', yes_means: 'search ships now and the fix follows in #16.', no_means: '#15 waits for the fix.'};
+const feel = {kind: 'score', low: 0, high: 4, low_label: 'Hard', high_label: 'Effortless'};
+const changes = {
+  kind: 'pick_several',
+  options: [
+    {id: 'split', label: 'Split #12 into index and query'},
+    {id: 'defer', label: 'Defer export to the next request'},
+    {id: 'drop', label: 'Drop fuzzy matching'},
+  ],
+  max_picks: 2,
+};
+const pageSize = {kind: 'value', label: 'Results before “load more”', unit: 'rows', number: true};
+export const typedQuestions: FeedPostSpecimen[] = [
+  typedAsk('ask · pick one · open', 'Architect', 'How should a result open?', layouts),
+  typedAsk('ask · pick one · answered', 'Architect', 'How should a result open next to filters?', layouts, {
+    text: 'Open beside the list',
+    answer: {kind: 'pick_one', choice: 'beside'},
+  }),
+  typedAsk('ask · yes or no · open', 'Inspector', 'Merge #15 before the removed-items fix?', merge, undefined, {
+    severity: 'warning',
+    summary: 'The pull request passes its checks; removed items stay in results until the next index pass.',
+  }),
+  typedAsk('ask · yes or no · answered', 'Inspector', 'Merge #14 before the paging fix?', merge, {
+    text: 'No',
+    answer: {kind: 'yes_no', yes: false},
+  }),
+  typedAsk('ask · score · open', 'Test Pilot', 'How does finding an item feel?', feel),
+  typedAsk('ask · score · answered', 'Test Pilot', 'How does filtering feel?', feel, {
+    text: '3 on a scale of 0 to 4 (0 = Hard, 4 = Effortless)',
+    answer: {kind: 'score', score: 3},
+  }),
+  typedAsk('ask · pick several · open', 'Strategist', 'Which plan changes do you accept?', changes),
+  typedAsk('ask · pick several · answered', 'Strategist', 'Which plan changes do you accept for #13?', changes, {
+    text: 'Split #12 into index and query; Drop fuzzy matching',
+    answer: {kind: 'pick_several', choices: ['split', 'drop']},
+  }),
+  typedAsk('ask · value · open', 'Builder', 'How many results before “load more”?', pageSize),
+  typedAsk('ask · value · answered', 'Builder', 'How many library items before “load more”?', pageSize, {
+    text: 'Results before “load more”: 30 rows',
+    answer: {kind: 'value', value: '30'},
+  }),
 ];
 
 // The Progress sheet: work that is moving, checks, unlocks and handovers.

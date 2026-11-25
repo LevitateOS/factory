@@ -3944,3 +3944,220 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   background: var(--soda-feed-attn);
   color: var(--soda-feed-on-attn);
 }
+/* Typed questions (5.1): native answer controls drawn from the ask's form.
+   Square, page tokens; the selected segment fills with the text colour. */
+.soda-feed-typed {
+  display: grid;
+  gap: 12px;
+}
+.soda-feed-typed > *,
+.soda-feed-typed p,
+.soda-feed-typed fieldset {
+  margin: 0;
+}
+.soda-feed-typed fieldset {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.soda-feed-typed legend,
+.soda-feed-typed-kind,
+.soda-feed-typed-value > label {
+  padding: 0;
+  margin-bottom: 6px;
+  font: 500 12px/18px 'IBM Plex Mono', monospace;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-kind {
+  margin-bottom: 0;
+}
+.soda-feed-typed-options {
+  display: grid;
+  border-top: 1px solid var(--soda-feed-line);
+}
+.soda-feed-typed-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--soda-feed-line);
+  font: 400 15px/1.5 Barlow, Arial, sans-serif;
+  cursor: pointer;
+}
+.soda-feed-typed-option input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  accent-color: var(--soda-page-text);
+}
+.soda-feed-typed-option > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.soda-feed-typed-option strong {
+  font-weight: 600;
+}
+.soda-feed-typed-option strong + span {
+  font-size: 14px;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-means {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  font: 400 14px/1.5 Barlow, Arial, sans-serif;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-means strong {
+  font-weight: 600;
+  color: var(--soda-page-text);
+}
+.soda-feed-typed-segments {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.soda-feed-typed-segments > button,
+.soda-feed-typed-segments > label > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  margin-left: -1px;
+  padding: 0 4px;
+  border: 1px solid var(--soda-page-text);
+  border-radius: 0;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
+  font: 500 14px/20px 'IBM Plex Mono', monospace;
+  cursor: pointer;
+}
+.soda-feed-typed-segments > :first-child,
+.soda-feed-typed-segments > label:first-child > span {
+  margin-left: 0;
+}
+.soda-feed-typed .soda-feed-typed-segments > label {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.soda-feed-typed .soda-feed-typed-segments > label > span {
+  width: 100%;
+}
+.soda-feed-typed legend.soda-feed-typed-quiet {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.soda-feed-typed-segments > label > input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+.soda-feed-typed-segments > button[aria-pressed='true'],
+.soda-feed-typed-segments > label > input:checked + span {
+  background: var(--soda-page-text);
+  color: var(--soda-page-surface);
+}
+.soda-feed-typed-segments > button:focus-visible,
+.soda-feed-typed-segments > label > input:focus-visible + span {
+  position: relative;
+  outline: 2px solid var(--soda-feed-attn);
+  outline-offset: 2px;
+}
+.soda-feed-typed :disabled,
+.soda-feed-typed fieldset:disabled label,
+.soda-feed-typed fieldset:disabled span {
+  cursor: default;
+}
+.soda-feed-typed-segments > button:disabled:not([aria-pressed='true']),
+.soda-feed-typed fieldset:disabled input:not(:checked) + span {
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px !important;
+  font: 400 13px/1.4 Barlow, Arial, sans-serif;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-value > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.soda-feed-typed-value input {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 320px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 0;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
+  font: 500 16px/1.4 'IBM Plex Mono', monospace;
+}
+.soda-feed-typed-value > label {
+  display: block;
+  font: 600 15px/1.4 Barlow, Arial, sans-serif;
+  color: var(--soda-page-text);
+}
+.soda-feed-typed-unit {
+  font: 500 14px/20px 'IBM Plex Mono', monospace;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font: 400 13px/1.5 Barlow, Arial, sans-serif;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-actions .ui.button {
+  min-height: 44px;
+  margin: 0;
+  border-radius: 0;
+}
+.soda-feed-typed-actions .ui.primary.button {
+  border: 1px solid var(--soda-feed-attn);
+  background: var(--soda-feed-attn);
+  color: var(--soda-feed-on-attn);
+}
+.soda-feed-typed-reply {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--soda-feed-neu-bg);
+  font: 400 14px/1.5 Barlow, Arial, sans-serif;
+  overflow-wrap: anywhere;
+}
+.soda-feed-typed-reply > span {
+  font: 500 12px/18px 'IBM Plex Mono', monospace;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed-note {
+  font-size: 14px;
+  color: var(--soda-page-muted);
+}
+.soda-feed-typed .soda-feed-typed-segments > button[aria-pressed='true']:disabled {
+  opacity: 1;
+  border-color: var(--soda-page-text);
+  background: var(--soda-page-text);
+  color: var(--soda-page-surface);
+}
