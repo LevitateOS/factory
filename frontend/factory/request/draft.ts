@@ -148,8 +148,7 @@ function valid(row: Record<string, unknown>): boolean {
     ideaIDs.size === row.ideas.length &&
     new Set(row.shelf.map((entry) => entry.key)).size === row.shelf.length &&
     row.shelf.every((entry) => entry.idea_ids.every((link) => ideaIDs.has(link))) &&
-    (row.subject !== 'new' ||
-      (row.base === '' && row.repository === '0' && row.ideas.length === 0 && row.shelf.length === 0))
+    (row.subject !== 'new' || (row.base === '' && row.ideas.length === 0 && row.shelf.length === 0))
   );
 }
 function decode(raw: string | undefined, address: RequestDraftAddress): {draft?: RequestDraft; problem?: DraftProblem} {
