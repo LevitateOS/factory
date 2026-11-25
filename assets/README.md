@@ -7,7 +7,7 @@ Imported from `~/Projects/soda-os` (source HEAD `bc1d3e0dbec48dfaa6a20f9d0453ad3
 | Path | Contents |
 | --- | --- |
 | `branding/source/` | Factory light/dark symbol and horizontal logo SVG masters (Soda offset-plate language: shared red plate, sawtooth-roof front plate, open bay; Barlow Condensed 800 wordmark) |
-| `branding/raster/` | Transparent PNG exports of those masters: 512px symbols and 1068×256 horizontal logos |
+| `branding/raster/` | Transparent PNG exports of those masters: the 512px dark symbol and 1068×256 horizontal logos. The 512px light symbol is the app icon, `branding/icons/hicolor/512x512/apps/factory.png` |
 | `branding/web/` | Web favicons and Apple touch icon |
 | `branding/icons/hicolor/` | System icons from 16px to 512px |
 | `branding/installer/` | Current light/dark raster logos, export manifest, and Anaconda CSS |

@@ -26,7 +26,7 @@ export async function stageDesktopInstaller(out: string) {
   for (const name of ['LICENSE', 'NOTICE']) await copyFile(resolve(root, name), resolve(out, name));
   await copyNotices(out);
   await stageDistributionNotices(out);
-  await copyFile(resolve(root, 'assets/branding/icons/hicolor/512x512/apps/soda-os.png'), resolve(out, 'factory.png'));
+  await copyFile(resolve(root, 'assets/branding/icons/hicolor/512x512/apps/factory.png'), resolve(out, 'factory.png'));
   await copyFile(resolve(root, 'scripts/install-desktop.sh'), resolve(out, 'install.sh'));
   await chmod(resolve(out, 'install.sh'), 0o755);
   await writeDistributionIntegrity(out);

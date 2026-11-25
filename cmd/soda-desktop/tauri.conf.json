@@ -5,5 +5,5 @@
   "identifier":"dev.soda.factory",
   "build":{"frontendDist":"../../.artifacts/desktop-ui"},
   "app":{"withGlobalTauri":true,"windows":[],"security":{"csp":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'"}},
-  "bundle":{"active":false,"icon":["../../assets/branding/icons/hicolor/512x512/apps/soda-os.png"]}
+  "bundle":{"active":false,"icon":["../../assets/branding/icons/hicolor/512x512/apps/factory.png"]}
 }
