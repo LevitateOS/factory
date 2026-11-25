@@ -1,8 +1,17 @@
 # Front-end pages: implementation plan
 
-Status: proposed on 2026-11-25. Nothing in this plan is implemented. It turns the
-reviewed designs into dependency-ordered slices and names the cheapest model that
-should be able to finish each one.
+Status (2026-11-25): every slice is implemented on `main` except two. 4.2 (live
+run output) is blocked on a worker-protocol output query; see its row. 5.7
+(interactive HTML) stays unavailable by the review below. Implemented slices are
+verified with the repository's static checks, Storybook fixtures and the store
+tests on disposable native PostgreSQL. None is qualified in a connected or
+installed desktop app yet: `check:desktop-ui` needs a GTK display, and no live
+provider journey was run. Known behaviour change from 5.5: the attention view
+now drops a question once anyone replies (it used to wait for an incorporated
+answer), matching "Needs me".
+
+It turns the reviewed designs into dependency-ordered slices and names the
+cheapest model that should be able to finish each one.
 
 Designs: <https://claude.ai/artifact/PqHcR4ENgouTMcfES9bDsC> (private to the
 owner until shared). Each slice below names its artboard. An implementing agent
