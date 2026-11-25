@@ -26,6 +26,16 @@ impl Reader<'_> {
         if r::id(&repository["id"])? != self.repository || !node_id(repo) {
             return Err(Failure::protocol());
         }
+        // Repository capabilities are all in the repository GitHub already
+        // returned; only a subject's viewer capabilities need a query.
+        if number.is_none() {
+            let archived = r::boolean(repository, "archived")?;
+            let issues = r::boolean(repository, "has_issues")?;
+            return Ok(json!({"repository":self.repository,"name":self.name,"archived":archived,"disabled":r::boolean(repository,"disabled")?,
+                "issues_enabled":issues,"can_create_issues":issues == true && archived == false,
+                "writer":repository["permissions"]["push"] == true,"merge":r::boolean(repository,"allow_merge_commit")?,
+                "squash":r::boolean(repository,"allow_squash_merge")?,"rebase":r::boolean(repository,"allow_rebase_merge")?,"subject":Value::Null}));
+        }
         let subject=match number{
             Some(_) if pull=>"subject:pullRequest(number:$number){id fullDatabaseId number state locked isDraft merged headRefOid baseRefOid viewerCanUpdate viewerCanClose viewerCanReopen viewerDidAuthor mergeStateStatus reviews(first:1,states:[PENDING]){totalCount nodes{body viewerDidAuthor}}}",
             Some(_)=>"subject:issue(number:$number){id fullDatabaseId number state locked viewerCanUpdate viewerCanClose viewerCanReopen viewerDidAuthor}",

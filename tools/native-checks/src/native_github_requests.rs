@@ -17,7 +17,7 @@ fn user() -> Value {
     json!({"id":321,"login":"declared-writer","node_id":"U_declared"})
 }
 fn repository() -> Value {
-    json!({"id":123,"name":"repo","full_name":NAME,"private":false,"archived":false,"disabled":false,"default_branch":"main","node_id":"R_123","owner":{"id":321,"login":"owner"},
+    json!({"id":123,"name":"repo","full_name":NAME,"private":false,"archived":false,"disabled":false,"has_issues":true,"default_branch":"main","node_id":"R_123","owner":{"id":321,"login":"owner"},
         "permissions":{"admin":true,"push":true,"pull":true},"allow_merge_commit":true,"allow_squash_merge":true,"allow_rebase_merge":true})
 }
 fn issue(number: u64) -> Value {
@@ -137,6 +137,7 @@ async fn steps(runtime: &NativeSupervisor, _profile: &Path, seen: &Arc<Mutex<See
     let catalogue = step("catalogue", 2, "GET", "/api/factory/collaboration/repositories", Value::Null, 0).await?;
     let repository = catalogue["items"][0]["id"].as_str().ok_or("canonical repository absent")?.to_owned();
     step("feed read", 0, "GET", &format!("/api/factory/feed?repositories={repository}&limit=20"), Value::Null, 0).await?;
+    step("capabilities", 0, "GET", &format!("/api/factory/collaboration/repositories/{repository}/capabilities"), Value::Null, 0).await?;
     step("issues", 1, "GET", &format!("/api/factory/collaboration/repositories/{repository}/issues?state=open&limit=20"), Value::Null, 0).await?;
     step("issue", 1, "GET", &format!("/api/factory/collaboration/repositories/{repository}/issues/7"), Value::Null, 0).await?;
     step(

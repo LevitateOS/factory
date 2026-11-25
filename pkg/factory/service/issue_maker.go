@@ -124,7 +124,13 @@ func (s *IssueMaker) Drive(ctx context.Context, pipe factory.PostIntake, comment
 	if s.Effects == nil {
 		return PostResponse(pipe), save("waiting", "The issue exists. Issue Maker is waiting for repository issue-write access.")
 	}
-	if err := s.Effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
+	// Authorize once, before a paid run starts. A run already under way waits
+	// locally; GitHub decides the refinement write itself.
+	var authorized error
+	if progress.Run == "" {
+		authorized = s.Effects.AuthorizeIssueMaker(ctx, progress.Scope)
+	}
+	if err := authorized; err != nil {
 		if errors.Is(err, ErrHumanEditBaseChanged) {
 			return PostResponse(pipe), save("waiting", "The issue changed after Factory's last write. Refinement is held to preserve the current content; submit a follow-up request to continue.")
 		}

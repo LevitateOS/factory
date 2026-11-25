@@ -906,6 +906,12 @@ export class SodaFactoryFeed extends LitElement {
       };
       await this.readLatest(false);
       if (entry && this.bindingLive(context, binding)) void this.loadReplies(entry);
+      // JEV decides in the background a moment later; show its answer without
+      // waiting for the five-minute refresh.
+      for (const delay of [1500, 5000])
+        setTimeout(() => {
+          if (this.bindingLive(context, binding)) void this.readLatest(false);
+        }, delay);
     } catch (error) {
       if (this.bindingLive(context, binding))
         this.view = {
