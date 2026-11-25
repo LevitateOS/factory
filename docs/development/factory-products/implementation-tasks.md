@@ -341,7 +341,19 @@ before the next one starts.
 - **Not done yet:**
   - Moving the routing wording into `jev_questions.go`.
   - Restart reuse of an answered row, seen live.
-  - "How I decided", seen in the desktop window.
+  - Clicking "Wrong call" on a real post (held: see the GitHub request
+    finding below).
+- **Connected (2026-11-25, second post):** a discussion-style post routed to
+  `discussion` in one JEV ask of 0.2 s. "How I decided" and "Wrong call? Choose
+  where it goes" (New work, Issue #1; JEV's pick disabled) showed in the
+  desktop window.
+- **Blocking finding, GitHub request amplification:** that one post made 24
+  GitHub requests in 5 s (`github-wire-budget.json`), about 4 s before JEV was
+  asked. One Feed refresh makes 8. Submit and `PostContext.Capture` check
+  repository visibility four times per post, and each check fans out in the
+  connector. The Feed also does not re-read after posting until its 5-minute
+  timer, so JEV's answer appears late. Fix the call path and prove bounded
+  counts with controlled replies before more connected posts.
 
 **Behavior:**
 
