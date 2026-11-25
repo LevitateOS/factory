@@ -78,11 +78,15 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.soda-factory-wordmark::before {
-  content: "";
-  width: 14px;
-  height: 14px;
-  background: var(--soda-role-product-lead);
+/* The Factory symbol (assets/branding/source/factory-symbol.svg); the front
+   plate follows the text colour, so it is dark on light and white on dark. */
+.soda-factory-wordmark svg {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+.soda-factory-mark-plate {
+  fill: var(--soda-role-product-lead);
 }
 .soda-factory-project {
   border: 1px solid var(--soda-page-text);
