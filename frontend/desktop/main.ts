@@ -64,7 +64,7 @@ retry.addEventListener('click', () => {
 // and the empty top strip of the sidebar, content header or setup page moves the window.
 if (/Mac/.test(navigator.platform)) {
   document.documentElement.dataset.shell = 'mac';
-  const handles = '.soda-factory-sidebar, .soda-factory-content > header, #sign-in, soda-desktop-first-run';
+  const handles = '.soda-factory-sidebar, .soda-factory-content > header, .soda-factory-project, .soda-factory-project nav, #sign-in, soda-desktop-first-run';
   document.addEventListener('mousedown', (event) => {
     if (event.button !== 0 || event.clientY > 44 || !(event.target instanceof Element) || !event.target.matches(handles)) return;
     void core.invoke(event.detail === 2 ? 'plugin:window|toggle_maximize' : 'plugin:window|start_dragging').catch(() => {});

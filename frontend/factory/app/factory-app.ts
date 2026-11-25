@@ -678,21 +678,6 @@ export class SodaFactoryApp extends LitElement {
                 : ''}
             </nav>`
           : ''}
-        <div class="soda-factory-project">
-          ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
-          <nav aria-label="Factory">
-            ${links.map(
-              (link) => html`<button
-                type="button"
-                aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
-                ?disabled=${!context}
-                @click=${() => this.navigate(link.route)}
-              >
-                ${link.label}
-              </button>`
-            )}
-          </nav>
-        </div>
         ${others.length
           ? html`<nav class="soda-factory-other-projects" aria-label="Other projects">
               ${others.map((row) => {
@@ -729,8 +714,24 @@ export class SodaFactoryApp extends LitElement {
         </div>
       </aside>
       <div class="soda-factory-content">
-        <header ?data-empty=${!this.message.trim()}>
-          <p role="status">${this.message}</p>
+        <!-- The open project's name and its pages run across the top; the status sits at the end. -->
+        <header>
+          <div class="soda-factory-project">
+            ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
+            <nav aria-label="Factory">
+              ${links.map(
+                (link) => html`<button
+                  type="button"
+                  aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
+                  ?disabled=${!context}
+                  @click=${() => this.navigate(link.route)}
+                >
+                  ${link.label}
+                </button>`
+              )}
+            </nav>
+          </div>
+          <p role="status" ?hidden=${!this.message.trim()}>${this.message}</p>
         </header>
         <main
           aria-label=${context ? factoryRouteTitle(context.route) : 'Factory'}

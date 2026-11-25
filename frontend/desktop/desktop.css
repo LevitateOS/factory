@@ -107,7 +107,7 @@ body {
   display: none;
 }
 /* macOS: no title bar. The traffic lights sit over the sidebar's top, the
-   content header becomes the window's top strip, and both move the window. */
+   content header (the open project and its pages) is the window's top strip, and both move the window. */
 html[data-shell="mac"] .soda-factory-sidebar {
   position: sticky;
   top: 0;
@@ -117,8 +117,7 @@ html[data-shell="mac"] .soda-factory-sidebar {
   overflow-y: auto;
   padding-top: 48px;
 }
-html[data-shell="mac"] .soda-factory-content > header,
-html[data-shell="mac"] .soda-factory-content > header:has(> p:empty) {
+html[data-shell="mac"] .soda-factory-content > header {
   position: sticky;
   top: 0;
   z-index: 10;

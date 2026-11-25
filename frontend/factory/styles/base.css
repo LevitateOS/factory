@@ -87,17 +87,6 @@
 .soda-factory-mark-plate {
   fill: var(--soda-role-product-lead);
 }
-.soda-factory-project {
-  border: 1px solid var(--soda-page-text);
-  background: var(--soda-page-surface);
-}
-.soda-factory-project-name {
-  margin: 0;
-  padding: 8px 11px;
-  border-bottom: 1px solid var(--soda-page-edge);
-  font: var(--soda-font-label);
-  overflow-wrap: anywhere;
-}
 .soda-factory-sidebar nav {
   display: flex;
   flex-direction: column;
@@ -183,17 +172,42 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 16px 32px;
+  gap: 8px 16px;
+  padding: 8px 32px;
   border-bottom: 1px solid var(--soda-page-edge);
 }
-/* The strip holds only the frame's status message; with none it takes no space.
-   Each screen draws its own title. Lit's markers keep the <p> from matching
-   :empty, so the app marks the empty state. */
-.soda-factory-content > header[data-empty] {
-  padding-top: 0;
-  padding-bottom: 0;
-  border-bottom: 0;
+/* The open project's name, then its pages as a row of tabs. */
+.soda-factory-project {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  min-width: 0;
+}
+.soda-factory-project-name {
+  margin: 0;
+  font: var(--soda-font-label);
+  overflow-wrap: anywhere;
+}
+.soda-factory-project nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.soda-factory-project nav button {
+  min-height: 0;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  font: 400 15px/20px Barlow, Arial, sans-serif;
+}
+.soda-factory-project nav button:hover:not(:disabled) {
+  background: var(--soda-page-hover);
+}
+.soda-factory-project nav button[aria-current="page"] {
+  color: var(--soda-page-canvas);
+  background: var(--soda-page-text);
+  font-weight: 600;
 }
 .soda-factory-content > header p {
   margin: 0;
