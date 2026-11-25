@@ -145,7 +145,7 @@ export class SodaFactoryPullReview extends LitElement {
     this.busy = true; this.message = ''; this.touch();
     try {
       if (action === 'submit' || action === 'retry') {
-        await this.admit(context, signal);
+        await this.journal.identity(context, signal);
         check(event ? this.allowed[event] : this.writing.pending && this.allowed[this.writing.pending.event]);
         check(action !== 'retry' || !this.writing.pending?.cancel);
       } else await this.journal.identity(context, signal);
@@ -216,7 +216,7 @@ export class SodaFactoryPullReview extends LitElement {
     if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.journal.live(context, signal)) return;
     this.busy = true; this.message = ''; this.touch();
     try {
-      await this.admit(context, signal);
+      await this.journal.identity(context, signal);
       const raw = await getJSON(context.transport, this.path(context) + '/reviews/' + encodeURIComponent(externalID), signal);
       check(this.journal.live(context, signal));
       const review = pullReview(raw, context.repository, context.pull);

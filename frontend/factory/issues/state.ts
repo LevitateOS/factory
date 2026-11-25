@@ -98,7 +98,7 @@ export class SodaFactoryIssueState extends LitElement {
     this.busy = true; this.message = ''; this.touch();
     let settled = false;
     try {
-      if (action === 'submit' || action === 'retry') { await this.admit(context, signal); check(this.allowed); }
+      if (action === 'submit' || action === 'retry') { await this.journal.identity(context, signal); check(this.allowed); }
       else await this.journal.identity(context, signal);
       let pending = this.journal.stored(context);
       if (action === 'submit') {

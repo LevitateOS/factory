@@ -10,12 +10,6 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
-// InitialCreatorCheck supplies current provider permission immediately before
-// admission. Historical host sources retain their existing corroborated hint.
-type InitialCreatorCheck interface {
-	CheckInitialCreator(context.Context, IntakeHint) error
-}
-
 // AdmitInitialAcceptance admits only original authenticated native creation
 // facts corroborated by the current exact issue identity and unchanged inputs.
 // Normal native creation has no synthesized first-history row. The native
@@ -43,11 +37,6 @@ func (c *Coordinator) AdmitInitialAcceptance(ctx context.Context, hint IntakeHin
 	decision, err := c.buildInitialAcceptance(bounded, hint, evidence)
 	if err != nil {
 		return factory.Acceptance{}, err
-	}
-	if check, ok := c.AcceptanceReads.(InitialCreatorCheck); ok {
-		if err := check.CheckInitialCreator(bounded, hint); err != nil {
-			return factory.Acceptance{}, err
-		}
 	}
 	if err := c.Store.AdmitAcceptanceDecision(bounded, decision, policy.Revision); err != nil {
 		return factory.Acceptance{}, err

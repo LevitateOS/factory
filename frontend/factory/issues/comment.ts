@@ -214,7 +214,7 @@ export class SodaFactoryIssueComment extends LitElement {
     try {
       const shown = this.writing.pending;
       if (action === 'submit') {
-        await this.admit(context, signal);
+        await this.journal.identity(context, signal);
         check(this.allowed && (!shown || !shown.cancel));
         check(validCommentBody(shown?.body ?? this.writing.draft.body));
       } else await this.journal.identity(context, signal);

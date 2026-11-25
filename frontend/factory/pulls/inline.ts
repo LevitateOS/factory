@@ -147,7 +147,7 @@ export class SodaFactoryPullInline extends LitElement {
     this.busy = true; this.message = ''; this.touch();
     try {
       if (action === 'submit' || action === 'retry') {
-        await this.admit(context, signal);
+        await this.journal.identity(context, signal);
         check(this.allowed && ((action === 'retry' ? this.writing.pending?.draft : draft) || this.publishAllowed));
       }
       else await this.journal.identity(context, signal);

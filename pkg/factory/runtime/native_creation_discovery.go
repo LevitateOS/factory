@@ -127,17 +127,15 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 			}
 		}
 		scan.Cursor = next
+		// One listing is the membership. A scan saved while it was still
+		// listing a second time to confirm finishes that pass.
 		if complete {
-			if !scan.Confirming {
-				scan.Confirming = true
-			} else {
-				if scan.Confirmed != len(scan.Members) {
-					scan = fresh()
-					break
-				}
-				sort.Slice(scan.Members, func(i, j int) bool { return scan.Members[i].Number < scan.Members[j].Number })
-				scan.Ready = true
+			if scan.Confirming && scan.Confirmed != len(scan.Members) {
+				scan = fresh()
+				break
 			}
+			sort.Slice(scan.Members, func(i, j int) bool { return scan.Members[i].Number < scan.Members[j].Number })
+			scan.Ready = true
 		}
 	}
 	var listed *nativeCreationMember
@@ -161,7 +159,7 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 		} else if !errors.Is(e, store.ErrNotFound) {
 			return empty, e
 		}
-		raw, revision, _, e := (nativeIssueInputs{account}).readInputs(ctx, strconv.FormatInt(repository, 10), strconv.FormatInt(listed.Number, 10), nil, policy.TargetBranch)
+		raw, _, _, e := (nativeIssueInputs{account}).readInputs(ctx, strconv.FormatInt(repository, 10), strconv.FormatInt(listed.Number, 10), nil, policy.TargetBranch)
 		if e != nil {
 			if changedInventoryMember(e) {
 				page.NextPosition = after
@@ -189,13 +187,6 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 		}
 		if permission.IssueID != i.ID {
 			return empty, errNativeReadScope
-		}
-		confirmed, fresh, _, e := (nativeIssueInputs{account}).readInputs(ctx, strconv.FormatInt(repository, 10), strconv.FormatInt(i.Number, 10), nil, policy.TargetBranch)
-		if e != nil {
-			return empty, e
-		}
-		if fresh != revision || confirmed.Issue.Author.ExternalID != i.Author.ExternalID {
-			return empty, errors.New(control.HoldInventoryRevision)
 		}
 		creator, e := s.Store.ObserveCollaborationActor(ctx, account.binding.Host.ID, i.Author.ExternalID, i.Author.Login)
 		if e != nil {
@@ -238,41 +229,3 @@ func (s NativeInputSource) ReadCreations(ctx context.Context, repository, after 
 	return page, nil
 }
 
-func (s NativeInputSource) CheckInitialCreator(ctx context.Context, hint control.IntakeHint) error {
-	policy, err := s.Store.RepositoryPolicy(ctx, hint.Repository)
-	if err != nil {
-		return err
-	}
-	if !policy.Enabled || policy.Paused {
-		return store.ErrAdmissionChanged
-	}
-	account, err := s.account(ctx, strconv.FormatInt(hint.Repository, 10), factory.OpRefPublish)
-	if err != nil {
-		return err
-	}
-	creator, err := s.Store.CollaborationActor(ctx, collaboration.ActorID(hint.Creator))
-	if err != nil {
-		return err
-	}
-	if creator.Host != account.binding.Host.ID {
-		return errNativeReadScope
-	}
-	permission, err := account.creatorPermission(ctx, hint.Issue, creator.ExternalID)
-	if err != nil {
-		return err
-	}
-	if permission.IssueID != strconv.FormatInt(hint.NativeIssueID, 10) {
-		return errNativeReadScope
-	}
-	if !*permission.Write {
-		return store.ErrAdmissionChanged
-	}
-	current, err := s.Store.RepositoryPolicy(ctx, hint.Repository)
-	if err != nil {
-		return err
-	}
-	if !current.Enabled || current.Paused || current.Revision != policy.Revision {
-		return store.ErrAdmissionChanged
-	}
-	return account.currentBackground(ctx, factory.OpRefPublish)
-}

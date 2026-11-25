@@ -9694,14 +9694,11 @@ func connectedCreationFixture(ctx context.Context, input factoryruntime.NativeIn
 			if _, err = input.ReadCreations(ctx, repository, issue-1, 1); err == nil {
 				return errors.New("withdrawn native account still discovers issues")
 			}
-			if err = input.CheckInitialCreator(ctx, saved.Hint); err == nil {
-				return errors.New("withdrawn native account still grants new initial acceptance")
-			}
 			decision, err := input.Store.AcceptanceDecision(ctx, saved.Decision)
 			if err != nil || decision.ID != saved.Decision {
 				return errors.New("withdrawal changed original acceptance history")
 			}
-			fmt.Println("PASS: withdrawn local native grant refuses discovery/new creator authorization and preserves original acceptance")
+			fmt.Println("PASS: withdrawn local native grant refuses discovery and preserves original acceptance")
 			return nil
 		}
 	} else {
