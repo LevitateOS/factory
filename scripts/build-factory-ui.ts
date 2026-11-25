@@ -5,6 +5,18 @@ import {parseArgs} from 'node:util';
 import {copyRolePortraits, copyNotices, filesUnder, restoreNativeSchemeCalls} from './factory-browser-assets.js';
 
 const root = resolve(import.meta.dir, '..');
+const litEntry = resolve(root, 'frontend/factory/app/lit.ts');
+/** Production settings for every module of the shared UI and its hosts: Lit in
+ * production mode, loaded once from the shared `lit.js`. */
+export const sharedModule = {
+  define: {'process.env.NODE_ENV': '"production"'},
+  lit: {
+    name: 'shared-lit',
+    setup(build) {
+      build.onResolve({filter: /^lit(\/.*)?$/}, (args) => (args.importer === litEntry ? undefined : {path: './lit.js', external: true}));
+    },
+  } satisfies Bun.BunPlugin,
+};
 /** Production component module and its offline envelope. The host supplies the
  * bootstrap, authenticated ports, navigation and optional terminal renderer. */
 export async function buildFactoryUI(out: string): Promise<{files: string[]; sources: string[]}> {
@@ -40,7 +52,17 @@ export async function buildFactoryUI(out: string): Promise<{files: string[]; sou
       format: 'esm',
       minify: true,
       naming: {entry: 'factory-app.js'},
-      define: {'process.env.NODE_ENV': '"production"'},
+      define: sharedModule.define,
+      plugins: [sharedModule.lit, boundary],
+    }),
+    Bun.build({
+      entrypoints: [litEntry],
+      outdir: out,
+      target: 'browser',
+      format: 'esm',
+      minify: true,
+      naming: {entry: 'lit.js'},
+      define: sharedModule.define,
       plugins: [boundary],
     }),
     Bun.build({

@@ -1,4 +1,4 @@
-import {buildFactoryUI} from './build-factory-ui.js';
+import {buildFactoryUI, sharedModule} from './build-factory-ui.js';
 import {resolve} from 'node:path';
 import {copyFile} from 'node:fs/promises';
 export async function buildDesktopUI(out: string) {
@@ -10,7 +10,9 @@ export async function buildDesktopUI(out: string) {
     format: 'esm',
     minify: true,
     naming: {entry: 'desktop.js'},
+    define: sharedModule.define,
     plugins: [
+      sharedModule.lit,
       {
         name: 'shared-production-entry',
         setup(build) {
