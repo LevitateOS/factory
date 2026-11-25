@@ -238,15 +238,45 @@ function decision(c: FilledCommunication): TemplateResult {
   </div>`;
 }
 
+const questionSteps: Record<string, string[]> = {
+  replied: ['Reply received'],
+  answered: ['Answer recorded'],
+  incorporated: ['Reply received', 'Incorporated'],
+};
+
+// What happened to a question since it was asked; nothing while it is open.
+function questionStatus(c: FilledCommunication): TemplateResult | string {
+  const steps = questionSteps[c.questionState ?? 'open'] ?? [];
+  return steps.length
+    ? html`<p class="soda-question-status" data-question-state=${c.questionState ?? 'open'}>${steps.map((step, index) => html`${index ? html`<span aria-hidden="true"> · </span>` : ''}<strong>${step}</strong>`)}</p>`
+    : '';
+}
+
+const dispositionLabels: Record<string, string> = {
+  applied: '✓ Applied',
+  refused: '✕ Refused',
+  incorporated: '✓ Incorporated',
+};
+
+// The recorded outcome of a suggestion or answer, with the reason given for it.
+export function dispositionOutcome(c: FilledCommunication): TemplateResult | string {
+  if (!c.disposition && !c.dispositionReason) return '';
+  return html`<div class="soda-feed-disposition" data-post-resolution=${c.disposition ?? ''}>
+    ${c.disposition ? html`<p class="soda-feed-disposition-label">${dispositionLabels[c.disposition] ?? c.disposition}</p>` : ''}
+    ${c.dispositionReason ? html`<p class="soda-feed-disposition-reason">${c.dispositionReason}</p>` : ''}
+  </div>`;
+}
+
 function question(c: FilledCommunication, entryKey: string): TemplateResult {
   const ask = c.kind === 'ask';
   return html`<section class="soda-action-question" data-question=${ask ? (c.questionState ?? 'open') : 'recorded'}>
     <div class="soda-question-mark" aria-hidden="true">?</div>
     <div>
       <h4>
-        ${ask ? (c.questionState === 'answered' ? 'Answer recorded' : c.questionState === 'replied' ? 'Reply received' : 'Your input is needed') : 'Question and answer'}
+        ${ask ? (!c.questionState || c.questionState === 'open' ? 'Your input is needed' : 'Question') : 'Question and answer'}
       </h4>
       <p>${c.question ?? c.title}</p>
+      ${ask ? questionStatus(c) : ''}
       ${
         ask && c.options.length
           ? html`<div class="soda-feed-answer-options" aria-label="Suggested answers">
@@ -268,6 +298,7 @@ export function questionPrompt(communication: FeedCommunication, entryKey: strin
   const lines = [...new Set([c.summary, c.question].filter((line): line is string => !!line && line !== c.title))];
   return html`<div class="soda-feed-question">
     <h3 class="soda-feed-question-text">${c.title}</h3>
+    ${questionStatus(c)}
     ${lines.map((line) => html`<p>${line}</p>`)}
     ${
       c.options.length
@@ -402,9 +433,9 @@ export function renderFeedAction(c: FilledCommunication, presentation: string, e
         <header>
           ${actionIcon('decision')}
           <h4>Proposed change</h4>
-          <span>Awaiting a decision</span>
+          <span>${c.disposition ? (dispositionLabels[c.disposition] ?? c.disposition).slice(2) : 'Awaiting a decision'}</span>
         </header>
-        ${actionComparison(c.before, c.after, ['Current approach', 'Suggested approach'])}${reason(c, 'Why this would help')}${actionItems(c.items, 'options')}${actionList('Alternatives', c.alternatives)}${nextStep(c)}
+        ${actionComparison(c.before, c.after, ['Current approach', 'Suggested approach'])}${reason(c, 'Why this would help')}${actionItems(c.items, 'options')}${actionList('Alternatives', c.alternatives)}${nextStep(c)}${dispositionOutcome(c)}
       </section>`;
       break;
     case 'merge':

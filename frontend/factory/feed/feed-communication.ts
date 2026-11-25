@@ -7,6 +7,7 @@ import {
   actionList,
   communicationAction,
   commitTrail,
+  dispositionOutcome,
   filledCommunication,
   renderFeedAction,
   sourceExcerpt,
@@ -120,7 +121,7 @@ export function renderFeedCommunication(
     ${['brief', 'knowledge', 'discussion', 'result'].includes(action) || c.summary === c.title ? '' : componentSummary(c.summary)}
     ${c.severity && action !== 'finding' ? html`<p class="soda-feed-severity" data-severity=${c.severity}>${c.severity === 'critical' ? 'Critical concern' : c.severity === 'warning' ? 'Attention needed' : 'For your information'}</p>` : ''}
     ${renderFeedAction(c, presentation, entryKey)}
-    ${c.dispositionReason ? html`<p class="soda-feed-disposition-reason" data-post-resolution=${c.disposition ?? ''}>${c.dispositionReason}</p>` : ''}
+    ${action === 'proposal' ? '' : dispositionOutcome(c)}
     ${c.source && !['finding', 'correction', 'comparison', 'investigation'].includes(action) ? html`<div class="soda-feed-action">${sourceExcerpt(c.source)}</div>` : ''}
     ${c.commits?.length ? html`<div class="soda-feed-action" data-action="commits">${commitTrail(c.commits)}</div>` : ''}
     ${c.artifacts?.length ? html`<div class="soda-feed-artifacts">${c.artifacts.map((artifact) => html`<soda-feed-artifact .artifact=${artifact} .context=${artifacts}></soda-feed-artifact>`)}</div>` : ''}
