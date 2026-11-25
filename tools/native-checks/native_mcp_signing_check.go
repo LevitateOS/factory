@@ -182,10 +182,6 @@ func controllerFixture(profile string) (*nativeControllerFixture, error) {
 	return &capture, nil
 }
 
-func (pendingProductJudgment) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {
-	return factory.PriorityAnswer{}, factoryservice.ErrPostJudgmentPending
-}
-
 type syntheticCatalogRun struct{ run factory.Run }
 
 func (s syntheticCatalogRun) FactoryRun(_ context.Context, id string) (factory.Run, error) {
@@ -1356,7 +1352,9 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 			Scope: func(context.Context, collaboration.ActorID, factory.Run) (collaboration.RepositoryID, error) {
 				return 1, nil
 			},
-			Access: func(context.Context, collaboration.ActorID, collaboration.RepositoryID, factory.Run) error { return nil },
+			Access: func(context.Context, collaboration.ActorID, collaboration.RepositoryID, factory.Run) error {
+				return nil
+			},
 			Source: func(ctx context.Context, _ collaboration.ActorID, r factory.Run, cursor int64, _ int) (project.FactoryOutputState, error) {
 				return port.ReadOutput(ctx, r, cursor)
 			}}
@@ -10740,22 +10738,6 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 			a, e := db.IntentPlanAttempt(ctx, head.Intent, in.Revision)
 			if e != nil || a.Outcome != factory.Succeeded {
 				return errors.New("original graph plan unavailable")
-			}
-			// Declared pending provider; real retained walkthrough, service,
-			// PostgreSQL and HTTP adapter. No inference or new receipt is sent.
-			requests := factoryservice.Requests{Store: db, WriteAccess: func(context.Context, collaboration.ActorID, int64) error { return nil }}
-			api := factoryhttpapi.Requests{Service: requests, Actor: connection.Actor, Host: connection.Host,
-				Exploration: factoryservice.RequestExploration{Requests: requests, Chooser: pendingProductJudgment{}},
-				Current:     func(http.ResponseWriter, *http.Request) bool { return true }}
-			response := httptest.NewRecorder()
-			api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/factory/intents/"+head.Intent+"/plan/review", strings.NewReader(`{"revision":"`+in.Revision+`"}`)).WithContext(ctx))
-			if response.Code != 503 || !strings.Contains(response.Body.String(), `"code":"judgment_pending"`) {
-				return fmt.Errorf("pending walkthrough lost its recoverable cause: %d %s", response.Code, response.Body.String())
-			}
-			response = httptest.NewRecorder()
-			api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/factory/intents/"+head.Intent+"/plan/review", strings.NewReader(`{"revision":"`+in.Revision+`","command_id":"invalid"}`)).WithContext(ctx))
-			if response.Code != 400 {
-				return errors.New("invalid review retry identity was admitted")
 			}
 			run, e := db.FactoryRun(ctx, a.Run)
 			if e != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() {

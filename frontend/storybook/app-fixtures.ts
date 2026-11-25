@@ -2,7 +2,6 @@ import type {FactoryAppContext, SodaFactoryApp} from '../factory/app/factory-app
 import type {FactoryRoute} from '../factory/app/routes.js';
 import type {FactoryTransport} from '../factory/api/transport.js';
 import {feedStoryPeer} from './fixtures.js';
-import {requestStoryContext} from './request-fixtures.js';
 import {libraryStoryPeer} from './library-fixtures.js';
 import {progressStoryPeer} from './progress-fixtures.js';
 import {detailStoryPeer} from './detail-fixtures.js';
@@ -65,8 +64,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     library = libraryStoryPeer('recorded', appRepository);
   const progress = progressStoryPeer('ready', appRepository),
     detail = detailStoryPeer('read-only', appRepository);
-  const watch = watchStoryPeer('live', appRepository),
-    request = requestStoryContext('entry', account);
+  const watch = watchStoryPeer('live', appRepository);
   // Role settings with a saved policy, plus the desktop execution controller's
   // reads, for the Settings route.
   const settingsRoles = progressStoryPeer('ready', appRepository, true);
@@ -152,7 +150,8 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
       resolved.push(selected);
       if (held) await new Promise<void>((release) => gates.push({signal, release}));
       if (unavailable) throw Error('Declared app admission unavailable');
-      if (bindingMismatch === 'kind') return {kind: 'request', blocked: false, api: request.api};
+      if (bindingMismatch === 'kind')
+        return selected.kind === 'library' ? {kind: 'feed', context: feed.context} : {kind: 'library', context: library.context};
       // Do not disguise delayed, cancelled host answers as authoritative.
       const supplied = bindingMismatch === 'transport' ? {...transport} : transport;
       switch (selected.kind) {
@@ -166,15 +165,6 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
               repository: selected.repository ?? '',
               account: bindingMismatch === 'actor' ? '2' : '1',
               host: {...feed.context.host, draftScope: bindingMismatch === 'scope' ? 'foreign' : scope},
-            },
-          };
-        case 'request':
-          return {
-            kind: 'request',
-            blocked: false,
-            api: async (path, body, childSignal) => {
-              calls.push({path, method: body ? 'POST' : 'GET', signal: childSignal});
-              return request.api(path, body, childSignal);
             },
           };
         case 'work': {

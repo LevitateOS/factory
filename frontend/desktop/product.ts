@@ -1,4 +1,3 @@
-import {SodaRequestError} from '../factory/app/browser.js';
 import type {FactoryAppContext, FactoryHostSection, FactoryProjectsPort, FactoryRoute, FactoryScreen} from '../factory/app/browser.js';
 import type {FactoryFeedHost, FactoryRepositoryLinks} from '../factory/app/navigation.js';
 import {admitFactoryRoute} from '../factory/app/routes.js';
@@ -96,7 +95,7 @@ export class DesktopProduct {
     return {
       repository,
       feed: (post) => routeURL({kind: 'feed', repository, ...(post ? {post} : {})}),
-      request: (intent) => routeURL({kind: 'request', intent}),
+      request: (intent) => routeURL({kind: 'work', repository, intent}),
       issue: (issue) => (id(String(issue)) ? routeURL({kind: 'issue', repository, issue: String(issue)}) : undefined),
       pull: (pull) => id(String(pull)) ? routeURL({kind: 'pull', repository, pull: String(pull)}) : undefined,
       factoryStatus: (issue) =>
@@ -172,24 +171,6 @@ export class DesktopProduct {
     const common = {transport, scope, host, actor};
     const commandScope = (signal: AbortSignal) => this.transport.commandScope(signal);
     switch (route.kind) {
-      case 'request':
-        return {
-          kind: 'request',
-          blocked: false,
-          api: async (path, body, signal) => {
-            const response = await transport.request(path, {
-              method: body === undefined ? 'GET' : 'POST',
-              ...(body === undefined ? {} : {body: JSON.stringify(body)}),
-              ...(signal ? {signal} : {}),
-            });
-            const value = await readSodaJSON(response);
-            if (!response.ok) {
-              const error = object(object(value).error);
-              throw new SodaRequestError(response.status, typeof error.code === 'string' ? error.code : undefined);
-            }
-            return value;
-          },
-        };
       case 'feed': {
         check(repository && route.repository === repository.id);
         const feedHost: FactoryFeedHost = {

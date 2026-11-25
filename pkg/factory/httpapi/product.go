@@ -188,8 +188,6 @@ func NewProductRoutes() *ProductRoutes {
 	mux.Handle("/api/factory/repositories", productFeed)
 	mux.Handle("/api/factory/feed", productFeed)
 	mux.Handle("/api/factory/feed/", productFeed)
-	mux.Handle("/api/factory/feed/posts/{id}/review", productRequests)
-	mux.Handle("/api/factory/departments", productRequests)
 	mux.Handle("/api/factory/intents", productRequests)
 	mux.Handle("/api/factory/intents/", productRequests)
 	mux.Handle("/api/factory/capacity", productRepositories)
@@ -257,7 +255,7 @@ func (route productRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case productRequests:
 		requests := s.Requests
 		requests.Host, requests.Actor, requests.Principal, requests.Current = s.Host, s.Actor, s.Principal, current
-		serve(requests.Handler(), requests.Service.Store, requests.Posts.Store, requests.Planning.Requests.Store, requests.Exploration.Requests.Store)
+		serve(requests.Handler(), requests.Service.Store)
 	case productWork:
 		work := s.Work
 		work.Host, work.Actor, work.Current = s.Host, s.Actor, current

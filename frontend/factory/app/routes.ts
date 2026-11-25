@@ -7,7 +7,6 @@ import type {PullTab} from '../pulls/detail.js';
 /** Canonical product destinations. Hosts own URLs, history and account selection. */
 export type FactoryRoute =
   | {readonly kind: 'feed'; readonly repository?: string; readonly post?: string}
-  | {readonly kind: 'request'; readonly intent: string}
   | {readonly kind: 'work'; readonly repository: string; readonly intent?: string}
   | {readonly kind: 'issues'; readonly repository: string}
   | {readonly kind: 'pulls'; readonly repository: string}
@@ -58,9 +57,6 @@ export function admitFactoryRoute(route: FactoryRoute): void {
       );
       check(route.post === undefined || route.repository !== undefined);
       return;
-    case 'request':
-      check(decisionID(route.intent));
-      return;
     case 'work':
       check(id(route.repository) && (route.intent === undefined || decisionID(route.intent)));
       return;
@@ -109,7 +105,6 @@ export function admitFactoryRoute(route: FactoryRoute): void {
 export function factoryRouteTitle(route: FactoryRoute): string {
   return {
     feed: 'Feed',
-    request: 'Request',
     work: 'Work',
     issues: 'Issues',
     pulls: 'Pull requests',

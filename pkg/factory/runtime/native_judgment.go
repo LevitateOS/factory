@@ -23,11 +23,6 @@ type NativeJudgments struct {
 	retryCommand string
 }
 
-func (s NativeJudgments) RetryFailedJudgment(command string) control.ProductJudgment {
-	s.retryCommand = command
-	return s
-}
-
 var _ control.PriorityChooser = NativeJudgments{}
 
 // Choose uses the configured judgment source only when every candidate belongs

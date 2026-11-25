@@ -4,8 +4,6 @@ import {renderFactoryWordmark} from '../shared/factory-mark.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {SodaFactoryFeed} from '../feed/feed.js';
 import type {FactoryFeedContext} from '../feed/feed.js';
-import {SodaIntent} from '../request/request.js';
-import type {IntentAPI} from '../request/request.js';
 import {SodaFactoryWorkOverview, SodaFactoryWorkPlan} from '../work/progress.js';
 import type {WorkOverviewContext, WorkPlanContext} from '../work/progress.js';
 import {SodaFactoryWorkDetail} from '../work/detail.js';
@@ -43,7 +41,6 @@ import type {JumpItem, SodaFactoryJump} from './jump.js';
  * only as a `FactoryHostSection` (host-section.ts) the shared page places. */
 export type FactoryScreen =
   | {readonly kind: 'feed'; readonly context: FactoryFeedContext}
-  | {readonly kind: 'request'; readonly api: IntentAPI; readonly blocked: boolean}
   | {readonly kind: 'work'; readonly context: WorkOverviewContext}
   | {readonly kind: 'issues'; readonly context: Omit<IssueListContext, 'openIssue'>}
   | {readonly kind: 'pulls'; readonly context: Omit<PullListContext, 'openPull'>}
@@ -281,7 +278,7 @@ export class SodaFactoryApp extends LitElement {
   }
   private mount(context: FactoryAppContext, ports: FactoryScreen, signal: AbortSignal): HTMLElement {
     const route = context.route;
-    if (ports.kind !== 'request') check(ports.context.transport === context.transport);
+    check(ports.context.transport === context.transport);
     switch (ports.kind) {
       case 'issue-new': {
         check(route.kind === 'issue-new' && ports.context.repository === route.repository);
@@ -396,30 +393,6 @@ export class SodaFactoryApp extends LitElement {
         });
         view.context = ports.context;
         if (route.post) view.post = route.post;
-        return view;
-      }
-      case 'request': {
-        check(route.kind === 'request' && typeof ports.api === 'function' && typeof ports.blocked === 'boolean');
-        const view = new SodaIntent();
-        this.own(view, () => {
-          view.active = false;
-          view.api = undefined;
-        });
-        view.actor = context.actor;
-        view.draftScope = context.scope;
-        view.planningRepository = context.selectedRepository ?? '0';
-        view.request = route.intent;
-        view.blocked = ports.blocked;
-        view.api = async (path, body, childSignal) => {
-          check(this.live(context, signal));
-          const joined = childSignal ? AbortSignal.any([signal, childSignal]) : signal;
-          joined.throwIfAborted();
-          const value = await ports.api(path, body, joined);
-          check(this.live(context, signal));
-          joined.throwIfAborted();
-          return value;
-        };
-        view.active = true;
         return view;
       }
       case 'work': {

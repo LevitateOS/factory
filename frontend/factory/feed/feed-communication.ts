@@ -177,7 +177,7 @@ export function renderFeedCommunication(
       c.intentSource
         ? html`<div class="soda-feed-source-reference">
             ${c.intentSource.state === 'draft' ? 'Proposed choice' : 'Recorded choice'} ·
-            ${c.intentSource.state}${ownRequest && places ? html`<br /><a href=${places.request(c.intentSource.intent)}>Open request</a>` : ''}
+            ${c.intentSource.state}${ownRequest && places ? html`<br /><a href=${places.request(c.intentSource.intent)}>Open request progress</a>` : ''}
             <details>
               <summary>Source revision</summary>
               <code>${c.intentSource.revision}</code

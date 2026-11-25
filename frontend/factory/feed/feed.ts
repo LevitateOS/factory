@@ -6,7 +6,6 @@ import {readStored, writeStored} from '../shared/drafts.js';
 import {allowanceHolds, allowanceHoldText, type AllowanceHold} from './allowance.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {activityTimestamp} from '../shared/format.js';
-import {decisionID} from '../api/request-response.js';
 import type {FeedCardLinks} from './feed-communication.js';
 import {
   postSourceForEntry,
@@ -42,9 +41,6 @@ import {feedRolePortraits, postRole, roleLabel} from './roles.js';
 import {readRevision} from './revision-record.js';
 import {FeedRevisionEditor} from './revision-editor.js';
 import type {RevisionAddress} from './revision-record.js';
-import {readReview} from './review-record.js';
-import {reviewHandoff} from './review-handoff.js';
-import type {ReviewAddress} from './review-record.js';
 
 export interface FactoryFeedContext {
   transport: FactoryTransport;
@@ -628,23 +624,6 @@ export class SodaFactoryFeed extends LitElement {
     return {scope: this.current.host.draftScope, repository, post, author};
   }
 
-  private reviewAddress(repository: string, post: string): ReviewAddress | undefined {
-    const actor = id(this.current?.account) ? this.current.account : this.viewerID;
-    if (!this.current?.host.draftScope || !id(actor)) return undefined;
-    return {scope: this.current.host.draftScope, repository, post, actor};
-  }
-
-  private renderReviewRecovery(post: string, repository: string) {
-    const address = this.reviewAddress(repository, post);
-    if (!address || !postID.test(post) || this.accessFailure) return '';
-    const saved = readReview(address);
-    if (!saved.pending && !saved.blocked) return '';
-    const busy = this.view.postBusy.includes(post);
-    return html`<p>A change review is saved but unconfirmed.</p>
-      <button type="button" data-post-review-recover=${post} data-post-repository=${repository} ?disabled=${busy}>Check saved change review</button>
-      ${saved.pending ? html`<button type="button" data-post-review-retry=${post} data-post-repository=${repository} ?disabled=${busy}>Retry saved change review</button>` : ''}`;
-  }
-
   private renderRevisionRecovery(post: string, repository: string, messageKind: 'post' | 'reply') {
     const address = this.revisionAddress(repository, post);
     if (!address || !postID.test(post) || this.accessFailure) return '';
@@ -1018,55 +997,6 @@ export class SodaFactoryFeed extends LitElement {
     this.requestUpdate();
   }
 
-  private async reviewProductChange(
-    post: string,
-    revision: number,
-    repository: string,
-    mode: 'open' | 'recover' | 'retry' = 'open'
-  ) {
-    const context = this.current,
-      binding = this.lifetime.signal;
-    if (
-      !context ||
-      this.accessFailure ||
-      !postID.test(post) ||
-      !id(repository) ||
-      (!context.global && context.repository !== repository) ||
-      !Number.isSafeInteger(revision) ||
-      revision < 0 ||
-      this.view.postBusy.includes(post)
-    )
-      return;
-    this.view = {...this.view, postBusy: [...this.view.postBusy, post]};
-    try {
-      if (!id(context.account) && !this.viewerID) await this.readViewerID(context);
-      if (!this.bindingLive(context, binding)) return;
-      const address = this.reviewAddress(repository, post);
-      check(address);
-      const result = await reviewHandoff(address, revision, mode, {
-        active: () => this.bindingLive(context, binding),
-        json: (path, init) => this.readJSON(context, path, init),
-        destination: (intent) => this.placesFor(repository)?.request(intent),
-      });
-      if (!result || !this.bindingLive(context, binding)) return;
-      this.view = {...this.view, message: result.message};
-      if (result.path !== undefined) {
-        this.go(result.path);
-        if (this.bindingLive(context, binding)) void this.readLatest(false);
-      }
-    } catch {
-      if (this.bindingLive(context, binding))
-        this.view = {
-          ...this.view,
-          message:
-            'This change could not be opened. Refresh the conversation to check its current direction and your access; your text is kept.',
-        };
-    } finally {
-      if (this.bindingLive(context, binding))
-        this.view = {...this.view, postBusy: this.view.postBusy.filter((row) => row !== post)};
-    }
-  }
-
   private async openRevision(post: string, messageKind: 'post' | 'reply', repository: string) {
     const context = this.current,
       serial = this.serial;
@@ -1261,21 +1191,6 @@ export class SodaFactoryFeed extends LitElement {
     if (cancelReply) {
       this.replyingTo.delete(cancelReply);
       this.requestUpdate();
-      return;
-    }
-    const productChange = closest('[data-post-product-change]');
-    const savedReview = closest('[data-post-review-recover], [data-post-review-retry]');
-    if (savedReview) {
-      void this.reviewProductChange(savedReview.dataset.postReviewRecover ?? savedReview.dataset.postReviewRetry ?? '', 0,
-        savedReview.dataset.postRepository ?? '', savedReview.hasAttribute('data-post-review-retry') ? 'retry' : 'recover');
-      return;
-    }
-    if (productChange) {
-      void this.reviewProductChange(
-        productChange.dataset.postProductChange ?? '',
-        Number(productChange.dataset.productRevision),
-        productChange.dataset.productRepository ?? ''
-      );
       return;
     }
     const drawer = closest('[data-feed-drawer-toggle]')?.dataset.feedDrawerToggle;
@@ -1762,7 +1677,7 @@ export class SodaFactoryFeed extends LitElement {
               this.artifactContext(item.entry.repository),
               this.current?.transport.assetBase,
               this.cardLinks(item.entry)
-            )}${item.entry.kind === 'post' ? html`${this.renderRevisionRecovery(item.entry.id, item.entry.repository, 'post')}${this.renderReviewRecovery(item.entry.id, item.entry.repository)}` : ''}`;
+            )}${item.entry.kind === 'post' ? html`${this.renderRevisionRecovery(item.entry.id, item.entry.repository, 'post')}` : ''}`;
           }
         )}
       </div>
@@ -1942,7 +1857,6 @@ export class SodaFactoryFeed extends LitElement {
         }
         <button type="button" data-reply-compose=${reply.postId}>Reply</button>
         ${this.renderRevisionRecovery(reply.postId, entry.repository, 'reply')}
-        ${this.renderReviewRecovery(reply.postId, entry.repository)}
         <button type="button" data-feed-drawer-toggle=${key} aria-expanded=${this.openDrawers.has(key)}>Replies</button>
         ${this.openDrawers.has(key) ? this.renderReplies(this.entryForKey(key)!) : ''}
         ${

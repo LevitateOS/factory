@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -129,48 +128,6 @@ func (s Posts) Replies(ctx context.Context, actor collaboration.ActorID, reposit
 		result.Items = append(result.Items, item)
 	}
 	return result, nil
-}
-
-// ReviewProduct opens the source-bound draft through the existing store CAS.
-// Current repository write authority and private intent ownership are separate
-// prerequisites. This handoff does not accept, generate or execute work.
-func (s Posts) ReviewProduct(ctx context.Context, actor collaboration.ActorID, id string, revision int64) (map[string]any, error) {
-	if actor <= 0 {
-		return nil, ErrPostProductNotFound
-	}
-	if s.Store == nil || s.Visibility == nil {
-		return nil, ErrPostViewUnavailable
-	}
-	detail, err := s.Store.FeedPost(ctx, id)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrPostProductNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	if detail.Source == nil || detail.Source.Product == nil {
-		return nil, ErrPostProductNotFound
-	}
-	if err := s.visible(ctx, actor, detail.Record.Repository); err != nil {
-		return nil, err
-	}
-	requests := Requests{Store: s.Store, WriteAccess: s.WriteAccess}
-	if err := requests.authorizeWrite(ctx, actor, detail.Record.Repository); err != nil {
-		return nil, err
-	}
-	if _, err := requests.Revision(ctx, actor, detail.Source.Product.Intent); err != nil {
-		if errors.Is(err, ErrRequestNotFound) {
-			return nil, ErrPostProductNotFound
-		}
-		return nil, err
-	}
-	if _, err := s.Store.ReviewPostProductChange(ctx, id, revision, int64(actor), time.Now().Unix()); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return nil, ErrPostProductNotFound
-		}
-		return nil, err
-	}
-	return s.Read(ctx, actor, id)
 }
 
 func (s Posts) canOpenProduct(ctx context.Context, actor collaboration.ActorID, repository int64, view *store.PostProductChange) bool {

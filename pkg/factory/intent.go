@@ -20,13 +20,6 @@ type Department struct {
 	Description string `json:"description"`
 }
 
-func (d Department) Validate() error {
-	if !project.ValidDecisionID(d.ID) || d.Owner <= 0 || !intentText(d.Name, 120) || !intentText(d.Description, 2000) {
-		return errors.New("invalid department")
-	}
-	return nil
-}
-
 // ProductIdea describes a requested fact, supported/autonomous choice or
 // assumption with its consequence and attributable decision basis.
 // Source distinguishes requested facts from evidence-supported choices,
@@ -396,20 +389,4 @@ type IntentListFilter struct {
 	Repository int64
 	Department string
 	Limit      int
-}
-
-func (f IntentListFilter) Validate() error {
-	if f.Cursor != "" && !project.ValidDecisionID(f.Cursor) {
-		return errors.New("invalid list cursor")
-	}
-	if f.State != "" && !ValidIntentState(f.State) {
-		return errors.New("invalid list state")
-	}
-	if f.Repository < 0 || f.Department != "" && !project.ValidDecisionID(f.Department) {
-		return errors.New("invalid list context")
-	}
-	if f.Limit < 1 || f.Limit > 50 {
-		return errors.New("invalid list limit")
-	}
-	return nil
 }

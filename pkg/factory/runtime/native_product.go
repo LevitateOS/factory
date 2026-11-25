@@ -101,7 +101,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 				}
 				return holds, ctx.Err()
 			}}, Posts: posts, Visibility: bound.visibility},
-		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
+		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: scopeVisibility,
 			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.readVisibility(&view),
 				Viewer: view.repositoryViewer, Preparation: view.preparationStatus, Authority: view.recordedAuthority,
@@ -135,17 +135,6 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		commands.Capture.Authorization = capture.Capture
 	}
 	product.Feed.Commands = commands
-	product.Requests.Planning = factoryservice.RequestPlanning{Requests: product.Requests.Service, Planner: application.Coordinator}
-	if application.Coordinator.Graph != nil {
-		product.Requests.Planning.Generator = application.Coordinator
-	}
-	product.Requests.Exploration = factoryservice.RequestExploration{Requests: product.Requests.Service}
-	if application.Coordinator.Planning != nil {
-		product.Requests.Exploration.Chooser = application.Coordinator.Planning.Chooser
-	}
-	if application.Chooser != nil {
-		product.Requests.Exploration.Chooser = application.Chooser()
-	}
 	product.CollaborationIssues = factoryhttp.CollaborationIssues{Service: factoryservice.CollaborationIssues{Source: reads}}
 	product.CollaborationPulls = factoryhttp.CollaborationPulls{Service: factoryservice.CollaborationPulls{Source: reads}}
 	product.Discussions = factoryhttp.CollaborationDiscussions{Service: factoryservice.CollaborationDiscussions{Source: reads}}

@@ -2,6 +2,7 @@
 export interface FactoryRepositoryLinks {
   readonly repository: string;
   feed(post?: string): string;
+  /** Work progress for one request. */
   request(id: string): string;
   issue(number: string | number): string | undefined;
   pull(number: string | number): string | undefined;

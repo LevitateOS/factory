@@ -2,38 +2,8 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-
-	"github.com/levitateos/factory/pkg/factory"
 )
-
-// recordAssumptionChallengesTx records one F13 feed event per assumption
-// challenge saved with an exploration review, in the review's transaction.
-// Identity is the request and idea, so a replayed save or a later round that
-// challenges the same idea again keeps the one card. Unbound requests have no
-// repository feed and record nothing.
-func recordAssumptionChallengesTx(ctx context.Context, tx *sql.Tx, r factory.IntentRevision, challenges []factory.AssumptionChallenge) error {
-	if r.Repository <= 0 {
-		return nil
-	}
-	for _, challenge := range challenges {
-		content := factory.FeedCommunication{
-			ComponentID: "F13",
-			Title:       assumptionTitles["open"],
-			Summary:     TruncateFeedSummary(challenge.Assumption),
-			Scope:       "Build request",
-			Assumption: &factory.FeedAssumption{
-				Intent: r.Intent, Idea: challenge.Idea, Owner: r.Owner,
-				Assumption: challenge.Assumption, Consequence: challenge.Consequence, Recommendation: challenge.Recommendation,
-			},
-		}
-		if err := recordFactoryFeedEventTx(ctx, tx, r.Repository, 0, "", "assumption:"+r.Intent+":"+challenge.Idea, "assumption:open", content, r.CreatedUnix); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // feedAssumptionSQL is the one definition of an assumption challenge's served
 // state for the post alias p, read from the owner's build request head: open

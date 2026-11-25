@@ -1758,11 +1758,6 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         await until(()=>[...accountSelect.options].some(o=>o.value===__CONNECTION__),'account option');
         accountSelect.value=__CONNECTION__;accountSelect.dispatchEvent(new Event('change',{bubbles:true}));
         await until(()=>!document.querySelector('#repository-name').disabled,'account context');
-        await until(()=>document.querySelector('soda-intent')?.shadowRoot?.querySelector('textarea:not([disabled])'),'shared request editor');
-        const outcome='Native connection keeps this request draft.';
-        const editor=document.querySelector('soda-intent').shadowRoot.querySelector('textarea:not([disabled])');
-        editor.value=outcome;editor.dispatchEvent(new Event('input',{bubbles:true,composed:true}));
-        await until(()=>Object.keys(localStorage).some(k=>k.startsWith('soda-intent-draft:')&&localStorage.getItem(k).includes(outcome)),'request draft retained');
         const openRepository=async name=>{
           const input=document.querySelector('#repository-name');input.value=name;
           document.querySelector('#repository-find').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
@@ -1821,8 +1816,6 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         await until(()=>document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'disconnected app');
         accountSelect.value=__CONNECTION__;accountSelect.dispatchEvent(new Event('change',{bubbles:true}));
         await until(()=>!document.querySelector('#repository-name').disabled,'account reconnect');
-        nav('New request');
-        await until(()=>document.querySelector('soda-intent')?.shadowRoot?.querySelector('textarea')?.value===outcome,'request draft restored');
         document.querySelector('#connection-disconnect').click();
         await invoke('report',{stage:'signin-product-complete',error:null});
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}

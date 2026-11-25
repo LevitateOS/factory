@@ -1,5 +1,4 @@
 import {check, id, object} from '../api/models.js';
-import {decisionID} from '../api/request-response.js';
 import type {AllowanceHold} from './allowance.js';
 import {postRole} from './roles.js';
 
@@ -680,17 +679,6 @@ export function feedRevisionReceipt(
 export async function feedRevisionBodyDigest(body: string): Promise<string> {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-/** A review handoff is bound to the source revision and accepted predecessor.
- * The recorded draft revision is the store's receipt, not a current head guess. */
-export function feedReviewSource(value: unknown, post: string, repository: string) {
-  const source = feedRevisionSource(value, post, repository);
-  const change = source.post.pipeline?.productChange;
-  check(change && decisionID(change.intent) && decisionID(change.acceptedRevision));
-  check(['review_required', 'draft', 'accepted', 'superseded', 'unavailable'].includes(change.state) && typeof change.canReview === 'boolean');
-  check(change.draftRevision === undefined || decisionID(change.draftRevision));
-  return {...source, change};
 }
 
 // newIdempotencyKey mints one caller-chosen key per draft, so a resubmit

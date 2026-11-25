@@ -10,49 +10,6 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-func (s *Store) CreateDepartment(ctx context.Context, d factory.Department) error {
-	if err := d.Validate(); err != nil {
-		return err
-	}
-	raw, err := json.Marshal(d)
-	if err != nil {
-		return err
-	}
-	result, err := s.db.ExecContext(ctx, `INSERT INTO factory_departments(id,owner_id,data) VALUES($1,$2,$3) ON CONFLICT(id) DO NOTHING`, d.ID, d.Owner, string(raw))
-	if err != nil {
-		return err
-	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ErrCommandConflict
-	}
-	return nil
-}
-
-func (s *Store) Departments(ctx context.Context, owner int64) ([]factory.Department, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_departments WHERE owner_id=$1 ORDER BY id LIMIT 101`, owner)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := []factory.Department{}
-	for rows.Next() {
-		var raw []byte
-		var d factory.Department
-		if err = rows.Scan(&raw); err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal(raw, &d); err != nil {
-			return nil, err
-		}
-		result = append(result, d)
-	}
-	return result, rows.Err()
-}
-
 // SaveIntentRevision serializes revisions on a durable head and preserves all
 // review history. Identity replay is exact; changed content cannot overwrite it.
 func (s *Store) SaveIntentRevision(ctx context.Context, r factory.IntentRevision) error {
@@ -197,52 +154,6 @@ func (s *Store) SavedIntentRevision(ctx context.Context, intent, revision string
 		return factory.IntentRevision{}, ErrNotFound
 	}
 	return result, nil
-}
-
-// ListIntentRevisions returns bounded owner-private resume summaries with a
-// stable intent-ID cursor. It lists only the caller's current heads; another
-// actor's drafts and inaccessible private details never appear. Empty returns
-// an empty slice, never a null; database failures return an error for 503.
-func (s *Store) ListIntentRevisions(ctx context.Context, owner int64, f factory.IntentListFilter) ([]factory.IntentSummary, string, error) {
-	if owner <= 0 {
-		return nil, "", errors.New("invalid intent owner")
-	}
-	if f.Limit == 0 {
-		f.Limit = 20
-	}
-	if err := f.Validate(); err != nil {
-		return nil, "", err
-	}
-	rows, err := s.db.QueryContext(ctx, `SELECT h.id, r.data FROM factory_intent_heads h JOIN factory_intent_revisions r ON r.id=h.revision WHERE h.owner_id=$1 AND h.id>$2 AND ($3='' OR r.data->>'state'=$3) AND ($4::bigint<=0 OR (r.data->>'repository')::bigint=$4) AND ($5='' OR r.data->>'department'=$5) ORDER BY h.id LIMIT $6`, owner, f.Cursor, f.State, f.Repository, f.Department, f.Limit+1)
-	if err != nil {
-		return nil, "", err
-	}
-	defer rows.Close()
-	result := []factory.IntentSummary{}
-	for rows.Next() {
-		var id string
-		var raw []byte
-		var r factory.IntentRevision
-		if err = rows.Scan(&id, &raw); err != nil {
-			return nil, "", err
-		}
-		if err = json.Unmarshal(raw, &r); err != nil {
-			return nil, "", err
-		}
-		if err = r.Validate(); err != nil {
-			return nil, "", err
-		}
-		result = append(result, r.Summary())
-	}
-	if err = rows.Err(); err != nil {
-		return nil, "", err
-	}
-	next := ""
-	if len(result) > f.Limit {
-		next = result[f.Limit-1].Intent
-		result = result[:f.Limit]
-	}
-	return result, next, nil
 }
 
 // IntentHistory returns immutable revisions for one owner-private request,

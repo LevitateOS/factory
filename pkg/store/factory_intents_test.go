@@ -103,11 +103,7 @@ func TestIntentRepositoryBindingSurvivesNonAcceptedHeads(t *testing.T) {
 func TestIntentRevisionCASAndPrivacy(t *testing.T) {
 	s, _ := postgresFixture(t)
 	ctx := context.Background()
-	d := factory.Department{ID: "d111111111111111111111111", Owner: 1, Name: "Operations", Description: "Coordinate requests"}
-	if err := s.CreateDepartment(ctx, d); err != nil {
-		t.Fatal(err)
-	}
-	r := factory.IntentRevision{ID: "d222222222222222222222222", Intent: "d333333333333333333333333", Owner: 1, Department: d.ID, Objective: "Build request tracker", State: "draft", MaxIssues: 10, CreatedUnix: 1}
+	r := factory.IntentRevision{ID: "d222222222222222222222222", Intent: "d333333333333333333333333", Owner: 1, Objective: "Build request tracker", State: "draft", MaxIssues: 10, CreatedUnix: 1}
 	if err := s.SaveIntentRevision(ctx, r); err != nil {
 		t.Fatal(err)
 	}
@@ -128,37 +124,6 @@ func TestIntentRevisionCASAndPrivacy(t *testing.T) {
 	}
 	if _, err := s.IntentRevision(ctx, r.Intent, 2); !errors.Is(err, ErrNotFound) {
 		t.Fatal("private intent visible")
-	}
-	r.Owner = 2
-	r.Intent = "d555555555555555555555555"
-	r.Predecessor = ""
-	if s.SaveIntentRevision(ctx, r) == nil {
-		t.Fatal("other owner department accepted")
-	}
-}
-
-func TestListIntentRevisionsIsOwnerPrivateAndBounded(t *testing.T) {
-	s, _ := postgresFixture(t)
-	ctx := context.Background()
-	a := factory.IntentRevision{ID: "d111111111111111111111111", Intent: "d222222222222222222222222", Owner: 1, Objective: "First", State: "draft", MaxIssues: 10, CreatedUnix: 1}
-	b := factory.IntentRevision{ID: "d333333333333333333333333", Intent: "d444444444444444444444444", Owner: 1, Objective: "Second", State: "draft", MaxIssues: 10, CreatedUnix: 1}
-	other := factory.IntentRevision{ID: "d555555555555555555555555", Intent: "d666666666666666666666666", Owner: 2, Objective: "Other", State: "draft", MaxIssues: 10, CreatedUnix: 1}
-	for _, r := range []factory.IntentRevision{a, b, other} {
-		if err := s.SaveIntentRevision(ctx, r); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got, next, err := s.ListIntentRevisions(ctx, 1, factory.IntentListFilter{Limit: 1})
-	if err != nil || len(got) != 1 || next == "" {
-		t.Fatalf("bounded list %v %v %v", got, next, err)
-	}
-	got, next, err = s.ListIntentRevisions(ctx, 1, factory.IntentListFilter{Cursor: next, Limit: 10})
-	if err != nil || len(got) != 1 || next != "" || got[0].Intent == other.Intent {
-		t.Fatal("cursor leaked or missed")
-	}
-	got, _, err = s.ListIntentRevisions(ctx, 1, factory.IntentListFilter{State: "accepted", Limit: 10})
-	if err != nil || len(got) != 0 {
-		t.Fatal("empty filter not empty")
 	}
 }
 

@@ -265,14 +265,8 @@ const postPhases: Readonly<
 function productChangeOutcome(change: NonNullable<PostPipelineState['productChange']>): [string, PostOutcomeTone] {
   switch (change.state) {
     case 'review_required':
-      return [
-        change.canReview
-          ? 'Review this proposed change before updating the accepted direction.'
-          : 'Waiting for the request owner to review this proposed change.',
-        'progress',
-      ];
     case 'draft':
-      return ['The change is saved in the build request for review. Accept its direction before building.', 'progress'];
+      return ['Reviewing a proposed change to an accepted direction is unavailable in this app. The proposal is kept.', 'failed'];
     case 'accepted':
       return [
         'The changed direction is accepted. Follow its build and verification before applying a version.',
@@ -338,18 +332,11 @@ export function describePostOutcome(
   };
 }
 
-const productActions: Readonly<Record<string, string>> = {
-  review_required: 'Review proposed change',
-  draft: 'Continue change review',
-  accepted: 'Open accepted change',
-};
-
 // JEV's reply under a request: her portrait, what she is doing right now
 // (with a working indicator while the feed's own refresh catches up), and
 // the actions the author may take.
 export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): TemplateResult {
   const change = outcome.productChange;
-  const productAction = change?.canReview ? productActions[change.state] : undefined;
   const labels: Partial<Record<PostPhase, string>> = {
     drafting: 'Run started',
     draft_queued: 'Queued',
@@ -406,23 +393,9 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
       ${
         outcome.requestLink || outcome.setupLink
           ? html`<p class="soda-feed-authoring-links">
-              ${outcome.requestLink ? html`<a href=${outcome.requestLink}>View request</a>` : ''}
+              ${outcome.requestLink ? html`<a href=${outcome.requestLink}>View request progress</a>` : ''}
               ${outcome.setupLink ? html`<a href=${outcome.setupLink}>Review Project setup</a>` : ''}
             </p>`
-          : ''
-      }
-      ${
-        productAction
-          ? html`<button
-              type="button"
-              class="ui button"
-              data-post-product-change=${outcome.postId}
-              data-product-revision=${outcome.revision}
-              data-product-repository=${outcome.productRepository}
-              ?disabled=${outcome.busy}
-            >
-              ${productAction}
-            </button>`
           : ''
       }
       ${

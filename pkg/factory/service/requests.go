@@ -255,23 +255,6 @@ func (s Requests) Revision(ctx context.Context, actor collaboration.ActorID, int
 	return head, err
 }
 
-// SavedRevision reads the exact owner-bound record of an earlier save. A later
-// head does not invalidate that receipt, and the read grants no write authority.
-func (s Requests) SavedRevision(ctx context.Context, actor collaboration.ActorID, intent, revision string) (factory.IntentRevision, error) {
-	var empty factory.IntentRevision
-	if actor <= 0 || !project.ValidDecisionID(intent) || !project.ValidDecisionID(revision) {
-		return empty, ErrRequestNotFound
-	}
-	if s.Store == nil {
-		return empty, ErrRequestUnavailable
-	}
-	result, err := s.Store.SavedIntentRevision(ctx, intent, revision, int64(actor))
-	if errors.Is(err, store.ErrNotFound) {
-		return empty, ErrRequestNotFound
-	}
-	return result, err
-}
-
 // Overview reads recorded facts only. Work delivery and verified product
 // outcomes remain distinct; repository visibility does not grant draft access.
 func (s Requests) Overview(ctx context.Context, actor collaboration.ActorID, intent string) (RequestOverview, error) {
@@ -368,39 +351,4 @@ func (s Requests) WorkItemState(ctx context.Context, repository int64, binding f
 		return "", fmt.Errorf("read work merge: %w", err)
 	}
 	return requestWorkState(in), nil
-}
-
-// Review reports the saved current/stale/missing review without invoking a
-// judge. Both the request head and any review must belong to the same owner.
-func (s Requests) Review(ctx context.Context, actor collaboration.ActorID, intent, target string) (factory.SavedReviewRead, error) {
-	var empty factory.SavedReviewRead
-	head, err := s.Revision(ctx, actor, intent)
-	if err != nil {
-		return empty, err
-	}
-	if target == "" {
-		target = head.ID
-	}
-	if !project.ValidDecisionID(target) {
-		return empty, ErrRequestRevisionInvalid
-	}
-	var read factory.SavedReviewRead
-	review, err := s.Store.IntentReview(ctx, target, int64(actor))
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		read = factory.SavedReviewRead{Intent: intent, HeadRevision: head.ID, Status: factory.ReviewMissing}
-	case err != nil:
-		return empty, err
-	case review.Intent != intent:
-		return empty, ErrRequestNotFound
-	default:
-		if err := review.Validate(); err != nil {
-			return empty, err
-		}
-		read = factory.SavedReviewRead{Intent: intent, HeadRevision: head.ID, Status: factory.ClassifyReview(head.ID, target, true), Review: &review}
-	}
-	if err := read.Validate(); err != nil {
-		return empty, err
-	}
-	return read, nil
 }
