@@ -67,7 +67,7 @@ impl Client {
             if !node_id(subject_node) || subject["locked"].as_bool().is_none() {
                 return Err(Failure::protocol());
             }
-            let repository = reader.get("", &[]).await?.value;
+            let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != lock.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }

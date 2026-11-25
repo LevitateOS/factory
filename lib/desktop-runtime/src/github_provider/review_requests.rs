@@ -80,7 +80,7 @@ impl Reader<'_> {
             opaque(&raw, "node_id", 1024)?;
             (r::actor(&raw)?, Value::Null)
         } else {
-            let repository = self.get("", &[]).await?.value;
+            let repository = self.raw_repository.clone();
             if r::id(&repository["id"])? != self.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }
@@ -116,7 +116,6 @@ impl Reader<'_> {
                 json!({"external_id":target["external_id"],"name":target["name"]}),
             )
         };
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"name":self.name,"pull":{"kind":"pull","external_id":r::id(&pull["id"])?,"number":number},"actor":actor,"team":team}),
         )
@@ -125,7 +124,7 @@ impl Reader<'_> {
         let pull = self.raw_subject(true, q.number).await?;
         let pull_id = r::id(&pull["id"])?;
         let pull_node = opaque(&pull, "node_id", 1024)?;
-        let repository = self.get("", &[]).await?.value;
+        let repository = self.raw_repository.clone();
         if r::id(&repository["id"])? != q.repository {
             return Err(Failure::new(409, "github_repository_changed"));
         }
@@ -303,7 +302,7 @@ impl Reader<'_> {
         if r::id(&current["id"])? != pull_id || current["node_id"] != pull_node {
             return Err(Failure::new(409, "github_review_requests_changed"));
         }
-        let current = self.get("", &[]).await?.value;
+        let current = self.raw_repository.clone();
         if r::id(&current["id"])? != q.repository
             || current["node_id"] != repo_node
             || current["owner"]["node_id"] != owner_node

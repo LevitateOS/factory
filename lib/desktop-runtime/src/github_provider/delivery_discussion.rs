@@ -22,7 +22,6 @@ impl Reader<'_> {
         let first = self
             .delivery_discussion_pages(number, head, base, account)
             .await?;
-        self.recheck().await?;
         if self
             .delivery_discussion_pages(number, head, base, account)
             .await?
@@ -30,7 +29,6 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_delivery_discussion_changed"));
         }
-        self.recheck().await?;
         Ok(json!({"pages": first}))
     }
 
@@ -102,7 +100,7 @@ impl Reader<'_> {
                 thread_id: String::new(),
             };
             let payload = self
-                .graph_threads_for_pull(&query, &cursor, account, &pull, &self.repository_snapshot)
+                .graph_threads_for_pull(&query, &cursor, account, &pull, &self.raw_repository)
                 .await?;
             let items = payload["items"].as_array().ok_or_else(Failure::protocol)?;
             consume(&mut remaining, items.len())?;
@@ -134,7 +132,7 @@ impl Reader<'_> {
                             &after,
                             account,
                             &pull,
-                            &self.repository_snapshot,
+                            &self.raw_repository,
                         )
                         .await?;
                     let detail_items = part["items"]

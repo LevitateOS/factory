@@ -92,7 +92,7 @@ impl Client {
             if (original == "closed") == state.close {
                 return Err(Failure::new(409, "github_state_already_current"));
             }
-            let repository = reader.get("", &[]).await?.value;
+            let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != state.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }

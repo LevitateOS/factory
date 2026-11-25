@@ -41,6 +41,8 @@ mod native_github_states;
 mod native_github_threads;
 #[path = "../native_github_transport.rs"]
 mod native_github_transport;
+#[path = "../native_github_requests.rs"]
+mod native_github_requests;
 #[path = "../native_typesafe.rs"]
 mod native_typesafe;
 fn ensure(ok: bool, message: &str) -> Result<()> {
@@ -1819,6 +1821,10 @@ async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path
 }
 
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    if args.first().and_then(|arg| arg.to_str()) == Some("--github-requests") {
+        ensure(args.len() == 4, "GitHub request counts require backend, PostgreSQL payload and a new profile")?;
+        return native_github_requests::run(Path::new(&args[1]), Path::new(&args[2]), Path::new(&args[3])).await;
+    }
     if args.first().and_then(|arg| arg.to_str()) == Some("--typesafe") {
         ensure(args.len() == 2, "TypeSafe custody requires a new profile")?;
         return native_typesafe::run(Path::new(&args[1])).await;

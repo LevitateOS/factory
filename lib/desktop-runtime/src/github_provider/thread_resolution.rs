@@ -64,7 +64,7 @@ impl Client {
                 Some(true) => return Err(Failure::new(403, "github_discussion_locked")),
                 None => return Err(Failure::protocol()),
             }
-            let repository = reader.get("", &[]).await?.value;
+            let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != q.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }

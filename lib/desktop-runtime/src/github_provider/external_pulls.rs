@@ -165,7 +165,6 @@ impl Reader<'_> {
         if &confirmed.value["data"] != data {
             return Err(Failure::new(409, "github_pull_candidates_changed"));
         }
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"repository_node_id":repository_node,"name":self.name,
             "actor":{"external_id":actor.external_id,"login":actor.login},"actor_node_id":actor_node,"writer":writer,

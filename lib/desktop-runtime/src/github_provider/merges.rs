@@ -124,7 +124,6 @@ impl Reader<'_> {
             )
         };
         let before = observe().await?;
-        self.recheck().await?;
         if observe().await? != before {
             return Err(Failure::new(409, "github_merge_completion_changed"));
         }
@@ -132,7 +131,7 @@ impl Reader<'_> {
     }
     pub(super) async fn merge_preparation(&self, number: u32) -> Result<Value> {
         let observe = async || -> Result<Value> {
-            let repository = self.get("", &[]).await?.value;
+            let repository = self.raw_repository.clone();
             let pull = self.raw_subject(true, number.into()).await?;
             self.merge_preparation_for_pull(number, &repository, &pull)
         };
@@ -176,16 +175,15 @@ impl Reader<'_> {
         if self.merge_readiness_snapshot(number, head, base).await? != before {
             return Err(Failure::new(409, "github_merge_inputs_changed"));
         }
-        self.recheck().await?;
         Ok(before.0)
     }
 
     async fn merge_readiness_snapshot(&self, number: u32, head: &str, base: &str) -> Result<(Value, Value)> {
-        let (repository, pull) = tokio::try_join!(self.get("", &[]), self.raw_subject(true, number.into()))?;
+        let pull = self.raw_subject(true, number.into()).await?;
         if pull["head"]["sha"] != head || pull["base"]["sha"] != base {
             return Err(Failure::new(409, "github_merge_inputs_changed"));
         }
-        let preparation = self.merge_preparation_for_pull(number, &repository.value, &pull)?;
+        let preparation = self.merge_preparation_for_pull(number, &self.raw_repository, &pull)?;
         let ((binding, evaluation, sources), (review, protection), capabilities, opinions) = tokio::try_join!(
             async {
                 let binding = self.check_evaluation_for_pull(number.into(), &pull).await?;
@@ -197,8 +195,8 @@ impl Reader<'_> {
                 let review = self.automation_review_with_base_tip(number.into(), &pull, Some(r::text(&protection, "branch_commit")?)).await?;
                 Ok((review, protection))
             },
-            self.write_capabilities_for_repository(&repository.value, Some(number), true),
-            self.delivery_opinions_for_pull(number.into(), &repository.value, &pull)
+            self.write_capabilities_for_repository(&self.raw_repository, Some(number), true),
+            self.delivery_opinions_for_pull(number.into(), &self.raw_repository, &pull)
         )?;
         if review["head_tip"] != binding["head"] || review["base_tip"] != binding["base"]
             || capabilities["subject"]["external_id"] != preparation["pull_id"]

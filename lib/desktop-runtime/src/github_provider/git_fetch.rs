@@ -111,14 +111,11 @@ impl Reader<'_> {
     }
 
     async fn source_tip(&self, target: &str, commit: &str) -> Result<()> {
-        let (repository, advertisement) = tokio::try_join!(
-            self.get("", &[]),
-            self.client
-                .git_request(&self.name, self.token, GitService::UploadPack, None)
-        )?;
-        if r::id(&repository.value["id"])? != self.repository
-            || repository.value["full_name"] != self.name
-            || advertised(&advertisement.0, GitService::UploadPack)?
+        let advertisement = self
+            .client
+            .git_request(&self.name, self.token, GitService::UploadPack, None)
+            .await?;
+        if advertised(&advertisement.0, GitService::UploadPack)?
                 .get(target)
                 .map(String::as_str)
                 != Some(commit)

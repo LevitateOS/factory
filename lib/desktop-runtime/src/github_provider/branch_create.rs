@@ -18,7 +18,7 @@ pub use crate::provider_contract::BranchCreate;
 
 impl Reader<'_> {
     async fn branch_create_repository(&self) -> Result<Value> {
-        let raw = self.get("", &[]).await?.value;
+        let raw = self.raw_repository.clone();
         if r::id(&raw["id"])? != self.repository || raw["full_name"] != self.name {
             return Err(Failure::new(409, "github_repository_changed"));
         }

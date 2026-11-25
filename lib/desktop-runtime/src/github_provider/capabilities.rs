@@ -12,9 +12,8 @@ impl Reader<'_> {
         number: Option<u32>,
         pull: bool,
     ) -> Result<Value> {
-        let repository = self.get("", &[]).await?.value;
+        let repository = self.raw_repository.clone();
         let projected = self.write_capabilities_for_repository(&repository, number, pull).await?;
-        self.recheck().await?;
         Ok(projected)
     }
     pub(super) async fn write_capabilities_for_repository(

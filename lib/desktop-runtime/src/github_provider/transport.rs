@@ -18,6 +18,38 @@ use zeroize::Zeroizing;
 
 const MAX_REQUESTS: usize = 16;
 const TIMEOUT: Duration = Duration::from_secs(8);
+const API_ORIGIN: &str = "https://api.github.com";
+
+#[cfg(feature = "controlled-replies")]
+static CONTROLLED_API: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Controlled checks only: send every GitHub API request to a loopback HTTP
+/// peer that scripts and counts them. Set once, before any client is built.
+#[cfg(feature = "controlled-replies")]
+pub fn control_api(origin: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(origin) else { return false };
+    parsed.scheme() == "http"
+        && parsed.host_str() == Some("127.0.0.1")
+        && parsed.path() == "/"
+        && CONTROLLED_API.set(origin.trim_end_matches('/').to_owned()).is_ok()
+}
+
+fn api_origin() -> &'static str {
+    #[cfg(feature = "controlled-replies")]
+    if let Some(origin) = CONTROLLED_API.get() {
+        return origin;
+    }
+    API_ORIGIN
+}
+
+/// The API host a request was sent to, as GitHub's own host name.
+fn api_host(url: &url::Url) -> Option<&str> {
+    #[cfg(feature = "controlled-replies")]
+    if CONTROLLED_API.get().is_some_and(|origin| url.as_str().starts_with(origin.as_str())) {
+        return Some("api.github.com");
+    }
+    url.host_str()
+}
 /// Local counters for this native owner. Buckets contain only fixed labels;
 /// no request URLs, identities, credentials or provider text are retained.
 #[derive(Clone, Default, serde::Serialize)]
@@ -71,7 +103,7 @@ fn traffic_category(request: &reqwest::Request) -> (&'static str, &'static str) 
         "GET" => "GET", "POST" => "POST", "PUT" => "PUT", "PATCH" => "PATCH", "DELETE" => "DELETE", _ => "other",
     };
     let path: Vec<_> = request.url().path().trim_matches('/').split('/').collect();
-    let endpoint = match (request.url().host_str(), path.as_slice()) {
+    let endpoint = match (api_host(request.url()), path.as_slice()) {
         (Some("api.github.com"), ["graphql"]) => "graphql",
         (Some("api.github.com"), ["user"]) => "identity",
         (Some("api.github.com"), ["user", "repos"]) => "repositories",
@@ -176,6 +208,7 @@ pub struct Client {
     traffic: Arc<Traffic>,
     budget: Arc<Budget>,
     pub(super) mutations: Arc<tokio::sync::Mutex<Instant>>,
+    pub(super) known: Arc<super::known::Known>,
 }
 /// Headless owner. Stop/drop cancels and joins outstanding provider requests.
 pub struct Owner {
@@ -199,7 +232,7 @@ impl Owner {
             .map_err(|_| Failure::unavailable())?;
         let http = runtime.block_on(async {
             Http::builder()
-                .https_only(true)
+                .https_only(api_origin() == API_ORIGIN)
                 .redirect(redirect::Policy::none())
                 .retry(reqwest::retry::never())
                 .referer(false)
@@ -223,6 +256,7 @@ impl Owner {
             traffic: traffic.clone(),
             budget: budget.clone(),
             mutations: Arc::new(tokio::sync::Mutex::new(Instant::now())),
+            known: Arc::default(),
         };
         let thread = thread::Builder::new().name("factory-github-session".into()).spawn(move || {
             runtime.block_on(async move {
@@ -532,7 +566,9 @@ impl Client {
             })
             .await?;
         if wire.status != 200 {
-            return Err(provider_failure(&wire));
+            let failure = provider_failure(&wire);
+            self.known.refused(token, path, &failure);
+            return Err(failure);
         }
         let value: Value = serde_json::from_slice(&wire.bytes).map_err(|_| Failure::protocol())?;
         if value.is_null() {
@@ -669,7 +705,7 @@ async fn wire(http: &Http, request: Request, budget: &Budget, traffic: &Traffic,
     let (request, limit) = match request {
         Request::Provider(build) => build(http)?,
         Request::Api { path, query, token } => {
-            let mut url = url::Url::parse(&format!("https://api.github.com{path}"))
+            let mut url = url::Url::parse(&format!("{}{path}", api_origin()))
                 .map_err(|_| Failure::invalid())?;
             if !query.is_empty() {
                 url.query_pairs_mut().extend_pairs(query);
@@ -814,7 +850,7 @@ pub(super) fn graphql(
         .map_err(|_| Failure::new(400, "invalid_native_write"))?;
     authorization.set_sensitive(true);
     Ok(http
-        .post("https://api.github.com/graphql")
+        .post(format!("{}/graphql", api_origin()))
         .header(header::AUTHORIZATION, authorization)
         .header("X-GitHub-Api-Version", API_VERSION)
         .header(header::ACCEPT, "application/vnd.github+json")
@@ -836,7 +872,7 @@ pub(super) fn rest_post(http: &Http, token: &[u8], path: &str, body: Value) -> R
     // GitHub can take longer than the client's 8 seconds to create a repository with
     // its first commit; dropping the request then can lose or abandon the write.
     Ok(http
-        .post(format!("https://api.github.com{path}"))
+        .post(format!("{}{path}", api_origin()))
         .timeout(Duration::from_secs(25))
         .header(header::AUTHORIZATION, authorization)
         .header("X-GitHub-Api-Version", API_VERSION)

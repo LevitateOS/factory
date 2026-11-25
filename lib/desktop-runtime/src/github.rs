@@ -439,7 +439,7 @@ async fn canonical_read(
         _ => return Err(Error::Invalid),
     };
     let mut result = match client
-        .read_account_with_identity(token, &account.account, &raw_query, captured_identity, None)
+        .read_account_with_identity(token, &account.account, &raw_query, captured_identity)
         .await
     {
         Ok(body) => body,

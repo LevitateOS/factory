@@ -67,7 +67,7 @@ impl Client {
             {
                 return Err(Failure::new(409, "github_edit_base_changed"));
             }
-            let repository = reader.get("", &[]).await?.value;
+            let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != edit.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }

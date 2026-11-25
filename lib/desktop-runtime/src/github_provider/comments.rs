@@ -47,22 +47,12 @@ impl Client {
             let actor_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &comment.repository).await?;
             let pull = comment.subject == "pull";
-            let subject = reader.raw_subject(pull, comment.number).await?;
-            if r::id(&subject["id"])? != comment.subject_id
-                || !pull && !subject["pull_request"].is_null()
-            {
+            let subject = reader.known_subject(pull, comment.number).await?;
+            if subject.id != comment.subject_id || !pull && subject.pull {
                 return Err(Failure::new(409, "github_subject_changed"));
             }
-            let subject_node = r::text(&subject, "node_id")?;
-            if !super::request::node_id(subject_node) {
-                return Err(Failure::protocol());
-            }
-            // A lock can still change at the provider before POST. This is a
-            // conservative preflight, never an atomic provider revision guard.
-            if subject["locked"].as_bool() != Some(false) {
-                return Err(Failure::new(403, "github_discussion_locked"));
-            }
-            let repository = reader.get("", &[]).await?.value;
+            let subject_node = subject.node.as_str();
+            let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != comment.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }

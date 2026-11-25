@@ -68,9 +68,9 @@ impl Reader<'_> {
     }
 
     pub(super) async fn workflow_runs(&self, q: &Value) -> Result<Value> {
-        self.workflow_runs_page(q, true).await
+        self.workflow_runs_page(q).await
     }
-    async fn workflow_runs_page(&self, q: &Value, recheck: bool) -> Result<Value> {
+    async fn workflow_runs_page(&self, q: &Value) -> Result<Value> {
         let (page, limit) = paging(q);
         let head = r::text(q, "head")?;
         let mut params = vec![("page", page.to_string()), ("per_page", limit.to_string())];
@@ -95,18 +95,15 @@ impl Reader<'_> {
             }
             items.push(run);
         }
-        if recheck {
-            self.recheck().await?;
-        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"head":head,"items":items,"next_page":response.next,"total":count}),
         )
     }
 
     pub(super) async fn workflow_jobs(&self, q: &Value) -> Result<Value> {
-        self.workflow_jobs_page(q, true).await
+        self.workflow_jobs_page(q).await
     }
-    async fn workflow_jobs_page(&self, q: &Value, recheck: bool) -> Result<Value> {
+    async fn workflow_jobs_page(&self, q: &Value) -> Result<Value> {
         let run = r::text(q, "run_id")?;
         let attempt = r::text(q, "attempt")?;
         let head = r::text(q, "head")?;
@@ -158,9 +155,6 @@ impl Reader<'_> {
         if self.workflow(&self.get(&target, &[]).await?.value)? != before {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        if recheck {
-            self.recheck().await?;
-        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"run":before,"items":items,"next_page":response.next,"total":count}),
         )
@@ -175,7 +169,6 @@ impl Reader<'_> {
         let runs = self
             .workflow_runs_page(
                 &json!({"page":q["run_page"],"limit":1,"head":before["head"]}),
-                false,
             )
             .await?;
         let items = runs["items"].as_array().ok_or_else(Failure::protocol)?;
@@ -185,14 +178,13 @@ impl Reader<'_> {
             {
                 return Err(Failure::new(409, "github_checks_changed"));
             }
-            Some(self.workflow_jobs_page(&json!({"run_id":run["external_id"],"attempt":run["attempt"],"head":before["head"],"page":q["page"],"limit":q["limit"]}),false).await?)
+            Some(self.workflow_jobs_page(&json!({"run_id":run["external_id"],"attempt":run["attempt"],"head":before["head"],"page":q["page"],"limit":q["limit"]})).await?)
         } else {
             None
         };
         if self.protection_binding(&self.raw_subject(true, number).await?)? != before {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        self.recheck().await?;
         Ok(
             json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":before["head"],"base":before["base"],"branch":before["branch"],"runs":runs,"jobs":jobs}),
         )
@@ -274,7 +266,6 @@ impl Reader<'_> {
         if self.protection_snapshot_for_pull(&pull).await? != captured {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        self.recheck().await?;
         Ok(captured)
     }
 

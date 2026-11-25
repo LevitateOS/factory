@@ -70,7 +70,6 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_checks_changed"));
         }
         let projected = self.required_check_projection(&before, &protection, &evaluation, sources.as_deref())?;
-        self.recheck().await?;
         Ok(projected)
     }
 

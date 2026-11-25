@@ -14,7 +14,7 @@ const QUERY: &str = "query FactoryDeliveryOpinions($pull:ID!,$after:String){node
 impl Reader<'_> {
     pub(super) async fn delivery_opinions(&self, number: u64) -> Result<Value> {
         let pull = self.raw_subject(true, number).await?;
-        let repository = self.get("", &[]).await?.value;
+        let repository = self.raw_repository.clone();
         let projected = self.delivery_opinions_for_pull(number, &repository, &pull).await?;
         let current = self.raw_subject(true, number).await?;
         if current["id"] != pull["id"]
@@ -24,7 +24,6 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_delivery_opinions_changed"));
         }
-        self.recheck().await?;
         Ok(projected)
     }
     pub(super) async fn delivery_opinions_for_pull(&self, number: u64, repository: &Value, pull: &Value) -> Result<Value> {

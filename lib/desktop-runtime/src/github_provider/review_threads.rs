@@ -91,7 +91,7 @@ impl Reader<'_> {
         account: &str,
     ) -> Result<Value> {
         let pull = self.raw_subject(true, q.number).await?;
-        let repository = self.get("", &[]).await?.value;
+        let repository = self.raw_repository.clone();
         let result = self
             .graph_threads_for_pull(q, cursor, account, &pull, &repository)
             .await?;
@@ -103,7 +103,6 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_threads_changed"));
         }
-        self.recheck().await?;
         Ok(result)
     }
     pub(super) async fn graph_threads_for_pull(

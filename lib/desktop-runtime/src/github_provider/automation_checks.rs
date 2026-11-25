@@ -48,7 +48,6 @@ fn severity(state: &str) -> usize {
 impl Reader<'_> {
     pub(super) async fn automation_checks(&self, number: u64) -> Result<Value> {
         let before = self.automation_check_snapshot(number).await?;
-        self.recheck().await?;
         if self.automation_check_snapshot(number).await? != before {
             return Err(Failure::new(409, "github_automation_checks_changed"));
         }
@@ -71,7 +70,6 @@ impl Reader<'_> {
     }
     pub(super) async fn automation_review(&self, number: u64) -> Result<Value> {
         let before = self.automation_review_snapshot(number).await?;
-        self.recheck().await?;
         if self.automation_review_snapshot(number).await? != before {
             return Err(Failure::new(409, "github_automation_review_changed"));
         }

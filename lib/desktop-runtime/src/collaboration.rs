@@ -48,8 +48,6 @@ struct Scope {
     deadline: Instant,
     cancelled: watch::Sender<bool>,
     write_claimed: AtomicBool,
-    /// This request's account and repository check, shared by its reads.
-    observed: crate::github_provider::RequestObservation,
     _permit: OwnedSemaphorePermit,
 }
 impl Scope {
@@ -349,7 +347,6 @@ impl Port {
             deadline: Instant::now() + lifetime,
             cancelled,
             write_claimed: AtomicBool::new(false),
-            observed: Default::default(),
             _permit: permit,
         });
         let mut scopes = self
@@ -862,7 +859,6 @@ async fn background_read(
             deadline,
             cancelled,
             write_claimed: AtomicBool::new(false),
-            observed: Default::default(),
             _permit: permit,
         });
         observe_scope(state, scope, &effect).await
@@ -1589,7 +1585,7 @@ async fn observe_scope(
             Operation::Read(query, _) => {
                 state
                     .provider
-                    .read_account_in_request(token, &scope.capability.account().account, query, &scope.observed)
+                    .read_account(token, &scope.capability.account().account, query)
                     .await
             }
             Operation::Mutation(command) => mutate(state, &scope, token, command).await,

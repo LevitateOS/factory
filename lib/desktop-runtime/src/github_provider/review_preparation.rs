@@ -367,7 +367,7 @@ impl Reader<'_> {
     ) -> Result<Value> {
         let subject = self.raw_subject(true, number).await?;
         let pull = opaque(&subject, "node_id")?;
-        let repository = self.get("", &[]).await?.value;
+        let repository = self.raw_repository.clone();
         if r::id(&repository["id"])? != self.repository {
             return Err(Failure::new(409, "github_repository_changed"));
         }
@@ -427,7 +427,6 @@ impl Reader<'_> {
         if current_subject["node_id"] != pull || current_subject["id"] != subject["id"] {
             return Err(Failure::new(409, "github_review_inputs_changed"));
         }
-        self.recheck().await?;
         let identity = self.client.identity(self.token).await?;
         if identity.external_id != account || identity.node_id.as_deref() != Some(actor) {
             return Err(Failure::new(409, "github_account_changed"));
@@ -445,9 +444,8 @@ impl Reader<'_> {
         if !node_id(actor) {
             return Err(Failure::protocol());
         }
-        let (before, repository) =
-            tokio::try_join!(self.raw_subject(true, number), self.get("", &[]))?;
-        let repository = repository.value;
+        let before = self.raw_subject(true, number).await?;
+        let repository = self.raw_repository.clone();
         let repo = opaque(&repository, "node_id")?;
         let pull = opaque(&before, "node_id")?;
         let external = r::id(&before["id"])?;
@@ -589,9 +587,8 @@ impl Reader<'_> {
         } else {
             Value::Null
         };
-        let (current, (), identity) = tokio::try_join!(
+        let (current, identity) = tokio::try_join!(
             self.raw_subject(true, number),
-            self.recheck(),
             self.client.identity(self.token)
         )?;
         for key in [

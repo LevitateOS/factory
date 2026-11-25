@@ -75,7 +75,6 @@ impl Reader<'_> {
             comments,
             target,
         )?;
-        self.recheck().await?;
         let after = project(
             &self
                 .client
@@ -262,7 +261,6 @@ impl Reader<'_> {
             return Err(Failure::new(429,"native_operation_budget"));
         }
         let first=observe().await?;
-        self.recheck().await?;
         let confirmed=observe().await?;
         if first!=confirmed {return Err(Failure::new(409,"github_inventory_changed"));}
         Ok(first)

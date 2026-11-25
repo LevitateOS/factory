@@ -20,6 +20,7 @@ mod inline_create;
 mod inline_draft;
 mod inline_preparation;
 mod issue_create;
+mod known;
 mod locks;
 mod merges;
 mod oauth;
@@ -63,7 +64,6 @@ pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use pull_branches::PullBranchRead;
 pub use pull_create::{PullBranchPin, PullCreate};
 pub use request::Read;
-pub(crate) use reads::RequestObservation;
 pub use repository_create::RepositoryCreate;
 pub use review_create::ReviewCreate;
 pub use review_request_effect::ReviewRequestChange;
@@ -73,6 +73,8 @@ pub use review_threads::ThreadRead;
 use serde::Serialize;
 pub use thread_resolution::{OriginalThreadAnchor, ThreadResolution};
 pub use transport::{Client, Owner, TrafficSnapshot};
+#[cfg(feature = "controlled-replies")]
+pub use transport::control_api;
 
 pub const API_VERSION: &str = "2026-03-10";
 pub const OAUTH_CLIENT_ID: &str = "Ov23liI9YQMPuYjBL6nn";
@@ -96,7 +98,12 @@ impl Identity {
     }
 }
 impl Client {
+    /// The token's account, asked of GitHub once per token.
     pub(crate) async fn identity(&self, token: &[u8]) -> Result<Identity> {
+        if let Some(identity) = self.known.account(token) {
+            self.current()?;
+            return Ok(identity);
+        }
         let raw = self.get("/user", &[], token).await?.value;
         let id = raw["id"]
             .as_i64()
@@ -116,6 +123,7 @@ impl Client {
         };
         identity.account()?;
         self.current()?;
+        self.known.remember_account(token, &identity);
         Ok(identity)
     }
     /// An unpersisted token must be verified through /user before native custody.

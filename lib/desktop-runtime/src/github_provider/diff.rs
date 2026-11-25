@@ -121,7 +121,7 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_diff_changed"));
         }
-        self.recheck().await
+        Ok(())
     }
     fn diff_state(&self, pull: &Value) -> Result<Value> {
         let base = r::text(&pull["base"], "sha")?;

@@ -27,7 +27,7 @@ impl Reader<'_> {
             Some(Reader::new(self.client, self.token, comparison_repository).await?)
         };
         let observe = async || -> Result<serde_json::Value> {
-            let raw = self.get("", &[]).await?.value;
+            let raw = self.raw_repository.clone();
             if r::id(&raw["id"])? != self.repository || raw["full_name"] != self.name {
                 return Err(Failure::protocol());
             }
@@ -44,10 +44,6 @@ impl Reader<'_> {
             Ok(result)
         };
         let before = observe().await?;
-        self.recheck().await?;
-        if let Some(comparison) = &comparison {
-            comparison.recheck().await?;
-        }
         if observe().await? != before {
             return Err(Failure::new(409, "github_publication_refs_changed"));
         }
@@ -121,7 +117,7 @@ impl Client {
             let pull = if let Some(comparison) = &comparison_reader {
                 Some(comparison.correction_pull(q, &reader.name).await?)
             } else { None };
-            let repository = reader.get("", &[]).await?.value;
+            let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != q.repository || repository["full_name"] != reader.name
                 || repository["permissions"]["push"] != true || repository["archived"] != false || repository["disabled"] != false {
                 return Err(Failure::new(403, "github_publication_unavailable"));
@@ -134,9 +130,7 @@ impl Client {
                 || refs.get(&target).map(String::as_str).unwrap_or("") != q.expected_old {
                 return Err(Failure::new(409, "github_publication_refs_changed"));
             }
-            reader.recheck().await?;
             if let Some(comparison) = &comparison_reader {
-                comparison.recheck().await?;
                 if Some(comparison.correction_pull(q, &reader.name).await?) != pull {
                     return Err(Failure::new(409, "github_publication_pull_changed"));
                 }
