@@ -63,6 +63,7 @@ pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use pull_branches::PullBranchRead;
 pub use pull_create::{PullBranchPin, PullCreate};
 pub use request::Read;
+pub(crate) use reads::RequestObservation;
 pub use repository_create::RepositoryCreate;
 pub use review_create::ReviewCreate;
 pub use review_request_effect::ReviewRequestChange;
@@ -80,7 +81,7 @@ pub use crate::provider_contract::Failure;
 pub(crate) use crate::provider_contract::Result;
 
 /// Provider-local identity. Canonical identity and connection binding stay in Go.
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Identity {
     pub external_id: String,
     pub login: String,

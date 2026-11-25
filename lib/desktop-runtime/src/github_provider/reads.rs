@@ -29,7 +29,27 @@ impl Client {
         expected: &str,
         query: &Read,
     ) -> Result<Value> {
-        let read = Box::pin(self.read_account_with_identity(token, expected, query, None));
+        self.read_account_shared(token, expected, query, None).await
+    }
+    /// A read inside one product request: the request's repository check is
+    /// recorded once and its later reads of that repository reuse it.
+    pub(crate) async fn read_account_in_request(
+        &self,
+        token: &[u8],
+        expected: &str,
+        query: &Read,
+        observed: &RequestObservation,
+    ) -> Result<Value> {
+        self.read_account_shared(token, expected, query, Some(observed)).await
+    }
+    async fn read_account_shared(
+        &self,
+        token: &[u8],
+        expected: &str,
+        query: &Read,
+        observed: Option<&RequestObservation>,
+    ) -> Result<Value> {
+        let read = Box::pin(self.read_account_with_identity(token, expected, query, None, observed));
         if crate::provider_contract::operation::Operation::current().is_some() {
             read.await
         } else {
@@ -43,6 +63,7 @@ impl Client {
         expected: &str,
         query: &Read,
         identity: Option<super::Identity>,
+        shared: Option<&RequestObservation>,
     ) -> Result<Value> {
         query.validate()?;
         if !remote_id(expected) {
@@ -73,15 +94,34 @@ impl Client {
                 Read::Identity | Read::Repositories { .. } | Read::FindRepository { .. } => None,
                 _ => Some(r::text(&q, "repository")?),
             };
+            let earlier = shared
+                .and_then(|shared| shared.lock().ok()?.clone())
+                .filter(|seen| seen.identity.external_id == expected);
             let (identity, observed, reader) = match (query, selector) {
+                // The request's explicit check always asks GitHub, and its
+                // answer is what the request's later reads reuse.
                 (Read::Repository { repository }, _) => {
-                    let (identity, observed) = tokio::try_join!(account, self.repository(repository, token))?;
-                    (identity, Some(observed), None)
+                    let (identity, (raw, snapshot)) =
+                        tokio::try_join!(account, self.resolve_repository(repository, token))?;
+                    if let Some(shared) = shared {
+                        *shared.lock().map_err(|_| Failure::unavailable())? = Some(Observed {
+                            identity: identity.clone(),
+                            raw,
+                            snapshot: snapshot.clone(),
+                        });
+                    }
+                    (identity, Some(snapshot), None)
                 }
-                (_, Some(repository)) => {
-                    let (identity, reader) = tokio::try_join!(account, Reader::new(self, token, repository))?;
-                    (identity, None, Some(reader))
-                }
+                (_, Some(repository)) => match earlier.filter(|seen| seen.snapshot["external_id"] == repository) {
+                    Some(seen) => {
+                        let reader = Reader::from_resolved(self, token, repository, seen.raw, &seen.snapshot)?;
+                        (seen.identity, None, Some(reader))
+                    }
+                    None => {
+                        let (identity, reader) = tokio::try_join!(account, Reader::new(self, token, repository))?;
+                        (identity, None, Some(reader))
+                    }
+                },
                 _ => (account.await?, None, None),
             };
             if identity.external_id != expected {
@@ -431,6 +471,15 @@ impl Client {
         Ok((response.value, snapshot))
     }
 }
+/// The account and repository one product request saw at its start. Later
+/// reads in that request reuse it; each request starts empty.
+pub(crate) type RequestObservation = std::sync::Mutex<Option<Observed>>;
+#[derive(Clone)]
+pub(crate) struct Observed {
+    identity: super::Identity,
+    raw: Value,
+    snapshot: Value,
+}
 pub(super) struct Reader<'a> {
     pub client: &'a Client,
     pub token: &'a [u8],
@@ -479,8 +528,18 @@ impl<'a> Reader<'a> {
         token: &'a [u8],
         repository: &'a str,
     ) -> Result<Self> {
-        let (repository_snapshot, raw) = client.resolve_repository(repository, token).await?;
-        let name = r::text(&raw, "name")?;
+        let (raw, snapshot) = client.resolve_repository(repository, token).await?;
+        Self::from_resolved(client, token, repository, raw, &snapshot)
+    }
+    /// A reader for a repository this request already resolved.
+    fn from_resolved(
+        client: &'a Client,
+        token: &'a [u8],
+        repository: &'a str,
+        repository_snapshot: Value,
+        raw: &Value,
+    ) -> Result<Self> {
+        let name = r::text(raw, "name")?;
         if !super::request::repository_name(name) {
             return Err(Failure::protocol());
         }
