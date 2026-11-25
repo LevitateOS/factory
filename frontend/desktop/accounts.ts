@@ -61,14 +61,20 @@ export class GitHubAccounts extends Observed {
     const captured = this.generation;
     const capturedInteraction = this.interaction;
     try {
-      const [next, saved] = await Promise.all([
+      // A sign-in in progress shows its code even when saved accounts can't be read.
+      const [signIn, read] = await Promise.allSettled([
         this.core.invoke<SignIn>('github_sign_in_status'),
         this.core.invoke<Account[]>('credential_status'),
       ]);
       if (captured !== this.generation || capturedInteraction !== this.interaction || !this.ready) return;
-      if (next.phase !== this.view.phase) this.localError = null;
+      if (signIn.status === 'fulfilled') {
+        if (signIn.value.phase !== this.view.phase) this.localError = null;
+        this.view = signIn.value;
+      }
+      if (read.status === 'rejected') throw read.reason;
+      if (signIn.status === 'rejected') throw signIn.reason;
+      const saved = read.value;
       this.readError = null;
-      this.view = next;
       this.accounts = saved.filter((account) => account.provider === 'github');
       this.accountsCurrent = true;
       this.changed(saved.filter((account) => account.provider === 'github' || account.provider === 'fountain'));

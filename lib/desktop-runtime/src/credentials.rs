@@ -380,7 +380,12 @@ impl Credentials {
             for (item, locked) in self.items(&service, None).await? {
                 let (mut status, revision) = self.metadata(&item, locked).await?;
                 if matches!(status.state, CredentialState::Stored) {
-                    let secret = Secret::load(&item, &revision).await?;
+                    // Refused to this program: no saved account here, so the
+                    // other accounts still list and signing in replaces it.
+                    let secret = match Secret::load(&item, &revision).await {
+                        Err(Error::Missing) => continue,
+                        other => other?,
+                    };
                     status.grant = secret.status()?;
                     match secret.access() {
                         Err(Error::Expired) => status.state = CredentialState::Expired,
@@ -484,10 +489,20 @@ impl Credentials {
             ("label", account.label.as_deref().unwrap_or("")),
             ("format", secret.format()),
         ]);
-        if let Some(item) = existing {
-            item.replace(&bytes, attrs).await?;
-        } else {
-            service.create("Factory account", attrs, &bytes).await?;
+        // An item this program may not read (another build saved it) would
+        // stay unreadable after an update, so the new login starts it afresh.
+        let unreadable = match &existing {
+            Some(item) => matches!(item.secret().await, Err(Error::Missing)),
+            None => false,
+        };
+        match existing {
+            Some(item) if !unreadable => item.replace(&bytes, attrs).await?,
+            stale => {
+                if let Some(item) = stale {
+                    item.delete().await?;
+                }
+                service.create("Factory account", attrs, &bytes).await?;
+            }
         }
         self.alive()?;
         secret.access()?;
