@@ -63,7 +63,8 @@ impl Client {
             let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
-            let before = reader.review_preparation(q.number, actor, expected).await?;
+            let pull = reader.raw_subject(true, q.number).await?;
+            let before = reader.review_preparation_for_pull(q.number, &pull, actor, expected).await?;
             super::review_preparation::admit_verdict(&q.event, &before)?;
             if before["repository_node_id"] != q.repository_node_id
                 || before["pull"]["external_id"] != q.pull_id
@@ -90,7 +91,6 @@ impl Client {
                 return Err(Failure::new(409, "github_review_body_required"));
             }
             let diff_base = if !q.base.is_empty() {
-                let pull=reader.raw_subject(true,q.number).await?;
                 if pull["head"]["sha"]!=q.head || pull["base"]["sha"]!=q.base {
                     return Err(Failure::new(409,"github_review_inputs_changed"));
                 }

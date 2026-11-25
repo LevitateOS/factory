@@ -79,7 +79,7 @@ impl Client {
    edit.validate()?;
    let (mut permit,identity)=mutation.admit(self,token,account).await?;
    let reader=Reader::new(self,token,&edit.repository).await?;
-   let repository=reader.get("",&[]).await?.value;
+   let repository=&reader.raw_repository;
    let repository_node=r::text(&repository,"node_id")?;
    if !node_id(repository_node) || r::id(&repository["id"])?!=edit.repository || repository["archived"]!=false || repository["disabled"]!=false {return Err(Failure::new(403,"github_repository_read_only"))}
    let issue=reader.raw_subject(false,edit.number.into()).await?;

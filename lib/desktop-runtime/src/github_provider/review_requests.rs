@@ -122,6 +122,9 @@ impl Reader<'_> {
     }
     pub(super) async fn review_requests(&self, q: &ReviewerRead) -> Result<Value> {
         let pull = self.raw_subject(true, q.number).await?;
+        self.review_requests_for_pull(q, &pull).await
+    }
+    pub(super) async fn review_requests_for_pull(&self, q: &ReviewerRead, pull: &Value) -> Result<Value> {
         let pull_id = r::id(&pull["id"])?;
         let pull_node = opaque(&pull, "node_id", 1024)?;
         let repository = self.raw_repository.clone();
@@ -298,17 +301,6 @@ impl Reader<'_> {
             })
             .transpose()?
             .flatten();
-        let current = self.raw_subject(true, q.number).await?;
-        if r::id(&current["id"])? != pull_id || current["node_id"] != pull_node {
-            return Err(Failure::new(409, "github_review_requests_changed"));
-        }
-        let current = self.raw_repository.clone();
-        if r::id(&current["id"])? != q.repository
-            || current["node_id"] != repo_node
-            || current["owner"]["node_id"] != owner_node
-        {
-            return Err(Failure::new(409, "github_review_requests_changed"));
-        }
         self.client.current()?;
         Ok(
             json!({"repository":q.repository,"name":self.name,"repository_node_id":repo_node,"owner_node_id":owner_node,"limits":limits,

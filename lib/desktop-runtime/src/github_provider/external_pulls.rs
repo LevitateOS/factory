@@ -43,8 +43,6 @@ impl Reader<'_> {
         } else {
             variables["number"] = json!(number);
         }
-        let confirm_query = query.clone();
-        let confirm_variables = variables.clone();
         let token = zeroize::Zeroizing::new(self.token.to_vec());
         let response = self
             .client
@@ -148,22 +146,6 @@ impl Reader<'_> {
                 "head_tip":head,"base_tip":base,"head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),
                 "title":r::text(&pull,"title")?,"state":state.to_ascii_lowercase(),"draft":pull["isDraft"].as_bool().ok_or_else(Failure::protocol)?,
                 "author":author,"author_writer":author_writer,"closing_issues":closing_issues,"closing_issues_complete":closing_issues_complete}));
-        }
-        let token = zeroize::Zeroizing::new(self.token.to_vec());
-        let confirmed = self
-            .client
-            .provider_request(
-                move |http| {
-                    Ok((
-                        super::transport::graphql(http, &token, &confirm_query, confirm_variables)?,
-                        1024 * 1024,
-                    ))
-                },
-                None,
-            )
-            .await?;
-        if &confirmed.value["data"] != data {
-            return Err(Failure::new(409, "github_pull_candidates_changed"));
         }
         Ok(
             json!({"repository":self.repository,"repository_node_id":repository_node,"name":self.name,

@@ -72,7 +72,7 @@ impl Client {
                 number: q.number,
                 target: Some(q.target.clone()),
             };
-            let before = reader.review_requests(&read).await?;
+            let before = reader.review_requests_for_pull(&read, &pull).await?;
             if before["pull"]["external_id"] != q.pull_id
                 || before["pull"]["node_id"] != pull_node
                 || before["repository_node_id"] != repo_node

@@ -1,5 +1,4 @@
-//! Complete paired discussion collection under one authenticated read. Leaf
-//! readers retain their own brackets; this owner brackets their page decoders.
+//! Complete paired discussion collection under one authenticated read.
 use super::{reads::Reader, records as r, Failure, Read, Result, ThreadRead};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -19,17 +18,10 @@ impl Reader<'_> {
         base: &str,
         account: &str,
     ) -> Result<Value> {
-        let first = self
+        let pages = self
             .delivery_discussion_pages(number, head, base, account)
             .await?;
-        if self
-            .delivery_discussion_pages(number, head, base, account)
-            .await?
-            != first
-        {
-            return Err(Failure::new(409, "github_delivery_discussion_changed"));
-        }
-        Ok(json!({"pages": first}))
+        Ok(json!({"pages": pages}))
     }
 
     async fn delivery_discussion_pages(

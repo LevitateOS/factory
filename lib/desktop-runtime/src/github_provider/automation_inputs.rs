@@ -65,17 +65,7 @@ impl Reader<'_> {
         }
         let (owner, name) = self.name.split_once('/').ok_or_else(Failure::protocol)?;
         let variables = json!({"owner":owner,"name":name,"number":number,"ref":target,"comments":comment_nodes});
-        let before = project(
-            &self
-                .client
-                .issue_inputs_query(self.token, variables.clone())
-                .await?,
-            self.repository,
-            number,
-            comments,
-            target,
-        )?;
-        let after = project(
+        project(
             &self
                 .client
                 .issue_inputs_query(self.token, variables)
@@ -84,11 +74,7 @@ impl Reader<'_> {
             number,
             comments,
             target,
-        )?;
-        if before != after {
-            return Err(Failure::new(409, "github_issue_inputs_changed"));
-        }
-        Ok(before)
+        )
     }
 }
 impl Client {
@@ -253,17 +239,11 @@ impl Reader<'_> {
     pub(super) async fn completion_issues(&self,after:&str,target:&str,limit:u32)->Result<Value> {
         let (owner,name)=self.name.split_once('/').ok_or_else(Failure::protocol)?;
         let variables=json!({"owner":owner,"name":name,"ref":target,"after":if after.is_empty(){Value::Null}else{json!(after)},"limit":limit});
-        let observe=|| async {
-            let raw=self.client.issue_inputs_document(self.token,INVENTORY_QUERY,variables.clone(),8*1024*1024).await?;
-            project_inventory(&raw,self.repository,target,limit,after)
-        };
         if crate::provider_contract::operation::Operation::current().is_some_and(|work| !work.can_finish(3)) {
             return Err(Failure::new(429,"native_operation_budget"));
         }
-        let first=observe().await?;
-        let confirmed=observe().await?;
-        if first!=confirmed {return Err(Failure::new(409,"github_inventory_changed"));}
-        Ok(first)
+        let raw=self.client.issue_inputs_document(self.token,INVENTORY_QUERY,variables,8*1024*1024).await?;
+        project_inventory(&raw,self.repository,target,limit,after)
     }
 }
 

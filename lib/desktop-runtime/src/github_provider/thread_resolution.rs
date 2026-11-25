@@ -78,13 +78,19 @@ impl Client {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
             let observed = reader
-                .graph_threads(&ThreadRead {
-                    repository: q.repository.clone(),
-                    number: q.number,
-                    page: 1,
-                    limit: 1,
-                    thread_id: q.thread_id.clone(),
-                })
+                .graph_threads_for_pull(
+                    &ThreadRead {
+                        repository: q.repository.clone(),
+                        number: q.number,
+                        page: 1,
+                        limit: 1,
+                        thread_id: q.thread_id.clone(),
+                    },
+                    "",
+                    "",
+                    &pull,
+                    &repository,
+                )
                 .await?;
             if observed["pull"]["external_id"] != q.pull_id {
                 return Err(Failure::new(409, "github_subject_changed"));

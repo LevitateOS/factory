@@ -16,8 +16,9 @@ pub(super) struct Known {
     accounts: Mutex<HashMap<Key, Identity>>,
     /// (token, repository id) → (provider repository, its snapshot).
     repositories: Mutex<HashMap<(Key, String), (Value, Value)>>,
-    /// (token, repository id, number) → the subject's ids.
-    subjects: Mutex<HashMap<(Key, String, u64), Subject>>,
+    /// (token, repository id, number, read as a pull) → the subject's ids.
+    /// A pull read as an issue has the issue's ids, so each endpoint keeps its own.
+    subjects: Mutex<HashMap<(Key, String, u64, bool), Subject>>,
 }
 
 fn key(token: &[u8]) -> Key {
@@ -41,12 +42,12 @@ impl Known {
             repositories.insert((key(token), id.to_owned()), (raw.clone(), snapshot.clone()));
         }
     }
-    pub fn subject(&self, token: &[u8], repository: &str, number: u64) -> Option<Subject> {
-        self.subjects.lock().ok()?.get(&(key(token), repository.to_owned(), number)).cloned()
+    pub fn subject(&self, token: &[u8], repository: &str, number: u64, read_as_pull: bool) -> Option<Subject> {
+        self.subjects.lock().ok()?.get(&(key(token), repository.to_owned(), number, read_as_pull)).cloned()
     }
-    pub fn remember_subject(&self, token: &[u8], repository: &str, number: u64, subject: Subject) {
+    pub fn remember_subject(&self, token: &[u8], repository: &str, number: u64, read_as_pull: bool, subject: Subject) {
         if let Ok(mut subjects) = self.subjects.lock() {
-            subjects.insert((key(token), repository.to_owned(), number), subject);
+            subjects.insert((key(token), repository.to_owned(), number, read_as_pull), subject);
         }
     }
     /// GitHub refused or moved a request for `path`: forget the account on a

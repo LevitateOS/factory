@@ -1,6 +1,6 @@
-//! Current branch facts for an explicitly selected PR base/head pair. Rechecks
-//! detect observed changes; they are neither atomic tip conditions nor fork-use,
-//! maintainer-edit, creation or execution permission.
+//! Current branch facts for an explicitly selected PR base/head pair. They are
+//! neither atomic tip conditions nor fork-use, maintainer-edit, creation or
+//! execution permission.
 use super::{
     reads::Reader,
     records as r,
@@ -68,35 +68,13 @@ impl Reader<'_> {
                 }
             }
         }
-        let observe = async || -> Result<Value> {
-            let value = self
-                .client
-                .pull_branch_query(
-                    &base_repo,
-                    &head_repo,
-                    &q.base_branch,
-                    &q.head_branch,
-                    self.token,
-                )
-                .await?;
-            Ok(
-                json!({"base":{"repository":base_repo,"branch":project(&value["data"]["base"],&base_repo,&q.base_branch)?},"head":{"repository":head_repo,"branch":project(&value["data"]["head"],&head_repo,&q.head_branch)?}}),
-            )
-        };
-        let before = observe().await?;
-        if self.branch_repository().await? != base_repo {
-            return Err(Failure::new(409, "github_branch_pair_changed"));
-        }
-        if let Some(head) = &head {
-            if head.branch_repository().await? != head_repo {
-                return Err(Failure::new(409, "github_branch_pair_changed"));
-            }
-        }
-        if observe().await? != before {
-            return Err(Failure::new(409, "github_branch_pair_changed"));
-        }
+        let value = self
+            .client
+            .pull_branch_query(&base_repo, &head_repo, &q.base_branch, &q.head_branch, self.token)
+            .await?;
+        let result = json!({"base":{"repository":base_repo,"branch":project(&value["data"]["base"],&base_repo,&q.base_branch)?},"head":{"repository":head_repo,"branch":project(&value["data"]["head"],&head_repo,&q.head_branch)?}});
         self.client.current()?;
-        Ok(before)
+        Ok(result)
     }
     async fn branch_repository(&self) -> Result<Value> {
         let raw = self.raw_repository.clone();

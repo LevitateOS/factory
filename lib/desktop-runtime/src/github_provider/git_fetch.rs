@@ -75,7 +75,6 @@ impl Reader<'_> {
                 if crate::provider_contract::SETUP_FILES.contains(&name) { files.insert(name.into(),encoded); }
             }
         }
-        self.source_tip(target, commit).await?;
         Ok(json!({"repository":self.repository,"commit":commit,"target_ref":target,"files":files,"source_files":source_files}))
     }
 
@@ -188,16 +187,6 @@ impl Reader<'_> {
             return Err(Failure::new(413, "github_source_bundle_too_large"));
         }
         bundle.extend_from_slice(pack);
-        source.source_tip(target, commit).await?;
-        if let (Some(number), Some(before)) = (number, before) {
-            if self
-                .source_pull(number, head_repository, target, pull_base, commit)
-                .await?
-                != before
-            {
-                return Err(Failure::new(409, "github_source_pull_changed"));
-            }
-        }
         let sha256: String = Sha256::digest(&bundle)
             .iter()
             .map(|byte| format!("{byte:02x}"))

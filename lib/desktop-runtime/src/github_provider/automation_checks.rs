@@ -46,13 +46,6 @@ fn severity(state: &str) -> usize {
     .unwrap_or(2)
 }
 impl Reader<'_> {
-    pub(super) async fn automation_checks(&self, number: u64) -> Result<Value> {
-        let before = self.automation_check_snapshot(number).await?;
-        if self.automation_check_snapshot(number).await? != before {
-            return Err(Failure::new(409, "github_automation_checks_changed"));
-        }
-        Ok(before)
-    }
     pub(super) async fn automation_branch_tip(&self, name: &str) -> Result<String> {
         let encoded = super::reads::branch_segment(name)?;
         let branch = self
@@ -69,13 +62,6 @@ impl Reader<'_> {
         Ok(oid.into())
     }
     pub(super) async fn automation_review(&self, number: u64) -> Result<Value> {
-        let before = self.automation_review_snapshot(number).await?;
-        if self.automation_review_snapshot(number).await? != before {
-            return Err(Failure::new(409, "github_automation_review_changed"));
-        }
-        Ok(before)
-    }
-    async fn automation_review_snapshot(&self, number: u64) -> Result<Value> {
         let pull = self.raw_subject(true, number).await?;
         self.automation_review_for_pull(number, &pull).await
     }
@@ -230,10 +216,6 @@ impl Reader<'_> {
         });
         Ok(sources)
     }
-    pub(super) async fn check_evaluation(&self, number: u64) -> Result<Value> {
-        let raw = self.raw_subject(true, number).await?;
-        self.check_evaluation_for_pull(number, &raw).await
-    }
     pub(super) async fn check_evaluation_for_pull(&self, number: u64, raw: &Value) -> Result<Value> {
         let mut binding = self.protection_binding(raw)?;
         let query = "query FactoryCheckEvaluation($pull:ID!){node(id:$pull){__typename ... on PullRequest{id number repository{id} headRefOid baseRefOid potentialMergeCommit{oid parents(first:2){nodes{oid}}}}}}";
@@ -271,9 +253,8 @@ impl Reader<'_> {
         Ok((head.into(), self.latest_check_sources(head, &mut runs).await?))
     }
 
-    pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
-        // Both projections bind the same fresh PR; automation_checks still
-        // repeats the complete snapshot after its repository permission check.
+    pub(super) async fn automation_checks(&self, number: u64) -> Result<Value> {
+        // Both projections bind the same PR read.
         let pull = self.raw_subject(true, number).await?;
         let (snapshot, (binding, evaluation, sources)) = tokio::try_join!(
             self.automation_review_for_pull(number, &pull),

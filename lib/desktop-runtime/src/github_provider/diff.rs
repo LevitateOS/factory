@@ -6,7 +6,6 @@ use std::collections::HashSet;
 
 pub(super) struct DiffScope {
     number: u64,
-    before: Value,
     pub(super) scope: Value,
     pub(super) total: Option<u64>,
 }
@@ -31,14 +30,12 @@ impl Reader<'_> {
 
     pub(super) async fn diff(&self, q: &Value) -> Result<Value> {
         let captured = self.open_diff(q).await?;
-        let result = if q["kind"] == "pull_files" {
+        if q["kind"] == "pull_files" {
             let (page, limit) = paging(q);
-            self.diff_files(&captured, page, limit).await?
+            self.diff_files(&captured, page, limit).await
         } else {
-            captured.scope.clone()
-        };
-        self.close_diff(&captured).await?;
-        Ok(result)
+            Ok(captured.scope)
+        }
     }
     pub(super) async fn open_diff(&self, q: &Value) -> Result<DiffScope> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
@@ -67,7 +64,6 @@ impl Reader<'_> {
         };
         Ok(DiffScope {
             number,
-            before,
             scope,
             total,
         })
@@ -111,17 +107,6 @@ impl Reader<'_> {
         Ok(
             json!({"diff":captured.scope,"items":projected,"page":page,"limit":limit,"total":total,"next_page":next}),
         )
-    }
-    pub(super) async fn close_diff(&self, captured: &DiffScope) -> Result<()> {
-        let after = self.raw_subject(true, captured.number).await?;
-        if self.diff_state(&after)? != captured.before
-            || captured
-                .total
-                .is_some_and(|total| after["changed_files"].as_u64() != Some(total))
-        {
-            return Err(Failure::new(409, "github_diff_changed"));
-        }
-        Ok(())
     }
     fn diff_state(&self, pull: &Value) -> Result<Value> {
         let base = r::text(&pull["base"], "sha")?;

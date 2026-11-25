@@ -32,114 +32,99 @@ impl PullMerge {
 }
 impl Reader<'_> {
     pub(super) async fn merge_completion(&self, number: u64) -> Result<Value> {
-        let observe = async || -> Result<Value> {
-            let pull = self.raw_subject(true, number).await?;
-            let issue = self.raw_subject(false, number).await?;
-            let head = r::nonempty(&pull["head"], "sha")?;
-            let base = r::nonempty(&pull["base"], "sha")?;
-            let head_repository = r::id(&pull["head"]["repo"]["id"])?;
-            let fork = if head_repository != self.repository {
-                Some(Reader::new(self.client, self.token, &head_repository).await?)
-            } else {
-                None
-            };
-            let head_reader = fork.as_ref().unwrap_or(self);
-            // REST 2026-03-10 omits merge_commit_sha. Bind the GraphQL result
-            // to the independently read numeric PR and repository node IDs.
-            let query="query FactoryMergedCommit($pull:ID!){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} headRefOid merged mergeCommit{oid repository{id}}}}}";
-            let variables = json!({"pull":r::text(&pull,"node_id")?});
-            let token = zeroize::Zeroizing::new(self.token.to_vec());
-            let graph = self
-                .client
-                .provider_request(
-                    move |http| {
-                        Ok((
-                            super::transport::graphql(http, &token, query, variables)?,
-                            1024 * 1024,
-                        ))
-                    },
-                    None,
-                )
-                .await?
-                .value;
-            let result = &graph["data"]["node"];
-            if result["__typename"] != "PullRequest"
-                || result["id"] != pull["node_id"]
-                || r::big_id(&result["fullDatabaseId"])? != r::id(&pull["id"])?
-                || result["number"] != pull["number"]
-                || result["repository"]["id"] != pull["base"]["repo"]["node_id"]
-                || result["headRefOid"] != head
-                || result["merged"] != true
-                || result["mergeCommit"]["repository"]["id"] != result["repository"]["id"]
-            {
-                return Err(Failure::protocol());
-            }
-            let merged = r::nonempty(&result["mergeCommit"], "oid")?;
-            let branch = r::nonempty(&pull["base"], "ref")?;
-            let head_ref = r::nonempty(&pull["head"], "ref")?;
-            if pull["merged"] != true
-                || pull["state"] != "closed"
-                || r::id(&pull["base"]["repo"]["id"])? != self.repository
-                || pull["head"]["repo"]["full_name"] != head_reader.name
-                || !commit(head)
-                || !commit(base)
-                || !commit(merged)
-                || !super::request::branch_name(branch)
-                || !super::request::branch_name(head_ref)
-                || head_ref == branch
-                || issue["pull_request"]["url"] != self.url(&format!("/pulls/{number}"))
-            {
-                return Err(Failure::new(409, "github_merge_completion_pending"));
-            }
-            let encoded = super::reads::branch_segment(branch)?;
-            let observed = self
-                .get(
-                    &format!("/branches/{}", encoded),
-                    &[],
-                )
-                .await?
-                .value;
-            let tip = r::nonempty(&observed["commit"], "sha")?;
-            if observed["name"] != branch || !commit(tip) {
-                return Err(Failure::protocol());
-            }
-            let contains = if tip == merged {
-                true
-            } else {
-                let comparison = self
-                    .get(&format!("/compare/{merged}...{tip}"), &[])
-                    .await?
-                    .value;
-                comparison["base_commit"]["sha"] == merged
-                    && comparison["merge_base_commit"]["sha"] == merged
-                    && matches!(comparison["status"].as_str(), Some("ahead" | "identical"))
-            };
-            Ok(
-                json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,
-                "issue_id":r::id(&issue["id"])?,"head":head,"head_ref":format!("refs/heads/{head_ref}"),
-                "head_repository":{"external_id":head_repository,"name":head_reader.name},
-                "base_ref":format!("refs/heads/{branch}"),"commit":merged,"base_tip":tip,"base_contains":contains,
-                "merger":r::actor(&pull["merged_by"])?,"merged_at":r::date(&pull,"merged_at")?,
-                "closed_at":r::date(&issue,"closed_at")?,"issue_closed":issue["state"]=="closed"}),
-            )
+        let pull = self.raw_subject(true, number).await?;
+        let issue = self.raw_subject(false, number).await?;
+        let head = r::nonempty(&pull["head"], "sha")?;
+        let base = r::nonempty(&pull["base"], "sha")?;
+        let head_repository = r::id(&pull["head"]["repo"]["id"])?;
+        let fork = if head_repository != self.repository {
+            Some(Reader::new(self.client, self.token, &head_repository).await?)
+        } else {
+            None
         };
-        let before = observe().await?;
-        if observe().await? != before {
-            return Err(Failure::new(409, "github_merge_completion_changed"));
+        let head_reader = fork.as_ref().unwrap_or(self);
+        // REST 2026-03-10 omits merge_commit_sha. Bind the GraphQL result
+        // to the independently read numeric PR and repository node IDs.
+        let query="query FactoryMergedCommit($pull:ID!){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} headRefOid merged mergeCommit{oid repository{id}}}}}";
+        let variables = json!({"pull":r::text(&pull,"node_id")?});
+        let token = zeroize::Zeroizing::new(self.token.to_vec());
+        let graph = self
+            .client
+            .provider_request(
+                move |http| {
+                    Ok((
+                        super::transport::graphql(http, &token, query, variables)?,
+                        1024 * 1024,
+                    ))
+                },
+                None,
+            )
+            .await?
+            .value;
+        let result = &graph["data"]["node"];
+        if result["__typename"] != "PullRequest"
+            || result["id"] != pull["node_id"]
+            || r::big_id(&result["fullDatabaseId"])? != r::id(&pull["id"])?
+            || result["number"] != pull["number"]
+            || result["repository"]["id"] != pull["base"]["repo"]["node_id"]
+            || result["headRefOid"] != head
+            || result["merged"] != true
+            || result["mergeCommit"]["repository"]["id"] != result["repository"]["id"]
+        {
+            return Err(Failure::protocol());
         }
-        Ok(before)
+        let merged = r::nonempty(&result["mergeCommit"], "oid")?;
+        let branch = r::nonempty(&pull["base"], "ref")?;
+        let head_ref = r::nonempty(&pull["head"], "ref")?;
+        if pull["merged"] != true
+            || pull["state"] != "closed"
+            || r::id(&pull["base"]["repo"]["id"])? != self.repository
+            || pull["head"]["repo"]["full_name"] != head_reader.name
+            || !commit(head)
+            || !commit(base)
+            || !commit(merged)
+            || !super::request::branch_name(branch)
+            || !super::request::branch_name(head_ref)
+            || head_ref == branch
+            || issue["pull_request"]["url"] != self.url(&format!("/pulls/{number}"))
+        {
+            return Err(Failure::new(409, "github_merge_completion_pending"));
+        }
+        let encoded = super::reads::branch_segment(branch)?;
+        let observed = self
+            .get(
+                &format!("/branches/{}", encoded),
+                &[],
+            )
+            .await?
+            .value;
+        let tip = r::nonempty(&observed["commit"], "sha")?;
+        if observed["name"] != branch || !commit(tip) {
+            return Err(Failure::protocol());
+        }
+        let contains = if tip == merged {
+            true
+        } else {
+            let comparison = self
+                .get(&format!("/compare/{merged}...{tip}"), &[])
+                .await?
+                .value;
+            comparison["base_commit"]["sha"] == merged
+                && comparison["merge_base_commit"]["sha"] == merged
+                && matches!(comparison["status"].as_str(), Some("ahead" | "identical"))
+        };
+        Ok(
+            json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,
+            "issue_id":r::id(&issue["id"])?,"head":head,"head_ref":format!("refs/heads/{head_ref}"),
+            "head_repository":{"external_id":head_repository,"name":head_reader.name},
+            "base_ref":format!("refs/heads/{branch}"),"commit":merged,"base_tip":tip,"base_contains":contains,
+            "merger":r::actor(&pull["merged_by"])?,"merged_at":r::date(&pull,"merged_at")?,
+            "closed_at":r::date(&issue,"closed_at")?,"issue_closed":issue["state"]=="closed"}),
+        )
     }
     pub(super) async fn merge_preparation(&self, number: u32) -> Result<Value> {
-        let observe = async || -> Result<Value> {
-            let repository = self.raw_repository.clone();
-            let pull = self.raw_subject(true, number.into()).await?;
-            self.merge_preparation_for_pull(number, &repository, &pull)
-        };
-        let facts = observe().await?;
-        if observe().await? != facts {
-            return Err(Failure::new(409, "github_merge_inputs_changed"));
-        }
-        Ok(facts)
+        let pull = self.raw_subject(true, number.into()).await?;
+        self.merge_preparation_for_pull(number, &self.raw_repository, &pull)
     }
 
     fn merge_preparation_for_pull(&self, number: u32, repository: &Value, pull: &Value) -> Result<Value> {
@@ -167,18 +152,8 @@ impl Reader<'_> {
         )
     }
 
-    // These projections belong to one exact PR snapshot. Standalone readers
-    // keep their own brackets; this compound read pairs the entire result so
-    // repeated PR/repository/CI reads do not multiply those same brackets.
+    // These projections belong to one exact PR snapshot.
     pub(super) async fn merge_readiness(&self, number: u32, head: &str, base: &str) -> Result<Value> {
-        let before = self.merge_readiness_snapshot(number, head, base).await?;
-        if self.merge_readiness_snapshot(number, head, base).await? != before {
-            return Err(Failure::new(409, "github_merge_inputs_changed"));
-        }
-        Ok(before.0)
-    }
-
-    async fn merge_readiness_snapshot(&self, number: u32, head: &str, base: &str) -> Result<(Value, Value)> {
         let pull = self.raw_subject(true, number.into()).await?;
         if pull["head"]["sha"] != head || pull["base"]["sha"] != base {
             return Err(Failure::new(409, "github_merge_inputs_changed"));
@@ -206,9 +181,7 @@ impl Reader<'_> {
         }
         let required = self.required_check_projection(&binding, &protection, &evaluation, Some(&sources))?;
         let checks = self.check_snapshot_projection(review, &evaluation, &sources)?;
-        // Include the complete test-merge binding in the private comparison,
-        // even when CI evaluation falls back to the head commit.
-        Ok((json!({"preparation":preparation,"required_checks":required,"checks":checks,"capabilities":capabilities,"opinions":opinions}), binding))
+        Ok(json!({"preparation":preparation,"required_checks":required,"checks":checks,"capabilities":capabilities,"opinions":opinions}))
     }
 }
 impl Client {

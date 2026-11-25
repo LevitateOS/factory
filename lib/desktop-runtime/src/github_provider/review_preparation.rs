@@ -98,17 +98,10 @@ impl Reader<'_> {
         account: &str,
     ) -> Result<Value> {
         let before = self.review_preparation(number, actor, account).await?;
-        self.complete_pending_snapshot(number, actor, account, before)
-            .await
+        self.complete_pending_snapshot(actor, before).await
     }
 
-    pub(super) async fn complete_pending_snapshot(
-        &self,
-        number: u64,
-        actor: &str,
-        account: &str,
-        mut before: Value,
-    ) -> Result<Value> {
+    pub(super) async fn complete_pending_snapshot(&self, actor: &str, mut before: Value) -> Result<Value> {
         if before["pending"].is_null() {
             before["comments_snapshot"] = Value::Null;
             before["pending_sha256"] = Value::Null;
@@ -131,8 +124,6 @@ impl Reader<'_> {
                     .ok_or_else(Failure::protocol)?,
             })
             .await?;
-        let current = self.review_preparation(number, actor, account).await?;
-        Self::same_pending(&before, &current)?;
         before["pending_sha256"] = json!(PendingCapture::digest(&before["pending"])?);
         before["comments_snapshot"] = snapshot;
         Ok(before)
@@ -143,12 +134,6 @@ impl Reader<'_> {
         let comments = before["pending"]["comments_count"].as_u64().unwrap_or(0);
         if comments > 1000 { return Err(Failure::new(413, "github_pending_comments_too_large")); }
         Ok((5 + pages + if before["pending"].is_null() { 0 } else { 1 + comments.div_ceil(2).max(1) }) as u32)
-    }
-    pub(super) fn same_pending(before: &Value, current: &Value) -> Result<()> {
-        for key in ["repository", "repository_node_id", "actor_node_id", "viewer_is_author", "archived", "disabled", "pull", "pending"] {
-            if current[key] != before[key] { return Err(Failure::new(409, "github_pending_review_changed")); }
-        }
-        Ok(())
     }
     async fn review_comment_snapshot(&self, scope: CommentScope<'_>) -> Result<Value> {
         let CommentScope {
@@ -348,10 +333,6 @@ impl Reader<'_> {
                     .ok_or_else(Failure::protocol)?,
             })
             .await?;
-        let current = self.review_preparation(number, actor, account).await?;
-        if current != before {
-            return Err(Failure::new(409, "github_inline_preservation_changed"));
-        }
         before["comments_snapshot"] = snapshot;
         before["condition"] = json!("bounded_observation");
         Ok(before)
@@ -403,30 +384,6 @@ impl Reader<'_> {
                     .ok_or_else(Failure::protocol)?,
             })
             .await?;
-        let raw = self
-            .client
-            .review_preparation_query(
-                PreparationQuery::Detail {
-                    review: review_node.into(),
-                },
-                self.token,
-            )
-            .await?;
-        let current = publication_detail(
-            &raw["data"]["node"],
-            review_id,
-            review_node,
-            pull,
-            repo,
-            actor,
-        )?;
-        if before != current {
-            return Err(Failure::new(409, "github_review_publication_changed"));
-        }
-        let current_subject = self.raw_subject(true, number).await?;
-        if current_subject["node_id"] != pull || current_subject["id"] != subject["id"] {
-            return Err(Failure::new(409, "github_review_inputs_changed"));
-        }
         let identity = self.client.identity(self.token).await?;
         if identity.external_id != account || identity.node_id.as_deref() != Some(actor) {
             return Err(Failure::new(409, "github_account_changed"));
@@ -441,10 +398,19 @@ impl Reader<'_> {
         actor: &str,
         account: &str,
     ) -> Result<Value> {
+        let pull = self.raw_subject(true, number).await?;
+        self.review_preparation_for_pull(number, &pull, actor, account).await
+    }
+    pub(super) async fn review_preparation_for_pull(
+        &self,
+        number: u64,
+        before: &Value,
+        actor: &str,
+        account: &str,
+    ) -> Result<Value> {
         if !node_id(actor) {
             return Err(Failure::protocol());
         }
-        let before = self.raw_subject(true, number).await?;
         let repository = self.raw_repository.clone();
         let repo = opaque(&repository, "node_id")?;
         let pull = opaque(&before, "node_id")?;
@@ -587,18 +553,7 @@ impl Reader<'_> {
         } else {
             Value::Null
         };
-        let (current, identity) = tokio::try_join!(
-            self.raw_subject(true, number),
-            self.client.identity(self.token)
-        )?;
-        for key in [
-            "id", "node_id", "number", "state", "locked", "draft", "merged", "base", "head",
-        ] {
-            if current[key] != before[key] {
-                return Err(Failure::new(409, "github_review_inputs_changed"));
-            }
-        }
-
+        let identity = self.client.identity(self.token).await?;
         if identity.external_id != account || identity.node_id.as_deref() != Some(actor) {
             return Err(Failure::new(409, "github_account_changed"));
         }

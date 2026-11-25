@@ -26,35 +26,28 @@ impl Reader<'_> {
         } else {
             Some(Reader::new(self.client, self.token, comparison_repository).await?)
         };
-        let observe = async || -> Result<serde_json::Value> {
-            let raw = self.raw_repository.clone();
-            if r::id(&raw["id"])? != self.repository || raw["full_name"] != self.name {
-                return Err(Failure::protocol());
-            }
-            let (bytes, _) = self
-                .client
-                .git_request(&self.name, self.token, GitService::ReceivePack, None)
-                .await?;
-            let refs = advertised(&bytes, GitService::ReceivePack)?;
-            let mut result = json!({"repository":self.repository,"name":self.name,"repository_node_id":r::text(&raw,"node_id")?,"push":r::boolean(&raw["permissions"],"push")?,"archived":r::boolean(&raw,"archived")?,"disabled":r::boolean(&raw,"disabled")?,"branch":branch,"tip":refs.get(&format!("refs/heads/{branch}")).map(String::as_str).unwrap_or(""),"comparison_branch":base,"comparison":refs.get(&format!("refs/heads/{base}")).map(String::as_str).unwrap_or("")});
-            if let Some(comparison) = &comparison {
-                result["comparison"] = json!(comparison.automation_branch_tip(base).await?);
-                result["comparison_repository"] = json!(comparison_repository);
-            }
-            Ok(result)
-        };
-        let before = observe().await?;
-        if observe().await? != before {
-            return Err(Failure::new(409, "github_publication_refs_changed"));
+        let raw = self.raw_repository.clone();
+        if r::id(&raw["id"])? != self.repository || raw["full_name"] != self.name {
+            return Err(Failure::protocol());
         }
-        Ok(before)
+        let (bytes, _) = self
+            .client
+            .git_request(&self.name, self.token, GitService::ReceivePack, None)
+            .await?;
+        let refs = advertised(&bytes, GitService::ReceivePack)?;
+        let mut result = json!({"repository":self.repository,"name":self.name,"repository_node_id":r::text(&raw,"node_id")?,"push":r::boolean(&raw["permissions"],"push")?,"archived":r::boolean(&raw,"archived")?,"disabled":r::boolean(&raw,"disabled")?,"branch":branch,"tip":refs.get(&format!("refs/heads/{branch}")).map(String::as_str).unwrap_or(""),"comparison_branch":base,"comparison":refs.get(&format!("refs/heads/{base}")).map(String::as_str).unwrap_or("")});
+        if let Some(comparison) = &comparison {
+            result["comparison"] = json!(comparison.automation_branch_tip(base).await?);
+            result["comparison_repository"] = json!(comparison_repository);
+        }
+        Ok(result)
     }
 
     async fn correction_pull(
         &self,
         q: &BranchPublish,
         head_name: &str,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<()> {
         let c = q.pull_request.as_ref().ok_or_else(Failure::invalid)?;
         let (pull, issue, base_tip) = tokio::try_join!(
             self.raw_subject(true, c.number.into()),
@@ -79,10 +72,7 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_publication_pull_changed"));
         }
-        Ok(
-            json!({"pull":c,"head_repository":q.repository,"head":q.expected_old,"head_ref":q.branch,
-            "base_repository":c.repository,"base":q.comparison_oid,"base_ref":q.comparison_branch}),
-        )
+        Ok(())
     }
 }
 
@@ -114,9 +104,9 @@ impl Client {
             let comparison_reader = if q.pull_request.is_some() {
                 Some(Reader::new(self, token, &q.comparison_repository).await?)
             } else { None };
-            let pull = if let Some(comparison) = &comparison_reader {
-                Some(comparison.correction_pull(q, &reader.name).await?)
-            } else { None };
+            if let Some(comparison) = &comparison_reader {
+                comparison.correction_pull(q, &reader.name).await?;
+            }
             let repository = reader.raw_repository.clone();
             if r::id(&repository["id"])? != q.repository || repository["full_name"] != reader.name
                 || repository["permissions"]["push"] != true || repository["archived"] != false || repository["disabled"] != false {
@@ -129,11 +119,6 @@ impl Client {
             if comparison_reader.is_none() && refs.get(&comparison).map(String::as_str) != Some(q.comparison_oid.as_str())
                 || refs.get(&target).map(String::as_str).unwrap_or("") != q.expected_old {
                 return Err(Failure::new(409, "github_publication_refs_changed"));
-            }
-            if let Some(comparison) = &comparison_reader {
-                if Some(comparison.correction_pull(q, &reader.name).await?) != pull {
-                    return Err(Failure::new(409, "github_publication_pull_changed"));
-                }
             }
             let old = if q.expected_old.is_empty() { "0000000000000000000000000000000000000000" } else { &q.expected_old };
             let command = format!("{old} {} {target}\0report-status ofs-delta\n", q.candidate);

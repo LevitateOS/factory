@@ -417,12 +417,9 @@ impl Client {
         .await
         .map_err(|_| Failure::new(504, "github_deadline"))?
     }
-    pub(super) async fn repository(&self, id: &str, token: &[u8]) -> Result<Value> {
-		Ok(self.resolve_repository(id, token).await?.1)
-	}
     /// A repository by id, asked of GitHub once per token until a request
     /// for it is refused or moved.
-    async fn resolve_repository(&self, id: &str, token: &[u8]) -> Result<(Value, Value)> {
+    pub(super) async fn resolve_repository(&self, id: &str, token: &[u8]) -> Result<(Value, Value)> {
         if let Some(known) = self.known.repository(token, id) {
             self.current()?;
             return Ok(known);
@@ -455,27 +452,18 @@ impl<'a> Reader<'a> {
         let raw = &response.value;
         if r::id(&raw["user"]["id"])? != creator { return Err(Failure::protocol()); }
         let write = collaborator_can_write(raw)?;
-        let after = self.raw_subject(false, number).await?;
-        if r::id(&after["id"])? != issue_id || r::id(&after["user"]["id"])? != creator { return Err(Failure::new(409,"github_issue_creator_changed")); }
         Ok(json!({"repository":self.repository,"issue_id":issue_id,"number":number,"creator":creator,"write":write}))
     }
     async fn target_tip(&self, target: &str) -> Result<Value> {
         let branch = target.strip_prefix("refs/heads/").ok_or_else(Failure::invalid)?;
         let path = format!("/git/ref/heads/{branch}");
-        let observe = async || -> Result<Value> {
-            let response = self.get(&path, &[]).await?;
-            let raw = &response.value;
-            let tip = r::text(&raw["object"], "sha")?;
-            if raw["ref"] != target || raw["object"]["type"] != "commit" || !super::request::commit(tip) {
-                return Err(Failure::protocol());
-            }
-            Ok(json!({"repository":self.repository,"target_ref":target,"tip":tip}))
-        };
-        let before = observe().await?;
-        if observe().await? != before {
-            return Err(Failure::new(409, "github_target_tip_changed"));
+        let response = self.get(&path, &[]).await?;
+        let raw = &response.value;
+        let tip = r::text(&raw["object"], "sha")?;
+        if raw["ref"] != target || raw["object"]["type"] != "commit" || !super::request::commit(tip) {
+            return Err(Failure::protocol());
         }
-        Ok(before)
+        Ok(json!({"repository":self.repository,"target_ref":target,"tip":tip}))
     }
     pub(super) async fn new(
         client: &'a Client,
@@ -529,17 +517,17 @@ impl<'a> Reader<'a> {
         }
         if let Some(node) = raw["node_id"].as_str().filter(|node| super::request::node_id(node)) {
             let subject = super::known::Subject { id: r::id(&raw["id"])?, node: node.into(), pull: pull || !raw["pull_request"].is_null() };
-            self.client.known.remember_subject(self.token, self.repository, n, subject);
+            self.client.known.remember_subject(self.token, self.repository, n, pull, subject);
         }
         Ok(())
     }
     /// A subject's immutable ids, read from GitHub once per token.
     pub async fn known_subject(&self, pull: bool, number: u64) -> Result<super::known::Subject> {
-        if let Some(subject) = self.client.known.subject(self.token, self.repository, number) {
+        if let Some(subject) = self.client.known.subject(self.token, self.repository, number, pull) {
             return Ok(subject);
         }
         self.raw_subject(pull, number).await?;
-        self.client.known.subject(self.token, self.repository, number).ok_or_else(Failure::protocol)
+        self.client.known.subject(self.token, self.repository, number, pull).ok_or_else(Failure::protocol)
     }
     pub async fn subject(&self, pull: bool, number: u64) -> Result<Value> {
         let subject = self.known_subject(pull, number).await?;
@@ -773,9 +761,6 @@ impl<'a> Reader<'a> {
             } else {
                 r::status(item, head)?
             });
-        }
-        if self.check_head(number).await? != before {
-            return Err(Failure::new(409, "github_checks_changed"));
         }
         let mut result = json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":head,"base":before["base"],"branch":before["branch"],"items":projected,"next_page":response.next});
         if checks {

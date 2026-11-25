@@ -150,11 +150,6 @@ impl Reader<'_> {
                 "started_at":r::date(value,"started_at")?,"completed_at":r::date(value,"completed_at")?,
                 "details_url":r::string(value,"html_url")?,"check_run_url":r::string(value,"check_run_url")?}));
         }
-        // Refuse a changed snapshot instead of combining another attempt or
-        // mutable run's metadata with these jobs. Callers can retry explicitly.
-        if self.workflow(&self.get(&target, &[]).await?.value)? != before {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"run":before,"items":items,"next_page":response.next,"total":count}),
         )
@@ -182,9 +177,6 @@ impl Reader<'_> {
         } else {
             None
         };
-        if self.protection_binding(&self.raw_subject(true, number).await?)? != before {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":before["head"],"base":before["base"],"branch":before["branch"],"runs":runs,"jobs":jobs}),
         )
@@ -261,12 +253,7 @@ impl Reader<'_> {
         if q["head"] != "" && q["head"] != before["head"] {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        let captured = self.protection_snapshot_for_pull(&pull).await?;
-        let pull = self.raw_subject(true, number).await?;
-        if self.protection_snapshot_for_pull(&pull).await? != captured {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
-        Ok(captured)
+        self.protection_snapshot_for_pull(&pull).await
     }
 
     pub(super) async fn protection_snapshot_for_pull(&self, pull: &Value) -> Result<Value> {

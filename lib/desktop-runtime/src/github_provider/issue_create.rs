@@ -42,10 +42,7 @@ impl Client {
             }
             let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
-            let repository = self
-                .get(&format!("/repositories/{}", issue.repository), &[], token)
-                .await?
-                .value;
+            let (repository, _) = self.resolve_repository(&issue.repository, token).await?;
             if r::id(&repository["id"])? != issue.repository {
                 return Err(Failure::new(409, "github_repository_changed"));
             }

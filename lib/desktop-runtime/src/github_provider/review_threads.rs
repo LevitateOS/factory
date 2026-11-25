@@ -81,9 +81,6 @@ impl Client {
     }
 }
 impl Reader<'_> {
-    pub(super) async fn graph_threads(&self, q: &ThreadRead) -> Result<Value> {
-        self.graph_threads_page(q, "", "").await
-    }
     pub(super) async fn graph_threads_page(
         &self,
         q: &ThreadRead,
@@ -91,19 +88,8 @@ impl Reader<'_> {
         account: &str,
     ) -> Result<Value> {
         let pull = self.raw_subject(true, q.number).await?;
-        let repository = self.raw_repository.clone();
-        let result = self
-            .graph_threads_for_pull(q, cursor, account, &pull, &repository)
-            .await?;
-        let current = self.raw_subject(true, q.number).await?;
-        if r::id(&current["id"])? != r::id(&pull["id"])?
-            || current["node_id"] != pull["node_id"]
-            || thread_pull_binding(&current, self.repository)?
-                != thread_pull_binding(&pull, self.repository)?
-        {
-            return Err(Failure::new(409, "github_threads_changed"));
-        }
-        Ok(result)
+        self.graph_threads_for_pull(q, cursor, account, &pull, &self.raw_repository)
+            .await
     }
     pub(super) async fn graph_threads_for_pull(
         &self,

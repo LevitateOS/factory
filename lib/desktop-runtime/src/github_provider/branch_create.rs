@@ -39,48 +39,37 @@ impl Reader<'_> {
     ) -> Result<Value> {
         let before = self.branch_create_repository().await?;
         let repository = r::text(&before, "repository_node_id")?;
-        let observe = async || -> Result<Value> {
-            let v = self
-                .client
-                .branch_creation_query(repository, name, oid, self.token)
-                .await?;
-            let raw = &v["data"]["node"];
-            if raw.is_null() {
-                return Err(Failure::new(404, "github_repository_not_visible"));
-            }
-            if raw["__typename"] != "Repository"
-                || raw["id"] != repository
-                || raw["nameWithOwner"] != self.name
-            {
-                return Err(Failure::new(409, "github_repository_changed"));
-            }
-            if raw.get("commit").is_none() {
-                return Err(Failure::protocol());
-            }
-            if raw["commit"].is_null() {
-                return Err(Failure::new(404, "github_branch_commit_not_visible"));
-            }
-            if raw["commit"]["__typename"] != "Commit"
-                || raw["commit"]["oid"] != oid
-                || raw["commit"]["repository"]["id"] != repository
-            {
-                return Err(Failure::protocol());
-            }
-            let branch = match raw.get("branch") {
-                Some(Value::Null) => Value::Null,
-                Some(raw) => project_branch(raw, repository, name, None)?,
-                None => return Err(Failure::protocol()),
-            };
-            Ok(branch)
-        };
-        let branch = observe().await?;
-        if self.branch_create_repository().await? != before || observe().await? != branch {
-            return Err(Failure::new(409, "github_branch_creation_inputs_changed"));
+        let v = self
+            .client
+            .branch_creation_query(repository, name, oid, self.token)
+            .await?;
+        let raw = &v["data"]["node"];
+        if raw.is_null() {
+            return Err(Failure::new(404, "github_repository_not_visible"));
         }
-        // Numeric lookup independently detects a name that was transferred/reused.
-        if self.client.repository(self.repository, self.token).await?["name"] != self.name {
+        if raw["__typename"] != "Repository"
+            || raw["id"] != repository
+            || raw["nameWithOwner"] != self.name
+        {
             return Err(Failure::new(409, "github_repository_changed"));
         }
+        if raw.get("commit").is_none() {
+            return Err(Failure::protocol());
+        }
+        if raw["commit"].is_null() {
+            return Err(Failure::new(404, "github_branch_commit_not_visible"));
+        }
+        if raw["commit"]["__typename"] != "Commit"
+            || raw["commit"]["oid"] != oid
+            || raw["commit"]["repository"]["id"] != repository
+        {
+            return Err(Failure::protocol());
+        }
+        let branch = match raw.get("branch") {
+            Some(Value::Null) => Value::Null,
+            Some(raw) => project_branch(raw, repository, name, None)?,
+            None => return Err(Failure::protocol()),
+        };
         let current = self.client.identity(self.token).await?;
         if current.external_id != account || current.node_id.as_deref() != Some(actor) {
             return Err(Failure::new(409, "github_account_changed"));

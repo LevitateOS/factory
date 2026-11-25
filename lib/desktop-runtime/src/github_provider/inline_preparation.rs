@@ -103,17 +103,10 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_inline_selection_unavailable"));
         }
         let writing = selection(&file, anchor)?;
-        let mut before = if pending["pending"].is_null() {
-            let current = self.review_preparation(number, actor, account).await?;
-            Self::same_pending(&pending, &current)?;
-            self.complete_pending_snapshot(number, actor, account, current).await?
-        } else {
-            self.complete_pending_snapshot(number, actor, account, pending).await?
-        };
+        let mut before = self.complete_pending_snapshot(actor, pending).await?;
         if before["pending"]["comments_count"].as_u64().is_some_and(|n| n >= 1000) {
             return Err(Failure::new(413, "github_inline_pending_capacity"));
         }
-        self.close_diff(&captured).await?;
         if before["pull"]["head"] != anchor.head || scope["pull"]["external_id"] != before["pull"]["external_id"] {
             return Err(Failure::new(409, "github_inline_selection_changed"));
         }

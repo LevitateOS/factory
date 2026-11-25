@@ -37,11 +37,11 @@ impl Reader<'_> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let head = r::text(q, "head")?;
         let base = r::text(q, "base")?;
-        let before = self.check_evaluation(number).await?;
+        let pull = self.raw_subject(true, number).await?;
+        let before = self.check_evaluation_for_pull(number, &pull).await?;
         if before["head"] != head || before["base"] != base {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        let request = json!({"number":number,"head":head});
         let ((evaluation, sources), protection) = tokio::try_join!(
             async {
                 match self.evaluation_sources(&before).await {
@@ -50,27 +50,9 @@ impl Reader<'_> {
                     Err(failure) => Err(failure),
                 }
             },
-            self.protection(&request)
+            self.protection_snapshot_for_pull(&pull)
         )?;
-        // Policy pairs its own sources and PR/branch binding. Compare CI again
-        // after that paired observation instead of repeating the complete policy read.
-        let (after, latest) = tokio::join!(self.check_evaluation(number), async {
-            if sources.is_some() {
-                self.evaluation_sources(&before).await
-            } else {
-                Ok((evaluation.clone(), Vec::new()))
-            }
-        });
-        if let Some(sources) = &sources {
-            if latest? != (evaluation.clone(), sources.clone()) {
-                return Err(Failure::new(409, "github_checks_changed"));
-            }
-        }
-        if after? != before {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
-        let projected = self.required_check_projection(&before, &protection, &evaluation, sources.as_deref())?;
-        Ok(projected)
+        self.required_check_projection(&before, &protection, &evaluation, sources.as_deref())
     }
 
     pub(super) fn required_check_projection(&self, before: &Value, protection: &Value, evaluation: &str, sources: Option<&[Value]>) -> Result<Value> {

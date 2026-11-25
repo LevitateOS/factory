@@ -82,10 +82,6 @@ impl Reader<'_> {
             }
             items.push(json!({"commit":oid,"summary":summary,"author":author,"authored_at":r::date(entry,"authoredDate")?}));
         }
-        let current = self.raw_subject(true, number).await?;
-        if r::id(&current["id"])? != pull_id || current["head"]["sha"] != head {
-            return Err(Failure::new(409, "github_commits_changed"));
-        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"pull":{"kind":"pull","external_id":pull_id,"number":number},"head":head,"items":items,"next_cursor":cursor}),
         )
