@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use soda_execution_protocol::CandidateState;
 use std::collections::BTreeMap;
-use std::ffi::CString;
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -184,7 +183,10 @@ impl Work {
                 Some(candidate) => (
                     candidate.to_owned(),
                     Some(super::candidate::muse_bundle(
-                        &self.profile, &intent, &receipt, candidate,
+                        &self.profile,
+                        &intent,
+                        &receipt,
+                        candidate,
                     )?),
                 ),
                 None if !intent.has_tasks() => (scope.candidate.to_owned(), None),
@@ -395,20 +397,7 @@ impl Work {
         if !self.alive.load(Ordering::SeqCst) {
             return Err(denied());
         }
-        let from = CString::new(work.as_os_str().as_encoded_bytes()).map_err(|_| denied())?;
-        let to = CString::new(checkout.as_os_str().as_encoded_bytes()).map_err(|_| denied())?;
-        if unsafe {
-            libc::renameat2(
-                libc::AT_FDCWD,
-                from.as_ptr(),
-                libc::AT_FDCWD,
-                to.as_ptr(),
-                libc::RENAME_NOREPLACE,
-            )
-        } != 0
-        {
-            return Err(io::Error::last_os_error());
-        }
+        crate::private_fs::rename_noreplace(&work, &checkout)?;
         File::open(&target.path)?.sync_all()?;
         // Only files owned by this successful staging operation are removed.
         fs::remove_file(pending.join("base.bundle"))?;

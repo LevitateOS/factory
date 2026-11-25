@@ -292,7 +292,9 @@ fn check_supervisor(args: &[OsString]) -> Result<(), Box<dyn Error>> {
     gone(&recovered)?;
     stopped(&profile)?;
     // Test abrupt death of the process owning the dedicated runtime thread.
-    // Adopt and reap only the exact children recorded by this owned subprocess.
+    // Linux adopts and reaps only the exact children recorded by this owned
+    // subprocess. macOS has no subreaper: launchd adopts and reaps them.
+    #[cfg(target_os = "linux")]
     unsafe {
         if libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1) != 0 {
             return Err(std::io::Error::last_os_error().into());
@@ -331,13 +333,8 @@ fn check_supervisor(args: &[OsString]) -> Result<(), Box<dyn Error>> {
     for pid in pids {
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
-            let mut status = 0;
-            let observed = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
-            if observed == pid {
+            if orphan_retired(pid)? {
                 break;
-            }
-            if observed < 0 {
-                return Err("owned orphan was not reaped".into());
             }
             if Instant::now() > deadline {
                 return Err("supervisor death left a live owned child".into());
@@ -452,5 +449,24 @@ impl Drop for OwnerProcess {
     fn drop(&mut self) {
         let _ = self.0.kill();
         let _ = self.0.wait();
+    }
+}
+#[cfg(target_os = "linux")]
+fn orphan_retired(pid: i32) -> Result<bool, Box<dyn Error>> {
+    let mut status = 0;
+    match unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) } {
+        observed if observed == pid => Ok(true),
+        observed if observed < 0 => Err("owned orphan was not reaped".into()),
+        _ => Ok(false),
+    }
+}
+#[cfg(target_os = "macos")]
+fn orphan_retired(pid: i32) -> Result<bool, Box<dyn Error>> {
+    if unsafe { libc::kill(pid, 0) } == 0 {
+        return Ok(false);
+    }
+    match std::io::Error::last_os_error().raw_os_error() {
+        Some(libc::ESRCH) => Ok(true),
+        _ => Err("owned orphan state unavailable".into()),
     }
 }

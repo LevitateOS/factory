@@ -167,7 +167,7 @@ func TestNativePostgresRetainedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(string(raw))
+	s, err := OpenStandaloneContext(t.Context(), string(raw))
 	if err != nil {
 		t.Fatal(err)
 	}

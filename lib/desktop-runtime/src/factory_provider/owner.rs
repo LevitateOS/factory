@@ -511,25 +511,8 @@ async fn serve(
 }
 
 fn peer(stream: &UnixStream, relay_uid: u32) -> bool {
-    let mut peer = libc::ucred {
-        pid: 0,
-        uid: 0,
-        gid: 0,
-    };
-    let mut length = std::mem::size_of_val(&peer) as libc::socklen_t;
-    let valid = unsafe {
-        libc::getsockopt(
-            stream.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_PEERCRED,
-            (&mut peer as *mut libc::ucred).cast(),
-            &mut length,
-        ) == 0
-    };
-    valid
-        && length as usize == std::mem::size_of_val(&peer)
-        && peer.pid > 0
-        && peer.uid == relay_uid
+    crate::unix_socket::peer(stream.as_raw_fd())
+        .is_some_and(|peer| peer.pid > 0 && peer.uid == relay_uid)
 }
 
 struct Request {

@@ -53,6 +53,7 @@ connected/installed lifecycle gates. See the
 backend capability, then starts the production Go executable with only its
 private configuration path. A dedicated owner thread stays alive for both
 children. Linux parent-death signals retire them after abrupt supervisor death;
+on macOS a detached kqueue watchdog per child delivers the same signal;
 normal stop waits for Go admission/drain and exit before stopping PostgreSQL.
 Timeouts force retirement and report failure, never a clean stop.
 

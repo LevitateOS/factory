@@ -99,7 +99,7 @@ existing Store's retained transaction phases, and verifies clean child shutdown.
 It deliberately kills only its owned backend, database group and an owned
 supervisor subprocess, verifies automatic retirement, and reopens retained data.
 The supervisor-death probe uses a subreaper to observe/reap its exact owned
-orphans. Negative startup probes use a failing executable, missing payload and
+orphans on Linux; on macOS launchd reaps them and the probe waits for their exit. Negative startup probes use a failing executable, missing payload and
 an incompatible version marker in the owned fixture, restoring that marker
 before the final retained transaction check. Keys/passwords/DSNs are never printed;
 private logs are checked for secret disclosure. No provider/model or agent work

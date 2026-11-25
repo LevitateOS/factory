@@ -4,10 +4,8 @@
 use crate::private_fs::{private_dir, private_file};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
-use std::ffi::CString;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
 use zeroize::Zeroizing;
@@ -34,7 +32,11 @@ impl Signer {
         mac.update(b"factory-fountain-desktop-enrollment/v1\0");
         mac.update(context);
         Ok(Zeroizing::new(
-            mac.finalize().into_bytes().iter().map(|byte| format!("{byte:02x}")).collect(),
+            mac.finalize()
+                .into_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
         ))
     }
 
@@ -63,7 +65,10 @@ impl Signer {
                 }
                 let key = read_key(&path)?;
                 identity(profile, &key)?;
-                return Ok(Self { enrollment_key: Zeroizing::new(*key), key });
+                return Ok(Self {
+                    enrollment_key: Zeroizing::new(*key),
+                    key,
+                });
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(_) => return Err("native MCP key unavailable".into()),
@@ -98,27 +103,17 @@ impl Signer {
         file.write_all(&*key)
             .and_then(|_| file.sync_all())
             .map_err(|_| "native MCP key write unavailable")?;
-        let from = CString::new(pending.as_os_str().as_bytes())
-            .map_err(|_| "native MCP key staging invalid")?;
-        let to = CString::new(path.as_os_str().as_bytes())
-            .map_err(|_| "native MCP key staging invalid")?;
-        if unsafe {
-            libc::renameat2(
-                libc::AT_FDCWD,
-                from.as_ptr(),
-                libc::AT_FDCWD,
-                to.as_ptr(),
-                libc::RENAME_NOREPLACE,
-            )
-        } != 0
-        {
+        if crate::private_fs::rename_noreplace(&pending, &path).is_err() {
             return Err("native MCP key commit unavailable".into());
         }
         fs::File::open(profile)
             .and_then(|directory| directory.sync_all())
             .map_err(|_| "native MCP key durability unavailable")?;
         identity(profile, &key)?;
-        Ok(Self { enrollment_key: Zeroizing::new(*key), key })
+        Ok(Self {
+            enrollment_key: Zeroizing::new(*key),
+            key,
+        })
     }
 
     /// Derive exactly the Go capability protocol's HMAC over a canonical
@@ -228,20 +223,7 @@ fn identity(profile: &Path, key: &[u8; 32]) -> Result<()> {
     file.write_all(expected.as_bytes())
         .and_then(|_| file.sync_all())
         .map_err(|_| "native MCP key identity write unavailable")?;
-    let from = CString::new(pending.as_os_str().as_bytes())
-        .map_err(|_| "native MCP key identity staging invalid")?;
-    let to = CString::new(marker.as_os_str().as_bytes())
-        .map_err(|_| "native MCP key identity staging invalid")?;
-    if unsafe {
-        libc::renameat2(
-            libc::AT_FDCWD,
-            from.as_ptr(),
-            libc::AT_FDCWD,
-            to.as_ptr(),
-            libc::RENAME_NOREPLACE,
-        )
-    } != 0
-    {
+    if crate::private_fs::rename_noreplace(&pending, &marker).is_err() {
         return Err("native MCP key identity commit unavailable".into());
     }
     fs::File::open(profile)

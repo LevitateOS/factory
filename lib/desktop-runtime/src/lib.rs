@@ -1,41 +1,43 @@
 //! Native lifecycle and bounded semantic effects. Product APIs, durable workflows
 //! and SQL remain in Go.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod bootstrap;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod collaboration;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod credentials;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod database;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod child_process;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod private_fs;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
+mod unix_socket;
+#[cfg(unix)]
 pub mod factory_provider;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod github;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod github_device;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod fountain_provider;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod fountain_oauth;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod github_provider;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod mcp_signing;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod product;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod product_request;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub use product_request::{
     product_artifact_read, product_request_body_limit, ProductRequest, PRODUCT_ARTIFACT_BYTES,
 };
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod supervisor;
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub mod provider_contract;

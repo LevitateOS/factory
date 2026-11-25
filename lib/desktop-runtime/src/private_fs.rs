@@ -126,3 +126,29 @@ pub(crate) fn publish_linked(
     fs::remove_file(pending)?;
     File::open(root)?.sync_all()
 }
+
+/// Renames `from` to `to`, failing with `AlreadyExists` instead of replacing
+/// an existing target.
+pub(crate) fn rename_noreplace(from: &Path, to: &Path) -> io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let invalid = || io::Error::from(io::ErrorKind::InvalidInput);
+    let from = std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(|_| invalid())?;
+    let to = std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(|_| invalid())?;
+    #[cfg(target_os = "linux")]
+    let result = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    #[cfg(target_os = "macos")]
+    let result = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}

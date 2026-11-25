@@ -6,7 +6,7 @@ license = "Apache-2.0"
 publish = false
 description = "Native Factory desktop process and storage lifecycle"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
 url = { workspace = true }

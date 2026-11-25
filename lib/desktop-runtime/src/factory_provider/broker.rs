@@ -8,12 +8,12 @@ use soda_execution_protocol::workspace::Status;
 use soda_execution_protocol::{
     AgentExecution as AgentExecuted, AgentExpectation, AgentObserved, AgentOutput,
     AgentStarted as AgentStartedReply, CandidateState, ProfileRunState, StopReason, MAX_EXECUTABLE,
-    MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
-    MAX_OUTPUT_READ, MAX_START_REPLY,
+    MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_OUTPUT_READ, MAX_PROMPT,
+    MAX_STAGE_BUNDLE as MAX_BUNDLE, MAX_START_REPLY,
 };
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
-use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -43,22 +43,7 @@ fn id(value: &str, length: usize) -> bool {
 }
 
 fn peer_is_root(stream: &UnixStream) -> bool {
-    let mut peer = libc::ucred {
-        pid: 0,
-        uid: u32::MAX,
-        gid: 0,
-    };
-    let mut length = std::mem::size_of_val(&peer) as libc::socklen_t;
-    let valid = unsafe {
-        libc::getsockopt(
-            stream.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_PEERCRED,
-            (&mut peer as *mut libc::ucred).cast(),
-            &mut length,
-        ) == 0
-    };
-    valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == 0 && peer.pid > 0
+    crate::unix_socket::peer(stream.as_raw_fd()).is_some_and(|peer| peer.uid == 0 && peer.pid > 0)
 }
 
 fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::Result<UnixStream> {
@@ -90,17 +75,8 @@ fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::R
                 "broker connection timed out",
             ));
         }
-        let fd = unsafe {
-            libc::socket(
-                libc::AF_UNIX,
-                libc::SOCK_STREAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
-                0,
-            )
-        };
-        if fd < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let stream = unsafe { UnixStream::from_raw_fd(fd) };
+        let stream = UnixStream::from(crate::unix_socket::nonblocking_stream()?);
+        let fd = stream.as_raw_fd();
         let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
         address.sun_family = libc::AF_UNIX as libc::sa_family_t;
         for (target, byte) in address.sun_path.iter_mut().zip(SOCKET.bytes()) {
