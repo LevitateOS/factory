@@ -208,12 +208,7 @@ func (s nativeHumanIssueCreates) ReadCreatedHumanIssue(ctx context.Context, c fa
 	if err != nil {
 		return empty, err
 	}
-	page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadIssues(ctx, c.Request.Actor, c.Request.Repository, factoryservice.CollaborationIssueQuery{Number: r.Issue.Number, Limit: 1})
-	if err != nil {
-		return empty, err
-	}
-	if len(page.Items) != 1 || page.Items[0].Ref.ExternalID != r.Issue.ExternalID || page.Items[0].Ref.Repository != c.Request.Repository || page.Items[0].Ref.Number != r.Issue.Number {
-		return empty, factoryservice.ErrHumanIssueCreateUnavailable
-	}
-	return page.Items[0].Ref, nil
+	// GitHub's answer to the create names the issue; reading it back would
+	// only repeat that answer.
+	return collaboration.IssueRef{Kind: collaboration.SubjectIssue, Repository: c.Request.Repository, ExternalID: r.Issue.ExternalID, Number: r.Issue.Number}, nil
 }

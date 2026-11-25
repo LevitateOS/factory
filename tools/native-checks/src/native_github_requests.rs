@@ -150,6 +150,15 @@ async fn steps(runtime: &NativeSupervisor, _profile: &Path, seen: &Arc<Mutex<See
     )
     .await?;
     step(
+        "issue create",
+        1,
+        "POST",
+        &format!("/api/factory/collaboration/repositories/{repository}/issues"),
+        json!({"command_id":format!("{:032x}", 2),"title":"Theme resets","body":"The theme resets after a restart."}),
+        0,
+    )
+    .await?;
+    step(
         "feed post",
         1,
         "POST",
@@ -180,6 +189,14 @@ fn graphql(body: &[u8]) -> (u16, Value) {
                 "commentEdge":{"node":{"id":"IC_9001","fullDatabaseId":"9001","body":variables["body"],"createdAt":"2026-11-01T00:00:00Z",
                 "updatedAt":"2026-11-01T00:00:00Z","url":format!("{url}#issuecomment-9001"),"minimizedReason":null,
                 "author":{"login":"declared-writer","id":"U_declared"}}}}}}),
+        );
+    }
+    if query.contains("createIssue") {
+        return (
+            200,
+            json!({"data":{"createIssue":{"issue":{"id":"I_8","fullDatabaseId":"7008","number":8,"title":variables["title"],"body":variables["body"],
+                "url":format!("https://github.com/{NAME}/issues/8"),"createdAt":"2026-11-01T00:00:00Z","updatedAt":"2026-11-01T00:00:00Z",
+                "repository":{"id":variables["repository"],"nameWithOwner":NAME},"author":{"login":"declared-writer","id":"U_declared"}}}}}),
         );
     }
     (200, json!({"errors":[{"message":"unscripted query"}]}))
