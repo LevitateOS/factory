@@ -93,6 +93,7 @@ export type PostPhase =
   | 'issue_maker'
   | 'stalled_jev'
   | 'stalled_context'
+  | 'stalled_setup'
   | 'reading'
   | 'assess_failed'
   | 'exhausted'
@@ -119,7 +120,7 @@ export function postPhase(state: PostPipelineState): PostPhase {
   if (state.issueMaker) return 'issue_maker';
   if (postAttemptsExhausted(state)) return 'exhausted';
   if (state.judgment === 'pending')
-    return state.stalled === 'jev' ? 'stalled_jev' : state.stalled === 'context' ? 'stalled_context' : 'reading';
+    return state.stalled === 'jev' ? 'stalled_jev' : state.stalled === 'context' ? 'stalled_context' : state.stalled === 'setup' ? 'stalled_setup' : 'reading';
   if (state.judgment === 'failed') return 'assess_failed';
   switch (state.route) {
     case 'discussion':
@@ -170,6 +171,11 @@ const postPhases: Readonly<
   stalled_context: {
     text: () =>
       'I need to refresh this request’s issues using your current repository access. Retry the request to continue.',
+    tone: 'blocked',
+    working: false,
+  },
+  stalled_setup: {
+    text: () => 'I can’t read this yet: this project has no Muse login chosen for its roles. Choose one in Settings and I’ll read it.',
     tone: 'blocked',
     working: false,
   },

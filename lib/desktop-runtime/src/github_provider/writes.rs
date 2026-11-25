@@ -97,9 +97,24 @@ impl Client {
         F: FnOnce(Mutation) -> Work,
         Work: Future<Output = Result<Value>>,
     {
+        self.run_mutation_within(deadline, Duration::from_secs(8), operation).await
+    }
+    /// A mutation whose provider work may take longer than the usual 8 seconds,
+    /// such as creating a repository with its first commit. Expiry drops the
+    /// in-flight request, so a too-short window can lose a write GitHub applies.
+    pub(super) async fn run_mutation_within<F, Work>(
+        &self,
+        deadline: Option<Instant>,
+        cap: Duration,
+        operation: F,
+    ) -> MutationResult
+    where
+        F: FnOnce(Mutation) -> Work,
+        Work: Future<Output = Result<Value>>,
+    {
         let deadline = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
+            .unwrap_or_else(|| Instant::now() + cap)
+            .min(Instant::now() + cap);
         let attempted = Arc::new(AtomicBool::new(false));
         let work = operation(Mutation {
             deadline,

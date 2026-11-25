@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -495,7 +496,10 @@ func finishNativeJudgment(ctx context.Context, native NativeExecution, capture f
 
 func (s nativeRepositoryJudgment) selection(ctx context.Context) (factory.RoleSelection, execution.ToolObservation, error) {
 	policy, e := s.Store.RepositoryPolicy(ctx, s.repository)
-	if e != nil || policy.Judgments == nil {
+	if errors.Is(e, sql.ErrNoRows) || e == nil && policy.Judgments == nil {
+		return factory.RoleSelection{}, execution.ToolObservation{}, factoryservice.ErrPostJudgmentUnset
+	}
+	if e != nil {
 		return factory.RoleSelection{}, execution.ToolObservation{}, factoryservice.ErrPostJudgmentPending
 	}
 	source, e := s.MuseLoginSource(ctx)

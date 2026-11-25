@@ -486,6 +486,9 @@ pub(super) async fn factory_create_repository(
                 soda_desktop_runtime::github_provider::RepositoryCreate { name, description, private },
             );
         let reply = create.await.map_err(|_| "Repository creation is unavailable")?;
+        if reply.status != 200 {
+            eprintln!("factory: repository creation answered {} {} {}", reply.status, reply.body["error"], reply.body["cause"]);
+        }
         current(&desktop, &selection)?;
         Ok(Reply { status: reply.status, body: reply.body })
     };

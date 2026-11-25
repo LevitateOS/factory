@@ -487,10 +487,17 @@ impl Client {
                 .map_err(|_| Failure::unavailable())?;
             Ok(Cancel(cancelled))
         })();
+        // Wait as long as the admitted operation allows, at least 9 seconds and
+        // never more than 30: a slow write must not be cancelled mid-flight.
+        let wait = Operation::current()
+            .and_then(|work| work.deadline())
+            .map(|deadline| deadline.saturating_duration_since(std::time::Instant::now()))
+            .unwrap_or_default()
+            .clamp(Duration::from_secs(9), Duration::from_secs(30));
         let client = self.clone();
         async move {
             let _cancel = admission?;
-            let completion = tokio::time::timeout(Duration::from_secs(9), response)
+            let completion = tokio::time::timeout(wait, response)
                 .await
                 .map_err(|_| Failure::new(504, "github_deadline"))?
                 .map_err(|_| Failure::unavailable())?;
@@ -826,8 +833,11 @@ pub(super) fn rest_post(http: &Http, token: &[u8], path: &str, body: Value) -> R
     let mut authorization = header::HeaderValue::from_bytes(&bytes)
         .map_err(|_| Failure::new(400, "invalid_native_write"))?;
     authorization.set_sensitive(true);
+    // GitHub can take longer than the client's 8 seconds to create a repository with
+    // its first commit; dropping the request then can lose or abandon the write.
     Ok(http
         .post(format!("https://api.github.com{path}"))
+        .timeout(Duration::from_secs(25))
         .header(header::AUTHORIZATION, authorization)
         .header("X-GitHub-Api-Version", API_VERSION)
         .header(header::ACCEPT, "application/vnd.github+json")

@@ -302,9 +302,9 @@ impl NativeSupervisor {
                 return Err(Error::Invalid);
             }
             let client = client.map_err(|_| Error::Unavailable)?;
-            let operation = crate::provider_contract::operation::Operation::new(8, Duration::from_secs(20));
+            let operation = crate::provider_contract::operation::Operation::new(12, Duration::from_secs(30));
             operation
-                .owned_scope(credentials.with_token_operation(capability, async |token| {
+                .owned_scope(credentials.with_token_operation_timeout(capability, Duration::from_secs(30), async |token| {
                     Ok(match client.create_repository(token, &account.account, &repository).await {
                         crate::github_provider::CreateOutcome::Created(created) => Reply {
                             status: 200,
@@ -315,9 +315,9 @@ impl NativeSupervisor {
                             status: 409,
                             body: json!({"error":"github_repository_rejected"}),
                         },
-                        crate::github_provider::CreateOutcome::Indeterminate(_) => Reply {
+                        crate::github_provider::CreateOutcome::Indeterminate(failure) => Reply {
                             status: 202,
-                            body: json!({"error":"github_repository_creation_unknown"}),
+                            body: json!({"error":"github_repository_creation_unknown","cause":failure.code,"provider_status":failure.status}),
                         },
                         crate::github_provider::CreateOutcome::NotSent(failure) => failure_reply(failure),
                     })

@@ -56,7 +56,7 @@ impl Client {
             Err(failure) => return CreateOutcome::NotSent(failure),
         };
         let outcome = self
-            .run_mutation(None, |mutation| async move {
+            .run_mutation_within(None, Duration::from_secs(25), |mutation| async move {
                 wanted.validate()?;
                 if !remote_id(expected) {
                     return Err(Failure::new(400, "invalid_native_write"));
@@ -87,8 +87,9 @@ impl Client {
             other => other,
         }
     }
-    /// Reads the requested name once and adopts it only when this account owns
-    /// it and GitHub dates it within this attempt.
+    /// Reads the requested name until GitHub shows it (creating a repository with
+    /// its first commit can outlast the write deadline) and adopts it only when
+    /// this account owns it and GitHub dates it within this attempt.
     async fn settle_repository(
         &self,
         token: &[u8],
@@ -101,10 +102,18 @@ impl Client {
             if identity.external_id != expected {
                 return Err(Failure::new(409, "github_account_changed"));
             }
-            let raw = match self.get(&format!("/repos/{}/{}", identity.login, wanted.name), &[], token).await {
-                Ok(response) => response.value,
-                Err(failure) if failure.status == 404 => return Ok(None),
-                Err(failure) => return Err(failure),
+            let path = format!("/repos/{}/{}", identity.login, wanted.name);
+            let mut reads = 0;
+            let raw = loop {
+                match self.get(&path, &[], token).await {
+                    Ok(response) => break response.value,
+                    Err(failure) if failure.status == 404 && reads < 8 => {
+                        reads += 1;
+                        self.delay(Duration::from_secs(2)).await?;
+                    }
+                    Err(failure) if failure.status == 404 => return Ok(None),
+                    Err(failure) => return Err(failure),
+                }
             };
             let created_at = raw["created_at"]
                 .as_str()
@@ -117,7 +126,7 @@ impl Client {
             created(&raw, expected, wanted).map(Some)
         };
         self.scope(async {
-            tokio::time::timeout(Duration::from_secs(8), read)
+            tokio::time::timeout(Duration::from_secs(20), read)
                 .await
                 .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
         })
