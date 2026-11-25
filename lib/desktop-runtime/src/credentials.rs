@@ -1,6 +1,5 @@
 //! Linux login-session credential custody. No browser token getter or file fallback.
 use crate::private_fs::{private_dir, private_file};
-use secret_service::{EncryptionType, Item, SecretService};
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
 use std::future::Future;
@@ -11,6 +10,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use zeroize::Zeroizing;
 mod grant;
+mod keyring;
 mod rotation;
 use grant::Secret;
 pub use grant::{Grant, GrantStatus};
@@ -56,15 +56,6 @@ impl std::fmt::Display for Error {
     }
 }
 impl std::error::Error for Error {}
-impl From<secret_service::Error> for Error {
-    fn from(value: secret_service::Error) -> Self {
-        match value {
-            secret_service::Error::Locked => Self::Locked,
-            secret_service::Error::NoResult => Self::Missing,
-            _ => Self::Unavailable,
-        }
-    }
-}
 #[derive(Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Provider {
@@ -178,7 +169,9 @@ impl TokenCapability {
         &self.account
     }
     pub(crate) fn same_custody(&self, other: &Self) -> bool {
-        self.revision == other.revision && self.owner == other.owner && self.admits(&other.account, &other.revision)
+        self.revision == other.revision
+            && self.owner == other.owner
+            && self.admits(&other.account, &other.revision)
     }
     fn admits(&self, account: &AccountStatus, revision: &str) -> bool {
         revision == self.revision
@@ -186,58 +179,6 @@ impl TokenCapability {
             && account.origin == self.account.origin
             && account.account == self.account.account
             && account.connection == self.account.connection
-    }
-}
-#[derive(Default)]
-struct CredentialTransport {
-    connection: Option<zbus::Connection>,
-    service: Option<SecretService<'static>>,
-    owner: Option<String>,
-}
-impl CredentialTransport {
-    async fn owner(connection: &zbus::Connection) -> Result<Option<String>> {
-        let bus = zbus::fdo::DBusProxy::new(connection)
-            .await
-            .map_err(|_| Error::Unavailable)?;
-        let name = "org.freedesktop.secrets"
-            .try_into()
-            .map_err(|_| Error::Unavailable)?;
-        match bus.get_name_owner(name).await {
-            Ok(owner) => Ok(Some(owner.to_string())),
-            Err(zbus::fdo::Error::NameHasNoOwner(_)) => Ok(None),
-            Err(_) => Err(Error::Unavailable),
-        }
-    }
-    async fn service(&mut self) -> Result<&SecretService<'static>> {
-        if self.connection.as_ref().is_some_and(|c| c.is_closed()) {
-            *self = Self::default();
-        }
-        if self.connection.is_none() {
-            self.connection = Some(
-                zbus::Connection::session()
-                    .await
-                    .map_err(|_| Error::Unavailable)?,
-            );
-        }
-        let connection = self.connection.as_ref().ok_or(Error::Unavailable)?;
-        let before = Self::owner(connection).await?;
-        if before != self.owner {
-            self.service = None;
-        }
-        if self.service.is_none() {
-            // Keep the bus peer alive even if a bounded caller cancels while
-            // the keyring is still negotiating this encrypted session.
-            let service =
-                SecretService::connect_with_existing(EncryptionType::Dh, connection.clone())
-                    .await?;
-            let after = Self::owner(connection).await?;
-            if after.is_none() || before.is_some() && before != after {
-                return Err(Error::Unavailable);
-            }
-            self.owner = after;
-            self.service = Some(service);
-        }
-        self.service.as_ref().ok_or(Error::Unavailable)
     }
 }
 pub struct Credentials {
@@ -249,7 +190,7 @@ pub struct Credentials {
     retired: AtomicBool,
     withdrawn: Mutex<BTreeSet<String>>,
     changes: watch::Sender<()>,
-    gate: tokio::sync::Mutex<CredentialTransport>,
+    gate: tokio::sync::Mutex<keyring::Transport>,
 }
 impl Credentials {
     // Nonsecret identity of this exact profile/connection/key revision. Renew
@@ -291,7 +232,7 @@ impl Credentials {
             retired: AtomicBool::new(false),
             withdrawn: Mutex::new(BTreeSet::new()),
             changes,
-            gate: tokio::sync::Mutex::new(CredentialTransport::default()),
+            gate: tokio::sync::Mutex::new(keyring::Transport::default()),
         })
     }
     pub fn retire(&self) {
@@ -316,7 +257,7 @@ impl Credentials {
             .is_err_and(|error| *error == Error::Unavailable)
         {
             if let Ok(mut transport) = self.gate.try_lock() {
-                transport.service = None;
+                transport.reset();
             }
         }
         self.alive()?;
@@ -367,9 +308,9 @@ impl Credentials {
     }
     async fn items<'a>(
         &self,
-        service: &'a SecretService<'_>,
+        service: &'a keyring::Keyring,
         connection: Option<&str>,
-    ) -> Result<Vec<(Item<'a>, bool)>> {
+    ) -> Result<Vec<(keyring::Item<'a>, bool)>> {
         let mut attrs = HashMap::from([("application", APP), ("profile", self.profile.as_str())]);
         if let Some(connection) = connection {
             if !id(connection) {
@@ -377,19 +318,18 @@ impl Credentials {
             }
             attrs.insert("connection", connection);
         }
-        let found = service.search_items(attrs).await?;
-        if found.unlocked.len() + found.locked.len() > 32 {
+        let found = service.search(attrs).await?;
+        if found.len() > 32 {
             return Err(Error::Ambiguous);
         }
-        Ok(found
-            .unlocked
-            .into_iter()
-            .map(|i| (i, false))
-            .chain(found.locked.into_iter().map(|i| (i, true)))
-            .collect())
+        Ok(found)
     }
-    async fn metadata(&self, item: &Item<'_>, locked: bool) -> Result<(AccountStatus, String)> {
-        let attrs = item.get_attributes().await?;
+    async fn metadata(
+        &self,
+        item: &keyring::Item<'_>,
+        locked: bool,
+    ) -> Result<(AccountStatus, String)> {
+        let attrs = item.attributes().await?;
         let get = |key: &str| attrs.get(key).map(String::as_str).ok_or(Error::Invalid);
         if get("application")? != APP || get("profile")? != self.profile {
             return Err(Error::Invalid);
@@ -434,7 +374,7 @@ impl Credentials {
     pub async fn status(&self) -> Result<Vec<AccountStatus>> {
         self.bounded(async {
             let mut transport = self.gate.lock().await;
-            let service = transport.service().await?;
+            let service = transport.keyring().await?;
             let mut statuses = Vec::new();
             let mut seen = BTreeSet::new();
             for (item, locked) in self.items(&service, None).await? {
@@ -463,12 +403,8 @@ impl Credentials {
     pub async fn storage_ready(&self) -> Result<()> {
         self.bounded(async {
             let mut transport = self.gate.lock().await;
-            let service = transport.service().await?;
-            let collection = service.get_default_collection().await?;
-            if collection.is_locked().await? {
-                return Err(Error::Locked);
-            }
-            Ok(())
+            let service = transport.keyring().await?;
+            service.ready().await
         })
         .await
     }
@@ -487,7 +423,7 @@ impl Credentials {
             secret.access()?;
             let _mutation = self.mutation().await?;
             let mut transport = self.gate.lock().await;
-            let service = transport.service().await?;
+            let service = transport.keyring().await?;
             let mut existing = None;
             for (item, locked) in self.items(&service, None).await? {
                 let (status, revision) = self.metadata(&item, locked).await?;
@@ -527,10 +463,10 @@ impl Credentials {
     // Caller holds the cross-owner mutation lease and this owner's keyring gate.
     async fn persist_secret(
         &self,
-        service: &SecretService<'_>,
+        service: &keyring::Keyring,
         account: Account,
         connection: String,
-        existing: Option<Item<'_>>,
+        existing: Option<keyring::Item<'_>>,
         secret: Secret,
         cap: Option<&TokenCapability>,
     ) -> Result<AccountStatus> {
@@ -549,22 +485,9 @@ impl Credentials {
             ("format", secret.format()),
         ]);
         if let Some(item) = existing {
-            item.set_secret(&bytes, "application/octet-stream").await?;
-            item.set_attributes(attrs).await?;
+            item.replace(&bytes, attrs).await?;
         } else {
-            let collection = service.get_default_collection().await?;
-            if collection.is_locked().await? {
-                return Err(Error::Locked);
-            }
-            collection
-                .create_item(
-                    "Factory account",
-                    attrs,
-                    &bytes,
-                    false,
-                    "application/octet-stream",
-                )
-                .await?;
+            service.create("Factory account", attrs, &bytes).await?;
         }
         self.alive()?;
         secret.access()?;
@@ -589,7 +512,7 @@ impl Credentials {
             if self.blocked(connection)? {
                 return Err(Error::Withdrawn);
             }
-            let service = transport.service().await?;
+            let service = transport.keyring().await?;
             let mut found = self.items(&service, Some(connection)).await?;
             if found.len() > 1 {
                 return Err(Error::Ambiguous);
@@ -642,7 +565,7 @@ impl Credentials {
                 return Err(Error::Withdrawn);
             }
             self.check_refresh(&cap.connection, reservation)?;
-            let service = transport.service().await?;
+            let service = transport.keyring().await?;
             let mut found = self.items(&service, Some(&cap.connection)).await?;
             if found.len() > 1 {
                 return Err(Error::Ambiguous);
@@ -689,7 +612,8 @@ impl Credentials {
         cap: &TokenCapability,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
-        self.with_secret_operation(cap, false, OPERATION, operation).await
+        self.with_secret_operation(cap, false, OPERATION, operation)
+            .await
     }
     pub(crate) async fn with_token_operation_timeout<T>(
         &self,
@@ -697,7 +621,8 @@ impl Credentials {
         timeout: Duration,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
-        self.with_secret_operation(cap, false, timeout, operation).await
+        self.with_secret_operation(cap, false, timeout, operation)
+            .await
     }
     /// Reissue a short lease only while the same native owner, connection,
     /// account and OS revision remain current. A run may use this between
@@ -835,7 +760,8 @@ impl Credentials {
         cap: &TokenCapability,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
-        self.with_secret_operation(cap, true, OPERATION, operation).await
+        self.with_secret_operation(cap, true, OPERATION, operation)
+            .await
     }
     async fn with_secret_operation<T>(
         &self,
@@ -872,7 +798,7 @@ impl Credentials {
             // withdrawal waited. Reassert it under the shared mutation lease.
             self.block(connection)?;
             let mut transport = self.gate.lock().await;
-            let service = transport.service().await?;
+            let service = transport.keyring().await?;
             for (item, locked) in self.items(&service, Some(connection)).await? {
                 if locked {
                     return Err(Error::Locked);

@@ -234,6 +234,12 @@ Rust crypto. An existing desktop service such as GNOME Keyring supplies storage;
 this crate does not create a password database, use a plaintext fallback or
 automatically unlock a locked collection. Missing/locked services return bounded,
 sanitized errors. The supported installed desktop prerequisites remain T14.
+On macOS the same items are generic passwords in the login Keychain: the
+service is `dev.soda.factory/PROFILE`, the account is the connection ID and the
+nonsecret attribute map is JSON in the item's generic attribute.
+`credentials/keyring.rs` holds both OS implementations. `factory-credential-operation-check
+--credential-transport NEW_PROFILE` passes against the login Keychain; it skips
+the Linux keyring-file plaintext scan and the daemon-restart step.
 
 Only native connectors construct an `Account` from a remotely verified provider,
 HTTPS instance and opaque account ID. `store(account, Token)` writes the token

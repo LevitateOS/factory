@@ -3896,6 +3896,7 @@ name = "soda-desktop-runtime"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "core-foundation",
  "diffy",
  "getrandom 0.4.3",
  "hmac",
@@ -3905,6 +3906,7 @@ dependencies = [
  "libc",
  "reqwest",
  "secret-service",
+ "security-framework-sys",
  "serde",
  "serde_json",
  "sha2 0.11.1",

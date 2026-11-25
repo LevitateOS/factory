@@ -137,17 +137,20 @@ fn launch_stream(
 }
 fn prepare(profile: &Path) -> Result<()> {
     let parent = profile.parent().ok_or("private fixture parent required")?;
+    // Linux runs against an isolated session keyring daemon under /home. macOS
+    // has no per-session daemon to isolate: fixture items live in the login
+    // Keychain under the fixed fixture namespace, which no real profile uses,
+    // and each mode refuses a namespace that already holds accounts.
+    let owned = cfg!(target_os = "macos") || profile.starts_with("/home");
     ensure(
-        profile.is_absolute()
-            && profile.starts_with("/home")
-            && !profile.exists()
-            && parent.is_dir(),
-        "fresh owned /home profile required",
+        profile.is_absolute() && owned && !profile.exists() && parent.is_dir(),
+        "fresh owned profile required",
     )?;
     ensure(
         unsafe { libc::geteuid() } != 0,
         "keyring observer requires an ordinary user",
     )?;
+    #[cfg(target_os = "linux")]
     for (key, value) in [
         (
             "DBUS_SESSION_BUS_ADDRESS",
@@ -422,9 +425,12 @@ async fn run(profile: &Path, restart_keyring: bool) -> Result<()> {
             .await?,
         "fresh credential failed after refused operation",
     )?;
-    let data = parent.join("data/keyrings");
+    // The isolated GNOME keyring stores files this check can scan. The macOS
+    // login Keychain encrypts items itself and is not scanned here.
+    #[cfg(target_os = "linux")]
     let mut keyrings = 0;
-    for entry in fs::read_dir(data)? {
+    #[cfg(target_os = "linux")]
+    for entry in fs::read_dir(parent.join("data/keyrings"))? {
         let path = entry?.path();
         if path.extension().is_some_and(|s| s == "keyring") {
             let encrypted = fs::read(path)?;
@@ -437,6 +443,7 @@ async fn run(profile: &Path, restart_keyring: bool) -> Result<()> {
             keyrings += 1;
         }
     }
+    #[cfg(target_os = "linux")]
     ensure(keyrings > 0, "real encrypted keyring file missing")?;
     store.withdraw(&saved.connection).await?;
     ensure(
@@ -2718,7 +2725,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             run_grant_custody(Path::new(&args[1])).await
         }
         (Some("--credential-transport"), 2) => {
-            run(Path::new(&args[1]), true).await
+            run(Path::new(&args[1]), cfg!(target_os = "linux")).await
         }
         (Some("--github-grant-declared"), 4) => {
             native_github_transport::run_grant(

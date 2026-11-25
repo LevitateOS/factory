@@ -159,9 +159,9 @@ impl Secret {
         bytes.extend_from_slice(&json);
         Ok(bytes)
     }
-    pub(super) async fn load(item: &secret_service::Item<'_>, revision: &str) -> Result<Self> {
-        let attrs = item.get_attributes().await?;
-        let bytes = Zeroizing::new(item.get_secret().await?);
+    pub(super) async fn load(item: &super::keyring::Item<'_>, revision: &str) -> Result<Self> {
+        let attrs = item.attributes().await?;
+        let bytes = item.secret().await?;
         match attrs.get("format").map(String::as_str) {
             None | Some("token") => Token::new(bytes.to_vec()).map(Self::Token),
             Some(format @ ("oauth-grant-v1" | "oauth-grant-v2")) => {

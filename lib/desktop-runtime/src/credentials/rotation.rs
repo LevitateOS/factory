@@ -157,7 +157,7 @@ impl Credentials {
                 self.with_secret_in(cap, true, Some(&reservation), |_| ())
                     .await?;
                 let mut transport = self.gate.lock().await;
-                let service = transport.service().await?;
+                let service = transport.keyring().await?;
                 let mut found = self.items(&service, Some(&cap.connection)).await?;
                 if found.len() > 1 {
                     return Err(Error::Ambiguous);

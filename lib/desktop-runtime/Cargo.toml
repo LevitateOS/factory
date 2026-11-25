@@ -13,9 +13,6 @@ url = { workspace = true }
 serde_json = { workspace = true }
 soda-unix-http = { path = "../unix-http" }
 serde = { workspace = true, features = ["derive"] }
-secret-service = { workspace = true, features = ["rt-tokio-crypto-rust"] }
-# SecretService::connect_with_existing takes this same connection type (zbus 5).
-zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, default-features = true, features = ["sync", "time", "rt", "net", "macros", "io-util", "fs"] }
 zeroize = { workspace = true }
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
@@ -28,3 +25,12 @@ hyper = { workspace = true, features = ["server", "http1"] }
 hyper-util = { workspace = true, features = ["tokio"] }
 soda-execution-protocol = { path = "../execution-protocol" }
 base64 = "=0.23.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service = { workspace = true, features = ["rt-tokio-crypto-rust"] }
+# SecretService::connect_with_existing takes this same connection type (zbus 5).
+zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework-sys = "=2.17.0"
+core-foundation = "=0.10.1"
