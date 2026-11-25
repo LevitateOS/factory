@@ -711,8 +711,9 @@ export function describeFeedPost(
   const key = feedEntryKey(entry);
   const pipeline = type === 'post' ? entry.post?.pipeline : undefined;
   const ask = entry.payload?.communication;
-  // Real urgency (a critical or warning question) keeps the attention card.
-  const question = ask?.kind === 'ask' && ask.severity !== 'critical' && ask.severity !== 'warning';
+  // Real urgency (a critical or warning question) and a request for allowance
+  // or access keep the attention card.
+  const question = ask?.kind === 'ask' && !ask.request && ask.severity !== 'critical' && ask.severity !== 'warning';
   return {
     entry,
     ...(repository.places && (entry.parentId || entry.post?.parentId || entry.payload?.communication?.parentId)

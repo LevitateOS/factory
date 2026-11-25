@@ -849,6 +849,7 @@ export class SodaFactoryFeed extends LitElement {
       ...(this.current?.host.draftScope ? {scope: this.current.host.draftScope} : {}),
       ...(delivery ? {delivery} : {}),
       ...(appOrigin ? {appOrigin} : {}),
+      ...(entry.author ? {author: entry.author} : {}),
     };
   }
 

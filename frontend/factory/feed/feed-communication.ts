@@ -16,6 +16,7 @@ import type {FactoryRepositoryLinks} from '../app/navigation.js';
 import './feed-artifact.js';
 import {renderFeedAssumption} from './feed-assumption.js';
 import type {FeedQuestionContext} from './feed-question.js';
+import {renderFeedRequest} from './feed-request.js';
 
 /** One card's real links: hrefs come only from the repository's SodaOS places. */
 export interface FeedCardLinks {
@@ -28,6 +29,8 @@ export interface FeedCardLinks {
   delivery?: string;
   /** Origin of a Ready app the viewer may open for that delivery. */
   appOrigin?: string;
+  /** The entry's author name, for a card that says who asks. */
+  author?: string;
 }
 
 // Controller-written Factory events carry their event kind (stored as
@@ -113,6 +116,7 @@ export function renderFeedCommunication(
 ): TemplateResult {
   const c = filledCommunication(communication);
   const {places} = links;
+  if (c.request) return renderFeedRequest(c, links.author, places);
   if (c.assumption)
     return renderFeedAssumption(
       c,

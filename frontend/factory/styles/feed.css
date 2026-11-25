@@ -4226,3 +4226,44 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   background: var(--soda-page-text);
   color: var(--soda-page-surface);
 }
+/* Agent requests (5.4): what is asked as label/value rows, then one link to
+   the setting. No grant control. Square, page tokens. */
+.soda-feed-request {
+  display: grid;
+  margin: 0;
+}
+.soda-feed-request > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--soda-page-edge);
+  font: 400 14px/1.5 Barlow, Arial, sans-serif;
+}
+.soda-feed-request > div:last-child {
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.soda-feed-request dt {
+  color: var(--soda-page-muted);
+}
+.soda-feed-request dd {
+  flex: 1 1 60%;
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.soda-feed-request-state {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--soda-feed-line);
+  font-size: 14px;
+}
+.soda-feed-request-link {
+  margin: 0;
+  font-size: 14px;
+}
+.soda-feed-request-link span {
+  color: var(--soda-page-muted);
+}

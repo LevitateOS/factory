@@ -132,6 +132,7 @@ export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[]) {
           issue: (number) => root + '/issues/' + number,
           pull: (number) => root + '/pulls/' + number,
           factoryStatus: (issue) => root + '/work/issues' + (issue === undefined ? '' : '/' + issue + '?tab=factory'),
+          settings: (section) => root + '/settings#' + section,
         };
       },
       navigate() {
@@ -409,6 +410,84 @@ export const namedRoles: FeedPostSpecimen[] = [
       effect: 'pending',
       revision: 0,
     })
+  ),
+];
+
+// The Requests sheet: agents asking for more allowance or for access. Each
+// card links to its setting; none grants anything (served state as the
+// server derives it from recorded settings and replies).
+export const requests: FeedPostSpecimen[] = [
+  specimen(
+    'ask · request more allowance · open',
+    'Open Run capacity in Settings',
+    record(
+      'Fixer',
+      communication({
+        kind: 'ask',
+        scope: '#13',
+        title: 'One more concurrent run would finish #13',
+        summary: 'The tests and the build wait on each other at 2 runs.',
+        question: 'Can run capacity rise to 3?',
+        question_state: 'open',
+        request: {
+          kind: 'allowance',
+          setting: 'capacity',
+          amount: 3,
+          unit: 'runs',
+          reason: 'The remaining finding is one line, but its check queues behind the build.',
+          blocks: 'The correction for #13',
+          state: 'open',
+        },
+      }),
+      'needs_you'
+    )
+  ),
+  specimen(
+    'ask · request access · open',
+    'Open Environment grant in Settings',
+    record(
+      'Builder',
+      communication({
+        kind: 'ask',
+        scope: '#14',
+        title: 'The build needs the project environment',
+        summary: 'No environment is granted to this project yet.',
+        question: 'Can this project use the environment?',
+        question_state: 'open',
+        request: {
+          kind: 'access',
+          setting: 'environment_grant',
+          reason: 'The checks download one dependency and run in the project environment.',
+          blocks: 'Building #14',
+          state: 'open',
+        },
+      }),
+      'needs_you'
+    )
+  ),
+  specimen(
+    'ask · request more allowance · met',
+    'Usage sponsorship now meets this request.',
+    record(
+      'Test Pilot',
+      communication({
+        kind: 'ask',
+        scope: '#12',
+        title: 'Two hours of sponsored usage would cover the walkthrough',
+        summary: 'The walkthrough of search takes longer than the current allowance.',
+        question: 'Can the sponsorship allow 120 minutes?',
+        question_state: 'open',
+        request: {
+          kind: 'allowance',
+          setting: 'sponsorships',
+          amount: 120,
+          unit: 'minutes',
+          reason: 'Each pass through search, filters and paging takes about 40 minutes.',
+          state: 'met',
+        },
+      }),
+      'decided'
+    )
   ),
 ];
 

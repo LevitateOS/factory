@@ -35,6 +35,8 @@ function communicationState(communication: FeedCommunication, entry: FeedEntry):
     return 'problem';
   switch (communication.kind) {
     case 'ask':
+      // A request waits until the recorded setting meets it or someone replies.
+      if (communication.request) return (communication.request.state ?? 'open') === 'open' ? 'needs_you' : 'decided';
       return communication.questionState === 'open' || communication.questionState === undefined
         ? 'needs_you'
         : 'decided';

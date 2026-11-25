@@ -103,6 +103,8 @@ export class DesktopProduct {
           ? routeURL({kind: 'work-detail', repository, issue: String(issue)})
           : routeURL({kind: 'work', repository}),
       knowledge: (item) => routeURL({kind: 'library', repository, ...(item ? {item} : {})}),
+      // Settings has no section in its route; the whole page opens.
+      settings: () => routeURL({kind: 'settings', repository}),
     };
   }
   private openLink = async (url: string, signal: AbortSignal) => {

@@ -6,6 +6,7 @@ import {
   problems,
   progress,
   record,
+  requests,
   specimen,
   typedQuestions,
 } from './feed-post-fixtures.js';
@@ -574,6 +575,7 @@ export const feedPostSheets = {
   asks,
   typedQuestions,
   namedRoles,
+  requests,
   progress,
   problems,
   results,

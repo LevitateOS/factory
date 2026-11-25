@@ -245,6 +245,21 @@ export interface FeedCommunication {
   answered?: {post: string; text: string; answer: FeedQuestionAnswer};
   /** The role whose expertise an ask asks for (roles.ts postRoleIds). The person may still answer. */
   addressedTo?: string;
+  /** An ask for more allowance or for access (feed-request.ts); its state is served. */
+  request?: FeedRequest;
+}
+
+// An agent request (pkg/factory/feed_request.go). Amount is the total the
+// setting needs to reach, in its unit; state is served: open, met (the
+// recorded setting now satisfies it) or replied.
+export interface FeedRequest {
+  kind: 'allowance' | 'access';
+  setting: string;
+  amount?: number;
+  unit?: string;
+  reason: string;
+  blocks?: string;
+  state?: 'open' | 'met' | 'replied';
 }
 
 // Typed questions (pkg/factory/feed_question.go owns validation and the
