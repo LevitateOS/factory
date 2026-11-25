@@ -594,6 +594,8 @@ export interface FeedPostDetail {
   readFirstBy?: string;
   withdrawn?: FeedWithdrawn;
   withdrawal?: FeedWithdrawal;
+  /** A typed answer this reply recorded to its question; Body is its text. */
+  answer?: FeedQuestionAnswer;
 }
 
 // parseFeedPostDetail reads one post as the server serves it (post GET,
@@ -626,6 +628,7 @@ export function parseFeedPostDetail(value: unknown): FeedPostDetail {
     ...(postRole(raw.read_first_by) ? {readFirstBy: raw.read_first_by as string} : {}),
     ...(raw.withdrawn && typeof raw.withdrawn === 'object' ? {withdrawn: data.withdrawn as FeedWithdrawn} : {}),
     ...(raw.withdrawal && typeof raw.withdrawal === 'object' ? {withdrawal: data.withdrawal as FeedWithdrawal} : {}),
+    ...(raw.answer && typeof raw.answer === 'object' ? {answer: data.answer as FeedQuestionAnswer} : {}),
   };
 }
 

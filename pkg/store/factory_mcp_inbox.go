@@ -10,9 +10,10 @@ import (
 
 // mcpVisibleDiscussion derives the worker's conversation from its actual
 // assignment posts and replies to that assignment. Repository scope alone is
-// insufficient: unrelated project discussions stay outside this read.
-const mcpVisibleDiscussion = `WITH RECURSIVE visible AS (
- SELECT id,seq,data FROM factory_feed_posts
+// insufficient: unrelated project discussions stay outside this read. A
+// withdrawal of a visible post (feedWithdrawalSQL) is part of its thread.
+var mcpVisibleDiscussion = `WITH RECURSIVE visible AS (
+ SELECT id,seq,repository,data FROM factory_feed_posts
  WHERE repository=$1 AND NOT COALESCE((data->>'deleted')::boolean,false) AND NOT COALESCE((data->>'revoked')::boolean,false)
  AND (data->>'assignment'=$2 OR (data->'source'->>'kind'='record' AND data->'source'->>'id'=$2)
  OR data->'contribution'->>'assignment'=$2
@@ -21,8 +22,8 @@ const mcpVisibleDiscussion = `WITH RECURSIVE visible AS (
  AND (invitation.data->'contribution'->>'revision')::bigint=factory_feed_posts.revision
  AND invitation.data->'contribution'->>'assignment'=$2 AND invitation.data->'contribution'->>'state' IN ('invited','responded')))
  UNION
- SELECT c.id,c.seq,c.data FROM factory_feed_posts c JOIN visible p
- ON c.data->>'parent_id'=p.id OR (c.data->'source'->>'kind'='post' AND c.data->'source'->>'id'=p.id)
+ SELECT c.id,c.seq,c.repository,c.data FROM factory_feed_posts c JOIN visible p
+ ON c.data->>'parent_id'=p.id OR (c.data->'source'->>'kind'='post' AND c.data->'source'->>'id'=p.id) OR (` + feedWithdrawalSQL("c", "p") + `)
  WHERE c.repository=$1 AND NOT COALESCE((c.data->>'deleted')::boolean,false) AND NOT COALESCE((c.data->>'revoked')::boolean,false)
 )`
 
@@ -72,9 +73,9 @@ func (s *Store) mcpDiscussionPage(ctx context.Context, capability factory.MCPCap
 		query += ` SELECT id,seq FROM visible WHERE ($3::bigint=0 OR seq<$3) ORDER BY seq DESC LIMIT 51`
 	} else {
 		query += `, thread AS (
-   SELECT id,seq,data FROM visible WHERE id=$4
-   UNION SELECT c.id,c.seq,c.data FROM visible c JOIN thread p
-   ON c.data->>'parent_id'=p.id OR (c.data->'source'->>'kind'='post' AND c.data->'source'->>'id'=p.id)
+   SELECT id,seq,repository,data FROM visible WHERE id=$4
+   UNION SELECT c.id,c.seq,c.repository,c.data FROM visible c JOIN thread p
+   ON c.data->>'parent_id'=p.id OR (c.data->'source'->>'kind'='post' AND c.data->'source'->>'id'=p.id) OR (` + feedWithdrawalSQL("c", "p") + `)
   ) SELECT id,seq FROM thread WHERE ($3::bigint=0 OR seq<$3) ORDER BY seq DESC LIMIT 51`
 	}
 	args := []any{capability.Repository, capability.AssignmentID, before}
@@ -117,7 +118,7 @@ func (s *Store) mcpDiscussionPage(ctx context.Context, capability factory.MCPCap
 		if !ok {
 			continue
 		}
-		message := factory.MCPFeedMessage{ID: m.id, ParentID: detail.Record.ParentID, Actor: detail.Record.Author, Author: detail.AuthorName, At: detail.At, Status: detail.Status, Summary: TruncateFeedSummary(detail.Body), Answer: detail.Answer, ReadFirstBy: detail.ReadFirstBy}
+		message := factory.MCPFeedMessage{ID: m.id, ParentID: detail.Record.ParentID, Actor: detail.Record.Author, Author: detail.AuthorName, At: detail.At, Status: detail.Status, Summary: TruncateFeedSummary(detail.Body), Answer: detail.Answer, ReadFirstBy: detail.ReadFirstBy, Withdrawn: detail.Withdrawn, Withdrawal: detail.Withdrawal}
 		if detail.Actor != "" {
 			message.Actor = detail.Actor
 		}

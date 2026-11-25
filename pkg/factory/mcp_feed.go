@@ -20,7 +20,11 @@ type MCPFeedMessage struct {
 	// plain-text rendering.
 	Answer *FeedQuestionAnswer `json:"answer,omitempty"`
 	// ReadFirstBy is the role the person asked to read this post first.
-	ReadFirstBy  MCPProfile          `json:"read_first_by,omitempty"`
+	ReadFirstBy MCPProfile `json:"read_first_by,omitempty"`
+	// Withdrawn is served when the post's author withdrew it: it no longer
+	// steers or asks anything. Withdrawal is a withdrawal record's own content.
+	Withdrawn    *FeedWithdrawn      `json:"withdrawn,omitempty"`
+	Withdrawal   *FeedWithdrawal     `json:"withdrawal,omitempty"`
 	Consultation *FeedConsultation   `json:"consultation,omitempty"`
 	Source       *PostSource         `json:"source,omitempty"`
 	Contribution *ContributionReview `json:"contribution,omitempty"`

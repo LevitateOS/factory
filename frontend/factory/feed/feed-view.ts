@@ -955,9 +955,10 @@ export function renderFeedPost(
   const question = model.question && model.entry.payload?.communication;
   const entry = model.entry;
   const withdrawn = entry.withdrawn ?? entry.post?.withdrawn;
-  // The person withdraws their own posts; agent posts and withdrawals have no action.
+  // The person withdraws their own posts; agent posts, withdrawals and typed
+  // answers (corrected by replying) have no action.
   const own =
-    post && !withdrawn && !entry.post?.withdrawal && !entry.post?.removed && !!links.viewer && entry.actor === links.viewer;
+    post && !withdrawn && !entry.post?.withdrawal && !entry.post?.answer && !entry.post?.removed && !!links.viewer && entry.actor === links.viewer;
   return html`<article
     class="soda-feed-post"
     id=${'feed-' + model.key.replace(':', '-')}

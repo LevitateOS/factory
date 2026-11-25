@@ -261,7 +261,7 @@ func feedPostResponse(detail store.FeedPostDetail, pipe factory.PostIntake, prog
 		"intake": pipe.Intake, "judgment": pipe.Judgment, "route": pipe.Route,
 		"draft": pipe.Draft, "effect": pipe.Effect, "issue": pipe.Issue,
 		"existing_issue": PostExistingIssue(pipe), "source": detail.Source, "read_first_by": detail.ReadFirstBy,
-		"withdrawn": detail.Withdrawn, "withdrawal": detail.Withdrawal,
+		"withdrawn": detail.Withdrawn, "withdrawal": detail.Withdrawal, "answer": detail.Answer,
 		"attempts": pipe.Attempts, "attempt_limit": factory.PostAttemptLimit,
 		"detail":    progress,
 		"can_retry": detail.Record.Author == actor && !detail.Record.Deleted && !detail.Record.Revoked && pipe.RetryAllowed(),

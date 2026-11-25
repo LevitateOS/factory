@@ -764,6 +764,28 @@ func TestMCPCommunicationPersistsFeedAndReplay(t *testing.T) {
 	if served, err := s.FeedPost(ctx, plain); err != nil || served.Withdrawn == nil || served.Withdrawn.By != "Maya" || served.Withdrawn.Correction != "" {
 		t.Fatalf("person withdrawal not served: %+v %v", served, err)
 	}
+	// The invited role reads the person's withdrawn steer as withdrawn, with
+	// the withdrawal record in the same thread.
+	steer, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 9, IdempotencyKey: "withdraw-hinted", Withdraw: &factory.FeedWithdrawal{Post: hinted, Reason: "The timer was removed after all."}}, "7", "Maya", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thread, err := s.MCPDiscussion(ctx, architect, hinted, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var steered, recorded bool
+	for _, message := range thread.Items {
+		steered = steered || (message.ID == hinted && message.Withdrawn != nil && message.Withdrawn.Reason == "The timer was removed after all.")
+		recorded = recorded || (message.ID == steer && message.Withdrawal != nil && message.Withdrawal.Post == hinted)
+	}
+	if !steered || !recorded {
+		t.Fatalf("worker read missed the withdrawal: %+v", thread.Items)
+	}
+	// A typed answer is corrected by replying: its question serves it.
+	if _, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 7, IdempotencyKey: "withdraw-answer", Withdraw: &factory.FeedWithdrawal{Post: reply, Reason: "Changed my mind."}}, "7", "Owner", 7); !errors.Is(err, factory.ErrWithdrawalInvalid) {
+		t.Fatalf("typed answer withdrawn: %v", err)
+	}
 }
 
 func TestMCPCommunicationPostsDoNotConsumeFinishCapacity(t *testing.T) {

@@ -68,13 +68,14 @@ func checkWithdrawalTx(ctx context.Context, tx *sql.Tx, repository int64, by fee
 		author, actor         string
 		seq                   int64
 		withdrawal, withdrawn bool
+		answer                bool
 	}
 	read := func(id string) (row, error) {
 		var r row
-		err := tx.QueryRowContext(ctx, `SELECT p.author,COALESCE(p.data->>'actor',''),p.seq,p.data ? 'withdrawal',`+feedWithdrawnSQL("p")+`
+		err := tx.QueryRowContext(ctx, `SELECT p.author,COALESCE(p.data->>'actor',''),p.seq,p.data ? 'withdrawal',`+feedWithdrawnSQL("p")+`,p.data ? 'answer'
 		 FROM factory_feed_posts p WHERE p.id=$1 AND p.repository=$2
 		 AND NOT COALESCE((p.data->>'deleted')::boolean,false) AND NOT COALESCE((p.data->>'revoked')::boolean,false)`, id, repository).
-			Scan(&r.author, &r.actor, &r.seq, &r.withdrawal, &r.withdrawn)
+			Scan(&r.author, &r.actor, &r.seq, &r.withdrawal, &r.withdrawn, &r.answer)
 		return r, err
 	}
 	target, err := read(w.Post)
@@ -86,6 +87,10 @@ func checkWithdrawalTx(ctx context.Context, tx *sql.Tx, repository int64, by fee
 		return factory.ErrWithdrawNotAuthor
 	case target.withdrawal:
 		return errors.Join(factory.ErrWithdrawalInvalid, errors.New("a withdrawal cannot itself be withdrawn"))
+	case target.answer:
+		// The question serves its first typed answer; withdrawing it would
+		// leave that recorded answer inconsistent.
+		return errors.Join(factory.ErrWithdrawalInvalid, errors.New("an answer is corrected by replying, not withdrawn"))
 	case target.withdrawn:
 		return factory.ErrPostWithdrawn
 	}
