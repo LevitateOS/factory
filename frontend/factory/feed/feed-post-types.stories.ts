@@ -38,6 +38,17 @@ export const ClosingTheLoop: Story = {args: {sheet: 'closingTheLoop'}};
 // request carrying read_first_by, and the stored post shows it.
 // Agent requests: each card links to its setting and grants nothing.
 export const Requests: Story = {args: {sheet: 'requests'}};
+// Withdrawn posts stay, marked with the reason and a link to the correction;
+// the person's own post offers Withdraw (one POST, kept for Retry).
+export const Withdrawals: Story = {args: {sheet: 'withdrawals'}};
+// The first withdrawal POST meets a controlled 503; Retry resends the kept request.
+export const WithdrawAfterOutage: Story = {
+  args: {sheet: 'withdrawals'},
+  render: ({sheet}) => {
+    const peer = feedPostStoryPeer(feedPostSheets[sheet], {outages: 1});
+    return html`<soda-factory-feed .context=${peer.context}></soda-factory-feed>`;
+  },
+};
 export const NamedRoles: Story = {
   args: {sheet: 'namedRoles'},
   render: ({sheet}) => {

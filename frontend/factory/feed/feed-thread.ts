@@ -62,6 +62,8 @@ function communicationState(communication: FeedCommunication, entry: FeedEntry):
 // feedState gives one entry exactly one of the seven states. It reads the
 // recorded facts only; an unknown status is information, never success.
 export function feedState(entry: FeedEntry): FeedState {
+  // A withdrawn post stays in the feed but waits for no one.
+  if (entry.withdrawn || entry.post?.withdrawn) return 'info';
   const payload = entry.payload;
   if (payload?.communication) return communicationState(payload.communication, entry);
   if (payload?.judgment?.kind === 'delivery') return deliveryState(payload.judgment);

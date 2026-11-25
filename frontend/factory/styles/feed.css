@@ -4267,3 +4267,97 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
 .soda-feed-request-link span {
   color: var(--soda-page-muted);
 }
+/* Withdrawn posts (5.5): the card stays, dimmed and struck through, under a
+   dashed Withdrawn mark with the reason and a link to the correction. */
+.soda-feed-withdrawn {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--soda-page-muted);
+  background: var(--soda-page-canvas);
+  font: 400 14px/1.5 Barlow, Arial, sans-serif;
+}
+.soda-feed-withdrawn p,
+.soda-feed-withdrawn-link {
+  margin: 0;
+}
+.soda-feed-withdrawn-mark strong {
+  font: 600 13px/18px Barlow, Arial, sans-serif;
+  color: var(--soda-page-text);
+}
+.soda-feed-withdrawn-mark span {
+  color: var(--soda-page-muted);
+}
+.soda-feed-withdrawn-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 14px;
+}
+.soda-feed-post[data-withdrawn='true'] .soda-feed-card > :not(.soda-feed-withdrawn) {
+  opacity: 0.6;
+}
+.soda-feed-post[data-withdrawn='true']
+  :is(.soda-feed-body-text, .soda-feed-communication > h3, .soda-feed-component-summary, .soda-feed-hl) {
+  text-decoration: line-through;
+}
+.soda-feed-withdrawal {
+  display: grid;
+  margin: 0 0 8px;
+}
+.soda-feed-withdrawal > div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--soda-page-edge);
+  border-bottom: 1px solid var(--soda-page-edge);
+  font: 400 14px/1.5 Barlow, Arial, sans-serif;
+}
+.soda-feed-withdrawal dt {
+  color: var(--soda-page-muted);
+}
+.soda-feed-withdrawal dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* The person's Withdraw action on their own post: one line of reason, then a
+   confirming button. */
+.soda-feed-withdraw {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  justify-items: start;
+}
+.soda-feed-withdraw > label {
+  padding: 0;
+  font: 600 15px/1.4 Barlow, Arial, sans-serif;
+  color: var(--soda-page-text);
+}
+.soda-feed-withdraw > input {
+  width: 100%;
+  max-width: 520px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 0;
+  background: var(--soda-page-surface);
+  color: var(--soda-page-text);
+  font: 400 15px/1.4 Barlow, Arial, sans-serif;
+}
+.soda-feed-withdraw-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--soda-page-muted);
+}
+.soda-feed-withdraw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.soda-feed-withdraw .ui.button {
+  min-height: 44px;
+  margin: 0;
+  border-radius: 0;
+}

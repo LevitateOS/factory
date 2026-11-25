@@ -276,7 +276,7 @@ export function dispositionOutcome(c: FilledCommunication): TemplateResult | str
 // the named role is assessed first for an invitation to reply.
 function addressedTo(c: FilledCommunication, typed?: FeedQuestionContext): TemplateResult | string {
   const chip = roleChip(c.addressedTo, typed?.transport.assetBase);
-  const open = c.questionState !== 'answered' && c.questionState !== 'incorporated';
+  const open = c.questionState !== 'answered' && c.questionState !== 'incorporated' && c.questionState !== 'withdrawn';
   return chip
     ? html`<p class="soda-feed-addressed">Addressed to ${chip}${open ? html`<span>You can answer too.</span>` : ''}</p>`
     : '';

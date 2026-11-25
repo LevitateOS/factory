@@ -14,6 +14,7 @@ import type {FactoryRepositoryLinks} from '../app/navigation.js';
 import {renderRecordAction} from './feed-record-actions.js';
 import {renderJevChoice} from '../shared/jev-answer.js';
 import type {FeedArtifactContext} from './feed-artifact.js';
+import {renderWithdrawAction, renderWithdrawalRecord, renderWithdrawnMark, withdrawnCommunication} from './feed-withdraw.js';
 
 // One render path for every Feed entry. Each entry becomes one card of one
 // of four types — a work record, a worker message, a Factory event or a
@@ -713,7 +714,9 @@ export function describeFeedPost(
   const ask = entry.payload?.communication;
   // Real urgency (a critical or warning question) and a request for allowance
   // or access keep the attention card.
-  const question = ask?.kind === 'ask' && !ask.request && ask.severity !== 'critical' && ask.severity !== 'warning';
+  // A withdrawn question takes no answers, so it is not a conversation card.
+  const question =
+    ask?.kind === 'ask' && !ask.request && !entry.withdrawn && ask.severity !== 'critical' && ask.severity !== 'warning';
   return {
     entry,
     ...(repository.places && (entry.parentId || entry.post?.parentId || entry.payload?.communication?.parentId)
@@ -866,10 +869,18 @@ function renderCardContent(
   assetBase: string
 ): TemplateResult | string {
   const entry = model.entry;
+  const withdrawal = entry.withdrawal ?? entry.post?.withdrawal;
+  if (withdrawal) return renderWithdrawalRecord(withdrawal, model.name, links.places);
   if (model.type === 'post')
     return html`${renderPostBody(model.post, assetBase)}${model.outcome ? renderOutcome(model.outcome, assetBase) : ''}`;
   const communication = entry.payload?.communication;
-  if (communication) return renderFeedCommunication(communication, model.key, artifacts, links);
+  if (communication)
+    return renderFeedCommunication(
+      entry.withdrawn ? withdrawnCommunication(communication) : communication,
+      model.key,
+      artifacts,
+      links
+    );
   const judgment = entry.payload?.judgment;
   const typed = renderRecordAction(entry.payload);
   return html`${judgment ? renderJudgment(judgment) : ''}${
@@ -942,6 +953,11 @@ export function renderFeedPost(
   // An ordinary question is a conversation, not an alarm: no pill, headline
   // or Next line repeating it, and its reply box is always open under it.
   const question = model.question && model.entry.payload?.communication;
+  const entry = model.entry;
+  const withdrawn = entry.withdrawn ?? entry.post?.withdrawn;
+  // The person withdraws their own posts; agent posts and withdrawals have no action.
+  const own =
+    post && !withdrawn && !entry.post?.withdrawal && !entry.post?.removed && !!links.viewer && entry.actor === links.viewer;
   return html`<article
     class="soda-feed-post"
     id=${'feed-' + model.key.replace(':', '-')}
@@ -950,6 +966,7 @@ export function renderFeedPost(
     data-state=${model.state}
     data-level=${model.thread?.level ?? 'post'}
     data-role=${model.role.toLowerCase().replace(/[\s-]+/g, '_')}
+    data-withdrawn=${withdrawn ? 'true' : 'false'}
   >
     ${renderPortrait(model, assetBase)}
     <div class="soda-feed-column">
@@ -957,6 +974,7 @@ export function renderFeedPost(
       ${renderByline(model)}
       <div class="soda-feed-stack">
         <div class="soda-feed-card" data-state=${question ? 'question' : model.state}>
+          ${withdrawn ? renderWithdrawnMark(withdrawn, links.places) : ''}
           ${
             // A post's byline already says so: no pill or headline row.
             post || question
@@ -982,6 +1000,7 @@ export function renderFeedPost(
                   ${model.state === 'needs_you' ? html`<b class="soda-feed-age">${icon(stateIcons.waiting)}${model.next}</b>` : model.next}
                 </p>`
           }
+          ${own ? renderWithdrawAction(entry.id, questionContext(artifacts, links)) : ''}
           ${renderChanges(model)}
           ${
             model.links.length > 0

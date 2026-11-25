@@ -30,7 +30,8 @@ export type FeedCommunicationKind =
   | 'artifact'
   | 'journey'
   | 'diagnosis'
-  | 'repair_draft';
+  | 'repair_draft'
+  | 'withdraw';
 export const feedStates = ['needs_you', 'problem', 'waiting', 'in_progress', 'done', 'decided', 'info'] as const;
 export type FeedState = (typeof feedStates)[number];
 
@@ -63,6 +64,24 @@ export interface FeedEntry {
   // Human posts carry their stored post and pipeline outcome, so one
   // feed read renders the post without a per-post request.
   post?: FeedPostDetail;
+  /** Served when the post's author withdrew it (feed-withdraw.ts). */
+  withdrawn?: FeedWithdrawn;
+  /** A withdrawal record's own content. */
+  withdrawal?: FeedWithdrawal;
+}
+
+// Withdrawal (pkg/factory/feed_withdraw.go): the record names the post and
+// an optional later correcting post; the original serves who, why and when.
+export interface FeedWithdrawal {
+  post: string;
+  reason: string;
+  correction?: string;
+}
+export interface FeedWithdrawn {
+  by: string;
+  reason: string;
+  correction?: string;
+  at: number;
 }
 
 export interface FeedPlanTask {
@@ -210,7 +229,9 @@ export interface FeedCommunication {
   title: string;
   summary: string;
   question?: string;
-  questionState?: 'open' | 'answered' | 'replied' | 'incorporated';
+  // 'withdrawn' is set by the card for an ask its author withdrew; the server
+  // serves withdrawn beside the entry, not as a question state.
+  questionState?: 'open' | 'answered' | 'replied' | 'incorporated' | 'withdrawn';
   disposition?: 'applied' | 'refused' | 'incorporated';
   dispositionReason?: string;
   resolution?: string;
@@ -571,6 +592,8 @@ export interface FeedPostDetail {
   contribution?: FeedContribution;
   /** The role the person asked to read this post first (a routing hint). */
   readFirstBy?: string;
+  withdrawn?: FeedWithdrawn;
+  withdrawal?: FeedWithdrawal;
 }
 
 // parseFeedPostDetail reads one post as the server serves it (post GET,
@@ -601,6 +624,8 @@ export function parseFeedPostDetail(value: unknown): FeedPostDetail {
     ...(raw.consultation ? {consultation: raw.consultation as FeedConsultation} : {}),
     ...(raw.contribution ? {contribution: raw.contribution as FeedContribution} : {}),
     ...(postRole(raw.read_first_by) ? {readFirstBy: raw.read_first_by as string} : {}),
+    ...(raw.withdrawn && typeof raw.withdrawn === 'object' ? {withdrawn: data.withdrawn as FeedWithdrawn} : {}),
+    ...(raw.withdrawal && typeof raw.withdrawal === 'object' ? {withdrawal: data.withdrawal as FeedWithdrawal} : {}),
   };
 }
 

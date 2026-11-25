@@ -9,6 +9,7 @@ import {
   requests,
   specimen,
   typedQuestions,
+  withdrawals,
 } from './feed-post-fixtures.js';
 import type {FeedPostSpecimen} from './feed-post-fixtures.js';
 
@@ -576,6 +577,7 @@ export const feedPostSheets = {
   typedQuestions,
   namedRoles,
   requests,
+  withdrawals,
   progress,
   problems,
   results,

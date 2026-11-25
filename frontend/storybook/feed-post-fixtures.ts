@@ -64,8 +64,11 @@ export function humanPost(
 }
 
 /** Serves one sheet as the whole feed page. Replies and other endpoints answer empty or unavailable. */
-export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[]) {
+export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[], options: {outages?: number} = {}) {
   const entries = structuredClone(specimens.map((item) => item.entry));
+  // Withdrawals by idempotency key, so a replay returns the same record.
+  const withdrawnBy = new Map<string, string>();
+  let outages = options.outages ?? 0;
   const transport: FactoryFeedContext['transport'] = {
     generation: 'storybook-feed-post-types',
     assetBase: '/',
@@ -79,7 +82,34 @@ export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[]) {
           answer?: Record<string, unknown>;
           body?: string;
           read_first_by?: string;
+          idempotency_key?: string;
+          withdraw?: {post: string; reason: string};
         };
+        // A withdrawal: logged for the workbench, optionally after controlled
+        // outages, then recorded beside the person's own post as the server does.
+        if (sent.withdraw) {
+          console.info('POST factory/feed/posts', init.body);
+          if (outages > 0) {
+            outages--;
+            return Response.json({error: {code: 'store_unavailable'}}, {status: 503});
+          }
+          const replayed = withdrawnBy.get(sent.idempotency_key ?? '');
+          if (replayed) return Response.json({post_id: replayed, revision: 0});
+          const target = entries.find((entry) => entry.id === sent.withdraw?.post);
+          const stored = target?.post as Record<string, unknown> | undefined;
+          if (!target || !stored || target.actor !== '1') return Response.json({error: {code: 'comment_author_required'}}, {status: 403});
+          if (stored.withdrawn) return Response.json({error: {code: 'post_withdrawn'}}, {status: 409});
+          const id = (0xd0000 + entries.length).toString(16).padStart(32, '0');
+          stored.withdrawn = {by: 'Alex', reason: sent.withdraw.reason, at: stamp};
+          withdrawnBy.set(sent.idempotency_key ?? '', id);
+          entries.unshift({
+            id,
+            repository: feedPostRepository,
+            seq: 100001 + entries.length,
+            ...humanPost('Alex', {post_id: id, repository: feedPostRepository, author_name: 'Alex', actor: '1', at: stamp, body: sent.withdraw.reason, withdrawal: sent.withdraw}),
+          });
+          return Response.json({post_id: id, revision: 0});
+        }
         // A new post: logged for the workbench, then served first as stored.
         if (!sent.answer && !sent.parent_id && typeof sent.body === 'string') {
           console.info('POST factory/feed/posts', init.body);
@@ -490,6 +520,65 @@ export const requests: FeedPostSpecimen[] = [
     )
   ),
 ];
+
+// The Withdrawals sheet (5.5): the person's own post with its Withdraw action,
+// an agent's correction record, the correcting post, a withdrawn question
+// whose answer controls are gone, and the withdrawn finding it corrects. The
+// originals stay in the feed; `withdrawn` is served on them.
+const ownPost = specimen(
+  'post · own · withdraw action',
+  'Search should also match the source post title.',
+  humanPost('Alex', {body: 'Search should also match the source post title.', revision: 0})
+);
+const correctionRecord = specimen(
+  'withdraw · corrected an earlier post',
+  'See the withdrawn post',
+  record(
+    'Test Pilot',
+    communication({kind: 'withdraw', title: 'Corrected an earlier post', summary: 'I was testing an older version of the app.'})
+  )
+);
+const correctingPost = specimen(
+  'partial · the correction',
+  'The list keeps its place after going back',
+  record(
+    'Test Pilot',
+    communication({
+      kind: 'partial',
+      scope: '#12',
+      title: 'The list keeps its place after going back',
+      summary: 'It returns to the right row. I was testing an older version of the app.',
+      completed: ['Retested on the current build'],
+    }),
+    'in_progress'
+  )
+);
+const withdrawnQuestion = typedAsk('ask · pick one · withdrawn', 'Architect', 'How should a result open?', layouts, undefined, {
+  summary: 'Settled in the plan for #12, so this needs no answer.',
+});
+withdrawnQuestion.entry.withdrawn = {by: 'Architect', reason: 'The plan for #12 already settles this.', at: stamp};
+const withdrawnFinding = specimen(
+  'flag · withdrawn with a correction',
+  'See the correction',
+  record(
+    'Test Pilot',
+    communication({
+      kind: 'flag',
+      severity: 'warning',
+      scope: '#12',
+      title: 'The list jumps back to the top after going back',
+      summary: 'Opening a result and going back loses the scroll position.',
+    }),
+    'problem',
+    {withdrawn: {by: 'Test Pilot', reason: 'I was testing an older version of the app.', correction: correctingPost.entry.id, at: stamp}}
+  )
+);
+correctionRecord.entry.withdrawal = {
+  post: withdrawnFinding.entry.id,
+  reason: 'I was testing an older version of the app.',
+  correction: correctingPost.entry.id,
+};
+export const withdrawals: FeedPostSpecimen[] = [ownPost, correctionRecord, correctingPost, withdrawnQuestion, withdrawnFinding];
 
 // The Progress sheet: work that is moving, checks, unlocks and handovers.
 export const progress: FeedPostSpecimen[] = [

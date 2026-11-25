@@ -845,7 +845,8 @@ export class SodaFactoryFeed extends LitElement {
     const appOrigin = delivery ? this.appOrigins.get(delivery) : undefined;
     return {
       ...(places ? {places} : {}),
-      ...(this.viewerID ? {viewer: this.viewerID} : {}),
+      // The viewer is the admitted account when the host names one.
+      ...(id(this.current?.account) ? {viewer: this.current.account} : this.viewerID ? {viewer: this.viewerID} : {}),
       ...(this.current?.host.draftScope ? {scope: this.current.host.draftScope} : {}),
       ...(delivery ? {delivery} : {}),
       ...(appOrigin ? {appOrigin} : {}),
@@ -1220,6 +1221,17 @@ export class SodaFactoryFeed extends LitElement {
     ) {
       const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
       const href = anchor?.getAttribute('href');
+      // A link to an entry already shown scrolls to it in place; otherwise
+      // the host's feed place for that post opens.
+      const jump = anchor?.dataset.feedJump ? CSS.escape(anchor.dataset.feedJump) : '';
+      const shown = jump ? this.querySelector<HTMLElement>(`#feed-post-${jump}, #feed-record-${jump}`) : null;
+      if (shown) {
+        event.preventDefault();
+        shown.scrollIntoView({block: 'center'});
+        shown.tabIndex = -1;
+        shown.focus({preventScroll: true});
+        return;
+      }
       if (
         anchor &&
         href?.startsWith('/') &&
@@ -1412,6 +1424,9 @@ export class SodaFactoryFeed extends LitElement {
         if (this.live(serial)) void this.readLatest(false);
       }}
       @soda-feed-question-answered=${() => {
+        if (this.live(serial)) void this.readLatest(false);
+      }}
+      @soda-feed-post-withdrawn=${() => {
         if (this.live(serial)) void this.readLatest(false);
       }}
     >

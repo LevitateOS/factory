@@ -80,6 +80,7 @@ const defaultPresentation: Record<FeedCommunication['kind'], string> = {
   journey: 'journey',
   diagnosis: 'diagnosis',
   repair_draft: 'comparison',
+  withdraw: 'brief',
 };
 
 function communicationCaption(c: FeedCommunication): string {
