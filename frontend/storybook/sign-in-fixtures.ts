@@ -3,9 +3,11 @@ import type {Core} from '../desktop/transport.js';
 import {mountSignIn} from '../desktop/sign-in.js';
 import {SodaFactoryApp} from '../factory/app/factory-app.js';
 
-/** 'first-run': no saved account, a GitHub code waiting for approval.
- * 'saved': saved GitHub and Fountain accounts, nothing in progress. */
-export type SignInStoryState = 'first-run' | 'saved';
+/** The guided first run, one story state per current step: 'starting' (runtime
+ * not ready), 'muse' (nothing signed in), 'github' (Muse done, a GitHub code
+ * waiting for approval), 'project' (Muse and GitHub done). 'saved': saved
+ * GitHub and Fountain accounts, nothing in progress. */
+export type SignInStoryState = 'starting' | 'muse' | 'github' | 'project' | 'saved';
 
 const muse = {
   attempt: 1,
@@ -27,13 +29,13 @@ const savedAccounts = [
  * actions are refused so a story never pretends a sign-in happened. */
 function signInCore(state: SignInStoryState): Pick<Core, 'invoke'> {
   const replies: Record<string, unknown> = {
-    muse_sign_in_status: muse,
+    muse_sign_in_status: state === 'github' || state === 'project' ? {...muse, phase: 'complete'} : muse,
     github_sign_in_status:
-      state === 'first-run'
+      state === 'github'
         ? {attempt: 1, phase: 'waiting', error: null, prompt: {user_code: 'WDJB-MJHT', verification_uri: 'https://github.com/login/device', expires_at: Math.floor(Date.now() / 1000) + 840}}
         : {attempt: 0, phase: 'idle', prompt: null, error: null},
     fountain_sign_in_status: {attempt: 0, phase: 'idle', prompt: null, error: null},
-    credential_status: state === 'first-run' ? [] : savedAccounts,
+    credential_status: state === 'saved' ? savedAccounts : state === 'project' ? savedAccounts.slice(0, 1) : [],
   };
   return {
     async invoke<T>(command: string) {
@@ -46,18 +48,18 @@ function signInCore(state: SignInStoryState): Pick<Core, 'invoke'> {
 /** The desktop sign-in controllers and views, placed into `root` as the desktop does. */
 export function signInStoryPlacement(root: HTMLElement, state: SignInStoryState) {
   const signIn = mountSignIn(root);
-  void signIn.start(signInCore(state))(true, 1);
+  void signIn.start(signInCore(state))(state !== 'starting', 1);
   return signIn.placement;
 }
 
 /** What the desktop shows before any connection: its sign-in region above the
  * frame, which has no context. */
-export function disconnectedSignInStory(scheme: 'light' | 'dark') {
+export function disconnectedSignInStory(scheme: 'light' | 'dark', state: SignInStoryState = 'github') {
   const root = document.createElement('section');
   root.className = 'soda-factory-root soda-factory-accounts';
   root.dataset.factoryScheme = scheme;
   root.setAttribute('aria-label', 'Accounts');
-  signInStoryPlacement(root, 'first-run');
+  signInStoryPlacement(root, state);
   const app = new SodaFactoryApp();
   app.scheme = scheme;
   const page = document.createElement('div');

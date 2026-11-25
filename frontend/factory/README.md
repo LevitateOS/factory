@@ -52,7 +52,10 @@ other routes. Desktop also fills Accounts with its Muse, GitHub and Fountain
 sign-ins (`frontend/desktop/sign-in.ts`). Each provider has one controller and
 one view; the view sits on the Accounts page while the frame has a context and
 accepts input, and otherwise in the desktop's own sign-in region outside the
-frame, so sign-in works before any connection exists.
+frame, so sign-in works before any connection exists. In that region the views
+are arranged as the first-run guide (`frontend/desktop/first-run.ts`): each
+step's state comes from facts the controllers already hold, and collapsing a
+step hides its view without removing it.
 
 The `issues` screen receives list read ports; the frame supplies selection through
 its typed `issue` destination. `issue` mounts the shared description/conversation

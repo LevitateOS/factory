@@ -4,6 +4,7 @@ import {GitHubAccounts, SodaDesktopGitHub} from './accounts.js';
 import type {Account} from './accounts.js';
 import {MuseLogin, SodaDesktopMuse} from './muse-login.js';
 import {FountainLogin, SodaDesktopFountain} from './fountain-login.js';
+import {SodaDesktopFirstRun} from './first-run.js';
 
 /** The window's sign-in: one view per provider, placed in `root` until the
  * frame can show them. `start` creates the providers' controllers and returns
@@ -14,16 +15,25 @@ export function mountSignIn(root: HTMLElement) {
   const museView = new SodaDesktopMuse(),
     githubView = new SodaDesktopGitHub(),
     fountainView = new SodaDesktopFountain();
+  const placement = new SignInPlacement(root, [
+    {id: 'muse', title: 'Muse', view: museView},
+    {id: 'github', title: 'GitHub', view: githubView},
+    {id: 'fountain', title: 'Fountain', view: fountainView},
+  ]);
   return {
-    placement: new SignInPlacement(root, [
-      {id: 'muse', title: 'Muse', view: museView},
-      {id: 'github', title: 'GitHub', view: githubView},
-      {id: 'fountain', title: 'Fountain', view: fountainView},
-    ]),
+    placement,
     start(core: Pick<Core, 'invoke'>, accounts?: (accounts: readonly Account[] | undefined) => void) {
       const github = new GitHubAccounts(core, accounts),
         muse = new MuseLogin(core),
         fountain = new FountainLogin(core);
+      placement.firstRun.follow([github, muse]);
+      placement.firstRun.facts = () => ({
+        runtime: github.ready && muse.ready,
+        museSignedIn: muse.view?.phase === 'complete',
+        github: github.accountsCurrent
+          ? github.accounts.filter((account) => account.state === 'stored').map((account) => account.label ?? account.account)
+          : [],
+      });
       museView.controller = muse;
       githubView.controller = github;
       fountainView.controller = fountain;
@@ -52,6 +62,8 @@ interface Provider {
 export class SignInPlacement {
   /** The Accounts page's host sections. */
   readonly sections: readonly FactoryHostSection[];
+  /** The guided first run laid out in the desktop's own region. */
+  readonly firstRun = new SodaDesktopFirstRun();
   private usable = false;
   private readonly providers: Provider[];
 
@@ -59,8 +71,6 @@ export class SignInPlacement {
     private readonly root: HTMLElement,
     views: readonly {id: string; title: string; view: HTMLElement}[]
   ) {
-    const list = document.createElement('div');
-    list.className = 'soda-factory-sections';
     this.providers = views.map(({id, title, view}) => {
       const home = document.createElement('section'),
         heading = document.createElement('h2');
@@ -68,10 +78,10 @@ export class SignInPlacement {
       heading.textContent = title;
       home.setAttribute('aria-labelledby', heading.id);
       home.append(heading);
-      list.append(home);
       return {id, title, view, home};
     });
-    root.replaceChildren(list);
+    this.firstRun.homes = Object.fromEntries(this.providers.map((provider) => [provider.id, provider.home]));
+    root.replaceChildren(this.firstRun);
     this.sections = this.providers.map((provider) => ({
       id: provider.id,
       title: provider.title,

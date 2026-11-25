@@ -26,7 +26,11 @@ body {
 }
 /* The sign-in region (#sign-in) uses the shared Accounts styles. */
 #sign-in {
+  padding: 32px 24px 40px;
   border-bottom: 1px solid var(--soda-page-edge);
+}
+#sign-in[hidden] {
+  display: none;
 }
 .desktop-connections {
   padding: 16px 24px;

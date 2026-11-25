@@ -164,6 +164,191 @@
   border: 1px dashed var(--soda-page-muted);
   font: 500 12px/18px var(--soda-font-mono-family);
 }
+/* Guided first run (first-run.ts): the Muse, GitHub and Fountain views sit
+   inside their steps; a collapsed step is hidden, not removed. */
+soda-desktop-first-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 32px 48px;
+}
+.first-run {
+  flex: 999 1 420px;
+  min-width: 0;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.first-run > header h2 {
+  margin: 0;
+  font: 800 36px/1.12 "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+.first-run p {
+  margin: 0;
+}
+.first-run > header p,
+.first-run-note,
+.first-run-line {
+  color: var(--soda-page-muted);
+}
+.first-run-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+}
+.soda-factory-accounts .first-run-step {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.soda-factory-accounts .first-run-step:last-child {
+  border-bottom: 0;
+}
+.soda-factory-accounts .first-run-step[data-state="current"] {
+  padding: 20px;
+  outline: 2px solid var(--soda-page-text);
+  outline-offset: -2px;
+}
+.first-run-mark {
+  flex: 0 0 32px;
+  height: 32px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--soda-page-edge);
+  color: var(--soda-page-muted);
+  font: 500 13px/20px var(--soda-font-mono-family);
+}
+[data-state="current"] > .first-run-mark {
+  border-color: var(--soda-page-text);
+  background: var(--soda-page-text);
+  color: var(--soda-page-canvas);
+}
+[data-state="done"] > .first-run-mark {
+  border-color: var(--soda-page-success);
+  background: light-dark(var(--soda-light-success-bg), var(--soda-dark-success-bg));
+  color: var(--soda-page-success);
+}
+.first-run-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.first-run-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.first-run-title {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: 600 18px/1.4 Barlow, Arial, sans-serif;
+}
+button.first-run-title {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--soda-page-edge);
+  text-underline-offset: 4px;
+}
+.first-run-badge {
+  padding: 1px 8px;
+  background: var(--soda-page-selected);
+  color: var(--soda-page-muted);
+  font: 500 12px/18px var(--soda-font-mono-family);
+}
+[data-state="done"] .first-run-badge {
+  background: light-dark(var(--soda-light-success-bg), var(--soda-dark-success-bg));
+  color: var(--soda-page-success);
+}
+[data-state="current"] .first-run-badge {
+  background: var(--soda-page-warning-bg);
+  color: var(--soda-page-warning);
+}
+.first-run-body[hidden] {
+  display: none;
+}
+.first-run-body > section > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.first-run-body button,
+.first-run-aside button {
+  margin: 0 8px 8px 0;
+}
+.first-run-aside {
+  flex: 1 1 260px;
+  min-width: 0;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.first-run-aside > * {
+  padding: 16px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+}
+.first-run-aside h2 {
+  margin: 0 0 8px;
+  font: 700 22px/1.2 "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+.first-run-aside dl {
+  display: grid;
+  margin: 0;
+}
+.first-run-aside dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--soda-page-edge);
+}
+.first-run-aside dt,
+.first-run-aside dd {
+  margin: 0;
+}
+.first-run-aside dd {
+  color: var(--soda-page-success);
+  font-weight: 600;
+}
+.first-run-aside > .first-run-fountain {
+  border-style: dashed;
+}
+.first-run-fountain summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font: 700 22px/1.2 "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+.first-run-fountain[open] summary {
+  margin-bottom: 8px;
+}
+.first-run-fountain > section > h2 {
+  display: none;
+}
 @media (max-width: 799px) {
   .soda-factory-settings-layout > nav {
     position: static;
