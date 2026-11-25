@@ -286,8 +286,7 @@ fn legacy(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> 
     }
 }
 
-// A judgment has the same native helper evidence as an execution, without a
-// worker root or LaunchIntent. Import exactly one bound process; never launch.
+// Import exactly one bound helper process from its retained evidence; never launch.
 pub(super) fn retained_process(
     profile: &Path,
     run: &str,
@@ -303,7 +302,7 @@ pub(super) fn retained_process(
     };
     super::muse::private(&root)?;
     let mut found = None;
-    // This directory retains historical execution and judgment services, not
+    // This directory retains historical helper services, not
     // just live sessions. Stream every binding so age never makes absence or
     // duplicate-run proof incomplete; each individual file remains bounded.
     for entry in entries {

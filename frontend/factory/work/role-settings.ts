@@ -10,8 +10,7 @@ interface RoleContext {
   readonly accountLabel?: string;
   readonly scope?: string;
 }
-const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review', 'factory-judgment': 'Judgments'} as const;
-const judgmentRole = 'factory-judgment';
+const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review'} as const;
 const toolStatusLabels = {
   not_set_up: 'Muse is not set up yet. Sign in to Muse to download and verify it.',
   checking: 'Checking Muse for the current release.',
@@ -35,8 +34,6 @@ interface SpendingSource {
   label: string;
   available: boolean;
   authorizable: boolean;
-  judgmentAvailable: boolean;
-  judgmentModels: readonly string[];
   tool: {
     state: keyof typeof toolStatusLabels;
     latest: string | undefined;
@@ -131,10 +128,6 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
             typeof source.execution_available === 'boolean'
         );
         const rawTool = source.tool_status == null ? undefined : object(source.tool_status);
-        const judgmentModels = source.judgment_models ?? [];
-        check(Array.isArray(judgmentModels) && judgmentModels.length <= 32 && judgmentModels.every(
-          (model) => typeof model === 'string' && model.length > 0 && model.length <= 128 && !/[\u0000-\u001f\u007f]/.test(model)
-        ));
         if (rawTool) {
           check(typeof rawTool.state === 'string' && Object.hasOwn(toolStatusLabels, rawTool.state));
           for (const field of ['upstream_version', 'selected_version'])
@@ -147,8 +140,6 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
           label: source.label,
           available: source.execution_available,
           authorizable: source.authorizable === true,
-          judgmentAvailable: source.judgment_available === true,
-          judgmentModels,
           tool: rawTool ? {
             state: rawTool.state as keyof typeof toolStatusLabels,
             latest: rawTool.upstream_version as string | undefined,
@@ -179,9 +170,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
   const stored = object(policy.roles),
     roles = {} as Selections;
   for (const role of Object.keys(roleNames) as Role[]) {
-    const selection = role === judgmentRole
-      ? policy.judgments == null ? {account: '', harness: 'muse', model: ''} : object(policy.judgments)
-      : object(stored[role]);
+    const selection = object(stored[role]);
     check(
       typeof selection.harness === 'string' &&
         typeof selection.model === 'string' &&
@@ -279,12 +268,8 @@ export async function setUpNewProject(context: RoleContext, signal: AbortSignal)
   const options = view.options;
   const actors = accountActors(view.bindings, context.actor);
   if (view.policy !== null || !view.editable || !source || !options || options.controllerGrantRequired || !actors || !options.mergeMethods.length) return false;
-  const selection = (model: string) => ({account: source.connection, harness: 'muse', model, profile: {effort: 'low'}});
-  const roles: Selections = {
-    'soda-coder': selection(museModel),
-    'soda-reviewer': selection(museModel),
-    [judgmentRole]: selection(source.judgmentModels.includes(museModel) ? museModel : (source.judgmentModels[0] ?? museModel)),
-  };
+  const selection = {account: source.connection, harness: 'muse', model: museModel, profile: {effort: 'low'}};
+  const roles: Selections = {'soda-coder': selection, 'soda-reviewer': {...selection}};
   await authorizeLogins(context, signal, view.accounts, roles);
   const response = await context.transport.request(`repositories/${context.repository}/factory/policy`, {
     method: 'PUT',
@@ -329,9 +314,9 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
   };
 }
 
+// Judgments belong to JEV, not to a Muse login: saving clears any older selection.
 function policySelections(roles: Selections) {
-  const {[judgmentRole]: judgments, ...agents} = roles;
-  return {roles: agents, judgments: judgments.account || judgments.model ? judgments : null};
+  return {roles, judgments: null};
 }
 
 /** Shared editor. Choosing a login for a role and saving authorizes that login
@@ -425,7 +410,6 @@ export class SodaFactoryRoleSettings extends LitElement {
         this.roles = view.roles ?? {
           'soda-coder': {account: '', harness: 'muse', model: ''},
           'soda-reviewer': {account: '', harness: 'muse', model: ''},
-          [judgmentRole]: {account: '', harness: 'muse', model: ''},
         };
         const limits = view.policy ? object(view.policy.attempt_limits) : undefined;
         this.limits = {
@@ -459,9 +443,8 @@ export class SodaFactoryRoleSettings extends LitElement {
   private validSelection(role: Role, initial: boolean) {
     const selected = this.roles?.[role];
     if (!selected) return false;
-    if (role === judgmentRole && !selected.model && !selected.account) return true;
     return selected.harness === 'muse' && !!selected.model.trim() &&
-      ((initial && role !== judgmentRole && !selected.account) || this.eligible(role, selected.account));
+      ((initial && !selected.account) || this.eligible(role, selected.account));
   }
   private async authorizeLogins(context: RoleContext, signal: AbortSignal, view: Settings, roles: Selections) {
     const accounts = await authorizeLogins(context, signal, view.accounts, roles);
@@ -494,7 +477,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     if (!roles || this.view?.options?.controllerGrantRequired === true) return false;
     const account = roles['soda-coder'].account;
     return !!account && roles['soda-reviewer'].account === account &&
-      (!roles[judgmentRole].account || roles[judgmentRole].account === account) &&
       (Object.keys(roleNames) as Role[]).every(role => this.validSelection(role, false)) &&
       !!this.selectedLimits();
   }
@@ -641,11 +623,12 @@ export class SodaFactoryRoleSettings extends LitElement {
       ${view?.options?.nativeSetup ? this.workspaceOpened
         ? html`<soda-factory-workspace-setup .context=${this.current}></soda-factory-workspace-setup>`
         : html`<button type="button" @click=${() => { this.workspaceOpened = true; }}>Workspace setup</button>` : ''}
-      <h3>Agent roles and judgments</h3>
+      <h3>Agent roles</h3>
       <p>
         Choose the model and Muse login for each role. Saving lets that login run those roles. Factory does not
         switch logins automatically.
       </p>
+      <p>Routing, planning and delivery decisions come from JEV. JEV is not connected yet, so those steps wait.</p>
       <p role="status">${this.message}</p>
       <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh roles</button>
       ${view?.sources.map((source) => source.tool
@@ -760,16 +743,6 @@ export class SodaFactoryRoleSettings extends LitElement {
                   source = view.sources.find((source) => source.connection === selected.account);
                 return html`<fieldset ?disabled=${this.busy || !view.editable}>
                   <legend>${roleNames[role]}</legend>
-                  ${role === judgmentRole ? html`<p>
-                    Select a login for routing, planning and other product judgments. Leave both fields empty to keep
-                    judgments unconfigured. The full pipeline waits for admitted judgment execution.
-                    ${this.eligible(judgmentRole, selected.account) && source?.judgmentAvailable && source.judgmentModels.includes(selected.model)
-                      ? 'This login can run Feed, planning, consultations, contribution assessments, same-repository queue comparisons and delivery judgments. Mixed-repository queue comparisons are unavailable. Delivery still requires the complete inspection, approval and CI evidence.'
-                      : 'Judgment execution through this login is currently unavailable.'}
-                    ${source?.judgmentModels.length
-                      ? html`Supported judgment models: ${source.judgmentModels.join(', ')}.`
-                      : ''}
-                  </p>` : ''}
                   <label
                     >Provider
                     <select aria-label=${`${roleNames[role]} provider`} disabled>
@@ -782,14 +755,14 @@ export class SodaFactoryRoleSettings extends LitElement {
                       aria-label=${`${roleNames[role]} model`}
                       .value=${selected.model}
                       maxlength="128"
-                      ?required=${role !== judgmentRole || !!selected.account}
+                      required
                       @input=${(event: Event) => this.choose(role, 'model', (event.target as HTMLInputElement).value)}
                   /></label>
                   <label
                     >Login
                     <select
                       aria-label=${`${roleNames[role]} login`}
-                      ?required=${role === judgmentRole ? !!selected.model : !initial}
+                      ?required=${!initial}
                       @change=${(event: Event) => this.choose(role, 'account', (event.target as HTMLSelectElement).value)}
                     >
                       <option value="" .selected=${!selected.account}>Choose a login</option>
@@ -810,7 +783,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                   @change=${(event: Event) => {this.automaticExternalPulls = (event.target as HTMLInputElement).checked;}}
                 />Automatically adopt eligible same-repository pull requests.</label>
                 <p>Adoption requires the PR author to be a current repository writer and exactly one explicitly accepted issue linked through the provider's structured closing links. Factory verifies the current head, base and policy target and keeps the existing finite attempt limits. Fork pull requests require an explicit command.</p>
-                <p>Select one login shared by Coding and Review. Optional Judgments must use that same login. Populate the finite execution limits before enabling this choice.</p>
+                <p>Select one login shared by Coding and Review. Populate the finite execution limits before enabling this choice.</p>
                 <p>This choice is separate from policy enrollment and automatic issue polling.</p>
                 ${view.options?.controllerGrantRequired ? html`<p>Automatic external pull request adoption is unavailable in Fountain.</p>` : ''}
               </fieldset>

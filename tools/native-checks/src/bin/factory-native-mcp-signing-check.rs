@@ -96,27 +96,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("PASS: actual standalone startup/restart omits application hosting and retains product storage; retained shared migration preserves rows and hosting verification");
         return Ok(());
     }
-    if args.len() == 5 && args[4] == "judgment-live" {
-        let profile=root.join("judgment-profile");
-        let crash=std::env::var("SODA_NATIVE_CHECK_JUDGMENT_CRASH").unwrap_or_default();
-        let phases=if crash=="restart" {vec!["restart"]}else if crash=="start"{vec!["start"]}else{vec!["start","restart"]};
-        for phase in phases {
-            let supervisor=NativeSupervisor::start(Path::new(&args[1]),Path::new(&args[2]),&profile)?;
-            let ready=supervisor.health()?;
-            if phase=="start" && !Command::new(&args[3]).arg(&profile).arg(&ready.instance).arg("check-owned-tool").arg("discovery").status()?.success() { return Err("official judgment tool unavailable".into()); }
-            let checked=Command::new(&args[3]).arg(&profile).arg(&ready.instance).arg("check-live-judgment").arg(phase).status()?;
-            if checked.success() && crash=="start" {println!("PASS: abrupt judgment owner loss after actual native process start, before Go result settlement");std::process::exit(0);}
-            supervisor.stop()?;
-            if !checked.success() { return Err("live judgment check failed; original command retained, no inference replay".into()); }
-        }
-        println!("PASS: one live official-tool judgment through production private callback, exact-source accounting and retained readback across supervisor restart; repository authority declared, no GitHub writes or worker gate proof");
-        return Ok(());
-    }
     if args.len() == 3 && matches!(args[2].as_str(), "muse-connector" | "muse-login") {
         return muse_connector(&root, Path::new(&args[1]), args[2] == "muse-login");
-    }
-    if args.len() == 2 && matches!(args[1].as_str(),"judgment-connector"|"judgment-fixture") {
-        return judgment_connector(&root,args[1]=="judgment-fixture");
     }
     if args.len() == 2 && args[1] == "preparation" {
         return preparation_check(&root);
@@ -629,159 +610,11 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         println!("fixture_wait_ready");
         std::io::stdout().flush()?;
         let _ = child.wait()?;
-    } else if prompt.starts_with("Make one Factory product judgment") {
-        let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("judgment input absent")?.1)?;
-        let options=input["options"].as_object().ok_or("judgment options absent")?;
-        let selected=if options.contains_key("ready_to_merge") {"ready_to_merge"}else if options.contains_key("discussion") {"discussion"}else{options.keys().next().ok_or("judgment alternatives absent")?};
-        let probabilities:serde_json::Map<String,serde_json::Value>=options.keys().map(|key|(key.clone(),serde_json::json!(if key==selected{1}else{0}))).collect();
-        let answer=serde_json::json!({"selected":selected,"confidence":1,"probabilities":probabilities});
-        println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
-    } else if prompt.starts_with("Answer the independent Factory consultation") {
-        let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("consultation input absent")?.1)?;
-        let kind=input["type"].as_str().ok_or("consultation type absent")?;
-        let mut answers=serde_json::Map::new();
-        for (id,question) in input["questions"].as_object().ok_or("consultation questions absent")? {
-            let answer=match kind {
-                "noul"=>serde_json::json!({"type":"noul","noul":0.8}),
-                "score"=>serde_json::json!({"type":"score","score":0.75,"confidence":0.9,"legend":{"0":question["criteria"][0],"1":question["criteria"][1]},"probabilities":{"0":0.25,"1":0.75}}),
-                "choice"=>serde_json::json!({"type":"choice","choice":"contribute","confidence":0.9,"probabilities":{"contribute":0.95,"no_contribution":0.05}}),
-                _=>return Err("unknown consultation type".into()),
-            };
-            answers.insert(id.clone(),answer);
-        }
-        let answer=serde_json::json!({"answers":answers});
-        println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
-    } else if prompt == "judgment" {
-        println!("{{\"schema_version\":1,\"payload_type\":\"run.terminal.completed\",\"payload\":{{\"terminal\":\"completed\",\"text\":\"{{\\\"selected\\\":\\\"new_issue\\\",\\\"confidence\\\":1,\\\"probabilities\\\":{{\\\"new_issue\\\":1,\\\"discussion\\\":0}}}}\"}}}}");
     } else if prompt == "finish" {
         println!("{{\"fixture\":\"ok\"}}");
     } else {
         return Err("unknown connector fixture prompt".into());
     }
-    Ok(())
-}
-
-fn judgment_connector(root: &Path, prepared: bool) -> Result<(), Box<dyn std::error::Error>> {
-    use sha2::Digest;
-    use soda_desktop_runtime::factory_provider::{
-        JudgmentCalls, JudgmentRequest, MuseTool, ToolSelection,
-    };
-    use soda_execution_protocol::HarnessProfile;
-    use std::sync::{atomic::AtomicBool, Arc};
-    let fixture=if prepared {Some(serde_json::from_slice::<serde_json::Value>(&fs::read(root.join("judgment-fixture.json"))?)?)}else{None};
-    let profile = if let Some(fixture)=&fixture {fixture["capture"]["profile"].as_str().ok_or("fixture profile absent")?.into()}else{"a".repeat(32)};
-    let connection: String = sha2::Sha256::digest(format!("factory_muse_login\n{profile}"))
-        .iter()
-        .take(16)
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    let executable = std::env::current_exe()?;
-    let sha256: String = sha2::Sha256::digest(fs::read(&executable)?)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    let tool = ToolSelection {
-        tool: MuseTool {
-            harness: "muse",
-            version: "fixture".into(),
-            sha256: sha256.clone(),
-            executable,
-        },
-        channel: "declared-fixture",
-        checked_at_unix: 1,
-    };
-    let mut calls = JudgmentCalls::default();
-    let alive = Arc::new(AtomicBool::new(true));
-    let mut results = Vec::new();
-    let prompts=if let Some(fixture)=&fixture {vec![fixture["prompt"].as_str().ok_or("fixture prompt absent")?]}else{vec!["judgment","wait"]};
-    for (index, prompt) in prompts.into_iter().enumerate() {
-        let id = format!("{:032x}", index + 1);
-        let digest = "b".repeat(64);
-        let mut request = JudgmentRequest {
-            id: id.clone(),
-            digest: digest.clone(),
-            connection: connection.clone(),
-            tool_version: "fixture".into(),
-            tool_sha256: sha256.clone(),
-            prompt_sha256: sha2::Sha256::digest(prompt.as_bytes())
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect(),
-            harness: HarnessProfile {
-                model: "muse-spark-1.3-contributor".into(),
-                effort: "low".into(),
-                contributor: true,
-            },
-            deadline_unix_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_millis() as u64
-                + 10_000,
-            prompt: prompt.into(),
-        };
-        if let Some(fixture)=&fixture {
-            request.id=fixture["capture"]["id"].as_str().ok_or("fixture id absent")?.into();
-            request.digest=fixture["digest"].as_str().ok_or("fixture digest absent")?.into();
-            request.deadline_unix_ms=fixture["capture"]["deadline_unix_ms"].as_u64().ok_or("fixture deadline absent")?;
-        }
-        let id=request.id.clone();let digest=request.digest.clone();
-        calls.begin(root, &profile, request.clone(), tool.clone(), alive.clone())?;
-        let until = std::time::Instant::now() + Duration::from_secs(20);
-        let result = loop {
-            let result = calls.inspect(root, &id, &digest, index == 1)?;
-            if result["state"] == "complete" {
-                break result;
-            }
-            if std::time::Instant::now() >= until {
-                return Err("native judgment did not retire".into());
-            }
-            std::thread::sleep(Duration::from_millis(25));
-        };
-        let process = &result["result"]["process"];
-        if process["tree_retired"] != true
-            || process["output_complete"] != true
-            || process["run"] != id
-            || process["prompt_sha256"] != request.prompt_sha256
-        {
-            return Err("native judgment lost actual process retirement or prompt binding".into());
-        }
-        if index == 0 {
-            let output: serde_json::Value = serde_json::from_str(
-                result["result"]["output"].as_str().ok_or("native judgment output absent")?,
-            )?;
-            let valid = if let Some(fixture) = &fixture {
-                if fixture["capture"]["output_kind"] == "consultation" {
-                    output["answers"].is_object()
-                } else {
-                    output["selected"].as_str().is_some_and(|selected| fixture["options"].get(selected).is_some())
-                }
-            } else {
-                output["selected"] == "new_issue"
-            };
-            if !valid {
-                return Err("native judgment lost its terminal answer".into());
-            }
-        }
-        if index == 1 && process["reason"] != "cancelled" {
-            return Err("native judgment cancellation was not observed".into());
-        }
-        let repeated = calls.begin(root, &profile, request, tool.clone(), alive.clone())?;
-        if repeated != result {
-            return Err("native judgment replay differed or started again".into());
-        }
-        results.push(result);
-    }
-    calls.retire()?;
-    let mut restarted = JudgmentCalls::default();
-    if restarted.inspect(root, results[0]["result"]["id"].as_str().ok_or("result id absent")?,results[0]["result"]["digest"].as_str().ok_or("result digest absent")?, false)? != results[0] {
-        return Err("native judgment restart lost its original receipt".into());
-    }
-    fs::write(
-        root.join("judgment-result.json"),
-        serde_json::to_vec_pretty(
-            &serde_json::json!({"result":"pass","finite":true,"cancelled":!prepared,"replay":true,"restart":true,"provider":"declared local CLI, no model or authentication","results":results}),
-        )?,
-    )?;
-    println!("PASS: actual native judgment process, terminal text, {}tree retirement, same-call replay and retained restart; executable/provider facts declared, no model or credentials", if prepared {""}else{"cancellation/"});
     Ok(())
 }
 
@@ -2166,25 +1999,6 @@ async fn managed_muse_execution(
     let live = std::env::var("SODA_NATIVE_CHECK_MUSE_LIVE").as_deref() == Ok("1");
     let withdraw = std::env::var("SODA_NATIVE_CHECK_MUSE_WITHDRAW").as_deref() == Ok("1");
     let tasks = std::env::var("SODA_NATIVE_CHECK_TASKS").as_deref() == Ok("1");
-    let queue = std::env::var("SODA_NATIVE_CHECK_PRIORITY").as_deref() == Ok("1");
-    let queue_resume = queue && std::env::var("SODA_NATIVE_CHECK_PRIORITY_RESUME").as_deref()==Ok("1");
-    let _queue_credentials = if queue {
-        use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
-        use std::io::Read;
-        let credentials = std::sync::Arc::new(Credentials::open(&profile, &ready.profile)?);
-        credentials.storage_ready().await?;
-        let mut secret = Vec::new();
-        std::io::stdin().take(65537).read_to_end(&mut secret)?;
-        if secret.last()==Some(&b'\n') {secret.pop();}
-        let saved = credentials.store(Account::new(Provider::Github,"https://github.com","16469623")?,Token::new(secret)?).await?;
-        let request=supervisor.admit_product(credentials.clone(),credentials.capability(&saved.connection).await?,Some("1448277000".into()))?;
-        let reply=request.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?;
-        if reply.status!=200{return Err("Q13 actual repository admission unavailable".into());}
-        let catalogue:serde_json::Value=serde_json::from_slice(&reply.body)?;
-        let repository=catalogue["items"][0]["id"].as_str().ok_or("canonical queue repository absent")?;
-        fs::write(profile.join("connected-queue.json"),serde_json::to_vec(&serde_json::json!({"Repository":repository,"Connection":saved.connection}))?)?;
-        Some(credentials)
-    } else {None};
     if tasks && withdraw {
         return Err("task integration and selected-source withdrawal are separate checks".into());
     }
@@ -2211,13 +2025,10 @@ async fn managed_muse_execution(
         )?;
         fs::write(profile.join("check-withdrawal-source.id"), other.connection)?;
     }
-    if live || queue || std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENTS").as_deref()==Ok("1") || std::env::var("SODA_NATIVE_CHECK_CONTRIBUTIONS").as_deref()==Ok("1") {
+    if live {
         command("check-owned-tool", "discovery")?;
     }
-    let preparation: serde_json::Value = if queue_resume {
-        let original:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("admitted-native-fixture.json"))?)?;
-        serde_json::json!({"input":{"preparation":{"id":original["Preparation"]}}})
-    } else {
+    let preparation: serde_json::Value = {
         command("check-native-preparation", "ready")?;
         let preparations: Vec<_> =fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
         if preparations.len()!=1{return Err("expected one actual native preparation".into());}
@@ -2225,7 +2036,7 @@ async fn managed_muse_execution(
     };
     let mut random = [0u8; 16];
     getrandom::fill(&mut random)?;
-    let mut run: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    let run: String = random.iter().map(|b| format!("{b:02x}")).collect();
     fs::write(root.join("execution-runs.ids"), &run)?;
     let fixture = profile.join("admitted-native-fixture.json");
     fs::write(
@@ -2236,17 +2047,9 @@ async fn managed_muse_execution(
         )?,
     )?;
     command(
-        if queue_resume {"resume-priority"}else{"launch-admitted-native"},
+        "launch-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
-    if queue {
-        let actual:serde_json::Value=serde_json::from_slice(&fs::read(&fixture)?)?;
-        run=actual["Run"].as_str().ok_or("actual queue run absent")?.into();
-        fs::write(root.join("execution-runs.ids"),&run)?;
-    }
-    if std::env::var("SODA_NATIVE_CHECK_CONTRIBUTIONS").as_deref()==Ok("1") {
-        command("check-contributions", fixture.to_str().ok_or("invalid fixture path")?)?;
-    }
     if std::env::var("SODA_NATIVE_CHECK_LAUNCH_LOSS").as_deref() == Ok("1") {
         // The Go launch received no native acceptance or process observation.
         // Observe only the actual helper's filesystem before losing its owner.
@@ -2293,9 +2096,6 @@ async fn managed_muse_execution(
             .join(format!("{run}.json")),
     )?)?;
     let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
-    if std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE").as_deref()==Ok("1") {
-        command("revoke-judgment-worker",fixture.to_str().ok_or("invalid fixture path")?)?;
-    }
     let until = std::time::UNIX_EPOCH
         + Duration::from_secs(
             captured["DeadlineUnix"]
@@ -2330,12 +2130,6 @@ async fn managed_muse_execution(
         "check-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
-    if std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE").as_deref()==Ok("1") {
-        command("reconcile-retained-native",fixture.to_str().ok_or("invalid fixture path")?)?;
-        supervisor.stop()?;
-        println!("PASS: worker capability withdrawn during actual native inference; failed advice, exact original accounting and joined retirement without replay");
-        return Ok(());
-    }
     command(
         "acknowledge-native",
         fixture.to_str().ok_or("invalid fixture path")?,

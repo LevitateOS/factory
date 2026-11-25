@@ -47,8 +47,6 @@ type SpendingSource struct {
 	Native             factory.NativeSponsorship `json:"native"`
 	ExecutionAvailable bool                      `json:"execution_available"`
 	Authorizable       bool                      `json:"authorizable"`
-	JudgmentAvailable  bool                      `json:"judgment_available"`
-	JudgmentModels     []string                  `json:"judgment_models,omitempty"`
 	ToolStatus         *SpendingToolStatus       `json:"tool_status,omitempty"`
 }
 

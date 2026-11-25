@@ -134,7 +134,13 @@ corrections are now active; the old feature queue waits for their resolution.
   inference ran. Prepared/funded planning, successful Muse result encoding, A25
   judgment inference, graph delivery and connected/installed proof remain open.
 
-- **A25 — configuration and native Feed judgment connector implemented; qualification/other consumers pending.**
+- **A25 — Muse judgment stand-in removed (2026-11-25); JEV not yet connected.**
+  Muse no longer makes product judgments. The native judgment command, the Rust
+  Muse judgment runner, the Settings Judgments role and the native Feed, planning,
+  context, queue, contribution, consultation and delivery judgment adapters are
+  deleted. Those steps report that JEV is not connected. Historical commands,
+  policy selections and charges stay in the database. The notes below describe
+  the removed stand-in and are kept as history only.
   Policy `judgments` stores its own provider/model/account choice, separate from
   the two agent roles. The existing sponsorship allows an explicit
   `factory-judgment` scope; it does not become a workspace execution role. Shared

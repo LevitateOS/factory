@@ -71,7 +71,8 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 	switch route {
 	case "/api/native/mcp-sign", "/api/native/mcp-verify":
 	case "/api/native/execution":
-		requestLimit, responseLimit = factory.NativeJudgmentMaxWire, 8*1024*1024
+		// Matches Rust's MAX_MUSE_INPUT: the largest prompt, JSON-escaped, plus the envelope.
+		requestLimit, responseLimit = 6*project.MaxReassessPrompt+32*1024, 8*1024*1024
 	case "/api/native/preparation":
 		requestLimit, responseLimit = project.MaxSourceWire, 2*1024*1024
 	default:

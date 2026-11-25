@@ -31,45 +31,14 @@ func checkIssuePlanReviewTx(ctx context.Context, tx *sql.Tx, cap factory.MCPCapa
 	if json.Unmarshal(raw, &opinion) != nil || opinion.Snapshot != snapshot || opinion.Assignment != owner.ID || opinion.Tool != string(factory.MCPToolSystemOneChoice) || opinion.Status != ConsultationStatusReturned || !factory.IssuePlanReviewAccepted(opinion.Answer) {
 		return ErrAdmissionChanged
 	}
-	id, ok := opinion.Answer["native_judgment"].(string)
-	if !ok || !factory.ValidID(id) {
-		return ErrAdmissionChanged
-	}
-	var payload, outcome, finished string
-	if err = tx.QueryRowContext(ctx, `SELECT payload,outcome,finished FROM factory_commands WHERE id=$1 AND type=$2`, id, factory.CommandNativeJudgment).Scan(&payload, &outcome, &finished); err != nil {
-		return admissionChanged(err)
-	}
-	var capture factory.NativeJudgmentCapture
-	if json.Unmarshal([]byte(payload), &capture) != nil || finished == "" || capture.ID != id || capture.Repository != owner.Repository || capture.OutputKind != "consultation" || capture.WorkerCapability != cap.ID || capture.WorkerScope != cap.ScopeDigest() || capture.DeadlineUnixMS > cap.DeadlineUnix*1000 || id != factory.NativeJudgmentID(capture.Profile, owner.Repository, "consultation:"+snapshot[:32]) || opinion.Model != capture.Selection.Model {
-		return ErrAdmissionChanged
-	}
-	prompt, err := factory.NativeConsultationPrompt("choice", state, map[string]factory.SystemOneWorkerQuestion{"judgment": {Instructions: instructions, Criteria: criteria}})
-	if err != nil || capture.PromptSHA256 != factory.MCPInputDigest([]byte(prompt)) {
-		return ErrAdmissionChanged
-	}
-	var result struct {
-		Output struct {
-			Answers map[string]map[string]any `json:"answers"`
-		} `json:"output"`
-		Process struct {
-			Run        string `json:"run"`
-			Live       *bool  `json:"live"`
-			Finished   bool   `json:"finished"`
-			Retired    bool   `json:"tree_retired"`
-			Complete   bool   `json:"output_complete"`
-			Exit       *int   `json:"exit_code"`
-			Executable string `json:"executable_sha256"`
-		} `json:"process"`
-	}
-	if json.Unmarshal([]byte(outcome), &result) != nil || result.Process.Run != id || result.Process.Live == nil || *result.Process.Live || !result.Process.Finished || !result.Process.Retired || !result.Process.Complete || result.Process.Exit == nil || *result.Process.Exit != 0 || result.Process.Executable != capture.ToolSHA256 || !reflect.DeepEqual(opinion.Answer["answer"], result.Output.Answers["judgment"]) {
-		return ErrAdmissionChanged
-	}
-	_, err = nativeJudgmentSource(ctx, tx, capture)
-	if err != nil {
-		return errors.Join(ErrAdmissionChanged, err)
-	}
-	return nil
+	// A returned plan review must come from JEV. Factory has no JEV connection yet,
+	// so no review qualifies and implementation stays unavailable.
+	return errors.Join(ErrAdmissionChanged, ErrJudgmentUnavailable)
 }
+
+// ErrJudgmentUnavailable reports a step that needs a JEV judgment while Factory
+// has no JEV connection.
+var ErrJudgmentUnavailable = errors.New("JEV is not connected")
 
 func checkImplementationPlanReviewTx(ctx context.Context, tx *sql.Tx, a factory.Assignment) error {
 	if a.Phase != project.ExecutionImplement || a.Subject.Kind != factory.SubjectIssue {

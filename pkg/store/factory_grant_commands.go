@@ -465,11 +465,6 @@ func recordFactoryCommandTx(ctx context.Context, tx *sql.Tx, cmd factory.Command
 	}
 	created := now.UTC().Format(time.RFC3339Nano)
 	dispatchState := factory.DispatchUnclaimed
-	if cmd.Type == factory.CommandNativeJudgment {
-		// A finite inference is reserved by its original admission transaction;
-		// a later lookup cannot recover permission to start another paid call.
-		dispatchState = factory.DispatchReserved
-	}
 	result, err := tx.ExecContext(ctx, `INSERT INTO factory_commands(id,type,target,principal,digest,payload,created,dispatch_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING`, cmd.ID, cmd.Type, cmd.Target, cmd.Principal, cmd.Digest, cmd.Payload, created, dispatchState)
 	if err != nil {
 		return factory.Command{}, false, fmt.Errorf("factory command record failed: %w", err)

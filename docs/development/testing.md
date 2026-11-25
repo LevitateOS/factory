@@ -36,8 +36,9 @@ accounts or databases just to check a refactor.
 For deterministic role contracts, build
 `tools/native-checks/native_mcp_signing_check.go` as a Go executable and pass it
 to `soda-native-pg-check POSTGRES_PAYLOAD NEW_SCRATCH -- CHECK_EXECUTABLE
-offline-role-handoffs`. This exercises all eight typed profiles, terminal
-settlement, exact-source fixture accounting and PostgreSQL restart/WAL recovery
+offline-role-handoffs`. This checks that an unreviewed Architect plan is refused
+while JEV is not connected, then exercises the Issue Maker, Product Lead,
+Strategist and Test Pilot profiles, terminal settlement, exact-source fixture accounting and PostgreSQL restart/WAL recovery
 with controlled observations. It does not launch workers or qualify model output.
 
 The existing native signing checker has `workspace` and `execution-muse` modes

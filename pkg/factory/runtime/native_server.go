@@ -16,7 +16,6 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
-	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
@@ -71,8 +70,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	instance := collaboration.NewID()
 	native := NativeExecution{Config: config, Instance: instance, Store: db}
 	inputs := NativeInputSource{native}
-	judgments := NativeJudgments{NativeExecution: native}
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, Graph: NativeGraphs{inputs}, Creations: inputs, CompletionIssuePage: inputs.ReadCompletionIssuePage, CompletionLocalCapture: inputs.CaptureCompletionLocal, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: NewNativeIssueEffects(inputs), PostJudge: judgments, Planning: judgments, Priority: judgments, ContextChooser: judgments, CurrentChooser: func() control.ProductJudgment { return judgments }}, binding)
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, Graph: NativeGraphs{inputs}, Creations: inputs, CompletionIssuePage: inputs.ReadCompletionIssuePage, CompletionLocalCapture: inputs.CaptureCompletionLocal, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: NewNativeIssueEffects(inputs)}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {

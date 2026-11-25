@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -12,15 +11,6 @@ import (
 
 // ErrPostDraftPending keeps an admitted planning attempt pending without spending another attempt.
 var ErrPostDraftPending = errors.New("comment planning run still settling")
-
-// A missing selected source or an already admitted finite inference waits
-// without consuming failure attempts or starting another provider request.
-var ErrPostJudgmentPending = errors.New("request judgment awaits its selected source or original result")
-
-// ErrPostJudgmentUnset is a pending judgment whose repository names no
-// judgment login yet. Only the person's role choice settles it, so the request
-// says so instead of reading as work in progress.
-var ErrPostJudgmentUnset = fmt.Errorf("%w: no judgment login is chosen", ErrPostJudgmentPending)
 
 // PostDraftPending supplies retained authoring progress from a planning adapter.
 type PostDraftPending struct{ Progress factory.PostAuthoring }
@@ -33,8 +23,6 @@ var ErrPostIssueContext = errors.New("Refresh this request to read its issues us
 
 const (
 	PostStalledContext = "context"
-	// PostStalledSetup waits for the repository's role selections.
-	PostStalledSetup = "setup"
 )
 
 // PostStalled names a missing collaborator for the next admitted stage.
@@ -332,17 +320,8 @@ func drivePostJudgment(ctx context.Context, st *store.Store, wired *PostCollabor
 		_ = st.NotePostStall(ctx, pipe.SourcePost, PostStalledContext)
 		return false, nil
 	}
-	if errors.Is(err, ErrPostJudgmentUnset) {
-		_ = st.NotePostProgress(ctx, pipe.SourcePost, "Choose a Muse login for this project's roles in Settings so requests can be read.")
-		_ = st.NotePostStall(ctx, pipe.SourcePost, PostStalledSetup)
-		return false, nil
-	}
-	if errors.Is(err, ErrPostJudgmentPending) {
-		_ = st.NotePostProgress(ctx, pipe.SourcePost, "Request assessment is waiting for its selected judgment source or the original model result.")
-		return false, nil
-	}
 	if err != nil {
-		_ = st.NotePostProgress(ctx, pipe.SourcePost, "The selected judgment provider could not assess this request. Check its source and revise the request before assessing again.")
+		_ = st.NotePostProgress(ctx, pipe.SourcePost, "JEV could not assess this request. Revise the request before assessing again.")
 		return false, notePostFailure(ctx, st, pipe, true)
 	}
 	switch judgment.Route {

@@ -820,7 +820,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let funding: ProductRequest = serde_json::from_value(
             json!({"kind":"sponsorship","repository":repository,"connection":source_id,
-            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer","factory-judgment"],"active":true}}),
+            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer"],"active":true}}),
         )?;
         let (method, target, body) = funding.request()?;
         let granted = call(&runtime, &store, &connection, method, &target, &body).await?;
@@ -839,10 +839,8 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let mut selected_role = role.clone();
         selected_role["account"] = json!(source_id);
-        let mut judgment = selected_role.clone();
-        judgment["model"] = json!("declared-judgment-model");
         let selected = json!({"expected_revision":2,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
-            "roles":{"soda-coder":selected_role,"soda-reviewer":selected_role},"judgments":judgment,"required_checks":["fixture/check"],"merge_method":"rebase",
+            "roles":{"soda-coder":selected_role,"soda-reviewer":selected_role},"required_checks":["fixture/check"],"merge_method":"rebase",
             "publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor});
         ensure(
             call(
@@ -861,112 +859,9 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         ensure(
             selected.1["policy"]["roles"]["soda-coder"]["account"] == source_id
                 && selected.1["policy"]["roles"]["soda-reviewer"]["account"] == source_id
-                && selected.1["policy"]["judgments"]["account"] == source_id
-                && selected.1["policy"]["judgments"]["model"] == "declared-judgment-model"
-                && selected.1["sponsorships"][0]["roles"]
-                    .as_array()
-                    .is_some_and(|roles| roles.contains(&json!("factory-judgment")))
                 && selected.1["policy"]["enabled"] == false,
             "saved Muse role choice changed source or enabled automation",
         )?;
-        let joined_judgment = std::env::var("SODA_NATIVE_CHECK_JUDGMENT_EXECUTABLE").ok();
-        if let Some(executable) = &joined_judgment {
-          let selected_mode=std::env::var("SODA_NATIVE_CHECK_JUDGMENT_MODE").ok();
-          for mode in ["feed","orphan","purpose","consultation-choice","consultation-noul","consultation-score","delivery","priority"].into_iter().filter(|mode| selected_mode.as_ref().is_none_or(|selected| selected==mode)) {
-            let orphan=mode=="orphan";
-            let purpose=mode=="purpose";
-            let consultation=mode.strip_prefix("consultation-");
-            if mode!="feed" {
-                runtime.stop()?;
-                runtime=NativeSupervisor::start(payload,production,profile)?;
-                store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
-            }
-            let body = serde_json::to_vec(
-                &json!({"repository":repository,"body":"A disposable discussion for the native judgment check.","idempotency_key":format!("declared-judgment-{mode}")}),
-            )?;
-            let saved = call(
-                &runtime,
-                &store,
-                &connection,
-                "POST",
-                "/api/factory/feed/posts",
-                &body,
-            )
-            .await?;
-            ensure(
-                matches!(saved.0, 200 | 202),
-                "judgment fixture post was refused",
-            )?;
-            let post = saved.1["post_id"].as_str().ok_or("judgment post absent")?;
-            let scoped_post=if mode=="delivery" || mode=="priority" {format!("{mode}:{post}")}else if let Some(kind)=consultation {format!("consultation:{kind}:{post}")}else if purpose {format!("purpose:{post}")}else{post.into()};
-            let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
-            ensure(
-                std::process::Command::new(&helper)
-                    .arg(profile)
-                    .arg(runtime.health()?.instance)
-                    .arg("prepare-judgment-result")
-                    .arg(&scoped_post)
-                    .status()?
-                    .success(),
-                "judgment fixture admission failed",
-            )?;
-            let runtime_dir = format!("/run/user/{}", unsafe { libc::geteuid() });
-            ensure(
-                std::process::Command::new(executable)
-                    .arg(profile)
-                    .arg("judgment-fixture")
-                    .env("XDG_RUNTIME_DIR", &runtime_dir)
-                    .env(
-                        "DBUS_SESSION_BUS_ADDRESS",
-                        format!("unix:path={runtime_dir}/bus"),
-                    )
-                    .status()?
-                    .success(),
-                "actual declared judgment process failed",
-            )?;
-            if orphan {
-                ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("orphan-judgment-result").arg(post).status()?.success(),"judgment source deletion failed")?;
-            }
-            runtime.start_execution_coordinator().await?;
-            let until = Instant::now() + Duration::from_secs(15);
-            while !orphan && !purpose && mode!="delivery" && mode!="priority" && consultation.is_none() {
-                let read = call(
-                    &runtime,
-                    &store,
-                    &connection,
-                    "GET",
-                    &format!("/api/factory/feed/posts/{post}"),
-                    &[],
-                )
-                .await?;
-                if read.0 == 200
-                    && read.1["judgment"] == "applied"
-                    && read.1["route"] == "discussion"
-                {
-                    break;
-                }
-                ensure(
-                    Instant::now() < until,
-                    &format!("native judgment result not adopted: {} {}", read.0, read.1),
-                )?;
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-            ensure(
-                std::process::Command::new(&helper)
-                    .arg(profile)
-                    .arg(runtime.health()?.instance)
-                    .arg("check-judgment-result")
-                    .arg(&scoped_post)
-                    .status()?
-                    .success(),
-                "native judgment accounting failed",
-            )?;
-            ensure(
-                posts(&io)? == 0,
-                "discussion judgment emitted a provider mutation",
-            )?;
-          }
-        }
         ensure(
             call(&runtime, &store, &connection, "PUT", &target, &body)
                 .await?
@@ -974,7 +869,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 == 412,
             "stale Muse source allowance overwrote current funding",
         )?;
-        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer","factory-judgment"],"active":false});
+        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer"],"active":false});
         ensure(
             call(
                 &runtime,
@@ -990,17 +885,10 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let withdrawn = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
         ensure(
-            withdrawn.1["sponsorships"][0]["active"] == false
-                && withdrawn.1["policy"]["judgments"]["account"] == source_id
-                && withdrawn.1["policy"]["judgments"]["model"]
-                    == if joined_judgment.is_some() {
-                        "muse-spark-1.3-contributor"
-                    } else {
-                        "declared-judgment-model"
-                    },
-            "Muse source withdrawal was not retained or replaced the judgment selection",
+            withdrawn.1["sponsorships"][0]["active"] == false,
+            "Muse source withdrawal was not retained",
         )?;
-        println!("PASS: explicit CLI-managed Muse source allowance, per-role and judgment selection, CAS/readback and withdrawal without a Muse credential or billing identity; judgment execution remains unavailable");
+        println!("PASS: explicit CLI-managed Muse source allowance, per-role selection, CAS/readback and withdrawal without a Muse credential or billing identity");
         // Exercise the ordinary shared policy API, keeping native identity
         // references explicit rather than carrying a boolean to a new account.
         let current_policy=call(&runtime,&store,&connection,"GET",&settings_path,&[]).await?;
@@ -1026,16 +914,6 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         }
         if let Ok(helper) = std::env::var("SODA_NATIVE_CHECK_HELPER") {
             ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("check-review-policy").arg(&repository).status()?.success(),"native review policy check failed")?;
-            ensure(
-                std::process::Command::new(helper)
-                    .arg(profile)
-                    .arg(runtime.health()?.instance)
-                    .arg("check-judgment-journal")
-                    .arg(&repository)
-                    .status()?
-                    .success(),
-                "native judgment journal check failed",
-            )?;
         }
         let access = call(
             &runtime,

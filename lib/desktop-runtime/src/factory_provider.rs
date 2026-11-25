@@ -9,7 +9,6 @@ mod controller;
 pub use controller::{GrantWatches, GrantWatchLease};
 mod executions;
 mod intent;
-pub(crate) mod judgment;
 pub(crate) mod launch;
 mod mcp;
 mod muse;
@@ -38,7 +37,6 @@ pub use executions::{
     ExecutionBinding, ExecutionOutcome, ExecutionTicket, Executions, RetirementReport,
 };
 pub use intent::{read_intent, LaunchIntent};
-pub use judgment::{Judgments as JudgmentCalls, Request as JudgmentRequest};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub(crate) use muse::connection as muse_connection;
 pub(crate) use muse::helper as muse_helper;

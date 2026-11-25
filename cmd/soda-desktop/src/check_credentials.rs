@@ -2601,7 +2601,7 @@ pub fn finish_owner_policy(app: tauri::AppHandle) {
             ensure(store.status().await.map_err(|e| e.to_string())?.is_empty(), "owned policy account retained")?;
             write_consent_evidence(&app, "owner-policy-result.json", &serde_json::json!({
                 "native_webkit_go_pg":true,"declared_read_only_github":true,
-                "disabled_policy_bootstrap":true,"explicit_coder_reviewer_and_judgment_choices":true,
+                "disabled_policy_bootstrap":true,"explicit_coder_and_reviewer_choices":true,
                 "current_ownership_grants_and_cas":true,"withdrawal_without_fallback":true,
                 "selected_model_availability":true,"owned_factory_account_removed":true,
                 "explicit_policy_enrollment_and_disable":true,"canonical_placement_generation":true,

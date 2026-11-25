@@ -20,14 +20,6 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
-    BeginJudgment {
-        request: super::judgment::Request,
-    },
-    InspectJudgment {
-        id: String,
-        digest: String,
-        cancel: bool,
-    },
     Task {
         intent: String,
         parent: Parent,
@@ -207,9 +199,6 @@ pub(crate) async fn call(
                 Err(error) => return Err(error),
             }
             return Ok(json!({"intent_digest":intent.digest(),"retained":false}));
-        }
-        Call::BeginJudgment { .. } | Call::InspectJudgment { .. } => {
-            return Err(io::Error::other("native judgment owner required"))
         }
         Call::InspectMuseLogin => return Err(io::Error::other("native source owner required")),
         Call::InspectAccount { .. } => {
@@ -523,7 +512,6 @@ pub(crate) struct Callbacks<'a> {
     pub alive: &'a Arc<AtomicBool>,
     pub execution_error: &'a Mutex<crate::supervisor::ExecutionReadiness>,
     pub executions: &'a Arc<Mutex<Executions>>,
-    pub judgments: &'a Mutex<super::judgment::Judgments>,
     pub tools: &'a std::sync::RwLock<Option<Arc<super::Tools>>>,
     pub preparations: &'a Arc<super::preparations::Preparations>,
     pub execution_accounts:
@@ -538,46 +526,6 @@ impl Callbacks<'_> {
     ) -> std::result::Result<Value, crate::github_provider::Failure> {
         use crate::github_provider::Failure;
         match call {
-            Call::BeginJudgment { request } => {
-                let tools = self
-                    .tools
-                    .read()
-                    .map_err(|_| Failure::unavailable())?
-                    .clone()
-                    .ok_or_else(Failure::unavailable)?;
-                let tool = tools.inspect().await.map_err(|_| Failure::unavailable())?;
-                return self
-                    .judgments
-                    .lock()
-                    .map_err(|_| Failure::unavailable())?
-                    .begin(
-                        self.channel
-                            .socket
-                            .parent()
-                            .ok_or_else(Failure::unavailable)?,
-                        &self.channel.profile,
-                        request,
-                        tool,
-                        self.alive.clone(),
-                    )
-                    .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
-            }
-            Call::InspectJudgment { id, digest, cancel } => {
-                return self
-                    .judgments
-                    .lock()
-                    .map_err(|_| Failure::unavailable())?
-                    .inspect(
-                        self.channel
-                            .socket
-                            .parent()
-                            .ok_or_else(Failure::unavailable)?,
-                        &id,
-                        &digest,
-                        cancel,
-                    )
-                    .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
-            }
             Call::InspectMuseLogin => {
                 let connection = crate::factory_provider::muse_connection(&self.channel.profile);
                 let tools = self
@@ -590,7 +538,7 @@ impl Callbacks<'_> {
                     .map(|tools| tools.status())
                     .transpose()
                     .map_err(|_| Failure::unavailable())?;
-                let judgment_available = crate::factory_provider::muse_helper().is_ok()
+                let helper_ready = crate::factory_provider::muse_helper().is_ok()
                     && tool_status.as_ref().is_some_and(|status| {
                         status.state == "ready"
                             && status.checked_at_unix.is_some_and(|checked| {
@@ -602,14 +550,14 @@ impl Callbacks<'_> {
                                     })
                             })
                     });
-                let available = judgment_available
+                let available = helper_ready
                     && self
                         .execution_error
                         .lock()
                         .is_ok_and(|readiness| readiness.is_ready());
                 return Ok(json!({"connection":connection,"label":"This Muse login",
                 "native":{"profile":self.channel.profile,"authentication":"muse_login"},
-                "execution_available":available,"judgment_available":judgment_available,"judgment_models":[crate::factory_provider::MODEL],"tool_status":tool_status}));
+                "execution_available":available,"tool_status":tool_status}));
             }
             Call::InspectAccount { connection } => {
                 let account = self

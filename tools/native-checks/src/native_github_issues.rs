@@ -1018,12 +1018,6 @@ async fn callback_refusals(runtime: &NativeSupervisor, profile: &Path) -> Result
         ),
         (
             execution,
-            json!({"operation":"inspect_judgment","id":"invalid","digest":"invalid","cancel":false}),
-            503,
-            "native_judgment_unavailable",
-        ),
-        (
-            execution,
             json!({"operation":"cancel","intent":"invalid","extra":true}),
             400,
             "invalid_native_read",
@@ -1058,11 +1052,6 @@ async fn callback_refusals(runtime: &NativeSupervisor, profile: &Path) -> Result
         completed.0 == 200 && completed.1 == json!({"items":[]}),
         "execution completion wire changed",
     )?;
-    let unknown = callback(runtime, profile, execution, json!({"operation":"inspect_judgment","id":"1".repeat(32),"digest":"a".repeat(64),"cancel":true})).await?;
-    ensure(
-        unknown.0 == 200 && unknown.1 == json!({"state":"unknown"}),
-        "unknown judgment invented a result",
-    )?;
     let login = callback(
         runtime,
         profile,
@@ -1074,7 +1063,7 @@ async fn callback_refusals(runtime: &NativeSupervisor, profile: &Path) -> Result
         login.0 == 200 && login.1["native"]["authentication"] == "muse_login",
         "native login inspection wire changed",
     )?;
-    println!("PASS: strict callback DTOs, explicit background refusals before custody, retired foreground scopes and execution/preparation/judgment owner responses");
+    println!("PASS: strict callback DTOs, explicit background refusals before custody, retired foreground scopes and execution/preparation owner responses");
     Ok(())
 }
 

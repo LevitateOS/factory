@@ -50,13 +50,12 @@ type PriorityRequest struct {
 }
 
 type PriorityAnswer struct {
-	NativeJudgment string             `json:"native_judgment,omitempty"`
-	Selected       string             `json:"selected"`
-	Confidence     float64            `json:"confidence"`
-	Probabilities  map[string]float64 `json:"probabilities"`
-	Model          string             `json:"model"`
-	InputTokens    int64              `json:"input_tokens"`
-	OutputTokens   int64              `json:"output_tokens"`
+	Selected      string             `json:"selected"`
+	Confidence    float64            `json:"confidence"`
+	Probabilities map[string]float64 `json:"probabilities"`
+	Model         string             `json:"model"`
+	InputTokens   int64              `json:"input_tokens"`
+	OutputTokens  int64              `json:"output_tokens"`
 }
 
 type PriorityCall struct {
@@ -154,7 +153,7 @@ func PriorityJudgmentCandidates(candidates []PriorityCandidate) []PriorityCandid
 
 // Validate checks coverage and normalization, not the model's factual accuracy.
 func (a PriorityAnswer) Validate(request PriorityRequest) error {
-	if a.NativeJudgment != "" && !ValidID(a.NativeJudgment) || len(request.Candidates) < 2 || len(request.Candidates) > 255 || a.Model == "" ||
+	if len(request.Candidates) < 2 || len(request.Candidates) > 255 || a.Model == "" ||
 		math.IsNaN(a.Confidence) || a.Confidence < 0 || a.Confidence > 1 ||
 		a.InputTokens < 0 || a.OutputTokens < 0 || len(a.Probabilities) != len(request.Candidates) {
 		return errors.New("invalid priority answer")

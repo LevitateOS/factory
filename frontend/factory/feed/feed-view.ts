@@ -164,7 +164,7 @@ const postPhases: Readonly<
     working: false,
   },
   stalled_jev: {
-    text: () => 'I’m not connected on this server yet, so I can’t read this. An administrator needs to connect JEV.',
+    text: () => 'I’m not connected yet, so I can’t read this. Factory needs a JEV connection first.',
     tone: 'blocked',
     working: false,
   },

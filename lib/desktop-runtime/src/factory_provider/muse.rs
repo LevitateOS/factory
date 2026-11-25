@@ -2,7 +2,7 @@
 //! command/argv operation and never opens Muse's authentication store.
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{
-    MuseInvocation, MuseObservation, StopReason, MAX_MUSE_INPUT, MAX_OUTPUT,
+    MuseInvocation, MuseObservation, MAX_MUSE_INPUT, MAX_OUTPUT,
 };
 use std::fs::{DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -540,13 +540,7 @@ impl MuseConnector {
 
     /// Consume a complete result only after helper exit and confirmed child
     /// retirement. These facts do not assert a model or product success.
-    pub fn finish(self) -> io::Result<(MuseObservation, Vec<u8>)> {
-        self.finish_output(false)
-    }
-    pub(super) fn finish_judgment(self) -> io::Result<(MuseObservation, Vec<u8>)> {
-        self.finish_output(true)
-    }
-    fn finish_output(mut self, account_truncated: bool) -> io::Result<(MuseObservation, Vec<u8>)> {
+    pub fn finish(mut self) -> io::Result<(MuseObservation, Vec<u8>)> {
         let deadline = Instant::now() + Duration::from_secs(12);
         while self.terminal.is_none() && Instant::now() < deadline {
             self.observe(deadline.saturating_duration_since(Instant::now()))?;
@@ -555,10 +549,7 @@ impl MuseConnector {
             .terminal
             .as_ref()
             .ok_or_else(|| refused("Muse native result unavailable"))?;
-        if !terminal.0.tree_retired
-            || !terminal.0.output_complete
-                && !(account_truncated && terminal.0.reason == Some(StopReason::OutputLimit))
-        {
+        if !terminal.0.tree_retired || !terminal.0.output_complete {
             return Err(refused("Muse native process retirement unconfirmed"));
         }
         self.input.take();
