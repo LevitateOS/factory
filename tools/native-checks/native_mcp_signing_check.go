@@ -14327,6 +14327,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	var materialReads atomic.Int64
 	var closingReadiness atomic.Int64
 	var nonAdmin atomic.Bool
+	var feedback progressFeedbackProvider
 	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var command struct {
 			Operation                       string
@@ -14338,6 +14339,13 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 					Kind, Repository    string
 					Page, Limit, Number uint32
 					Cursor              string
+				}
+				CommandID string `json:"command_id"`
+				Digest    string
+				Comment   struct {
+					SubjectID string `json:"subject_id"`
+					Number    uint32
+					Body      string
 				}
 			}
 		}
@@ -14355,6 +14363,9 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		account := collaboration.ObservedActor{ExternalID: "321", Login: "declared"}
 		switch {
 		case command.Call.Kind == "current":
+			if feedback.on.Load() {
+				feedback.currents.Add(1)
+			}
 		case command.Call.Kind == "read" && command.Call.Query.Kind == "identity":
 			identities.Add(1)
 			observation = map[string]any{"kind": "identity", "account": account}
@@ -14366,6 +14377,21 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 				return
 			}
 			observation = map[string]any{"kind": "repository", "account": account, "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture", "private": true, "default_branch": "main", "push": true, "admin": !nonAdmin.Load(), "merge_methods": map[string]bool{"merge": true, "squash": true, "rebase": true}}}
+		case background && feedback.on.Load() && command.Call.Kind == "read" && command.Call.Query.Kind == "issue" && command.Call.Query.Repository == "123" && command.Call.Query.Number == 12:
+			feedback.reads.Add(1)
+			issue := map[string]any{"external_id": "1312", "number": 12, "title": "Declared objective 12", "body": "Declared body", "state": "open", "locked": false, "author": account, "assignees": []any{}, "labels": []any{}, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}
+			observation = map[string]any{"version": 1, "kind": "issue", "account": account, "payload": map[string]any{"repository": "123", "name": "fixture/read-capture", "items": []any{issue}, "next_page": 0}}
+		case background && feedback.on.Load() && command.Call.Kind == "create_comment" && command.Call.Comment.SubjectID == "1312" && command.Call.Comment.Number == 12:
+			feedback.writes.Add(1)
+			reply := map[string]any{"command_id": command.Call.CommandID, "digest": command.Call.Digest, "state": "not_sent", "receipt": nil, "failure": map[string]any{"status": 403, "code": "github_forbidden", "retry_after": nil, "reset": nil}}
+			if !feedback.refuse.Load() {
+				sum := sha256.Sum256([]byte(command.Call.Comment.Body))
+				reply["state"], reply["failure"] = "created", nil
+				reply["receipt"] = map[string]any{"account": account, "repository": "123", "subject": "issue", "subject_id": "1312", "subject_node_id": "I_declared12", "number": 12,
+					"comment":           map[string]any{"external_id": strconv.FormatInt(9000+feedback.writes.Load(), 10), "node_id": "IC_declared", "author_node_id": "U_declared", "author": account, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z", "minimized_reason": nil, "body_sha256": hex.EncodeToString(sum[:]), "url": "https://github.com/fixture/read-capture/issues/12#issuecomment-9001", "issue_url": "https://github.com/fixture/read-capture/issues/12"},
+					"provider_response": map[string]any{"protocol": "github_graphql_add_comment", "status": 200, "request_id": nil, "response_sha256": strings.Repeat("e", 64)}}
+			}
+			observation = reply
 		case background && command.Call.Kind == "read" && command.Call.Query.Repository == "123":
 			kind := command.Call.Query.Kind
 			if kind == "merge_readiness" {
@@ -14744,11 +14770,123 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	if err = progressActivityRepairCapture(ctx, db, raw, request, repository, mapping.Binding.Actor.ID, &calls, &denyAt, &nonAdmin); err != nil {
 		return err
 	}
+	feedback.on.Store(true)
+	err = progressPostFeedbackCapture(ctx, db, factoryruntime.NewNativeIssueEffects(native.NativeInputSource), config.Profile, connection.Connection, repository, mapping.Binding.Actor.ID, &feedback)
+	feedback.on.Store(false)
+	if err != nil {
+		return err
+	}
 	fmt.Println("PASS: actual Go native HTTP/PG activity and repair-funding reads each use two repository reads (selection and closing) and final withdrawal refuses; activity links follow the provider path shape. An administrator's activity save uses three (selection, fresh administration, closing) and a repair save two (selection, fresh pre-write administration); a non-administrator is refused 403 after two and one reads with nothing recorded. Provider replies declared.")
 	fmt.Println("PASS: real Go material reader accepts version1 compound pages, refuses a compound kind absent from the frozen prior contract, rejects unknown versions/mixed payloads at the first input read, and preserves closing withdrawal refusal with no provider/model/write.")
 	fmt.Println("PASS: production material reader projects complete native-paired discussion pages through existing decoders, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Three declared native reads, no provider/model/write.")
 	fmt.Println("PASS: actual Go native HTTP/PG project list for one and three opened repositories uses exactly one repository read (the binding's selection) and no identity read, and each row carries its provider repository id; an open ask counts as needs-you until a reply arrives; a failed selection read refuses the whole list. Provider replies declared.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access, Work and retired run status each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
+	return nil
+}
+
+type progressFeedbackProvider struct {
+	on, refuse              atomic.Bool
+	reads, writes, currents atomic.Int64
+}
+
+type declaredExistingWork struct{}
+
+func (declaredExistingWork) JudgePost(context.Context, factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {
+	return factoryservice.PostJudgment{Route: factory.PostRouteExistingWork, Issue: 12}, nil
+}
+
+// progressPostFeedbackCapture drives existing-work posts from a declared JEV
+// judgment through the composed post pipeline and the native captured-author
+// comment writer, counting declared provider issue reads and comment writes.
+func progressPostFeedbackCapture(ctx context.Context, db *store.Store, effects factoryservice.IssueMakerEffects, profile collaboration.ProfileID, connection string, repository collaboration.RepositoryID, actor collaboration.ActorID, provider *progressFeedbackProvider) error {
+	wired := factoryservice.Application{Store: db, IssueEffects: effects}.Background().Collaborators()
+	if wired.Feedback == nil {
+		return errors.New("native application did not bind existing-work feedback")
+	}
+	wired.Judge = declaredExistingWork{}
+	submit := func(key string) (string, error) {
+		id, revision, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: int64(repository), Issue: 12, Body: "The login redirect still drops the return path (" + key + ").", IdempotencyKey: key}, strconv.FormatInt(int64(actor), 10), "declared", time.Now().Unix())
+		if err == nil {
+			err = db.RecordIssueMakerIntake(ctx, id, revision)
+		}
+		if err != nil {
+			return "", err
+		}
+		detail, err := db.FeedPost(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		// Declared in place of native HTTP capture: the same proof shape the
+		// host issues when the author saves the post.
+		scope := factory.IssueIntakeScope{Source: id, Revision: revision, Actor: actor, Repository: repository, Digest: factory.MCPInputDigest([]byte(detail.Body)), Expires: time.Now().Add(5 * time.Minute).Unix()}
+		proof, err := json.Marshal(map[string]any{"version": 1, "profile": profile, "connection": connection, "account": "321", "repository": "123", "scope": scope})
+		if err != nil {
+			return "", err
+		}
+		return id, db.SaveIssueIntakeGrant(ctx, id, revision, scope, proof)
+	}
+	drive := func(name, id string, reads, writes int64, effect string, attempts int) error {
+		provider.reads.Store(0)
+		provider.writes.Store(0)
+		response, err := factoryservice.DrivePostIntake(ctx, db, wired, id)
+		if err != nil || provider.reads.Load() != reads || provider.writes.Load() != writes || response.Route != factory.PostRouteExistingWork || response.ExistingIssue != 12 || response.Effect != effect || response.Attempts != attempts {
+			return fmt.Errorf("%s: reads=%d writes=%d want %d/%d response=%+v: %v", name, provider.reads.Load(), provider.writes.Load(), reads, writes, response, err)
+		}
+		return nil
+	}
+	delivered, err := submit("feedback-delivered")
+	if err != nil {
+		return err
+	}
+	provider.currents.Store(0)
+	if err = drive("existing-work delivery", delivered, 1, 1, factory.PostEffectApplied, 0); err != nil {
+		return err
+	}
+	currents := provider.currents.Load()
+	if err = drive("settled replay", delivered, 0, 0, factory.PostEffectApplied, 0); err != nil {
+		return err
+	}
+	// A pipeline advance lost after the send repeats delivery: it reconciles
+	// the original command and neither prepares nor sends again.
+	detail, err := db.FeedPost(ctx, delivered)
+	if err != nil {
+		return err
+	}
+	if err = wired.Feedback.DeliverPostFeedback(ctx, detail, 12); err != nil || provider.reads.Load() != 0 || provider.writes.Load() != 0 {
+		return fmt.Errorf("repeated delivery reads=%d writes=%d: %v", provider.reads.Load(), provider.writes.Load(), err)
+	}
+	provider.refuse.Store(true)
+	defer provider.refuse.Store(false)
+	refused, err := submit("feedback-refused")
+	if err != nil {
+		return err
+	}
+	if err = drive("refused delivery", refused, 1, 1, factory.PostEffectPending, factory.PostAttemptLimit); err != nil {
+		return err
+	}
+	if err = drive("refused replay", refused, 0, 0, factory.PostEffectPending, factory.PostAttemptLimit); err != nil {
+		return err
+	}
+	if detail, err = db.FeedPost(ctx, refused); err != nil {
+		return err
+	}
+	if err = wired.Feedback.DeliverPostFeedback(ctx, detail, 12); !errors.Is(err, factoryservice.ErrPostFeedbackRefused) || provider.reads.Load() != 0 || provider.writes.Load() != 0 {
+		return fmt.Errorf("repeated refused delivery reads=%d writes=%d: %v", provider.reads.Load(), provider.writes.Load(), err)
+	}
+	pipe, err := db.PostIntake(ctx, refused)
+	if err != nil || !pipe.RetryAllowed() {
+		return fmt.Errorf("refused feedback is not author-retryable: %+v: %v", pipe, err)
+	}
+	queued, err := db.PendingPostIntakes(ctx, 64)
+	if err != nil {
+		return err
+	}
+	for _, pending := range queued {
+		if pending.SourcePost == refused {
+			return errors.New("exhausted feedback stayed in the service queue")
+		}
+	}
+	fmt.Printf("PASS: existing-work post goes from a declared JEV judgment to the author's own issue comment through the composed native post pipeline with one issue read and one comment write (plus %d native current-connection checks); settled and lost-advance replays make no provider call; a refused write is sent once, settles the request author-retryable (attempts %d/%d) at once, and its replays make no provider call. Provider replies declared.\n", currents, factory.PostAttemptLimit, factory.PostAttemptLimit)
 	return nil
 }
 

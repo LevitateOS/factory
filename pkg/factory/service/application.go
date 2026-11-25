@@ -152,10 +152,16 @@ func (a Application) Background() Background {
 		runner.Stages.Prepare = (PostContext{Posts: Posts{Store: a.Store}}).Prepare
 	}
 	runner.Stages.IssueMaker = a.IssueMaker().Drive
+	// Existing-work feedback uses the same captured author authority as Issue
+	// Maker; a configured graph actor keeps its own journaled writer.
+	if feedback, ok := a.IssueEffects.(PostFeedbackWriter); ok {
+		runner.Stages.Feedback = feedback
+	}
 	if a.Coordinator != nil && a.Store != nil {
 		runner.Stages.Drafter = &IntentPostDrafter{Store: a.Store, Transport: a.Coordinator}
 		if a.Coordinator.Graph != nil && a.Coordinator.GraphActorID > 0 {
-			runner.Stages.Creator = &PostIssueEffects{Store: a.Store, Graph: a.Coordinator.Graph, Actor: a.Coordinator.GraphActorID}
+			effects := &PostIssueEffects{Store: a.Store, Graph: a.Coordinator.Graph, Actor: a.Coordinator.GraphActorID}
+			runner.Stages.Creator, runner.Stages.Feedback = effects, effects
 		}
 	}
 	return runner

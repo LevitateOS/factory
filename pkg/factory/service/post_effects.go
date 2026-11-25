@@ -36,7 +36,10 @@ type PostIssueEffects struct {
 	Actor int64
 }
 
-var _ PostIssueCreator = (*PostIssueEffects)(nil)
+var (
+	_ PostIssueCreator   = (*PostIssueEffects)(nil)
+	_ PostFeedbackWriter = (*PostIssueEffects)(nil)
+)
 
 var (
 	ErrPostEffectUnavailable = errors.New("post issue delivery is unavailable")
@@ -233,7 +236,12 @@ type postFeedbackWriter interface {
 	DeliverIssueFeedback(context.Context, factory.PostFeedbackDelivery, bool, func(context.Context) error) (factory.PostFeedbackDelivery, error)
 }
 
-var ErrPostFeedbackPending = errors.New("feedback receipt lookup remains pending")
+var (
+	ErrPostFeedbackPending = errors.New("feedback receipt lookup remains pending")
+	// ErrPostFeedbackRefused reports a settled provider refusal: the original
+	// delivery can never send, so only a revised request may try again.
+	ErrPostFeedbackRefused = errors.New("issue discussion refused the feedback")
+)
 
 func (s *PostIssueEffects) DeliverPostFeedback(ctx context.Context, comment store.FeedPostDetail, issue int64) error {
 	post, _, err := s.source(ctx, comment.Record.Repository, comment.Record.ID)

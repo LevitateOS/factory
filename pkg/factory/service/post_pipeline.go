@@ -108,7 +108,7 @@ func DrivePostIntake(ctx context.Context, st *store.Store, wired *PostCollaborat
 		case pipe.AdmitPostEffect() && wired != nil && wired.Creator != nil:
 			advanced, err = DrivePostEffect(ctx, st, wired.Creator, pipe, detail)
 		case pipe.Route == factory.PostRouteExistingWork && pipe.Judgment == factory.PostJudgmentApplied && pipe.Effect == factory.PostEffectPending && pipe.Attempts < factory.PostAttemptLimit && wired != nil:
-			advanced, err = drivePostFeedback(ctx, st, wired.Creator, pipe, detail)
+			advanced, err = drivePostFeedback(ctx, st, wired.Feedback, pipe, detail)
 		default:
 			return PostResponse(pipe), nil
 		}
@@ -217,18 +217,15 @@ func CollectPostJudgeInput(ctx context.Context, st *store.Store, detail store.Fe
 	return input, nil
 }
 
-// applyPostJudgment advances one pipeline with a settled routing
-// outcome. An existing_work judgment persists which work it selected
-// in the pipeline's issue link; every other route clears it.
-func drivePostFeedback(ctx context.Context, st *store.Store, creator PostIssueCreator, pipe factory.PostIntake, detail store.FeedPostDetail) (bool, error) {
+// drivePostFeedback delivers one existing_work post to the issue its judgment
+// linked. A refused or unconfirmed delivery spends one bounded attempt; the
+// writer's journal keeps every retry on the original delivery.
+func drivePostFeedback(ctx context.Context, st *store.Store, writer PostFeedbackWriter, pipe factory.PostIntake, detail store.FeedPostDetail) (bool, error) {
 	requested, err := st.PostFeedbackRequested(ctx, pipe.SourcePost, pipe.Revision)
 	if err != nil || !requested {
 		return false, err
 	}
-	writer, ok := creator.(interface {
-		DeliverPostFeedback(context.Context, store.FeedPostDetail, int64) error
-	})
-	if !ok {
+	if writer == nil {
 		_ = st.NotePostProgress(ctx, pipe.SourcePost, "Feedback delivery is unavailable. Restore Factory’s connection before retrying.")
 		return false, nil
 	}
@@ -236,6 +233,14 @@ func drivePostFeedback(ctx context.Context, st *store.Store, creator PostIssueCr
 		if errors.Is(err, ErrPostFeedbackPending) {
 			_ = st.NotePostProgress(ctx, pipe.SourcePost, "Feedback is awaiting confirmation from the issue discussion. Its original delivery is preserved.")
 			return false, nil
+		}
+		if errors.Is(err, ErrPostFeedbackRefused) {
+			// Later passes would only reconcile the same refusal; settle the
+			// request as retryable by its author now.
+			_ = st.NotePostProgress(ctx, pipe.SourcePost, "The repository refused this feedback comment. Check repository access, then retry the request.")
+			next := pipe
+			next.Attempts = factory.PostAttemptLimit
+			return false, st.AdvancePostIntake(ctx, pipe, next)
 		}
 		if errors.Is(err, ErrPostEffectReceipt) {
 			_ = st.NotePostProgress(ctx, pipe.SourcePost, "The issue comment changed. Its current text and original delivery have been preserved.")
@@ -253,6 +258,9 @@ func drivePostFeedback(ctx context.Context, st *store.Store, creator PostIssueCr
 	return true, nil
 }
 
+// applyPostJudgment advances one pipeline with a settled routing
+// outcome. An existing_work judgment persists which work it selected
+// in the pipeline's issue link; every other route clears it.
 func applyPostJudgment(ctx context.Context, st *store.Store, pipe factory.PostIntake, judgment PostJudgment) error {
 	next := pipe
 	next.Judgment = factory.PostJudgmentApplied

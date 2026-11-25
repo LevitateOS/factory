@@ -112,15 +112,23 @@ type PostIssueCreator interface {
 	LookupPostIssue(ctx context.Context, repository int64, postID string) (int64, error)
 }
 
+// PostFeedbackWriter adds an existing-work post to the issue its judgment
+// selected through the host's existing comment write path. A repeat reconciles
+// the original delivery and never sends another comment.
+type PostFeedbackWriter interface {
+	DeliverPostFeedback(ctx context.Context, comment store.FeedPostDetail, issue int64) error
+}
+
 // PostCollaborators carries the wired Lane B stages. Nil stages wait
 // in pending; the driver never spends or dispatches through a nil.
 type PostCollaborators struct {
 	IssueMaker func(context.Context, factory.PostIntake, store.FeedPostDetail) (factory.PostResponse, error)
 	Judge      PostJudge
 	// Prepare adds the native issue context the judge weighs.
-	Prepare func(context.Context, PostJudgeInput) (PostJudgeInput, error)
-	Drafter PostDrafter
-	Creator PostIssueCreator
+	Prepare  func(context.Context, PostJudgeInput) (PostJudgeInput, error)
+	Drafter  PostDrafter
+	Creator  PostIssueCreator
+	Feedback PostFeedbackWriter
 }
 
 // postRouteRubric is the single JEV Choice rubric behind comment
