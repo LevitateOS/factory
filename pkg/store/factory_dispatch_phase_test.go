@@ -212,7 +212,7 @@ func TestPhasedInvestigateRootAdvancesImplementChild(t *testing.T) {
 	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 		t.Fatal(err)
 	}
-	if err = db.SaveSponsorship(ctx, factory.Sponsorship{Repository: root.Repository, GrantedBy: 7, ActorID: 7, ProjectID: root.ProjectID, Connection: selection.Account, Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 10, Active: true, Native: &factory.NativeSponsorship{Profile: "cccccccccccccccccccccccccccccccc", Authentication: factory.NativeMuseLogin}}); err != nil {
+	if err = db.SaveSponsorship(ctx, factory.Sponsorship{Repository: root.Repository, GrantedBy: 7, ActorID: 7, ProjectID: root.ProjectID, Connection: selection.Account, Roles: []string{factory.RoleJudgment}, Active: true, Native: &factory.NativeSponsorship{Profile: "cccccccccccccccccccccccccccccccc", Authentication: factory.NativeMuseLogin}}); err != nil {
 		t.Fatal(err)
 	}
 	root.Authority = reviewCorrectAuthority(t, ctx, db, root.ProjectID, root.Repository, root.Connection)

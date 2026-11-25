@@ -138,7 +138,7 @@ func TestSponsorships(t *testing.T) {
 	ctx := context.Background()
 	sp := factory.Sponsorship{
 		Repository: 42, GrantedBy: 9, ActorID: 8, ProjectID: "p" + strings.Repeat("a", 24), Connection: "conn-1", GrantID: "grant-1",
-		Generation: 3, Roles: []string{project.RoleCoder}, AllowanceMinutes: 60, Active: true,
+		Generation: 3, Roles: []string{project.RoleCoder}, Active: true,
 	}
 	if err := db.SaveSponsorship(ctx, sp); err != nil {
 		t.Fatal(err)

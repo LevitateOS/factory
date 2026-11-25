@@ -140,7 +140,7 @@ impl Scenario {
 
 pub fn owner_policy_done(app: &tauri::AppHandle) {
     app.state::<Desktop>().check.stage.store(2, Ordering::SeqCst);
-    println!("PASS: native shared owner policy/bootstrap, explicit role/judgment choices, allowance/CAS/withdrawal and model availability; declared read-only collaboration, no model or installed qualification");
+    println!("PASS: native shared owner policy/bootstrap, explicit role/judgment choices, source permission/CAS/withdrawal and model availability; declared read-only collaboration, no model or installed qualification");
     quit(app.clone());
 }
 pub struct Check {

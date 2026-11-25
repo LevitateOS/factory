@@ -98,7 +98,7 @@ func (s RepositoryAccess) Read(ctx context.Context, actor collaboration.ActorID,
 			view.Usage = append(view.Usage, accessUsageView{Connection: sponsorship.Connection, Unit: "minutes", Status: accessUsageIdentityDown})
 			continue
 		}
-		in := accessUsageInput{Connection: sponsorship.Connection, Owned: editable.Owned[sponsorship.Connection], Budget: int64(sponsorship.AllowanceMinutes)}
+		in := accessUsageInput{Connection: sponsorship.Connection, Owned: editable.Owned[sponsorship.Connection]}
 		if in.Owned {
 			if total, err := s.Store.UsageTotal(ctx, int64(repository), sponsorship.Connection); err == nil {
 				in.Used, in.UsedOK = total, true

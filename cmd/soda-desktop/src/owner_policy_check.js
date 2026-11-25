@@ -74,8 +74,8 @@
     const permission = button(document, 'Allow this repository to use this computer');
     assert(permission && !permission.disabled, 'local repository consent'); permission.click();
     await until(async () => (await status()).operator_grant?.active === true, 'operator consent readback');
-    input(roles, 'Spending source', sourceID); input(roles, 'Source allowance in minutes', '30');
-    await until(() => button(roles, 'Save source allowance').disabled && roles.textContent.includes('workspace permission'), 'missing workspace grant unavailable');
+    input(roles, 'Spending source', sourceID);
+    await until(() => button(roles, 'Allow source').disabled && roles.textContent.includes('workspace permission'), 'missing workspace grant unavailable');
     await until(() => button(document, 'Allow isolated workspaces') && !button(document, 'Allow isolated workspaces').disabled, 'workspace permission control');
     button(document, 'Allow isolated workspaces').click();
     await until(async () => (await status()).environment_grant?.active === true, 'workspace permission readback');
@@ -98,13 +98,13 @@
     }, 'new placement generation');
     await until(() => button(document, 'Allow isolated workspaces') && !button(document, 'Allow isolated workspaces').disabled, 'stale workspace permission unavailable');
     await click('Refresh roles');
-    assert(button(roles, 'Save source allowance').disabled, 'stale workspace generation allowed funding');
+    assert(button(roles, 'Allow source').disabled, 'stale workspace generation allowed funding');
     button(document, 'Allow isolated workspaces').click();
     await until(async () => (await status()).environment_grant.native.generation !== firstPlacement.generation, 'explicit workspace reenrollment');
     await click('Refresh roles');
-    await click('Save source allowance');
+    await click('Allow source');
     const funded = await status();
-    assert(funded.sponsorships[0].active && funded.sponsorships[0].allowance_minutes === 30 && funded.policy.enabled === false, 'explicit allowance enabled automation');
+    assert(funded.sponsorships[0].active && funded.policy.enabled === false, 'allowing a source enabled automation');
     for (const role of ['Coding', 'Review', 'Judgments']) {
       assert(roles.querySelector(`[aria-label="${role} spending source"]`).value === '', 'funding automatically chose role source');
       input(roles, `${role} spending source`, sourceID); input(roles, `${role} model`, model);
@@ -125,30 +125,28 @@
     assert((await status()).policy.enabled === true, 'explicit policy enrollment failed');
     assert((await status()).spending_sources.find(source => source.connection === sourceID).execution_available === false && document.querySelector('#runtime-status').textContent.includes('execution is unavailable'), 'missing execution port became available');
     const saved = selected.sponsorships[0];
-    const competing = await api('PUT', `${path}/sponsorships/${sourceID}`, {expected_revision: saved.revision, roles: saved.roles, allowance_minutes: 20, active: true});
+    const competing = await api('PUT', `${path}/sponsorships/${sourceID}`, {expected_revision: saved.revision, roles: saved.roles, active: true});
     assert(competing.status === 200, 'competing source revision');
-    input(roles, 'Spending source', sourceID); input(roles, 'Source allowance in minutes', '15');
-    await click('Save source allowance');
-    assert(roles.textContent.includes('could not be confirmed'), 'stale allowance was not refused');
-    assert((await status()).sponsorships[0].allowance_minutes === 20, 'conflict overwrote current allowance');
+    input(roles, 'Spending source', sourceID);
+    await click('Allow source');
+    assert(roles.textContent.includes('could not be confirmed'), 'stale source change was not refused');
     await click('Refresh roles');
     input(roles, 'Spending source', sourceID);
     await roles.updateComplete;
-    assert(roles.querySelector('[aria-label="Source allowance in minutes"]').value === '20', 'editing a saved source reset its minute limit');
     const codingAllowance = roles.querySelector('input[name="allowed_roles"][value="soda-coder"]');
     assert(codingAllowance?.checked, 'saved Coding permission missing');
     codingAllowance.click();
-    await click('Save source allowance');
+    await click('Allow source');
     const limited = await status();
-    assert(limited.sponsorships[0].active && limited.sponsorships[0].allowance_minutes === 20 &&
+    assert(limited.sponsorships[0].active &&
       !limited.sponsorships[0].roles.includes('soda-coder') && limited.sponsorships[0].roles.includes('soda-reviewer') &&
       limited.sponsorships[0].roles.includes('factory-judgment') && limited.policy.roles['soda-coder'].account === sourceID,
-      'role withdrawal changed the shared limit, other roles or selected source');
+      'role withdrawal changed other roles or the selected source');
     roles.querySelector('input[name="allowed_roles"][value="soda-coder"]').click();
-    await click('Save source allowance');
+    await click('Allow source');
     assert((await status()).sponsorships[0].roles.length === 3, 'explicit role permission restoration failed');
     for (const checkbox of roles.querySelectorAll('input[name="allowed_roles"]')) checkbox.click();
-    await until(() => button(roles, 'Save source allowance').disabled && !button(roles, 'Withdraw source allowance').disabled, 'empty active role grant refused');
+    await until(() => button(roles, 'Allow source').disabled && !button(roles, 'Withdraw source').disabled, 'empty active role grant refused');
     input(roles, 'Spending source', sourceID);
     const current = await status(), p = current.policy;
     const actor = value => { const {kind, ...ref} = value; return ref; };
@@ -164,7 +162,7 @@
     roles.context = {...context, actor: undefined};
     await until(() => idle() && roles.querySelector('[aria-label="Spending source"]'), 'unknown actor observation');
     input(roles, 'Spending source', sourceID);
-    await until(() => button(roles, 'Withdraw source allowance').disabled, 'unknown actor withdrawal unavailable');
+    await until(() => button(roles, 'Withdraw source').disabled, 'unknown actor withdrawal unavailable');
     roles.context = context;
     await until(() => idle() && roles.querySelector('[aria-label="Spending source"]'), 'current actor restored');
     await until(() => button(document, 'Withdraw workspace permission') && !button(document, 'Withdraw workspace permission').disabled, 'workspace withdrawal control');
@@ -172,11 +170,11 @@
     await until(async () => (await status()).environment_grant?.active === false, 'workspace withdrawal readback');
     await click('Refresh roles');
     input(roles, 'Spending source', sourceID);
-    await until(() => button(roles, 'Save source allowance').disabled && !button(roles, 'Withdraw source allowance').disabled, 'withdrawal independent of workspace grant');
-    await click('Withdraw source allowance');
+    await until(() => button(roles, 'Allow source').disabled && !button(roles, 'Withdraw source').disabled, 'withdrawal independent of workspace grant');
+    await click('Withdraw source');
     const withdrawn = await status();
     assert(withdrawn.sponsorships[0].active === false && withdrawn.policy.enabled === true && withdrawn.policy.judgments.account === sourceID && ['soda-coder', 'soda-reviewer'].every(role => withdrawn.policy.roles[role].account === sourceID), 'withdrawal selected a fallback or rewrote enrollment');
-    assert(roles.textContent.includes('Judgment execution through this source is currently unavailable.'), 'withdrawn allowance still labeled available');
+    assert(roles.textContent.includes('Judgment execution through this source is currently unavailable.'), 'withdrawn source still labeled available');
     await click('Disable automation policy');
     const disabled = await status();
     assert(disabled.policy.enabled === false && disabled.policy.judgments.account === sourceID, 'disable after funding withdrawal lost policy choices');

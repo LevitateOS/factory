@@ -102,7 +102,6 @@ func TestRecordDispatchPacketRejectsStaleAuthorityMembers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			grant.AllowanceMinutes--
 			if err := db.SaveSponsorship(context.Background(), grant); err != nil {
 				t.Fatal(err)
 			}
@@ -111,7 +110,6 @@ func TestRecordDispatchPacketRejectsStaleAuthorityMembers(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				grant.AllowanceMinutes = 120
 				if err := db.SaveSponsorship(context.Background(), grant); err != nil {
 					t.Fatal(err)
 				}

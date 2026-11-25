@@ -10,7 +10,7 @@ import (
 // feedRequestMetSQL is the one definition of an agent request the recorded
 // settings now satisfy, for the post alias p, from the repository's current
 // setting rows only (no provider read): capacity reaching the amount, an
-// active sponsorship (with at least the amount of minutes for an allowance),
+// active sponsorship (its use is not capped),
 // an active operator or environment grant, or an enabled, unpaused policy.
 // An ask without a request is never met.
 func feedRequestMetSQL(p string) string {
@@ -18,8 +18,7 @@ func feedRequestMetSQL(p string) string {
 	active := func(alias string) string { return `COALESCE((` + alias + `.data->>'active')::boolean,false)` }
 	return `(CASE ` + r + `->>'setting'
  WHEN '` + factory.SettingCapacity + `' THEN EXISTS(SELECT 1 FROM factory_capacity rc WHERE (rc.data->>'max_concurrent_runs')::int >= (` + r + `->>'amount')::int)
- WHEN '` + factory.SettingSponsorships + `' THEN EXISTS(SELECT 1 FROM factory_sponsorships rs WHERE rs.repository=` + p + `.repository AND ` + active("rs") + `
-  AND (` + r + `->>'kind'='` + factory.RequestAccess + `' OR (rs.data->>'allowance_minutes')::int >= (` + r + `->>'amount')::int))
+ WHEN '` + factory.SettingSponsorships + `' THEN EXISTS(SELECT 1 FROM factory_sponsorships rs WHERE rs.repository=` + p + `.repository AND ` + active("rs") + `)
  WHEN '` + factory.SettingOperatorGrant + `' THEN EXISTS(SELECT 1 FROM factory_operator_grants ro WHERE ro.repository=` + p + `.repository AND ` + active("ro") + `)
  WHEN '` + factory.SettingEnvironmentGrant + `' THEN EXISTS(SELECT 1 FROM project_environment_grants re WHERE re.repository=` + p + `.repository AND ` + active("re") + `)
  WHEN '` + factory.SettingPolicy + `' THEN EXISTS(SELECT 1 FROM factory_policies rp WHERE rp.repository=` + p + `.repository

@@ -159,18 +159,16 @@ const (
 // connection owner; other viewers see the withholding status, never zeros
 // that could read as no spend.
 type accessUsageView struct {
-	UsedMinutes   *int   `json:"used_minutes,omitempty"`
-	Connection    string `json:"connection"`
-	Unit          string `json:"unit"`
-	Status        string `json:"status,omitempty"`
-	BudgetMinutes int64  `json:"budget_minutes,omitempty"`
+	UsedMinutes *int   `json:"used_minutes,omitempty"`
+	Connection  string `json:"connection"`
+	Unit        string `json:"unit"`
+	Status      string `json:"status,omitempty"`
 }
 
 type accessUsageInput struct {
 	Connection string
 	Owned      bool
 	UsedOK     bool
-	Budget     int64
 	Used       int
 }
 
@@ -188,7 +186,7 @@ func accessUsageDTO(in accessUsageInput) accessUsageView {
 		return view
 	}
 	used := in.Used
-	view.BudgetMinutes, view.UsedMinutes = in.Budget, &used
+	view.UsedMinutes = &used
 	return view
 }
 

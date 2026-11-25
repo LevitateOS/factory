@@ -229,8 +229,6 @@ func admissionWait(err error) *planWait {
 		return waitFor(WaitCapacity, "appliance runs at its limit")
 	case errors.Is(err, store.ErrRepositoryFull):
 		return waitFor(WaitRepository, "repository runs at its limit")
-	case errors.Is(err, store.ErrAllowanceExhausted):
-		return waitFor(WaitAllowance, "sponsorship allowance is exhausted")
 	case errors.Is(err, factory.ErrAttemptTimeExhausted):
 		return waitFor(WaitAllowance, "attempt active-time allowance is exhausted")
 	case errors.Is(err, factory.ErrAttemptClosed):

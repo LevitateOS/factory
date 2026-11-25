@@ -27,7 +27,6 @@ interface Account {
   active: boolean;
   roles: string[];
   revision: number;
-  minutes: number;
   owner: string | undefined;
   native: boolean;
 }
@@ -113,7 +112,6 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
       active: account.active,
       roles: account.roles as string[],
       revision: Number(account.revision),
-      minutes: Number(account.allowance_minutes),
       owner: typeof account.granted_by === 'string' && id(account.granted_by) ? account.granted_by : undefined,
       native: account.native != null,
     };
@@ -241,7 +239,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     automaticExternalPulls: {state: true},
     fundingSource: {state: true},
     fundingRoles: {state: true},
-    fundingMinutes: {state: true},
     workspaceOpened: {state: true},
     busy: {state: true},
     message: {state: true},
@@ -256,7 +253,6 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private automaticExternalPulls: boolean;
   declare private fundingSource: string;
   declare private fundingRoles: string[];
-  declare private fundingMinutes: string;
   declare private workspaceOpened: boolean;
   private current: RoleContext | undefined;
   private generation = '';
@@ -270,7 +266,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.automaticExternalPulls = false;
     this.fundingSource = '';
     this.fundingRoles = Object.keys(roleNames);
-    this.fundingMinutes = '30';
     this.workspaceOpened = false;
     this.message = '';
   }
@@ -295,7 +290,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.automaticExternalPulls = false;
     this.fundingSource = '';
     this.fundingRoles = Object.keys(roleNames);
-    this.fundingMinutes = '30';
     this.workspaceOpened = false;
     this.busy = false;
     this.message = '';
@@ -380,7 +374,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.fundingSource = connection;
     const stored = this.view?.accounts.find(account => account.connection === connection);
     this.fundingRoles = stored ? [...stored.roles] : Object.keys(roleNames);
-    this.fundingMinutes = stored ? String(stored.minutes) : '30';
   }
   private async saveFunding(event: SubmitEvent) {
     event.preventDefault();
@@ -392,10 +385,8 @@ export class SodaFactoryRoleSettings extends LitElement {
     if (!form.reportValidity()) return;
     const values = new FormData(form),
       connection = String(values.get('source') ?? ''),
-      minutes = Number(values.get('minutes')),
       active = event.submitter?.getAttribute('value') !== 'withdraw';
     const source = view.sources.find((source) => source.connection === connection);
-    if (!Number.isSafeInteger(minutes) || minutes < 1 || minutes > 10080) return;
     const stored = view.accounts.find((account) => account.connection === connection);
     const roles = active ? values.getAll('allowed_roles').map(String) : stored?.roles ?? Object.keys(roleNames);
     if (!roles.length || new Set(roles).size !== roles.length || roles.some(role => !Object.hasOwn(roleNames, role))) return;
@@ -412,14 +403,13 @@ export class SodaFactoryRoleSettings extends LitElement {
           body: JSON.stringify({
             expected_revision: stored?.revision ?? 0,
             roles,
-            allowance_minutes: minutes,
             active,
           }),
         }
       );
       if (!response.ok)
         throw new RoleSaveError(
-          'The source allowance could not be saved. Refresh before trying again.',
+          'The source could not be saved. Refresh before trying again.',
           response.status
         );
       const receipt = object(await readSodaJSON(response));
@@ -427,20 +417,20 @@ export class SodaFactoryRoleSettings extends LitElement {
       // The CAS receipt acknowledges this exact write. A later competing change
       // will refuse our next revision; saving need not reload provider settings.
       const account: Account = {
-        connection, active, roles, minutes, revision: Number(receipt.revision),
+        connection, active, roles, revision: Number(receipt.revision),
         owner: context.actor, native: true,
       };
       if (this.live(context, signal)) {
         this.view = {...view, accounts: [...view.accounts.filter(saved => saved.connection !== connection), account]};
         this.selectFundingSource(connection);
         this.message = active
-          ? 'Source allowance saved. Select it separately for each role.'
-          : 'Source allowance withdrawn. Existing work may still need retirement.';
+          ? 'Source allowed. Select it separately for each role.'
+          : 'Source withdrawn. Existing work may still need retirement.';
       }
     } catch {
       if (this.live(context, signal)) {
         this.view = undefined;
-        this.message = 'The source allowance could not be confirmed. Refresh before changing it again.';
+        this.message = 'The source could not be confirmed. Refresh before changing it again.';
       }
     } finally {
       if (this.live(context, signal)) this.busy = false;
@@ -658,26 +648,9 @@ export class SodaFactoryRoleSettings extends LitElement {
                       ? html`<option .value=${this.fundingSource} .selected=${true} disabled>Selected source unavailable</option>` : ''}
                     ${view.sources.map((source) => html`<option .value=${source.connection} .selected=${source.connection === this.fundingSource}>${source.label}</option>`)}
                     ${view.accounts.filter(account => this.canWithdraw(account) && !view.sources.some(source => source.connection === account.connection))
-                      .map(account => html`<option .value=${account.connection} .selected=${account.connection === this.fundingSource}>Saved allowance — source unavailable</option>`)}
+                      .map(account => html`<option .value=${account.connection} .selected=${account.connection === this.fundingSource}>Saved source — unavailable</option>`)}
                   </select></label
                 >
-                <label
-                  >Run allowance in minutes
-                  <input
-                    name="minutes"
-                    aria-label="Source allowance in minutes"
-                    type="number"
-                    min="1"
-                    max="10080"
-                    step="1"
-                    .value=${this.fundingMinutes}
-                    @input=${(event: Event) => { this.fundingMinutes = (event.target as HTMLInputElement).value; }}
-                    required
-                /></label>
-                <p>
-                  This repository shares the allowance across Coding, Review and Judgments. It is Factory's run-time allowance, not
-                  a provider invoice limit.
-                </p>
                 <fieldset>
                   <legend>Allow spending for</legend>
                   ${Object.entries(roleNames).map(([role, name]) => html`<label>
@@ -689,7 +662,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                           : this.fundingRoles.filter(selected => selected !== role);
                       }} />${name}
                   </label>`)}
-                  <p>Removing a role withdraws its spending permission. Withdraw the source allowance to stop all roles.</p>
+                  <p>Removing a role withdraws its spending permission. Withdraw the source to stop all roles.</p>
                 </fieldset>
                 ${view.sources.map((source) => source.tool
                   ? html`<div role="status">
@@ -700,11 +673,11 @@ export class SodaFactoryRoleSettings extends LitElement {
                       ${source.tool.error ? html`<p>${source.tool.error}</p>` : ''}
                     </div>`
                   : '')}
-                ${view.sources.some((source) => !source.available) ? html`<p>Execution through this source is currently unavailable. You can save its allowance and role choices.</p>` : ''}
+                ${view.sources.some((source) => !source.available) ? html`<p>Execution through this source is currently unavailable. You can still save its role choices.</p>` : ''}
                 ${this.fundingSource && !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)
-                  ? html`<p>Source allowance is unavailable. Check the selected controller and workspace permission, then refresh roles.</p>` : ''}
-                <button type="submit" value="save" ?disabled=${!this.fundingRoles.length || !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)}>Save source allowance</button>
-                <button type="submit" value="withdraw" ?disabled=${!view.accounts.some(account => account.connection === this.fundingSource && this.canWithdraw(account))}>Withdraw source allowance</button>
+                  ? html`<p>This source cannot be allowed yet. Check the selected controller and workspace permission, then refresh roles.</p>` : ''}
+                <button type="submit" value="save" ?disabled=${!this.fundingRoles.length || !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)}>Allow source</button>
+                <button type="submit" value="withdraw" ?disabled=${!view.accounts.some(account => account.connection === this.fundingSource && this.canWithdraw(account))}>Withdraw source</button>
               </fieldset>
             </form>`
           : ''
@@ -782,7 +755,7 @@ export class SodaFactoryRoleSettings extends LitElement {
               ` : ''}
               <fieldset ?disabled=${this.busy || !view.editable}>
                 <legend>Execution limits</legend>
-                <p>Each run gets its own time limit. Reviews and corrections share the captured attempt counts. Waiting does not replenish counts. Source allowance is checked before each run; an admitted run may finish its full time limit even if it exceeds the remaining allowance. Changes apply to new attempts.</p>
+                <p>Each run gets its own time limit. Reviews and corrections share the captured attempt counts. Waiting does not replenish counts. Changes apply to new attempts.</p>
                 ${([
                   ['active_minutes', 'Time limit per run in minutes', 1, undefined],
                   ['review_rounds', 'Maximum independent reviews per attempt', 1, 16],

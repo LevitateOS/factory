@@ -2121,7 +2121,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     let policy=json!({"expected_revision":status["policy"]["revision"].as_i64().unwrap_or(0),"attempt_limits":{"active_minutes":120,"correction_cycles":3,"review_rounds":6,"max_children":3},"roles":{"soda-coder":selection,"soda-reviewer":selection},"judgments":selection,"publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor,"target_branch":"refs/heads/main","merge_method":"merge","required_checks":["q15-note-example"],"reassessment_minutes":15,"intent_minutes":15,"enabled":true,"paused":false});
                     let reply=send("PUT",&format!("{status_path}/policy"),policy).await?;
                     fs::write(root.join("policy.json"),&reply.body)?;
-                    let reply=send("PUT",&format!("{status_path}/sponsorships/{source_id}"),json!({"expected_revision":0,"roles":["factory-judgment","soda-coder","soda-reviewer"],"allowance_minutes":30,"active":true})).await?;
+                    let reply=send("PUT",&format!("{status_path}/sponsorships/{source_id}"),json!({"expected_revision":0,"roles":["factory-judgment","soda-coder","soda-reviewer"],"active":true})).await?;
                     fs::write(root.join("funding.json"),&reply.body)?;
                     let setup_path=format!("{status_path}/setup");
                     let reply=send("POST",&setup_path,json!({"paths":["README.md",".github/workflows/q15.yml"]})).await?;

@@ -30,7 +30,6 @@ var (
 	ErrDispatchControlStale = errors.New("queued issue control changed during dispatch")
 	ErrCapacityFull         = errors.New("appliance runs at its limit")
 	ErrRepositoryFull       = errors.New("repository runs at its limit")
-	ErrAllowanceExhausted   = errors.New("sponsorship allowance is exhausted")
 	ErrAdmissionChanged     = errors.New("admission grants changed during dispatch")
 )
 
@@ -175,8 +174,8 @@ func writeDispatchPacketRowsTx(ctx context.Context, tx *sql.Tx, a factory.Assign
 }
 
 func fundDispatchPacketAttemptTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, grants admissionGrants, run factory.Run, now time.Time, freshAttempt bool) error {
-	if a.ExternalPlanning!=nil {
-		return insertAttemptAllowanceTx(ctx,tx,a.Repository,a.Issue,a.ID,a.ExternalPlanning.Request.Limits,run.Deadline,now)
+	if a.ExternalPlanning != nil {
+		return insertAttemptAllowanceTx(ctx, tx, a.Repository, a.Issue, a.ID, a.ExternalPlanning.Request.Limits, run.Deadline, now)
 	}
 	if freshAttempt {
 		return startFreshAttemptAllowanceTx(ctx, tx, a.Repository, a.Issue, a.AttemptRoot, grants.policy.AttemptLimits, run.Deadline, now)
@@ -295,7 +294,9 @@ func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.Is
 	if err = run.Validate(); err != nil {
 		return err
 	}
-	if err=recordExternalPlanningCommandTx(ctx,tx,a,time.Now()); err!=nil { return err }
+	if err = recordExternalPlanningCommandTx(ctx, tx, a, time.Now()); err != nil {
+		return err
+	}
 	if err = writeDispatchPacketRowsTx(ctx, tx, a, r, run, view); err != nil {
 		return err
 	}

@@ -2187,7 +2187,7 @@ func offlineRoleHandoffs() error {
 		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 			return fmt.Errorf("controlled source policy setup: %w", err)
 		}
-		if err = db.SaveSponsorship(ctx, factory.Sponsorship{Repository: 714, GrantedBy: 7, ActorID: 7, ProjectID: "p" + strings.Repeat("d", 24), Connection: selection.Account, Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 10, Active: true, Native: &factory.NativeSponsorship{Profile: collaboration.ProfileID(strings.Repeat("a", 32)), Authentication: factory.NativeMuseLogin}}); err != nil {
+		if err = db.SaveSponsorship(ctx, factory.Sponsorship{Repository: 714, GrantedBy: 7, ActorID: 7, ProjectID: "p" + strings.Repeat("d", 24), Connection: selection.Account, Roles: []string{factory.RoleJudgment}, Active: true, Native: &factory.NativeSponsorship{Profile: collaboration.ProfileID(strings.Repeat("a", 32)), Authentication: factory.NativeMuseLogin}}); err != nil {
 			return fmt.Errorf("controlled source sponsorship setup: %w", err)
 		}
 		a := offlineRoleAssignment(project.ExecutionInvestigate, project.RoleCoder, strings.Repeat("1", 40))
@@ -7011,13 +7011,13 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return err
 	}
 	sponsoredRoles := []string{project.RoleCoder}
-	allowance, planned := 5, 1
+	planned := 1
 	if controlledPlanReview || os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" || os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" || os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
 		selection := roles[project.RoleCoder]
 		selection.Profile = factory.ExecutionProfile{Effort: "low", Contributor: true}
 		policy.Judgments = &selection
 		sponsoredRoles = append(sponsoredRoles, factory.RoleJudgment)
-		allowance, planned = 30, 3
+		planned = 3
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_REVIEW_CHILD") == "1" {
 		sponsoredRoles = append(sponsoredRoles, project.RoleReviewer)
@@ -7025,7 +7025,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	for _, err := range []error{
 		db.SaveRepositoryPolicy(ctx, policy), db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: actor, MaxConcurrentRuns: 1}),
 		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: repository, GrantedBy: actor, Active: true}),
-		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: sponsoredRoles, AllowanceMinutes: allowance, Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: sponsoredRoles, Active: true}),
 	} {
 		if err != nil {
 			return err
@@ -7261,7 +7261,7 @@ func recordNativeControlledPlanReview(ctx context.Context, db *store.Store, port
 		return errors.New("controlled opinion lacks its exact selected-source judgment policy")
 	}
 	source, err := db.Sponsorship(ctx, a.Repository, a.Connection)
-	if err != nil || source.Native == nil || source.Native.Profile != port.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || !slices.Contains(source.Roles, factory.RoleJudgment) || source.AllowanceMinutes != 30 {
+	if err != nil || source.Native == nil || source.Native.Profile != port.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || !slices.Contains(source.Roles, factory.RoleJudgment) {
 		return errors.New("controlled opinion lacks its explicit bounded source sponsorship")
 	}
 	payload, err := nativeTaskPlanPayload(a.Run, strings.Contains(string(a.Prompt), "native-correction-fixture"))
@@ -8245,7 +8245,7 @@ func nativeSponsorshipFixture(profile, instance, connection string, active bool)
 			}
 			return factoryservice.SponsorshipCustody{Repository: repository, Connection: selected, Project: run.ProjectID, Native: &account}, nil
 		}}
-	in := factoryservice.SponsorshipChange{Roles: []string{run.Role}, AllowanceMinutes: 5, Active: active}
+	in := factoryservice.SponsorshipChange{Roles: []string{run.Role}, Active: active}
 	if !active {
 		prior, err := db.Sponsorship(ctx, int64(repository), connection)
 		if err != nil {
@@ -11158,7 +11158,7 @@ func connectedJudgmentFixture(profile, instance, path string) error {
 			return err
 		}
 		if _, e := db.Sponsorship(ctx, repository, source.Connection); errors.Is(e, store.ErrNotFound) {
-			if err := db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: int64(connection.Actor), ActorID: int64(connection.Actor), Connection: source.Connection, ProjectID: "p0123456789abcdef01234567", Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 30, Active: true, Native: &factory.NativeSponsorship{Profile: config.Profile, Authentication: factory.NativeMuseLogin}}); err != nil {
+			if err := db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: int64(connection.Actor), ActorID: int64(connection.Actor), Connection: source.Connection, ProjectID: "p0123456789abcdef01234567", Roles: []string{factory.RoleJudgment}, Active: true, Native: &factory.NativeSponsorship{Profile: config.Profile, Authentication: factory.NativeMuseLogin}}); err != nil {
 				return err
 			}
 		} else if e != nil {
@@ -11513,7 +11513,7 @@ func liveJudgmentFixture(profile, instance, phase string) error {
 		if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
 			return err
 		}
-		grant := factory.Sponsorship{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), Connection: source.Connection, ProjectID: "p0123456789abcdef01234567", Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 1, Active: true, Native: &factory.NativeSponsorship{Profile: config.Profile, Authentication: factory.NativeMuseLogin}}
+		grant := factory.Sponsorship{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), Connection: source.Connection, ProjectID: "p0123456789abcdef01234567", Roles: []string{factory.RoleJudgment}, Active: true, Native: &factory.NativeSponsorship{Profile: config.Profile, Authentication: factory.NativeMuseLogin}}
 		if err := db.SaveSponsorship(ctx, grant); err != nil {
 			return err
 		}
@@ -12022,7 +12022,7 @@ func judgmentJournalFixture(profile, repository string) error {
 	if _, _, err = db.BeginNativeJudgment(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("withdrawn source funded a judgment")
 	}
-	if err = db.NativeJudgmentReady(ctx, capture, 1); !errors.Is(err, store.ErrNativeJudgmentSource) {
+	if err = db.NativeJudgmentReady(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("withdrawn source passed judgment readiness")
 	}
 	source.Active = true
@@ -12033,11 +12033,8 @@ func judgmentJournalFixture(profile, repository string) error {
 	if err != nil {
 		return err
 	}
-	if err = db.NativeJudgmentReady(ctx, capture, 1); err != nil {
+	if err = db.NativeJudgmentReady(ctx, capture); err != nil {
 		return fmt.Errorf("configured source readiness: %w", err)
-	}
-	if err = db.NativeJudgmentReady(ctx, capture, source.AllowanceMinutes-priorTotal+1); !errors.Is(err, store.ErrNativeJudgmentSource) {
-		return errors.New("readiness accepted an assessment beyond its remaining allowance")
 	}
 	command, fresh, err := db.BeginNativeJudgment(ctx, capture)
 	if err != nil || !fresh {
@@ -12048,7 +12045,7 @@ func judgmentJournalFixture(profile, repository string) error {
 	}
 	other := capture
 	other.ID = strings.Repeat("f", 32)
-	if err = db.NativeJudgmentReady(ctx, other, 1); !errors.Is(err, store.ErrNativeJudgmentSource) {
+	if err = db.NativeJudgmentReady(ctx, other); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("pending call did not hold readiness")
 	}
 	if _, _, err = db.BeginNativeJudgment(ctx, other); !errors.Is(err, store.ErrNativeJudgmentSource) {
@@ -12072,7 +12069,7 @@ func judgmentJournalFixture(profile, repository string) error {
 	if total, err := db.UsageTotal(ctx, repo, source.Connection); err != nil || total != priorTotal+1 {
 		return errors.New("judgment result replay duplicated its source usage")
 	}
-	if err = db.NativeJudgmentReady(ctx, other, 1); err != nil {
+	if err = db.NativeJudgmentReady(ctx, other); err != nil {
 		return fmt.Errorf("retired call kept readiness reserved: %w", err)
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_RETRY_COPY") == "1" {
@@ -15915,7 +15912,7 @@ func externalPreparationFixture() error {
 		db.SaveRepositoryPolicy(ctx, policy),
 		db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
 		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), Active: true}),
-		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Connection: string(account.ID), Native: &factory.NativeSponsorship{Profile: profile.ID, CredentialSHA256: strings.Repeat("a", 64)}, Roles: []string{project.RoleCoder, project.RoleReviewer}, AllowanceMinutes: 60, Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Connection: string(account.ID), Native: &factory.NativeSponsorship{Profile: profile.ID, CredentialSHA256: strings.Repeat("a", 64)}, Roles: []string{project.RoleCoder, project.RoleReviewer}, Active: true}),
 	} {
 		if err != nil {
 			return err

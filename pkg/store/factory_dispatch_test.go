@@ -62,7 +62,7 @@ func seedDispatchLimits(t *testing.T, db *Store) {
 		db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: 7, MaxConcurrentRuns: 2}),
 		db.SaveRepositoryPolicy(ctx, policy),
 		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: 7, GrantedBy: 7, Active: true}),
-		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: 7, GrantedBy: 7, ActorID: 7, ProjectID: dispatchTestProjectID(), Generation: 1, Connection: "conn", GrantID: "grant", Roles: []string{project.RoleCoder}, AllowanceMinutes: 120, Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: 7, GrantedBy: 7, ActorID: 7, ProjectID: dispatchTestProjectID(), Generation: 1, Connection: "conn", GrantID: "grant", Roles: []string{project.RoleCoder}, Active: true}),
 	} {
 		if err != nil {
 			t.Fatal(err)
@@ -560,62 +560,6 @@ func TestRecordDispatchPacketEnforcesLimits(t *testing.T) {
 		}
 		if err := recordDispatchTestPacket(t, ctx, db, b, r2, run2, view2); !errors.Is(err, ErrCapacityFull) {
 			t.Fatalf("packet bypassed appliance limit after session settled: %v", err)
-		}
-	})
-	t.Run("allowance", func(t *testing.T) {
-		db := grantStoreFixture(t)
-		seedDispatchLimits(t, db)
-		sponsorship, err := db.Sponsorship(ctx, 7, "conn")
-		if err != nil {
-			t.Fatal(err)
-		}
-		sponsorship.AllowanceMinutes = 30
-		if err := db.SaveSponsorship(ctx, sponsorship); err != nil {
-			t.Fatal(err)
-		}
-		a, r, run, view := dispatchTestPacket(t, now)
-		a.Authority.Sponsorship = 2
-		if err := recordDispatchTestPacket(t, ctx, db, a, r, run, view); err != nil {
-			t.Fatal(err)
-		}
-		settled, err := db.FactoryRun(ctx, run.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		settled.Outcome, settled.Reconciled, settled.Summary = factory.Failed, true, "completed"
-		if err := db.SaveFactoryRun(ctx, settled); err != nil {
-			t.Fatal(err)
-		}
-		if err := db.ConsumeReservation(ctx, a.ID); err != nil {
-			t.Fatal(err)
-		}
-		if err := db.RecordRunUsage(ctx, factory.Usage{
-			RunID: run.ID, Repository: a.Repository, Connection: a.Connection,
-			Minutes: 30, StartedAt: now.Add(-30 * time.Minute), EndedAt: now,
-		}); err != nil {
-			t.Fatal(err)
-		}
-		finished, err := db.Assignment(ctx, a.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		finished.Stage, finished.Outcome, finished.Reason = factory.AssignmentFinished, factory.Failed, factory.AssignReasonRunFailed
-		bound := factory.ResultSynthesized(a.ID, run.ID, "failed", "completed", now.Unix())
-		finished.Result = &bound
-		finished.FinishedUnix = now.Unix()
-		if err := db.FinishAssignment(ctx, finished); err != nil {
-			t.Fatal(err)
-		}
-		b, r2, run2, view2 := dispatchTestPacket(t, now)
-		b.ID, b.Issue, b.Run, b.RunHistory = factory.NewID(), 4, run2.ID, []string{run2.ID}
-		b.Acceptance = "d" + strings.Repeat("b", 24)
-		b.Subject.Issue.Issue, b.Subject.Issue.Acceptance = 4, b.Acceptance
-		b.AttemptRoot, b.PublicationAssignment = b.ID, b.ID
-		b.Authority.Sponsorship = 2
-		r2.AssignmentID = b.ID
-		view2.Issue, view2.Attempt = 4, b.ID
-		if err := recordDispatchTestPacket(t, ctx, db, b, r2, run2, view2); !errors.Is(err, ErrAllowanceExhausted) {
-			t.Fatalf("over-budget packet accepted: %v", err)
 		}
 	})
 	t.Run("held session with missing run start fails closed", func(t *testing.T) {

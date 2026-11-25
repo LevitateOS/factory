@@ -136,7 +136,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 		s.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
 		s.SaveRepositoryPolicy(ctx, policy),
 		s.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), Active: true}),
-		s.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Native: &factory.NativeSponsorship{Profile: controller.Profile, CredentialSHA256: strings.Repeat("a", 64)}, Connection: connection, Roles: []string{project.RoleCoder}, AllowanceMinutes: 120, Active: true}),
+		s.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Native: &factory.NativeSponsorship{Profile: controller.Profile, CredentialSHA256: strings.Repeat("a", 64)}, Connection: connection, Roles: []string{project.RoleCoder}, Active: true}),
 	} {
 		if err != nil {
 			t.Fatal(err)

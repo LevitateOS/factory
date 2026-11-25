@@ -164,9 +164,6 @@ func (s RepositoryStatus) Read(ctx context.Context, actor collaboration.ActorID,
 		if sponsorship.Repository != int64(repository) {
 			return nil, ErrWorkJourneyScope
 		}
-		if sponsorship.GrantedBy != int64(actor) {
-			sponsorship.AllowanceMinutes = 0
-		}
 		view.Sponsorships = append(view.Sponsorships, sponsorship)
 	}
 	if grant, err := s.Store.EnvironmentGrant(ctx, int64(repository)); err == nil {

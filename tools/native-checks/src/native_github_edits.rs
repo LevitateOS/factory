@@ -820,7 +820,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let funding: ProductRequest = serde_json::from_value(
             json!({"kind":"sponsorship","repository":repository,"connection":source_id,
-            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer","factory-judgment"],"allowance_minutes":30,"active":true}}),
+            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer","factory-judgment"],"active":true}}),
         )?;
         let (method, target, body) = funding.request()?;
         let granted = call(&runtime, &store, &connection, method, &target, &body).await?;
@@ -834,7 +834,6 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             saved["connection"] == source_id
                 && saved["native"]["authentication"] == "muse_login"
                 && saved["native"]["credential_sha256"].is_null()
-                && saved["allowance_minutes"] == 30
                 && saved["active"] == true,
             "Muse source allowance lost CLI-managed authentication",
         )?;
@@ -975,7 +974,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 == 412,
             "stale Muse source allowance overwrote current funding",
         )?;
-        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer","factory-judgment"],"allowance_minutes":30,"active":false});
+        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer","factory-judgment"],"active":false});
         ensure(
             call(
                 &runtime,

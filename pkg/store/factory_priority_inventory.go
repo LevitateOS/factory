@@ -600,28 +600,11 @@ func (c *priorityDigestInputs) batchBudgetInputs(ctx context.Context) error {
 			return err
 		}
 	}
-	for repo, conn := range repoConn {
-		var used int
-		if err := c.tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(minutes),0) FROM factory_usage WHERE repository=$1 AND connection=$2`, repo, conn).Scan(&used); err != nil {
-			return err
-		}
-		c.allowRoom[repo] = used < prioritySponsorshipAllowance(ctx, c.tx, repo, conn)
+	// An active sponsorship admits work; its use is not capped.
+	for repo := range repoConn {
+		c.allowRoom[repo] = true
 	}
 	return nil
-}
-
-// prioritySponsorshipAllowance returns the active sponsorship allowance
-// minutes for one repository, or zero when none is active.
-func prioritySponsorshipAllowance(ctx context.Context, tx *sql.Tx, repository int64, connection string) int {
-	var data []byte
-	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_sponsorships WHERE repository=$1 AND connection=$2`, repository, connection).Scan(&data); err != nil {
-		return 0
-	}
-	var sponsorship factory.Sponsorship
-	if err := json.Unmarshal(data, &sponsorship); err != nil || !sponsorship.Active {
-		return 0
-	}
-	return sponsorship.AllowanceMinutes
 }
 
 // LoadPriorityScan returns the current scan with its observations, or

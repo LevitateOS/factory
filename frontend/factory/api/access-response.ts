@@ -26,7 +26,6 @@ export interface FactoryAccessUsage {
   connection: string;
   status?: string;
   unit?: string;
-  budget_minutes?: number;
   used_minutes?: number;
 }
 export interface FactoryAccess {
@@ -60,12 +59,10 @@ function usageEntry(value: unknown): FactoryAccessUsage {
   const connection = text(row.connection);
   const status = optionalText(row.status);
   if (status) return {connection, status};
-  const budget = optionalNum(row.budget_minutes),
-    used = optionalNum(row.used_minutes);
+  const used = optionalNum(row.used_minutes);
   return {
     connection,
     unit: text(row.unit, 'minutes'),
-    ...(budget === undefined ? {} : {budget_minutes: budget}),
     ...(used === undefined ? {} : {used_minutes: used}),
   };
 }
