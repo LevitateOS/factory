@@ -4,7 +4,7 @@ import type {Account} from './accounts.js';
 import {binding} from './transport.js';
 import type {Binding, Core, NativeReply} from './transport.js';
 import {DesktopProduct, readRoute, routeURL} from './product.js';
-import {mountPlacement} from './placement.js';
+import {SodaDesktopPlacement} from './placement.js';
 
 interface Repository {
   external_id: string;
@@ -24,7 +24,13 @@ function repository(value: unknown): Repository {
   return {external_id: row.external_id, name: row.name, private: row.private, default_branch: row.default_branch};
 }
 export function mountConnections(core: Core, app: SodaFactoryApp) {
-  const placement = mountPlacement(document.querySelector<HTMLElement>('#runtime-placement')!);
+  // The connection panel keeps its controller view for routes other than
+  // Settings, which shows its own view of the same controller.
+  const placementRoot = document.querySelector<HTMLElement>('#runtime-placement')!;
+  const placementTitle = document.createElement('h2');
+  placementTitle.textContent = 'Execution controller';
+  const placement = new SodaDesktopPlacement();
+  placementRoot.replaceChildren(placementTitle, placement);
   const accounts = document.querySelector<HTMLSelectElement>('#factory-account')!;
   const repositories = document.querySelector<HTMLSelectElement>('#factory-repository')!;
   const status = document.querySelector<HTMLElement>('#connection-status')!;
@@ -99,7 +105,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     status.textContent = message;
   }
   function clear() {
-    placement();
+    placement.controller = undefined;
+    placementRoot.hidden = true;
     fragmentObserver?.disconnect();
     fragmentObserver = undefined;
     const old = selected?.session ?? pending;
@@ -122,6 +129,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
           : context.route.kind === 'pull' ? routeURL({kind: 'pull', repository: context.route.repository, pull: context.route.pull}) : hash;
       fragmentObserver?.disconnect();
       fragmentObserver = undefined;
+      placementRoot.hidden = !product.placement || context.route.kind === 'settings';
       if (mounted !== view) {
         mounted = view;
         app.context = context;
@@ -214,7 +222,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       selected = value;
       const metadata = discovered.find((repo) => repo.external_id === remote);
       product = new DesktopProduct(core, value, profile, navigate, metadata?.default_branch);
-      placement(product.transport, value.repository?.id);
+      placement.controller = product.placement;
+      placementRoot.hidden = !product.placement;
       const route = readRoute();
       navigate(
         route &&

@@ -9,7 +9,7 @@ const meta = {
   argTypes: {
     state: {
       control: 'select',
-      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new'],
+      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings'],
     },
   },
   render: ({state}, context) => {
@@ -28,3 +28,4 @@ export const Disconnected: Story = {args: {state: 'disconnected'}};
 export const IssueList: Story = {args: {state: 'issues'}};
 export const NewIssue: Story = {args: {state: 'issue-new'}};
 export const IssueAndFactoryFacts: Story = {args: {state: 'issue'}};
+export const Settings: Story = {args: {state: 'settings'}};

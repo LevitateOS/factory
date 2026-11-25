@@ -27,6 +27,27 @@ Desktop supplies its admitted selection and refuses unscoped Feed resolution. Ot
 may omit this optional field and retain their route-derived navigation; adopting
 it does not grant access to another repository or enable aggregate Feed reads.
 
+Some destinations are host-declared (`FactoryHostDestination` in `app/routes.ts`,
+currently `settings`). A host lists the ones it resolves in the optional
+`destinations` field; the frame shows their sidebar entry, admits the route and
+navigates to it only when declared, so a host that omits the field keeps its
+previous frame. `settings` is a repository-scoped Settings page
+(`settings/settings.ts`) that composes `<soda-factory-role-settings>` (roles,
+execution limits, automation policy and its lazily opened workspace setup) and
+an "Unavailable in this app" panel listing features the host sets to `false`
+(`repairFundingAvailable`, `activityAvailable`); the page sends nothing for them.
+
+A host contributes host-only presentation to a shared page with
+`FactoryHostSection` (`app/host-section.ts`): a page-unique `id`, a plain-text
+`title` and `mount(signal)` returning the host's element. The page admits the
+list, mounts each once per page lifetime, frames it under its title with an
+in-page index entry, and aborts the signal and removes the element when it
+retires. The element's requests and state stay with the host; the shared UI
+never imports host code. Desktop passes its execution controller into Settings
+this way; the controller reads when the connection opens, not when the page
+opens, and the same state also renders in the desktop connection panel on
+other routes.
+
 The `issues` screen receives list read ports; the frame supplies selection through
 its typed `issue` destination. `issue` mounts the shared description/conversation
 and an optional matching `JourneyContext`. `work-detail` is the distinct Factory

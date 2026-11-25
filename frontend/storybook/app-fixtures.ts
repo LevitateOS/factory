@@ -11,8 +11,9 @@ import {issuesStoryPeer} from './issues-fixtures.js';
 import {issueDetailStoryPeer} from './issue-detail-fixtures.js';
 import {journeyResponse} from './journey-fixtures.js';
 import {issueCreateStoryPeer} from './issue-create-fixtures.js';
+import {PlacementController, placementView} from '../desktop/placement.js';
 
-export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new';
+export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings';
 export const appRepository = '7';
 
 /** Composition peer only. All services/renderers are existing declared story
@@ -25,7 +26,9 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
         ? {kind: 'issue', repository: appRepository, issue: '12'}
         : state === 'issue-new'
           ? {kind: 'issue-new', repository: appRepository}
-          : {kind: 'feed', repository: appRepository};
+          : state === 'settings'
+            ? {kind: 'settings', repository: appRepository}
+            : {kind: 'feed', repository: appRepository};
   let view: SodaFactoryApp | undefined;
   let unavailable = state === 'unavailable',
     held = state === 'loading',
@@ -56,6 +59,26 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     detail = detailStoryPeer('read-only', appRepository);
   const watch = watchStoryPeer('live', appRepository),
     request = requestStoryContext('entry', account);
+  // Role settings with a saved policy, plus the desktop execution controller's
+  // reads, for the Settings route.
+  const settingsRoles = progressStoryPeer('ready', appRepository, true);
+  const settingsRequest: FactoryTransport['request'] = async (path, init) => {
+    if (path === 'repositories/' + appRepository + '/factory/placement')
+      return Response.json({
+        runtime: 'e'.repeat(32),
+        can_select: true,
+        placement: {repository: appRepository, runtime: 'e'.repeat(32), generation: '1', state: 'active', revision: 'f'.repeat(32)},
+      });
+    if (path === 'repositories/' + appRepository + '/factory/environment-grant') return Response.json({environment: null});
+    // The controller reads without an explicit method; the role peer requires one.
+    const response = await settingsRoles.overview.transport.request(path, {...init, method: init?.method ?? 'GET'});
+    if (path !== 'repositories/' + appRepository + '/factory') return response;
+    return Response.json({
+      ...(await response.json()),
+      capacity: {revision: 1, max_concurrent_runs: 2},
+      operator_grant: {repository: appRepository, revision: 1, active: true},
+    });
+  };
   const transport: FactoryTransport = {
     get generation() {
       return generation;
@@ -100,6 +123,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
       }
       if (path.startsWith('factory/feed')) return feed.context.transport.request(path, init);
       if (path.startsWith('factory/library')) return library.context.transport.request(path, init);
+      if (route.kind === 'settings') return settingsRequest(path, init);
       if (route.kind === 'watch') return watch.context.transport.request(path, init);
       if (route.kind === 'work-detail') return detail.context.transport.request(path, init);
       return progress.overview.transport.request(path, init);
@@ -113,6 +137,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     accountLabel: account,
     selectedRepository: appRepository,
     repositoryLabel: 'acme/factory',
+    destinations: ['settings'],
     route,
     async resolve(selected, signal) {
       resolved.push(selected);
@@ -231,6 +256,19 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
           };
         case 'watch':
           return {kind: 'watch', context: {...watch.context, transport: supplied}, renderer: async () => watchRenderer};
+        case 'settings': {
+          const placement = new PlacementController(supplied, appRepository);
+          return {
+            kind: 'settings',
+            context: {
+              transport: supplied,
+              repository: appRepository,
+              sections: [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}],
+              repairFundingAvailable: false,
+              activityAvailable: false,
+            },
+          };
+        }
       }
     },
     navigate(next) {

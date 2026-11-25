@@ -4,6 +4,7 @@
 @import './feed.css';
 @import './output.css';
 @import './issues.css';
+@import './settings.css';
 
 /* The standalone product supplies its own envelope. Fountain keeps its native
    document/theme envelope and imports the same component CSS independently. */
@@ -113,8 +114,18 @@
   background: var(--soda-page-text);
   font-weight: 600;
 }
+/* Host-declared destinations such as Settings sit at the foot, above the account. */
+.soda-factory-sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.soda-factory-sidebar-foot nav button {
+  padding-left: 8px;
+}
 .soda-factory-acting {
-  margin: auto 0 0;
+  margin: 0;
   padding: 0 12px;
   color: var(--soda-page-muted);
   font: var(--soda-font-caption);
@@ -164,7 +175,7 @@
     width: auto;
     padding: 7px 12px;
   }
-  .soda-factory-acting {
+  .soda-factory-sidebar-foot {
     margin-top: 0;
   }
   .soda-factory-content > header,

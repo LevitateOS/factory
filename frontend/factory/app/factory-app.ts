@@ -26,10 +26,13 @@ import {SodaFactoryLibrary} from '../library/library.js';
 import type {LibraryContext, LibrarySource} from '../library/library.js';
 import {SodaFactoryWatch} from '../watch/watch.js';
 import type {FactoryWatchContext, FactoryWatchRenderer} from '../watch/ports.js';
-import {admitFactoryRoute, factoryRouteTitle} from './routes.js';
-import type {FactoryRoute} from './routes.js';
+import {SodaFactorySettings} from '../settings/settings.js';
+import type {FactorySettingsContext} from '../settings/settings.js';
+import {admitFactoryRoute, admitHostDestinations, factoryRouteTitle, hostResolves} from './routes.js';
+import type {FactoryHostDestination, FactoryRoute} from './routes.js';
 
-/** Host-resolved ports, never host-created DOM or a second workflow model. */
+/** Host-resolved ports, never a second workflow model. Host-created DOM enters
+ * only as a `FactoryHostSection` (host-section.ts) the shared page places. */
 export type FactoryScreen =
   | {readonly kind: 'feed'; readonly context: FactoryFeedContext}
   | {readonly kind: 'request'; readonly api: IntentAPI; readonly blocked: boolean}
@@ -52,6 +55,11 @@ export type FactoryScreen =
       readonly kind: 'watch';
       readonly context: FactoryWatchContext;
       readonly renderer: () => Promise<FactoryWatchRenderer>;
+    }
+  | {
+      readonly kind: 'settings';
+      /** The frame supplies the actor, account label, scope and project name. */
+      readonly context: Omit<FactorySettingsContext, 'actor' | 'accountLabel' | 'scope' | 'repositoryLabel'>;
     };
 
 export interface FactoryAppContext {
@@ -65,6 +73,8 @@ export interface FactoryAppContext {
   readonly selectedRepository?: string;
   /** Optional plain-text name of the selected workspace for the sidebar; the frame shows no name without it. */
   readonly repositoryLabel?: string;
+  /** Optional destinations this host resolves; the frame offers and admits only these. */
+  readonly destinations?: readonly FactoryHostDestination[];
   readonly route: FactoryRoute;
   resolve(route: FactoryRoute, signal: AbortSignal): Promise<FactoryScreen>;
   navigate(route: FactoryRoute): void;
@@ -119,6 +129,8 @@ export class SodaFactoryApp extends LitElement {
           typeof context.navigate === 'function'
       );
       admitFactoryRoute(context.route);
+      admitHostDestinations(context.destinations);
+      check(hostResolves(context.route, context.destinations));
       check(context.selectedRepository === undefined || id(context.selectedRepository));
       check(
         context.repositoryLabel === undefined ||
@@ -405,6 +417,21 @@ export class SodaFactoryApp extends LitElement {
         view.context = ports.context;
         return view;
       }
+      case 'settings': {
+        check(route.kind === 'settings' && ports.context.repository === route.repository);
+        const view = new SodaFactorySettings();
+        this.own(view, () => {
+          view.context = undefined;
+        });
+        view.context = {
+          ...ports.context,
+          actor: context.actor,
+          accountLabel: context.accountLabel,
+          scope: context.scope,
+          ...(context.repositoryLabel === undefined ? {} : {repositoryLabel: context.repositoryLabel}),
+        };
+        return view;
+      }
       case 'watch': {
         check(
           route.kind === 'watch' &&
@@ -448,6 +475,7 @@ export class SodaFactoryApp extends LitElement {
     if (!context || !this.live(context, signal)) return;
     try {
       admitFactoryRoute(route);
+      check(hostResolves(route, context.destinations));
       context.navigate(route);
     } catch {
       if (this.live(context, signal)) this.message = 'This destination is unavailable.';
@@ -485,6 +513,8 @@ export class SodaFactoryApp extends LitElement {
         : []),
     ];
     const project = context?.repositoryLabel?.trim();
+    const settings: FactoryRoute | undefined =
+      repository && context?.destinations?.includes('settings') ? {kind: 'settings', repository} : undefined;
     return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''}>
       <aside class="soda-factory-sidebar">
         <p class="soda-factory-wordmark">Factory</p>
@@ -503,7 +533,20 @@ export class SodaFactoryApp extends LitElement {
             )}
           </nav>
         </div>
-        ${context ? html`<p class="soda-factory-acting">Acting as ${context.accountLabel}</p>` : ''}
+        <div class="soda-factory-sidebar-foot">
+          ${settings
+            ? html`<nav aria-label="Project settings">
+                <button
+                  type="button"
+                  aria-current=${context?.route.kind === 'settings' ? 'page' : 'false'}
+                  @click=${() => this.navigate(settings)}
+                >
+                  Settings
+                </button>
+              </nav>`
+            : ''}
+          ${context ? html`<p class="soda-factory-acting">Acting as ${context.accountLabel}</p>` : ''}
+        </div>
       </aside>
       <div class="soda-factory-content">
         <header>

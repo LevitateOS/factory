@@ -6,6 +6,7 @@ import {check, id, object, readSodaJSON} from '../factory/api/models.js';
 import type {Binding, Core} from './transport.js';
 import {DesktopTransport} from './transport.js';
 import {upfrontCapabilities} from '../factory/work/work-view.js';
+import {PlacementController, placementView} from './placement.js';
 
 export function routeURL(route: FactoryRoute): string {
   const query = new URLSearchParams({view: route.kind});
@@ -31,6 +32,9 @@ export function readRoute(hash = location.hash): FactoryRoute | undefined {
 export class DesktopProduct {
   readonly transport: DesktopTransport;
   readonly scope: string;
+  /** One execution controller per connected repository; it reads when the
+   * connection opens. Settings and the connection panel show views of it. */
+  readonly placement: PlacementController | undefined;
   private lifetime = new AbortController();
   constructor(
     private core: Core,
@@ -41,9 +45,11 @@ export class DesktopProduct {
   ) {
     this.transport = new DesktopTransport(core, selected, profile);
     this.scope = this.transport.scope;
+    this.placement = selected.repository ? new PlacementController(this.transport, selected.repository.id) : undefined;
   }
   retire() {
     this.lifetime.abort();
+    this.placement?.retire();
     this.transport.retire();
   }
   suspend() { this.transport.suspend(); }
@@ -70,6 +76,7 @@ export class DesktopProduct {
       ...this.selected.identity,
       accountLabel: this.selected.account_label,
       ...(this.selected.repository ? {selectedRepository: this.selected.repository.id, repositoryLabel: this.selected.repository.name} : {}),
+      destinations: ['settings'],
       route,
       resolve: (route, signal) => this.resolve(route, AbortSignal.any([this.lifetime.signal, signal])),
       navigate: (route) => {
@@ -264,6 +271,22 @@ export class DesktopProduct {
         };
       case 'library':
         return {kind: 'library', context: {transport, repository: route.repository}};
+      case 'settings': {
+        const placement = this.placement;
+        return {
+          kind: 'settings',
+          context: {
+            transport,
+            repository: route.repository,
+            sections: placement
+              ? [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}]
+              : [],
+            // Their stores are not bound on the native host.
+            repairFundingAvailable: false,
+            activityAvailable: false,
+          },
+        };
+      }
       case 'watch':
         throw Error('Native execution is unavailable');
     }

@@ -24,7 +24,28 @@ export type FactoryRoute =
       readonly role: string;
       readonly issue?: string;
       readonly attempt?: string;
-    };
+    }
+  | {readonly kind: 'settings'; readonly repository: string};
+
+/** Destinations a host resolves only when it declares them in
+ * `FactoryAppContext.destinations`; the frame offers no entry otherwise. */
+export type FactoryHostDestination = 'settings';
+const hostDestinations: readonly string[] = ['settings'] satisfies FactoryHostDestination[];
+
+export function admitHostDestinations(value: unknown): void {
+  check(
+    value === undefined ||
+      (Array.isArray(value) &&
+        value.length <= hostDestinations.length &&
+        new Set(value).size === value.length &&
+        value.every((kind) => hostDestinations.includes(kind)))
+  );
+}
+
+/** Whether a host that declared `destinations` can resolve this route. */
+export function hostResolves(route: FactoryRoute, destinations: readonly FactoryHostDestination[] | undefined): boolean {
+  return !hostDestinations.includes(route.kind) || !!destinations?.includes(route.kind as FactoryHostDestination);
+}
 
 export function admitFactoryRoute(route: FactoryRoute): void {
   check(route && typeof route === 'object');
@@ -44,6 +65,7 @@ export function admitFactoryRoute(route: FactoryRoute): void {
     case 'issues':
     case 'pulls':
     case 'issue-new':
+    case 'settings':
       check(id(route.repository));
       return;
     case 'issue':
@@ -93,5 +115,6 @@ export function factoryRouteTitle(route: FactoryRoute): string {
     plan: 'Work plan',
     library: 'Knowledge',
     watch: 'Watch',
+    settings: 'Settings',
   }[route.kind];
 }
