@@ -151,8 +151,12 @@ mod linux {
 // Each Factory item is a generic password whose service names the application
 // and profile and whose account is the connection ID, so the Keychain itself
 // keeps one item per connection. The complete nonsecret attribute map is JSON
-// in the item's generic attribute. Keychain calls block (and may show an
-// access prompt), so they run on the blocking pool under the caller's bound.
+// in the item's generic attribute. An item trusts the signed program that
+// created it, so Factory must keep one signing identity across builds. Factory
+// never shows a Keychain dialog: an item it may not read, such as one an
+// unsigned or differently signed build created, reports as missing so the
+// account is signed in again. Keychain calls block, so they run on the
+// blocking pool under the caller's bound.
 #[cfg(target_os = "macos")]
 mod macos {
     use super::*;
@@ -165,6 +169,7 @@ mod macos {
         kSecAttrAccount, kSecAttrLabel, kSecAttrService, kSecClass, kSecClassGenericPassword,
         kSecMatchLimit, kSecMatchLimitAll, kSecReturnAttributes, kSecReturnData, kSecValueData,
     };
+    use security_framework_sys::keychain::SecKeychainSetUserInteractionAllowed;
     use security_framework_sys::keychain_item::{
         SecItemAdd, SecItemCopyMatching, SecItemDelete, SecItemUpdate,
     };
@@ -184,8 +189,9 @@ mod macos {
     fn status(code: i32) -> Result<()> {
         match code {
             0 => Ok(()),
-            ERR_ITEM_NOT_FOUND => Err(Error::Missing),
-            ERR_INTERACTION_NOT_ALLOWED | ERR_AUTH_FAILED | ERR_USER_CANCELED => Err(Error::Locked),
+            // Access refused to this program is the same as no saved account.
+            ERR_ITEM_NOT_FOUND | ERR_AUTH_FAILED => Err(Error::Missing),
+            ERR_INTERACTION_NOT_ALLOWED | ERR_USER_CANCELED => Err(Error::Locked),
             ERR_DUPLICATE_ITEM => Err(Error::Ambiguous),
             _ => Err(Error::Unavailable),
         }
@@ -248,6 +254,12 @@ mod macos {
     impl Transport {
         pub(in crate::credentials) fn reset(&mut self) {}
         pub(in crate::credentials) async fn keyring(&mut self) -> Result<&Keyring> {
+            // Process-wide: a refused or locked item returns an error instead
+            // of asking the user. Only credential custody uses the Keychain.
+            static QUIET: std::sync::Once = std::sync::Once::new();
+            QUIET.call_once(|| unsafe {
+                SecKeychainSetUserInteractionAllowed(0);
+            });
             Ok(&Keyring)
         }
     }

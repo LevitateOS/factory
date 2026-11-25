@@ -163,6 +163,22 @@ for (const owner of macos ? [] : ['soda-factory-broker', 'soda-factory-worker'])
     executionFiles.push('systemd\t' + name);
   }
 }
+// A Keychain item trusts the signed program that created it. Every macOS
+// executable is signed with one stable identity, so an update keeps reading the
+// account it saved and other programs stay refused. An unsigned build would
+// lose its accounts on every update, so a macOS stage requires the identity.
+if (macos) {
+  const identity = process.env.FACTORY_CODESIGN_IDENTITY;
+  if (!identity) throw Error('macOS stages require FACTORY_CODESIGN_IDENTITY (security find-identity -v -p codesigning)');
+  for (const [directory, names] of [[out, ['soda-desktop', 'factory-dev', 'soda-factory-muse']],
+    [resolve(execution, 'libexec'), executionFiles.map(entry => entry.split('\t')[1])]] as const) {
+    for (const name of names) {
+      const signer = Bun.spawn(['/usr/bin/codesign', '--force', '--sign', identity, '--identifier', 'dev.soda.factory.' + name,
+        resolve(directory, name)], {stdout: 'inherit', stderr: 'inherit'});
+      if ((await signer.exited) !== 0) throw Error('Code signing failed for ' + name);
+    }
+  }
+}
 await writeFile(resolve(execution, 'files.list'), executionFiles.join('\n') + '\n');
 await copyFile(resolve(root, macos ? 'scripts/install-native-execution-macos.sh' : 'scripts/install-native-execution.sh'), resolve(execution, 'install.sh'));
 await chmod(resolve(execution, 'install.sh'), 0o755);
