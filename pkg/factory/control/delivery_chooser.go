@@ -6,21 +6,6 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-// DeliveryModel names the configured request selector. The exact resolved
-// provider model is separately retained on the answer beside that selector.
-func (p *TypeSafePriority) DeliveryModel() string {
-	return systemOneModel(p.Model)
-}
-
-func (p *TypeSafePriority) ValidateDeliveryState(state any) error {
-	_, err := deliveryJudgmentInput(state, p.DeliveryModel())
-	return err
-}
-
-func (p *TypeSafePriority) SelectDelivery(ctx context.Context, state any, question string, choices map[string]any) (factory.DeliveryAnswer, error) {
-	return selectDeliveryAnswer(ctx, p, p.DeliveryModel(), state, question, choices)
-}
-
 // RepositoryDeliveryJudgment binds the selected model and spending source before
 // material is fingerprinted. A bound chooser must refuse a changed policy.
 type RepositoryDeliveryJudgment interface {

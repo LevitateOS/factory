@@ -144,16 +144,18 @@ uses.
 
 ## Go to Rust (native host operations)
 
-Both go over the existing `nativeHostCall(..., "/api/native/execution", …)`,
-the same as `inspect_account`.
+Both go over `nativeHostCall(..., "/api/native/jev", …)`. That is a separate
+route from `/api/native/execution`, because an ask may take TypeSafe's whole
+30 s timeout and the execution route allows 5–8 s.
 
 - `inspect_jev` returns the `jev_status` body. It is local and costs no
   TypeSafe request. Go uses it for the sidebar, Settings and stall reasons.
-- `jev_ask {decision_id, model, state, questions}` returns:
+- `jev_ask {model?, state, questions}` returns the following. `reply` is
+  TypeSafe's whole answer body, and Go checks it with the kept validators.
 
   ```
   {outcome: answered | key_refused | not_connected | busy | offline | too_large | rejected | unexpected,
-   retry_at?, http_status?, detail?, model?, answers?, usage?: {input_tokens, output_tokens}}
+   retry_at?, http_status?, detail?, reply?}
   ```
 
 ## Go: one path for every decision

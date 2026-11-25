@@ -312,6 +312,23 @@ before the next one starts.
 
 ### J2 — One ask path, first consumer: Feed routing (Rust, Go, Lit)
 
+**IN PROGRESS (2026-11-25).**
+
+- **Done:**
+  - Rust `jev_ask` and `inspect_jev` on `/api/native/jev`, with the per-Mac gate.
+  - Go `NativeJEV`, journaled as `jev.ask` rows in `factory_commands`, with
+    retries on the existing coordinator pass.
+  - Feed routing wired, with the 70% rule and "unsure" asking the author.
+  - The five stall posts, and "How I decided".
+  - The old Go HTTP and key-file code is deleted.
+- **Controlled check passed:** `factory-credential-operation-check --typesafe`,
+  23 scripted requests.
+- **Not done yet:**
+  - "Give it to someone else".
+  - Moving the routing wording into `jev_questions.go`.
+  - The connected post.
+  - Restart reuse, seen live.
+
 **Behavior:**
 
 - A new Feed post is routed by JEV, and the routed agent picks it up.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/control"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -32,7 +33,7 @@ func PostStalled(pipe factory.PostIntake, wired *PostCollaborators) string {
 	}
 	switch {
 	case pipe.AdmitPostJudgment() && wired.Judge == nil:
-		return "jev"
+		return "jev_not_connected"
 	case pipe.AdmitPostDraft() && wired.Drafter == nil:
 		return "product_lead"
 	case pipe.AdmitPostEffect() && wired.Creator == nil:
@@ -313,6 +314,14 @@ func drivePostJudgment(ctx context.Context, st *store.Store, wired *PostCollabor
 	}
 	_ = st.NotePostStall(ctx, pipe.SourcePost, "")
 	judgment, err := wired.Judge.JudgePost(ctx, input)
+	var wait *control.JEVWait
+	if errors.As(err, &wait) {
+		// Waiting for a key, for TypeSafe or for the author to change the
+		// request spends no attempt; the next pass asks again when it can.
+		_ = st.NotePostProgress(ctx, pipe.SourcePost, postJEVWaitText(wait))
+		_ = st.NotePostStall(ctx, pipe.SourcePost, wait.Reason)
+		return false, nil
+	}
 	if errors.Is(err, ErrPostIssueContext) {
 		// Captured request authority expired before routing. Only the author's
 		// retry captures fresh authority; waiting would never settle.
@@ -504,4 +513,22 @@ func DrivePendingPosts(ctx context.Context, st *store.Store, wired *PostCollabor
 		}
 	}
 	return driven
+}
+
+// postJEVWaitText is the progress line under a post that waits for JEV.
+func postJEVWaitText(wait *control.JEVWait) string {
+	switch wait.Reason {
+	case "jev_key_refused":
+		return "TypeSafe stopped accepting the JEV key. Replace it in Accounts and this post continues."
+	case "jev_busy":
+		return "JEV is busy. This post continues by itself shortly."
+	case "jev_offline":
+		return "Factory can’t reach TypeSafe right now. This post continues by itself when it can."
+	case "jev_request_refused":
+		if wait.Detail == "too_large" {
+			return "This post is too long for JEV to read. Shorten it, or choose who should take it."
+		}
+		return "TypeSafe refused this request from Factory. Edit the post, or choose who should take it."
+	}
+	return "Connect JEV in Accounts so Factory can decide who takes this post."
 }

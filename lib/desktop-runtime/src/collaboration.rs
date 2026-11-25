@@ -1335,6 +1335,9 @@ async fn dispatch(
     let verifying = target == Some("/api/native/mcp-verify");
     let execution = target == Some("/api/native/execution");
     let preparation = target == Some("/api/native/preparation");
+    let jev = target == Some("/api/native/jev");
+    // A TypeSafe ask may take its whole 30 s timeout plus the keyring read.
+    let deadline = if jev { started + std::time::Duration::from_secs(40) } else { deadline };
     if request.method() != "POST"
         || !matches!(
             target,
@@ -1345,6 +1348,7 @@ async fn dispatch(
                     | "/api/native/mcp-verify"
                     | "/api/native/execution"
                     | "/api/native/preparation"
+                    | "/api/native/jev"
             )
         )
         || request.uri().scheme().is_some()
@@ -1356,6 +1360,8 @@ async fn dispatch(
     }
     let body_limit = if preparation {
         soda_execution_protocol::MAX_PREPARATION_REQUEST
+    } else if jev {
+        2 * 1024 * 1024
     } else if execution {
         soda_execution_protocol::MAX_MUSE_INPUT
     } else if background {
@@ -1388,6 +1394,14 @@ async fn dispatch(
             .clone()
             .callback(call, execution_available, credentials);
         return tokio::time::timeout_at(deadline.into(), work)
+            .await
+            .map_err(|_| Failure::new(504, "native_collaboration_deadline"))?;
+    }
+    if jev {
+        let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let profile = state.channel.socket.parent().ok_or_else(Failure::unavailable)?.to_path_buf();
+        let credentials = state.background_credentials.read().map_err(|_| Failure::unavailable())?.clone();
+        return tokio::time::timeout_at(deadline.into(), crate::jev::callback(&profile, credentials, call))
             .await
             .map_err(|_| Failure::new(504, "native_collaboration_deadline"))?;
     }

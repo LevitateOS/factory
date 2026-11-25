@@ -294,6 +294,12 @@ type PostRouting struct {
 	Selected   string              `json:"selected"`
 	Confidence float64             `json:"confidence"`
 	Options    []PostRoutingOption `json:"options"`
+	// The receipt behind "How I decided": the versioned model, token usage and
+	// whether the top option cleared the rule (JEVSure).
+	Model        string `json:"model,omitempty"`
+	InputTokens  int64  `json:"input_tokens,omitempty"`
+	OutputTokens int64  `json:"output_tokens,omitempty"`
+	Unsure       bool   `json:"unsure,omitempty"`
 }
 
 // PostRoutingOption is one weighed outcome of a routing Choice.

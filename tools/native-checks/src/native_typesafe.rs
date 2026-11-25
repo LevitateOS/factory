@@ -3,7 +3,7 @@
 //! check if Factory sends more requests than the script allows.
 use super::{ensure, prepare, Result};
 use soda_desktop_runtime::credentials::{Credentials, Provider, Token};
-use soda_desktop_runtime::jev::{Error, Jev, State};
+use soda_desktop_runtime::jev::{open_gate, Error, Jev, Outcome, State};
 use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -15,6 +15,12 @@ enum Reply {
     Status(u16),
     /// Accept, then close without answering.
     Drop,
+    /// A System One reply with one Choice answer.
+    Answer,
+    /// 429 or 529 with an optional retry-after in seconds.
+    Busy(u16, Option<u64>),
+    /// An error status with this `detail`.
+    Detail(u16, &'static str),
 }
 
 #[derive(Default)]
@@ -26,6 +32,8 @@ struct Stand {
 }
 
 const MODELS: &str = r#"{"models":[{"name":"jev-latest","description":"Latest Jev","release_date":"2026-11-01"},{"name":"jev-1.14.0","description":"Jev 1.14","release_date":"2026-11-01"},{"name":"jev-1.13.0","description":"Jev 1.13","release_date":"2026-09-15"}]}"#;
+
+const ANSWER: &str = r#"{"model":"jev-1.14.0","answers":{"choice":{"type":"choice","choice":"new_issue","confidence":0.82,"probabilities":{"new_issue":0.9,"discussion":0.1}}},"usage":{"input_tokens":412,"output_tokens":3}}"#;
 
 async fn serve(listener: tokio::net::TcpListener, stand: Arc<Mutex<Stand>>) {
     loop {
@@ -55,13 +63,20 @@ async fn serve(listener: tokio::net::TcpListener, stand: Arc<Mutex<Stand>>) {
                 }
                 next.unwrap_or(Reply::Status(599))
             };
-            let (status, body) = match reply {
+            let (status, body, extra) = match reply {
                 Reply::Drop => return,
-                Reply::Models => (200, MODELS.to_owned()),
-                Reply::Status(code) => (code, r#"{"detail":"controlled reply"}"#.to_owned()),
+                Reply::Models => (200, MODELS.to_owned(), String::new()),
+                Reply::Status(code) => (code, r#"{"detail":"controlled reply"}"#.to_owned(), String::new()),
+                Reply::Answer => (200, ANSWER.to_owned(), String::new()),
+                Reply::Busy(code, after) => (
+                    code,
+                    r#"{"detail":"rate limited"}"#.to_owned(),
+                    after.map(|s| format!("retry-after: {s}\r\n")).unwrap_or_default(),
+                ),
+                Reply::Detail(code, detail) => (code, format!(r#"{{"detail":"{detail}"}}"#), String::new()),
             };
             let response = format!(
-                "HTTP/1.1 {status} Controlled\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                "HTTP/1.1 {status} Controlled\r\ncontent-type: application/json\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n{body}",
                 body.len()
             );
             let _ = socket.write_all(response.as_bytes()).await;
@@ -182,6 +197,71 @@ pub async fn run(profile: &Path) -> Result<()> {
     ensure(sent_since(before_busy).len() == 1, "429 on check retried")?;
     ensure(jev.status(&store).await?.state == State::Connected, "offline or busy changed the key state")?;
 
+    // Asks: one POST /v1/systemone per decision, classified, never retried.
+    let state = serde_json::json!({"body": "Add a dark mode toggle to settings"});
+    let questions = serde_json::json!({"choice": {"type": "choice", "instructions": "Where does this post belong?",
+        "criteria": {"new_issue": "New work", "discussion": "Conversation"}}});
+    let ask = || jev.ask(&store, None, &state, &questions);
+    let post = ("POST /v1/systemone".to_owned(), bearer(&b));
+    let unix = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+
+    let before = step(&[Reply::Answer])?;
+    let answered = ask().await;
+    ensure(
+        answered.outcome == Outcome::Answered
+            && answered.reply.as_ref().and_then(|r| r["answers"]["choice"]["choice"].as_str()) == Some("new_issue"),
+        "a 200 was not answered with TypeSafe's reply",
+    )?;
+    ensure(sent_since(before) == vec![post.clone()], "an answer took more than one request")?;
+
+    // Requests TypeSafe will not take: one request each, no retry, gate open.
+    for (reply, outcome) in [
+        (Reply::Detail(400, "max_tokens_exceeded"), Outcome::TooLarge),
+        (Reply::Status(413), Outcome::TooLarge),
+        (Reply::Detail(422, "questions.choice: field required"), Outcome::Rejected),
+        (Reply::Status(403), Outcome::Unexpected),
+    ] {
+        let before = step(&[reply])?;
+        let asked = ask().await;
+        ensure(asked.outcome == outcome && asked.retry_at.is_none(), "a refused request was misclassified")?;
+        ensure(sent_since(before).len() == 1, "a refused request was retried")?;
+        if outcome == Outcome::Rejected {
+            ensure(asked.detail.as_deref() == Some("questions.choice: field required"), "422 lost its detail")?;
+        }
+    }
+
+    // 429 with retry-after closes the gate until then: nothing is sent while
+    // it is closed, and exactly one request goes out once it opens.
+    let before = step(&[Reply::Busy(429, Some(2))])?;
+    let (busy, now) = (ask().await, unix());
+    ensure(busy.outcome == Outcome::Busy && busy.retry_at.is_some_and(|at| at + 1 >= now + 2 && at <= now + 2), "429 retry-after was not honored")?;
+    ensure(ask().await.outcome == Outcome::Busy && sent_since(before).len() == 1, "an ask went out while the gate was closed")?;
+    ensure(jev.status(&store).await?.problem.is_some_and(|p| p.class == Outcome::Busy), "status does not show the closed gate")?;
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    let before = step(&[Reply::Answer])?;
+    ensure(ask().await.outcome == Outcome::Answered && sent_since(before).len() == 1, "the gate did not reopen after retry-after")?;
+
+    // 529 without retry-after waits 15 s; offline waits 60 s. Neither sends while waiting.
+    let before = step(&[Reply::Busy(529, None)])?;
+    let (busy, now) = (ask().await, unix());
+    ensure(busy.outcome == Outcome::Busy && busy.retry_at.is_some_and(|at| at + 1 >= now + 15 && at <= now + 15), "529 did not wait 15 s")?;
+    ensure(ask().await.outcome == Outcome::Busy && sent_since(before).len() == 1, "an ask went out while TypeSafe was busy")?;
+    open_gate();
+    let before = step(&[Reply::Drop])?;
+    let (offline, now) = (ask().await, unix());
+    ensure(offline.outcome == Outcome::Offline && offline.retry_at.is_some_and(|at| at + 1 >= now + 60 && at <= now + 60), "offline did not wait 60 s")?;
+    ensure(ask().await.outcome == Outcome::Offline && sent_since(before).len() == 1, "an ask went out while offline")?;
+    open_gate();
+
+    // 401 marks the key refused; asks send nothing until Check now passes.
+    let before = step(&[Reply::Status(401)])?;
+    ensure(ask().await.outcome == Outcome::KeyRefused, "401 on an ask was not key_refused")?;
+    ensure(jev.status(&store).await?.state == State::Refused, "401 on an ask did not mark the key refused")?;
+    ensure(ask().await.outcome == Outcome::KeyRefused && sent_since(before).len() == 1, "an ask went out with a refused key")?;
+    let before = step(&[Reply::Models, Reply::Answer])?;
+    jev.check(&store).await?;
+    ensure(ask().await.outcome == Outcome::Answered && sent_since(before).len() == 2, "asks did not resume after the key passed Check now")?;
+
     // The keys appear nowhere in the profile directory.
     for entry in std::fs::read_dir(profile)? {
         let path = entry?.path();
@@ -202,6 +282,8 @@ pub async fn run(profile: &Path) -> Result<()> {
         std::fs::read_dir(profile)?.filter_map(|e| e.ok()).all(|e| !e.file_name().to_string_lossy().starts_with("jev-")),
         "remove left the JEV record",
     )?;
+    let before = step(&[])?;
+    ensure(ask().await.outcome == Outcome::NotConnected && sent_since(before).is_empty(), "an ask without a key contacted TypeSafe")?;
 
     let total = {
         let s = stand.lock().unwrap();

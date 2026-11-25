@@ -75,13 +75,21 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 		requestLimit, responseLimit = 6*project.MaxReassessPrompt+32*1024, 8*1024*1024
 	case "/api/native/preparation":
 		requestLimit, responseLimit = project.MaxSourceWire, 2*1024*1024
+	case "/api/native/jev":
+		// One TypeSafe ask: its state and questions, and TypeSafe's whole reply.
+		requestLimit, responseLimit = 2*1024*1024, 1024*1024+64*1024
 	default:
 		return errors.New("native callback route unavailable")
 	}
 	if ctx.Err() != nil || !collaboration.ValidID(instance) {
 		return errors.New("native host callback unavailable")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// A TypeSafe ask may take its whole 30 s timeout plus the keyring read.
+	timeout := 5 * time.Second
+	if route == "/api/native/jev" {
+		timeout = 40 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	body, err := json.Marshal(payload)
 	if err != nil || len(body) > requestLimit {
@@ -91,7 +99,7 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return nativePortDial(ctx, config)
 		},
-		DisableKeepAlives: true, MaxResponseHeaderBytes: 4096, ResponseHeaderTimeout: 5 * time.Second,
+		DisableKeepAlives: true, MaxResponseHeaderBytes: 4096, ResponseHeaderTimeout: timeout,
 	}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

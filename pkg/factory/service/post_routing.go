@@ -58,7 +58,7 @@ func PostRouting(answer factory.PriorityAnswer, keys []string, candidates []fact
 		}
 		labels[postExistingChoice(candidate.Issue)] = store.TruncateFeedSummary(label)
 	}
-	routing := &factory.PostRouting{Selected: answer.Selected, Confidence: answer.Confidence}
+	routing := &factory.PostRouting{Selected: answer.Selected, Confidence: answer.Confidence, Model: answer.Model, InputTokens: answer.InputTokens, OutputTokens: answer.OutputTokens}
 	for _, key := range keys {
 		routing.Options = append(routing.Options, factory.PostRoutingOption{
 			Key: key, Label: labels[key], Probability: answer.Probabilities[key],
@@ -66,6 +66,9 @@ func PostRouting(answer factory.PriorityAnswer, keys []string, candidates []fact
 	}
 	return routing
 }
+
+// PostUnsureQuestion is asked when no routing option clears factory.JEVSure.
+const PostUnsureQuestion = "JEV wasn’t sure where this belongs. Should it become a new issue, stay a discussion, or go to one of the existing issues it weighed?"
 
 var postClarificationQuestions = map[string]string{
 	"clarify_target":   "Which app, page, or existing issue should this request apply to?",

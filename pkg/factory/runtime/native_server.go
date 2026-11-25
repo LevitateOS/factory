@@ -70,7 +70,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	instance := collaboration.NewID()
 	native := NativeExecution{Config: config, Instance: instance, Store: db}
 	inputs := NativeInputSource{native}
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, Graph: NativeGraphs{inputs}, Creations: inputs, CompletionIssuePage: inputs.ReadCompletionIssuePage, CompletionLocalCapture: inputs.CaptureCompletionLocal, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: NewNativeIssueEffects(inputs)}, binding)
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, Graph: NativeGraphs{inputs}, Creations: inputs, CompletionIssuePage: inputs.ReadCompletionIssuePage, CompletionLocalCapture: inputs.CaptureCompletionLocal, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: NewNativeIssueEffects(inputs), PostJudge: &factoryservice.ChoicePostJudge{Chooser: NativeJEV{NativeExecution: native, Purpose: "post_route"}}}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {

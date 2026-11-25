@@ -500,6 +500,12 @@ export interface PostRouting {
   selected: string;
   confidence: number;
   options: {key: string; label: string; probability: number}[];
+  /** The versioned model and token usage behind the answer. */
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  /** No option reached the 70% rule, so the post asks the person. */
+  unsure?: boolean;
 }
 
 // postSourceForEntry names the feed entry one reply answers: a post by

@@ -12,7 +12,7 @@ import {questionPrompt} from './feed-actions.js';
 import type {FeedCardLinks} from './feed-communication.js';
 import type {FactoryRepositoryLinks} from '../app/navigation.js';
 import {renderRecordAction} from './feed-record-actions.js';
-import {renderJevChoice} from '../shared/jev-answer.js';
+import {renderJevChoice, renderJevReceipt} from '../shared/jev-answer.js';
 import type {FeedArtifactContext} from './feed-artifact.js';
 import {renderWithdrawAction, renderWithdrawalRecord, renderWithdrawnMark, withdrawnCommunication} from './feed-withdraw.js';
 
@@ -91,7 +91,11 @@ export interface PostOutcomeModel {
 // each phase owns its words, its tone and whether JEV is actually working.
 export type PostPhase =
   | 'issue_maker'
-  | 'stalled_jev'
+  | 'stalled_jev_not_connected'
+  | 'stalled_jev_key_refused'
+  | 'stalled_jev_busy'
+  | 'stalled_jev_offline'
+  | 'stalled_jev_request_refused'
   | 'stalled_context'
   | 'stalled_setup'
   | 'reading'
@@ -116,11 +120,16 @@ export type PostPhase =
   | 'create_blocked'
   | 'created';
 
+// Why a post waits for JEV; the server names the same five reasons.
+const jevStalls = new Set(['jev_not_connected', 'jev_key_refused', 'jev_busy', 'jev_offline', 'jev_request_refused']);
+
 export function postPhase(state: PostPipelineState): PostPhase {
   if (state.issueMaker) return 'issue_maker';
   if (postAttemptsExhausted(state)) return 'exhausted';
   if (state.judgment === 'pending')
-    return state.stalled === 'jev' ? 'stalled_jev' : state.stalled === 'context' ? 'stalled_context' : state.stalled === 'setup' ? 'stalled_setup' : 'reading';
+    return state.stalled && jevStalls.has(state.stalled)
+      ? (`stalled_${state.stalled}` as PostPhase)
+      : state.stalled === 'context' ? 'stalled_context' : state.stalled === 'setup' ? 'stalled_setup' : 'reading';
   if (state.judgment === 'failed') return 'assess_failed';
   switch (state.route) {
     case 'discussion':
@@ -163,8 +172,28 @@ const postPhases: Readonly<
     tone: 'settled',
     working: false,
   },
-  stalled_jev: {
-    text: () => 'I’m not connected yet, so I can’t read this. Factory needs a JEV connection first.',
+  stalled_jev_not_connected: {
+    text: () => 'I’m not connected yet, so I can’t read this. Connect JEV in Accounts and I’ll pick it up.',
+    tone: 'blocked',
+    working: false,
+  },
+  stalled_jev_key_refused: {
+    text: () => 'TypeSafe stopped accepting the JEV key, so I can’t read this. Replace the key in Accounts and I’ll pick it up.',
+    tone: 'blocked',
+    working: false,
+  },
+  stalled_jev_busy: {
+    text: () => 'TypeSafe is busy right now. I’ll read this by myself shortly.',
+    tone: 'progress',
+    working: false,
+  },
+  stalled_jev_offline: {
+    text: () => 'Factory can’t reach TypeSafe right now. I’ll read this by myself when it can.',
+    tone: 'progress',
+    working: false,
+  },
+  stalled_jev_request_refused: {
+    text: () => 'TypeSafe wouldn’t take this request, often because it is too long. Edit the post, or choose who should take it.',
     tone: 'blocked',
     working: false,
   },
@@ -382,6 +411,18 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
               outcome.routing.selected,
               Number.isFinite(outcome.routing.confidence) ? outcome.routing.confidence : undefined
             )
+          : ''
+      }
+      ${
+        outcome.routing?.model
+          ? renderJevReceipt({
+              question: 'Where does this post belong: new work, a discussion, a question back to you, or an existing issue?',
+              rule: 'Act on the top option when it is at least 70% likely; otherwise ask you.',
+              ruled: outcome.routing.unsure ? 'No option reached 70%, so I asked you.' : 'The top option cleared it.',
+              model: outcome.routing.model,
+              inputTokens: outcome.routing.input_tokens,
+              outputTokens: outcome.routing.output_tokens,
+            })
           : ''
       }
       ${outcome.detail && !outcome.phase?.startsWith('stalled') ? html`<p>${outcome.detail}</p>` : ''}

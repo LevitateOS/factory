@@ -27,6 +27,12 @@ func (j *ChoicePostJudge) JudgePost(ctx context.Context, input PostJudgeInput) (
 		return empty, err
 	}
 	judgment.Routing = PostRouting(answer, PostChoiceKeys(input.Candidates), input.Candidates)
+	// The rule lives here, not in the question: below JEVSure the post asks
+	// the person where it belongs instead of acting on a guess.
+	if answer.Probabilities[answer.Selected] < factory.JEVSure {
+		judgment = PostJudgment{Route: factory.PostRouteClarify, Question: PostUnsureQuestion, Routing: judgment.Routing}
+		judgment.Routing.Unsure = true
+	}
 	return judgment, nil
 }
 

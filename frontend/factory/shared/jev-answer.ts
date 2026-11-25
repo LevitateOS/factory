@@ -154,3 +154,36 @@ export function renderJevAnswer(value: unknown, criteria?: unknown): TemplateRes
   }
   return html`<pre class="soda-jev-raw">${text(value)}</pre>`;
 }
+
+/** TypeSafe's input-token price in dollars per million tokens. */
+const JEV_INPUT_PRICE_PER_MILLION = 0.042;
+
+/** "How I decided": the question, the rule in code and the receipt. */
+export function renderJevReceipt(receipt: {
+  question: string;
+  rule: string;
+  ruled: string;
+  model?: string | undefined;
+  inputTokens?: number | undefined;
+  outputTokens?: number | undefined;
+}): TemplateResult {
+  const input = finite(receipt.inputTokens) ?? 0;
+  const output = finite(receipt.outputTokens) ?? 0;
+  const cost = (input * JEV_INPUT_PRICE_PER_MILLION) / 1_000_000;
+  const dollars = cost < 0.0001 ? cost.toFixed(6) : cost.toFixed(4);
+  return html`<details class="soda-jev-receipt">
+    <summary>How I decided</summary>
+    <dl>
+      <div><dt>Question</dt><dd>${receipt.question}</dd></div>
+      <div><dt>Rule</dt><dd>${receipt.rule} ${receipt.ruled}</dd></div>
+      ${receipt.model ? html`<div><dt>Model</dt><dd><code>${receipt.model}</code></dd></div>` : ''}
+      <div>
+        <dt>Usage</dt>
+        <dd>
+          ${input.toLocaleString()} input and ${output.toLocaleString()} output tokens, about
+          ${'$' + dollars} (an estimate; TypeSafe’s bill is final)
+        </dd>
+      </div>
+    </dl>
+  </details>`;
+}

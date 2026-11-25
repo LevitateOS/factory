@@ -79,6 +79,16 @@ type PriorityReceipt struct {
 // needing an earlier result or new evidence waits for a later call.
 const SystemOneMaxBatchQuestions = 8
 
+// JEV answer thresholds. A probability at or above JEVSure reads as yes, at or
+// below JEVNo as no; the band between means JEV is unsure and the person decides.
+const (
+	JEVSure = 0.70
+	JEVNo   = 0.30
+)
+
+// CommandJEVAsk journals one JEV decision in factory_commands.
+const CommandJEVAsk = "jev.ask"
+
 // SystemOneWorkerQuestion is one batched same-primitive question over
 // the shared batch state.
 type SystemOneWorkerQuestion struct {

@@ -7,9 +7,11 @@
 //! TypeSafe refused it, the models it offers and the default model.
 use crate::credentials::{self, Account, CredentialState, Credentials, Provider, Token};
 use crate::private_fs::{read_bytes, write_bytes};
-use reqwest::header::{HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderValue, AUTHORIZATION, CONTENT_TYPE, RETRY_AFTER};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zeroize::Zeroizing;
 
@@ -22,6 +24,12 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_REPLY: usize = 256 * 1024;
 const MAX_RECORD: usize = 64 * 1024;
 const MAX_MODELS: usize = 64;
+const ASK_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_ASK: usize = 1024 * 1024;
+const MAX_ANSWER: usize = 1024 * 1024;
+const OFFLINE_WAIT: u64 = 60;
+const BUSY_FIRST: u64 = 15;
+const BUSY_MAX: u64 = 600;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -99,6 +107,103 @@ pub struct Status {
     pub refused_at: Option<u64>,
     pub default_model: String,
     pub models: Vec<Model>,
+    /// Set while the per-Mac gate is closed after busy or offline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub problem: Option<Problem>,
+}
+
+/// What one ask came to. `Answered` carries TypeSafe's whole reply, which Go
+/// validates; every other class sends nothing back from TypeSafe but its
+/// status and a short `detail`.
+#[derive(Clone, Copy, Serialize, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Answered,
+    /// 401 now, or earlier and not yet replaced or checked: nothing is sent.
+    KeyRefused,
+    NotConnected,
+    /// 429 or 529: the gate stays closed until `retry_at`.
+    Busy,
+    /// No answer: the gate stays closed for a minute.
+    Offline,
+    /// 413, or 400 `max_tokens_exceeded`. Never retried.
+    TooLarge,
+    /// 400, 415 or 422: Factory sent something TypeSafe cannot take.
+    Rejected,
+    Unexpected,
+}
+
+#[derive(Serialize, Debug)]
+pub struct Asked {
+    pub outcome: Outcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply: Option<Value>,
+}
+impl Asked {
+    fn of(outcome: Outcome) -> Self {
+        Self { outcome, retry_at: None, http_status: None, detail: None, reply: None }
+    }
+    fn status(outcome: Outcome, status: u16, detail: Option<String>) -> Self {
+        Self { http_status: Some(status), detail, ..Self::of(outcome) }
+    }
+}
+
+/// Why the per-Mac gate is closed, and until when.
+#[derive(Clone, Copy, Serialize, PartialEq, Eq, Debug)]
+pub struct Problem {
+    pub class: Outcome,
+    pub since: u64,
+    pub retry_at: u64,
+}
+
+/// TypeSafe limits requests per organization, so every ask on this Mac goes
+/// through one gate and one at a time. Rust keeps no queue: a closed gate
+/// answers at once and Go keeps the waiting decision.
+struct Gate {
+    problem: Option<Problem>,
+    busy_wait: u64,
+}
+static GATE: Mutex<Gate> = Mutex::new(Gate { problem: None, busy_wait: 0 });
+static ASKING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+fn closed_gate() -> Option<Problem> {
+    let gate = GATE.lock().ok()?;
+    gate.problem.filter(|problem| problem.retry_at > now())
+}
+fn settle_gate(asked: &mut Asked) {
+    let Ok(mut gate) = GATE.lock() else { return };
+    let now = now();
+    match asked.outcome {
+        Outcome::Busy => {
+            gate.busy_wait = if gate.busy_wait == 0 { BUSY_FIRST } else { (gate.busy_wait * 2).min(BUSY_MAX) };
+            let retry_at = asked.retry_at.unwrap_or(now + gate.busy_wait);
+            asked.retry_at = Some(retry_at);
+            gate.problem = Some(Problem { class: Outcome::Busy, since: now, retry_at });
+        }
+        Outcome::Offline => {
+            let retry_at = now + OFFLINE_WAIT;
+            asked.retry_at = Some(retry_at);
+            gate.problem = Some(Problem { class: Outcome::Offline, since: now, retry_at });
+        }
+        Outcome::Answered => {
+            gate.busy_wait = 0;
+            gate.problem = None;
+        }
+        _ => gate.problem = None,
+    }
+}
+/// Controlled checks only: open the gate instead of waiting out `retry_at`.
+#[cfg(feature = "controlled-replies")]
+pub fn open_gate() {
+    if let Ok(mut gate) = GATE.lock() {
+        gate.problem = None;
+    }
 }
 
 #[derive(Deserialize)]
@@ -216,6 +321,64 @@ impl Jev {
         Ok(())
     }
 
+    /// One decision: `POST /v1/systemone` with the saved key, at most once.
+    /// Nothing is sent while the gate is closed, no key is saved or TypeSafe
+    /// refused the saved key. `model` is a project pin; without one the
+    /// account default is used.
+    pub async fn ask(&self, store: &Credentials, model: Option<&str>, state: &Value, questions: &Value) -> Asked {
+        let _turn = ASKING.lock().await;
+        if let Some(problem) = closed_gate() {
+            return Asked { retry_at: Some(problem.retry_at), ..Asked::of(problem.class) };
+        }
+        let connection = match self.connection(store).await {
+            Ok(Some(connection)) => connection,
+            Ok(None) => return Asked::of(Outcome::NotConnected),
+            Err(_) => return Asked { detail: Some("keyring".into()), ..Asked::of(Outcome::NotConnected) },
+        };
+        let record = self.read(store).unwrap_or_default();
+        if record.refused_at.is_some() {
+            return Asked::of(Outcome::KeyRefused);
+        }
+        let model = match model.filter(|model| !model.is_empty()) {
+            Some(model) => model.to_owned(),
+            None if record.default_model.is_empty() => DEFAULT_MODEL.to_owned(),
+            None => record.default_model,
+        };
+        if !valid_name(&model) {
+            return Asked { detail: Some("model".into()), ..Asked::of(Outcome::Rejected) };
+        }
+        let Ok(body) = serde_json::to_vec(&serde_json::json!({"model": model, "state": state, "questions": questions})) else {
+            return Asked::of(Outcome::Rejected);
+        };
+        if body.len() > MAX_ASK {
+            return Asked::of(Outcome::TooLarge);
+        }
+        let cap = match store.capability(&connection).await {
+            Ok(cap) => cap,
+            Err(credentials::Error::Locked) => return Asked { detail: Some("keyring_locked".into()), ..Asked::of(Outcome::NotConnected) },
+            Err(_) => return Asked { detail: Some("keyring".into()), ..Asked::of(Outcome::NotConnected) },
+        };
+        let body = Zeroizing::new(body);
+        let mut asked = store
+            .with_token_operation_timeout(&cap, ASK_TIMEOUT + Duration::from_secs(5), async |key: &[u8]| self.systemone(key, &body).await)
+            .await
+            .unwrap_or_else(|_| Asked { detail: Some("keyring".into()), ..Asked::of(Outcome::Unexpected) });
+        if asked.outcome == Outcome::KeyRefused && self.mark_refused(store).is_err() {
+            eprintln!("jev: the key refusal could not be recorded");
+        }
+        settle_gate(&mut asked);
+        let usage = asked.reply.as_ref().and_then(|reply| reply.get("usage"));
+        eprintln!(
+            "jev ask: {:?} status={} model={} input_tokens={} output_tokens={}",
+            asked.outcome,
+            asked.http_status.unwrap_or(0),
+            asked.reply.as_ref().and_then(|reply| reply.get("model")).and_then(Value::as_str).unwrap_or(&model),
+            usage.and_then(|u| u.get("input_tokens")).and_then(Value::as_u64).unwrap_or(0),
+            usage.and_then(|u| u.get("output_tokens")).and_then(Value::as_u64).unwrap_or(0),
+        );
+        asked
+    }
+
     pub async fn set_model(&self, store: &Credentials, model: &str) -> Result<Status> {
         self.connection(store).await?.ok_or(Error::Missing)?;
         let mut record = self.read(store).unwrap_or_default();
@@ -271,6 +434,7 @@ impl Jev {
                 refused_at: None,
                 default_model: DEFAULT_MODEL.into(),
                 models: Vec::new(),
+                problem: None,
             });
         }
         Ok(Status {
@@ -285,6 +449,7 @@ impl Jev {
                 record.default_model
             },
             models: record.models,
+            problem: closed_gate(),
         })
     }
 
@@ -346,6 +511,71 @@ impl Jev {
         Ok(models)
     }
 
+    async fn systemone(&self, key: &[u8], body: &[u8]) -> Asked {
+        let Ok(url) = self.base.join("/v1/systemone") else { return Asked::of(Outcome::Unexpected) };
+        let mut header = Zeroizing::new(b"Bearer ".to_vec());
+        header.extend_from_slice(key);
+        let Ok(mut auth) = HeaderValue::from_bytes(&header) else { return Asked::of(Outcome::NotConnected) };
+        auth.set_sensitive(true);
+        let sent = self
+            .http
+            .post(url)
+            .timeout(ASK_TIMEOUT)
+            .header(AUTHORIZATION, auth)
+            .header(CONTENT_TYPE, "application/json")
+            .body(body.to_vec())
+            .send()
+            .await;
+        let Ok(mut response) = sent else { return Asked::of(Outcome::Offline) };
+        let status = response.status().as_u16();
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .map(|seconds| now() + seconds.min(3600));
+        let limit = if status == 200 { MAX_ANSWER } else { 16 * 1024 };
+        let mut reply = Vec::new();
+        loop {
+            match response.chunk().await {
+                Ok(Some(chunk)) if reply.len() + chunk.len() <= limit => reply.extend_from_slice(&chunk),
+                Ok(Some(_)) => return Asked::status(Outcome::Unexpected, status, Some("reply too long".into())),
+                Ok(None) => break,
+                Err(_) if status == 200 => return Asked::of(Outcome::Offline),
+                Err(_) => break,
+            }
+        }
+        if status == 200 {
+            return match serde_json::from_slice::<Value>(&reply) {
+                Ok(reply @ Value::Object(_)) => Asked { reply: Some(reply), ..Asked::status(Outcome::Answered, 200, None) },
+                _ => Asked::status(Outcome::Unexpected, 200, Some("unreadable reply".into())),
+            };
+        }
+        let detail = serde_json::from_slice::<Value>(&reply).ok().and_then(|value| match value.get("detail")? {
+            Value::String(text) => Some(text.clone()),
+            other => Some(other.to_string()),
+        });
+        let detail = detail.map(|mut text| {
+            if text.len() > 500 {
+                let mut end = 500;
+                while !text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                text.truncate(end);
+            }
+            text
+        });
+        let outcome = match status {
+            401 => Outcome::KeyRefused,
+            429 | 529 => Outcome::Busy,
+            413 => Outcome::TooLarge,
+            400 if detail.as_deref().is_some_and(|text| text.contains("max_tokens_exceeded")) => Outcome::TooLarge,
+            400 | 415 | 422 => Outcome::Rejected,
+            _ => Outcome::Unexpected,
+        };
+        Asked { retry_at: if outcome == Outcome::Busy { retry_after } else { None }, ..Asked::status(outcome, status, detail) }
+    }
+
     fn record_path(&self, store: &Credentials) -> PathBuf {
         self.dir.join(format!("jev-{}.json", store.profile_id()))
     }
@@ -386,4 +616,33 @@ fn now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
         .unwrap_or(0)
+}
+
+/// Go's two JEV operations over the native channel (`/api/native/jev`).
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Call {
+    /// The key-free status. Local; costs no TypeSafe request.
+    InspectJev,
+    JevAsk {
+        #[serde(default)]
+        model: Option<String>,
+        state: Value,
+        questions: Value,
+    },
+}
+
+pub(crate) async fn callback(
+    profile: &Path,
+    credentials: Option<std::sync::Arc<Credentials>>,
+    call: Call,
+) -> std::result::Result<Value, crate::provider_contract::Failure> {
+    use crate::provider_contract::Failure;
+    let store = credentials.ok_or_else(|| Failure::new(503, "jev_unavailable"))?;
+    let jev = Jev::new(profile).map_err(|_| Failure::new(503, "jev_unavailable"))?;
+    let value = match call {
+        Call::InspectJev => serde_json::to_value(jev.status(&store).await.map_err(|_| Failure::new(503, "jev_unavailable"))?),
+        Call::JevAsk { model, state, questions } => serde_json::to_value(jev.ask(&store, model.as_deref(), &state, &questions).await),
+    };
+    value.map_err(|_| Failure::new(503, "jev_unavailable"))
 }
