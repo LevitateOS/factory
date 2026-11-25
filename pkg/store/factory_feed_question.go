@@ -50,6 +50,14 @@ func (s *Store) saveQuestionAnswer(ctx context.Context, req factory.PostRequest,
 	if ask == nil || ask.Kind != "ask" || ask.AnswerForm == nil {
 		return "", 0, fmt.Errorf("%w: the parent is not a typed question", factory.ErrQuestionAnswerInvalid)
 	}
+	// Read after the lock above, so a withdrawal committed meanwhile is seen.
+	var withdrawn bool
+	if err := tx.QueryRowContext(ctx, `SELECT `+feedWithdrawnSQL("p")+` FROM factory_feed_posts p WHERE p.id=$1`, req.ParentID).Scan(&withdrawn); err != nil {
+		return "", 0, err
+	}
+	if withdrawn {
+		return "", 0, factory.ErrPostWithdrawn
+	}
 	answer, text, err := ask.AnswerForm.Admit(*req.Answer)
 	if err != nil {
 		return "", 0, err

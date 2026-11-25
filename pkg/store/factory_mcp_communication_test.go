@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -673,6 +674,96 @@ func TestMCPCommunicationPersistsFeedAndReplay(t *testing.T) {
 	if !asked {
 		t.Fatalf("invited role did not read the hint: %+v", read.Items)
 	}
+	// Withdrawal (factory.FeedWithdrawal): an author withdraws their own post
+	// with a new record; the original stays served, marked withdrawn, and no
+	// longer waits for anyone. needs-you and attention share feedAskWaitsSQL.
+	waits := func(repository int64, id string) bool {
+		var n int
+		if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM (`+feedNeedsYouSQL(strconv.FormatInt(repository, 10), "$1")+`) w WHERE w.id=$2`, deliveryCarriedOn, id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	listed := func(repository int64, view, id string) bool {
+		page, _, _, err := s.SubscribedFeed(ctx, factory.FeedQuery{Repositories: []int64{repository}, Limit: factory.FeedPageLimit, View: view})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return slices.ContainsFunc(page, func(entry factory.FeedEntry) bool { return entry.ID == id })
+	}
+	if listed(7, "attention", allowance.Record.ID) || listed(7, "attention", access.Record.ID) {
+		t.Fatal("a met or replied request is still in attention")
+	}
+	builder, architect := roles[factory.MCPProfileBuilder], roles[factory.MCPProfileArchitect]
+	post := func(capability factory.MCPCapability, tool factory.MCPTool, payload string) string {
+		t.Helper()
+		posted, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(capability, tool, []byte(payload)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return posted.Record.ID
+	}
+	early := post(builder, factory.MCPToolPartial, `{"title":"Checked the list","summary":"Scrolling works.","completed":["Scroll check"]}`)
+	ask := post(builder, factory.MCPToolAsk, `{"title":"Should the list keep its place?","summary":"The list jumps back to the top after going back.","question":"Keep the scroll position?","answer_form":{"kind":"yes_no"}}`)
+	if !waits(9, ask) || !listed(9, "attention", ask) {
+		t.Fatal("open typed ask does not wait for the person")
+	}
+	fix := post(builder, factory.MCPToolPartial, `{"title":"The list keeps its place","summary":"I was testing an older version of the app.","completed":["Retested"]}`)
+	withdraw := func(capability factory.MCPCapability, w string) (FeedPostDetail, error) {
+		return s.RecordWorkerPost(ctx, testMCPSubmissionRow(capability, factory.MCPToolWithdraw, []byte(w)))
+	}
+	if _, err := withdraw(architect, `{"post":"`+ask+`","reason":"Wrong"}`); !errors.Is(err, factory.ErrWithdrawNotAuthor) {
+		t.Fatalf("another role withdrew the post: %v", err)
+	}
+	if _, err := withdraw(builder, `{"post":"`+plain+`","reason":"Wrong"}`); !errors.Is(err, factory.ErrWithdrawNotAuthor) {
+		t.Fatalf("an agent withdrew the person's post: %v", err)
+	}
+	if _, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 9, IdempotencyKey: "withdraw-agent", Withdraw: &factory.FeedWithdrawal{Post: ask, Reason: "Wrong"}}, "7", "Maya", 4); !errors.Is(err, factory.ErrWithdrawNotAuthor) {
+		t.Fatalf("the person withdrew an agent post: %v", err)
+	}
+	if _, err := withdraw(builder, `{"post":"`+ask+`","reason":"Wrong","correction":"`+early+`"}`); !errors.Is(err, factory.ErrWithdrawalInvalid) {
+		t.Fatalf("an earlier post admitted as the correction: %v", err)
+	}
+	withdrawal := testMCPSubmissionRow(builder, factory.MCPToolWithdraw, []byte(`{"post":"`+ask+`","reason":"I was testing an older version of the app.","correction":"`+fix+`"}`))
+	record, err := s.RecordWorkerPost(ctx, withdrawal)
+	if err != nil || record.Withdrawal == nil || record.Withdrawal.Post != ask || record.Payload.Communication.Kind != "withdraw" {
+		t.Fatalf("withdrawal not recorded: %+v %v", record, err)
+	}
+	if again, err := s.RecordWorkerPost(ctx, withdrawal); err != nil || again.Record.ID != record.Record.ID {
+		t.Fatalf("withdrawal replay=%+v err=%v", again, err)
+	}
+	if _, err := withdraw(builder, `{"post":"`+ask+`","reason":"Again"}`); !errors.Is(err, factory.ErrPostWithdrawn) {
+		t.Fatalf("second withdrawal admitted: %v", err)
+	}
+	original, err := s.FeedPost(ctx, ask)
+	if w := original.Withdrawn; err != nil || w == nil || w.By != "Builder" || w.Reason != "I was testing an older version of the app." || w.Correction != fix || w.At == 0 || original.Record.Revision != 0 {
+		t.Fatalf("withdrawn post not served: %+v %v", original, err)
+	}
+	if served, err := s.FeedPostDetails(ctx, []string{ask}); err != nil || served[ask].Withdrawn == nil || served[ask].Withdrawn.Correction != fix {
+		t.Fatalf("withdrawn not served in the timeline: %+v %v", served[ask], err)
+	}
+	if waits(9, ask) || listed(9, "attention", ask) || !listed(9, "", ask) {
+		t.Fatal("withdrawn ask still waits, or left the timeline")
+	}
+	if _, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 9, ParentID: ask, IdempotencyKey: "withdrawn-answer", Answer: &factory.FeedQuestionAnswer{Kind: factory.QuestionYesNo, Yes: new(bool)}}, "7", "Maya", 4); !errors.Is(err, factory.ErrPostWithdrawn) {
+		t.Fatalf("withdrawn question answered: %v", err)
+	}
+	// The person withdraws their own post the same way, replayed by key.
+	mine := factory.PostRequest{Repository: 9, IdempotencyKey: "withdraw-plain", Withdraw: &factory.FeedWithdrawal{Post: plain, Reason: "Asked in the wrong project."}}
+	first, _, err := s.SaveFeedPost(ctx, mine, "7", "Maya", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, _, err := s.SaveFeedPost(ctx, mine, "7", "Maya", 6); err != nil || again != first {
+		t.Fatalf("person withdrawal replay=%s err=%v", again, err)
+	}
+	mine.IdempotencyKey = "withdraw-plain-again"
+	if _, _, err := s.SaveFeedPost(ctx, mine, "7", "Maya", 6); !errors.Is(err, factory.ErrPostWithdrawn) {
+		t.Fatalf("second person withdrawal admitted: %v", err)
+	}
+	if served, err := s.FeedPost(ctx, plain); err != nil || served.Withdrawn == nil || served.Withdrawn.By != "Maya" || served.Withdrawn.Correction != "" {
+		t.Fatalf("person withdrawal not served: %+v %v", served, err)
+	}
 }
 
 func TestMCPCommunicationPostsDoNotConsumeFinishCapacity(t *testing.T) {
@@ -821,11 +912,6 @@ func TestPostResolutionDispositionPersistsAndExposes(t *testing.T) {
 		return receipt
 	}
 	ask := post(factory.MCPToolAsk, `{"title":"Who can view a task?","summary":"The owner policy needs clarification.","question":"May team members view other people's tasks?"}`)
-	answer := post(factory.MCPToolAnswer, `{"title":"Policy clarified","summary":"Only task owners may view their tasks.","parent_id":"`+ask.Record.ID+`"}`)
-	question, err := s.FeedPost(ctx, ask.Record.ID)
-	if err != nil || question.Payload.Communication.QuestionState != "answered" {
-		t.Fatalf("answer not reflected: %+v %v", question, err)
-	}
 	attention := func(want bool) {
 		t.Helper()
 		entries, _, _, err := s.SubscribedFeed(ctx, factory.FeedQuery{Repositories: []int64{cap.Repository}, View: "attention", Limit: 100})
@@ -841,6 +927,13 @@ func TestPostResolutionDispositionPersistsAndExposes(t *testing.T) {
 		}
 	}
 	attention(true)
+	answer := post(factory.MCPToolAnswer, `{"title":"Policy clarified","summary":"Only task owners may view their tasks.","parent_id":"`+ask.Record.ID+`"}`)
+	question, err := s.FeedPost(ctx, ask.Record.ID)
+	if err != nil || question.Payload.Communication.QuestionState != "answered" {
+		t.Fatalf("answer not reflected: %+v %v", question, err)
+	}
+	// Answered, the ask no longer waits for the person (feedAskWaitsSQL).
+	attention(false)
 	resolve := func(payload string) error {
 		t.Helper()
 		submission := testMCPSubmissionRow(cap, factory.MCPToolResolvePost, []byte(payload))

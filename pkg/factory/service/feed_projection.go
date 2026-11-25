@@ -151,5 +151,6 @@ func EnrichPosts(ctx context.Context, st *store.Store, projects map[int64]string
 		entries[i].Status = detail.Status
 		entries[i].State = store.EventState(detail.Status)
 		entries[i].Summary = store.TruncateFeedSummary(detail.Body)
+		entries[i].Withdrawn, entries[i].Withdrawal = detail.Withdrawn, detail.Withdrawal
 	}
 }

@@ -55,6 +55,10 @@ func (s Feed) submitPost(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 404, "source_not_found", "The parent post is not visible.")
 		case errors.Is(err, factoryservice.ErrPostQuestionAnswered):
 			writeError(w, 409, "question_answered", "The question already has a recorded answer.")
+		case errors.Is(err, factory.ErrPostWithdrawn):
+			writeError(w, 409, "post_withdrawn", "The post was withdrawn by its author.")
+		case errors.Is(err, factoryservice.ErrPostAuthorRequired):
+			writeError(w, 403, "comment_author_required", "Only a post's author can withdraw it.")
 		default:
 			writeError(w, 503, "store_unavailable", "Could not save the feed post request.")
 		}

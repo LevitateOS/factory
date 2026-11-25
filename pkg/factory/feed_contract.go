@@ -115,6 +115,10 @@ type FeedEntry struct {
 	// SourcePost is a human post's stored comment with its pipeline outcome,
 	// served with the window so the feed needs no per-post read.
 	Post any `json:"post,omitempty"`
+	// Withdrawn is served when the post's author withdrew it; Withdrawal is a
+	// withdrawal record's own content (feed_withdraw.go).
+	Withdrawn  *FeedWithdrawn  `json:"withdrawn,omitempty"`
+	Withdrawal *FeedWithdrawal `json:"withdrawal,omitempty"`
 }
 
 // FeedPayload is one record's typed component content, projected by

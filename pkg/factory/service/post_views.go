@@ -84,6 +84,15 @@ func (s Posts) Read(ctx context.Context, actor collaboration.ActorID, id string)
 	if detail.SubmittedWork || detail.Contribution != nil || detail.Consultation != nil || (detail.Payload != nil && detail.Payload.Communication != nil) {
 		return WorkerPostResponse(detail), nil
 	}
+	if detail.Withdrawal != nil {
+		// The person's withdrawal is not routed and carries no pipeline.
+		response := feedPostResponse(detail, factory.PostIntake{}, "", strconv.FormatInt(int64(actor), 10))
+		for _, key := range []string{"intake", "judgment", "route", "draft", "effect", "issue", "existing_issue", "attempts", "attempt_limit", "detail", "status"} {
+			delete(response, key)
+		}
+		response["can_retry"] = false
+		return response, nil
+	}
 	pipe, err := s.Store.PostIntake(ctx, detail.Record.ID)
 	if err != nil {
 		return nil, err
@@ -252,6 +261,7 @@ func feedPostResponse(detail store.FeedPostDetail, pipe factory.PostIntake, prog
 		"intake": pipe.Intake, "judgment": pipe.Judgment, "route": pipe.Route,
 		"draft": pipe.Draft, "effect": pipe.Effect, "issue": pipe.Issue,
 		"existing_issue": PostExistingIssue(pipe), "source": detail.Source, "read_first_by": detail.ReadFirstBy,
+		"withdrawn": detail.Withdrawn, "withdrawal": detail.Withdrawal,
 		"attempts": pipe.Attempts, "attempt_limit": factory.PostAttemptLimit,
 		"detail":    progress,
 		"can_retry": detail.Record.Author == actor && !detail.Record.Deleted && !detail.Record.Revoked && pipe.RetryAllowed(),
@@ -279,6 +289,6 @@ func WorkerPostResponse(detail store.FeedPostDetail) map[string]any {
 		"status": detail.Status, "deleted": detail.Record.Deleted, "revoked": detail.Record.Revoked, "edited": false,
 		"can_retry": false, "communication": communication, "consultation": detail.Consultation,
 		"assignment": detail.Assignment, "source": detail.Source,
-		"contribution": contribution,
+		"contribution": contribution, "withdrawn": detail.Withdrawn, "withdrawal": detail.Withdrawal,
 	}
 }

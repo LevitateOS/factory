@@ -63,8 +63,21 @@ func (s PostCommands) Submit(ctx context.Context, actor collaboration.ActorID, a
 	if errors.Is(err, store.ErrQuestionAnswered) {
 		return empty, ErrPostQuestionAnswered
 	}
+	if errors.Is(err, factory.ErrWithdrawalInvalid) {
+		return empty, errors.Join(ErrPostInputInvalid, err)
+	}
+	if errors.Is(err, store.ErrNotFound) && req.Withdraw != nil {
+		return empty, ErrPostSourceNotFound
+	}
+	if errors.Is(err, factory.ErrWithdrawNotAuthor) {
+		return empty, ErrPostAuthorRequired
+	}
 	if err != nil {
 		return empty, err
+	}
+	if req.Withdraw != nil {
+		// A withdrawal is not routed: no intake, judgment or issue follows it.
+		return factory.PostResponse{SourcePost: id, Revision: revision, AttemptLimit: factory.PostAttemptLimit}, nil
 	}
 	if err := s.Posts.Store.RecordIssueMakerIntake(ctx, id, revision); err != nil {
 		return empty, err

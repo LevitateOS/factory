@@ -66,6 +66,7 @@ func factoryToolDescription(tool factory.MCPTool) string {
 		factory.MCPToolAsk:                  "Publish a specific question with optional suggested answers, or an answer_form when the answer takes a fixed shape (pick one, yes or no, score, pick several, value). Read responses with factory.inbox or factory.discussion; a typed reply carries answer beside its text. To ask the person for more allowance or for access, add request; it links them to the setting and grants nothing.",
 		factory.MCPToolAnswer:               "Answer an existing question using its post ID. This records your answer without changing product authority.",
 		factory.MCPToolReply:                "Contribute to an existing discussion using its post ID.",
+		factory.MCPToolWithdraw:             "Withdraw a post your role made in this project when it turned out wrong, optionally naming a later post of yours that corrects it. The original stays visible, marked withdrawn, stops waiting for anyone and can no longer be answered. A post is withdrawn once; you cannot withdraw the person's or another role's post.",
 		factory.MCPToolFlag:                 "Report a concern with its severity, evidence and impact.",
 		factory.MCPToolLearned:              "Record a reusable observation with evidence and the scope where it applies.",
 		factory.MCPToolSuggest:              "Propose an improvement and explain its benefit. This does not apply the proposed change.",

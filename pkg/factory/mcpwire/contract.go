@@ -88,7 +88,7 @@ func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	}
 	// Typed result schemas take precedence over the shared communication schema.
 	for _, define := range []func(factory.MCPTool) *jsonschema.Schema{
-		resolvePostPayloadSchema, verificationJourneyPayloadSchema, libraryPayloadSchema,
+		resolvePostPayloadSchema, withdrawPayloadSchema, verificationJourneyPayloadSchema, libraryPayloadSchema,
 		rolePayloadSchema, inboxPayloadSchema, communicationPayloadSchema,
 	} {
 		if schema := define(tool); schema != nil {

@@ -101,6 +101,9 @@ type PostRequest struct {
 	// invited to read this post first. It never enters JEV's routing
 	// judgment and changes no admission or decision.
 	ReadFirstBy MCPProfile `json:"read_first_by,omitempty"`
+	// Withdraw withdraws one of the person's own posts (feed_withdraw.go).
+	// The caller sends no body: the store records the reason as the body.
+	Withdraw *FeedWithdrawal `json:"withdraw,omitempty"`
 }
 
 // Validate admits one comment request with its scope, bounded body and
@@ -109,7 +112,14 @@ func (r PostRequest) Validate() error {
 	if r.Repository <= 0 {
 		return errors.New("comment needs its repository scope")
 	}
-	if r.Answer != nil {
+	if r.Withdraw != nil {
+		if r.Body != "" || r.ParentID != "" || r.Issue != 0 || r.Answer != nil || r.ReadFirstBy != "" {
+			return errors.Join(ErrWithdrawalInvalid, errors.New("a withdrawal carries only the post, reason and correction"))
+		}
+		if err := r.Withdraw.Validate(); err != nil {
+			return err
+		}
+	} else if r.Answer != nil {
 		if r.Body != "" || r.ParentID == "" {
 			return errors.New("a typed answer names its question and carries no body")
 		}

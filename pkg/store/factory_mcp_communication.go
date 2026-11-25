@@ -68,6 +68,10 @@ func (s *Store) RecordWorkerPost(ctx context.Context, submission factory.MCPSubm
 		if _, err := recordRepairDraftPostTx(ctx, tx, capability, submission); err != nil {
 			return out, err
 		}
+	case factory.MCPToolWithdraw:
+		if err := recordWorkerWithdrawalTx(ctx, tx, capability, submission); err != nil {
+			return out, err
+		}
 	default:
 		content, err := factory.DecodeMCPCommunication(submission.Tool, submission.Payload)
 		if err != nil {
@@ -89,6 +93,15 @@ func (s *Store) RecordWorkerPost(ctx context.Context, submission factory.MCPSubm
 			}
 			if submission.Tool == factory.MCPToolAnswer && parentKind != "ask" {
 				return out, errors.New("answer must refer to an ask post")
+			}
+			if submission.Tool == factory.MCPToolAnswer {
+				var withdrawn bool
+				if err = tx.QueryRowContext(ctx, `SELECT `+feedWithdrawnSQL("p")+` FROM factory_feed_posts p WHERE p.id=$1`, content.ParentID).Scan(&withdrawn); err != nil {
+					return out, err
+				}
+				if withdrawn {
+					return out, factory.ErrPostWithdrawn
+				}
 			}
 		}
 		if err := resolveCommunicationArtifactsTx(ctx, tx, capability.Repository, &content); err != nil {
@@ -133,6 +146,8 @@ func recordWorkerPostTx(ctx context.Context, tx *sql.Tx, capability factory.MCPC
 		fields["diagnosis"] = json.RawMessage(submission.Payload)
 	case factory.MCPToolDraftRepair:
 		fields["repair_draft"] = string(submission.Payload)
+	case factory.MCPToolWithdraw:
+		fields["withdrawal"] = json.RawMessage(submission.Payload)
 	}
 	if content.ParentID == "" && (content.Kind == "partial" || content.Kind == "reply") {
 		fields["source"] = factory.PostSource{Kind: factory.PostSourceRecord, ID: capability.AssignmentID, Issue: issue, Ref: capability.AcceptedRevision}
@@ -173,12 +188,14 @@ func applyFeedCommunicationDetail(detail *FeedPostDetail, raw []byte) error {
 		Work          *mcpSubmittedWork           `json:"work"`
 		Answer        *factory.FeedQuestionAnswer `json:"answer"`
 		ReadFirstBy   factory.MCPProfile          `json:"read_first_by"`
+		Withdrawal    *factory.FeedWithdrawal     `json:"withdrawal"`
 	}
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return err
 	}
 	detail.Answer = data.Answer
 	detail.ReadFirstBy = data.ReadFirstBy
+	detail.Withdrawal = data.Withdrawal
 	if data.Source != nil {
 		detail.Source = data.Source
 		if detail.Record.ParentID == "" && data.Source.Kind == factory.PostSourcePost {

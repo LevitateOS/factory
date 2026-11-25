@@ -128,6 +128,7 @@ const (
 	MCPToolFinishCorrection     MCPTool = "factory.finish_correction"
 	MCPToolFinishReassessment   MCPTool = "factory.finish_reassessment"
 	MCPToolResolvePost          MCPTool = "factory.resolve_post"
+	MCPToolWithdraw             MCPTool = "factory.withdraw"
 	MCPToolFinishAppVerify      MCPTool = "factory.finish_app_verification"
 	MCPToolVerificationScope    MCPTool = "factory.verification_scope"
 	MCPToolPreviewRepair        MCPTool = "factory.preview_repair"
@@ -204,6 +205,7 @@ var mcpToolDefinitions = []mcpToolDefinition{
 	{MCPToolWorkspace, map[MCPProfile]bool{MCPProfileBuilder: true, MCPProfileFixer: true}, mcpDirect},
 	{MCPToolReleaseOutput, map[MCPProfile]bool{MCPProfileBuilder: true, MCPProfileFixer: true}, mcpDirect},
 	{MCPToolResolvePost, allMCPProfiles(), 0},
+	{MCPToolWithdraw, allMCPProfiles(), 0},
 }
 
 // MCPTools retains the public discovery order; admission uses the same definitions.

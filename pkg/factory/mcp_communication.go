@@ -16,9 +16,10 @@ const MCPMaxCommunicationBytes = 8192
 var MCPCommunicationTools = []MCPTool{MCPToolAsk, MCPToolAnswer, MCPToolReply, MCPToolFlag, MCPToolLearned, MCPToolSuggest, MCPToolPartial, MCPToolBlocked, MCPToolStuck, MCPToolRecordDecision}
 
 func MCPIsCommunication(tool MCPTool) bool {
-	// Typed journey/diagnosis observations have their own bounded decoders and
-	// durable recorders, but carry the same report-only authority as these outlets.
-	if tool == MCPToolRecordJourneyResult || tool == MCPToolRecordDiagnosis || tool == MCPToolDraftRepair {
+	// Typed journey/diagnosis observations and withdrawals have their own
+	// bounded decoders and durable recorders, but carry the same report-only
+	// authority as these outlets.
+	if tool == MCPToolRecordJourneyResult || tool == MCPToolRecordDiagnosis || tool == MCPToolDraftRepair || tool == MCPToolWithdraw {
 		return true
 	}
 	for _, known := range MCPCommunicationTools {

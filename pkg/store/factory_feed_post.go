@@ -38,12 +38,16 @@ type FeedPostDetail struct {
 	Answer *factory.FeedQuestionAnswer
 	// ReadFirstBy is the person's recorded routing hint.
 	ReadFirstBy factory.MCPProfile
-	Record      factory.PostRecord
-	Body        string
-	AuthorName  string
-	At          int64
-	Status      string
-	Source      *factory.PostSource
+	// Withdrawal is this post's own withdrawal of an earlier post; Withdrawn
+	// is served when its author withdrew this post (feedWithdrawals).
+	Withdrawal *factory.FeedWithdrawal
+	Withdrawn  *factory.FeedWithdrawn
+	Record     factory.PostRecord
+	Body       string
+	AuthorName string
+	At         int64
+	Status     string
+	Source     *factory.PostSource
 }
 
 var ErrInvalidPostDraft = errors.New("invalid issue draft")
@@ -177,6 +181,9 @@ func (s *Store) SaveFeedPostWithSource(ctx context.Context, req factory.PostRequ
 	}
 	if req.Answer != nil {
 		return s.saveQuestionAnswer(ctx, req, author, fields)
+	}
+	if req.Withdraw != nil {
+		return s.saveFeedWithdrawal(ctx, req, author, fields)
 	}
 	data, err := json.Marshal(fields)
 	if err != nil {
@@ -409,6 +416,11 @@ func (s *Store) FeedPost(ctx context.Context, id string) (FeedPostDetail, error)
 		}
 		out = details[out.Record.ID]
 	}
+	details := map[string]FeedPostDetail{out.Record.ID: out}
+	if err := s.feedWithdrawals(ctx, details); err != nil {
+		return FeedPostDetail{}, err
+	}
+	out = details[out.Record.ID]
 	return out, nil
 }
 
@@ -606,6 +618,9 @@ func (s *Store) FeedPostDetails(ctx context.Context, ids []string) (map[string]F
 		return nil, err
 	}
 	if err := s.feedAssumptionStates(ctx, out); err != nil {
+		return nil, err
+	}
+	if err := s.feedWithdrawals(ctx, out); err != nil {
 		return nil, err
 	}
 	return out, nil
