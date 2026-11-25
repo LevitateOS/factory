@@ -1,4 +1,4 @@
-import type {FactoryProject, FactoryProjectConnection, FactoryProjectSummary, FactoryProjectsPort} from '../factory/app/browser.js';
+import type {FactoryProject, FactoryProjectConnection, FactoryProjectSummary, FactoryProjectsPort, FactoryNewProject} from '../factory/app/browser.js';
 import {check, id, object, readSodaJSON} from '../factory/api/models.js';
 import type {RepositoryRef} from '../factory/api/collaboration.js';
 import type {Account} from './accounts.js';
@@ -28,6 +28,8 @@ export interface ProjectsHost {
   reconnect(): Promise<void>;
   disconnect(): Promise<void>;
   signIn(): void;
+  /** Creates the repository with this window's account and connects to it. */
+  create(project: FactoryNewProject): Promise<void>;
 }
 
 const text = (value: unknown, limit: number): value is string =>
@@ -181,6 +183,9 @@ export class DesktopProjects implements FactoryProjectsPort {
   async disconnect(key: string) {
     if (!this.chosenHere(key).here) throw Error('Only this window’s project can disconnect.');
     return this.host.disconnect();
+  }
+  create(project: FactoryNewProject) {
+    return this.host.create(project);
   }
   async signIn(key: string) {
     if (this.pick(key).connection !== 'sign_in') throw Error('This account is already signed in.');

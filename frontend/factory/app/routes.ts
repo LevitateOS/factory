@@ -26,12 +26,13 @@ export type FactoryRoute =
     }
   | {readonly kind: 'settings'; readonly repository: string}
   | {readonly kind: 'accounts'}
-  | {readonly kind: 'projects'};
+  | {readonly kind: 'projects'}
+  | {readonly kind: 'project-new'};
 
 /** Destinations a host resolves only when it declares them in
  * `FactoryAppContext.destinations`; the frame offers no entry otherwise. */
-export type FactoryHostDestination = 'settings' | 'accounts' | 'projects';
-const hostDestinations: readonly string[] = ['settings', 'accounts', 'projects'] satisfies FactoryHostDestination[];
+export type FactoryHostDestination = 'settings' | 'accounts' | 'projects' | 'project-new';
+const hostDestinations: readonly string[] = ['settings', 'accounts', 'projects', 'project-new'] satisfies FactoryHostDestination[];
 
 export function admitHostDestinations(value: unknown): void {
   check(
@@ -68,6 +69,7 @@ export function admitFactoryRoute(route: FactoryRoute): void {
       return;
     case 'accounts':
     case 'projects':
+    case 'project-new':
       return;
     case 'issue':
       check(
@@ -118,5 +120,6 @@ export function factoryRouteTitle(route: FactoryRoute): string {
     settings: 'Settings',
     accounts: 'Accounts',
     projects: 'Projects',
+    'project-new': 'New project',
   }[route.kind];
 }

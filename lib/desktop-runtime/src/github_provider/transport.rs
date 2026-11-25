@@ -573,7 +573,8 @@ impl Client {
         F: FnOnce(&Http) -> Result<(reqwest::RequestBuilder, usize)> + Send + 'static,
     {
         let wire = self.request(Request::Provider(Box::new(build))).await?;
-        if wire.status != 200 {
+        // Only REST creation answers 201; GraphQL always answers 200.
+        if !matches!(wire.status, 200 | 201) {
             if matches!(wire.status, 400 | 422) {
                 return Err(Failure::new(
                     400,
@@ -815,6 +816,23 @@ pub(super) fn graphql(
             serde_json::to_vec(&serde_json::json!({"query":query,"variables":variables}))
                 .map_err(|_| Failure::new(400, "invalid_native_write"))?,
         ))
+}
+/// The fixed REST creation request; callers choose only the API path and body.
+pub(super) fn rest_post(http: &Http, token: &[u8], path: &str, body: Value) -> Result<reqwest::RequestBuilder> {
+    if !secret(token) || !path.starts_with('/') || path.starts_with("//") || path.contains(['?', '#', '\\']) {
+        return Err(Failure::new(400, "invalid_native_write"));
+    }
+    let bytes = Zeroizing::new([b"Bearer ", token].concat());
+    let mut authorization = header::HeaderValue::from_bytes(&bytes)
+        .map_err(|_| Failure::new(400, "invalid_native_write"))?;
+    authorization.set_sensitive(true);
+    Ok(http
+        .post(format!("https://api.github.com{path}"))
+        .header(header::AUTHORIZATION, authorization)
+        .header("X-GitHub-Api-Version", API_VERSION)
+        .header(header::ACCEPT, "application/vnd.github+json")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(serde_json::to_vec(&body).map_err(|_| Failure::new(400, "invalid_native_write"))?))
 }
 pub(super) fn sha256(bytes: &[u8]) -> String {
     Sha256::digest(bytes)

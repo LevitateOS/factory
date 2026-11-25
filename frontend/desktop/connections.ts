@@ -86,6 +86,25 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     openWindow: (account, remote) => core.invoke('open_window', {target: {connection: account, repository: remote}}),
     reconnect: reconnectHere,
     disconnect: disconnectHere,
+    // New project: the window's GitHub account creates the repository, then
+    // this window connects to it like any chosen repository.
+    create: async ({name, description, visibility}) => {
+      const session = selected?.session;
+      if (!session || busy || fountain()) throw Error('Connect a GitHub account in this window first.');
+      let reply: NativeReply;
+      try {
+        reply = await core.invoke<NativeReply>('factory_create_repository', {session, name, description, private: visibility === 'private'});
+      } catch {
+        throw Error('The project could not be created. Try again.');
+      }
+      if (session !== selected?.session) throw Error('This window changed accounts. Check Projects before trying again.');
+      if (reply.status === 409) throw Error(`GitHub refused the name “${name}”. You may already have a project with it; choose another name.`);
+      if (reply.status === 202) throw Error('GitHub did not confirm the new project. Check Projects before trying again.');
+      if (reply.status !== 200) throw Error('GitHub did not create the project. Try again.');
+      const created = repository(object(reply.body).repository);
+      discovered = [...discovered.filter((repo) => repo.external_id !== created.external_id), created];
+      await choose(connection, created.external_id);
+    },
     signIn: () => {
       if (product && mounted) navigate({kind: 'accounts'});
       else document.querySelector<HTMLElement>('#github-sign-in')?.focus();

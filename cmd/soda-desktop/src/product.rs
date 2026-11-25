@@ -450,6 +450,47 @@ pub(super) async fn factory_find_repository(
     let work = discover(&desktop, &selection, Read::FindRepository { name });
     tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = work => result}
 }
+/// New project: creates a repository owned by this window's connected GitHub
+/// account. The window then connects to it through `factory_prepare_connection`.
+#[tauri::command]
+pub(super) async fn factory_create_repository(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    session: String,
+    name: String,
+    description: String,
+    private: bool,
+) -> Result<Reply, String> {
+    product_caller(&window)?;
+    let desktop = app.state::<Desktop>();
+    let selection = desktop.product.selected(window.label(), &session)?;
+    let work = async {
+        current(&desktop, &selection)?;
+        if selection.binding.lock().unwrap().is_none() {
+            return Err("Factory account is not connected".to_string());
+        }
+        let credentials = desktop.credentials()?;
+        let cap = credentials
+            .capability(&selection.connection)
+            .await
+            .map_err(|_| "Factory account is unavailable")?;
+        let create = desktop
+            .runtime
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or("Factory is unavailable")?
+            .github_create_repository(
+                &credentials,
+                &cap,
+                soda_desktop_runtime::github_provider::RepositoryCreate { name, description, private },
+            );
+        let reply = create.await.map_err(|_| "Repository creation is unavailable")?;
+        current(&desktop, &selection)?;
+        Ok(Reply { status: reply.status, body: reply.body })
+    };
+    tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = work => result}
+}
 #[tauri::command]
 pub(super) async fn factory_open_link(
     window: WebviewWindow,

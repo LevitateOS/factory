@@ -36,12 +36,23 @@ export interface FactoryProjectsPort {
   reconnect?(key: string): Promise<void>;
   disconnect?(key: string): Promise<void>;
   signIn?(key: string): Promise<void>;
+  /** New project: creates a repository with the window's account, then
+   * connects this window to it and opens its Feed. Rejects with a short
+   * plain-language message when it cannot. */
+  create?(project: FactoryNewProject): Promise<void>;
+}
+
+/** What the person asked for; the host derives the repository from it. */
+export interface FactoryNewProject {
+  readonly name: string;
+  readonly description: string;
+  readonly visibility: 'private' | 'public';
 }
 
 export function admitProjectsPort(port: FactoryProjectsPort | undefined) {
   if (port === undefined) return;
   check(typeof port.list === 'function' && typeof port.open === 'function');
-  for (const action of [port.reconnect, port.disconnect, port.signIn]) check(action === undefined || typeof action === 'function');
+  for (const action of [port.reconnect, port.disconnect, port.signIn, port.create]) check(action === undefined || typeof action === 'function');
 }
 
 const plain = (value: unknown, limit: number): value is string =>

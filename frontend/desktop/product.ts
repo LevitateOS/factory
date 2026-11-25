@@ -80,7 +80,7 @@ export class DesktopProduct {
       ...this.selected.identity,
       accountLabel: this.selected.account_label,
       ...(this.selected.repository ? {selectedRepository: this.selected.repository.id, repositoryLabel: this.selected.repository.name} : {}),
-      destinations: ['settings', 'accounts', 'projects'],
+      destinations: ['settings', 'accounts', 'projects', 'project-new'],
       projects: this.projects,
       route,
       resolve: (route, signal) => this.resolve(route, AbortSignal.any([this.lifetime.signal, signal])),
@@ -290,6 +290,8 @@ export class DesktopProduct {
         return {kind: 'accounts', context: {transport, sections: this.accounts}};
       case 'projects':
         return {kind: 'projects', context: {transport}};
+      case 'project-new':
+        return {kind: 'project-new', context: {transport}};
       case 'watch': {
         check(this.selected.provider === 'github' && repository && route.repository === repository.id);
         return {

@@ -144,3 +144,28 @@
   flex: 1 1 0;
   padding: 0 4px;
 }
+/* New project: one column of labelled fields under the page header. */
+.soda-factory-new-project form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 560px;
+}
+.soda-factory-new-project label:has(> input[type="text"]) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+}
+.soda-factory-new-project fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.soda-factory-new-project legend {
+  margin-bottom: 6px;
+}

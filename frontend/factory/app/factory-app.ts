@@ -34,6 +34,7 @@ import type {FactoryHostDestination, FactoryRoute} from './routes.js';
 import {admitProjectRows, admitProjectsPort} from '../projects/projects.js';
 import type {FactoryProject, FactoryProjectsPort} from '../projects/projects.js';
 import {SodaFactoryProjects} from '../projects/page.js';
+import {SodaFactoryNewProject} from '../projects/new.js';
 import './jump.js';
 import type {JumpItem, SodaFactoryJump} from './jump.js';
 
@@ -68,7 +69,9 @@ export type FactoryScreen =
     }
   | {readonly kind: 'accounts'; readonly context: FactoryAccountsContext}
   /** The frame supplies the project port; the host only binds the connection. */
-  | {readonly kind: 'projects'; readonly context: {readonly transport: FactoryTransport}};
+  | {readonly kind: 'projects'; readonly context: {readonly transport: FactoryTransport}}
+  /** The frame supplies the project port and account label. */
+  | {readonly kind: 'project-new'; readonly context: {readonly transport: FactoryTransport}};
 
 export interface FactoryAppContext {
   readonly transport: FactoryTransport;
@@ -499,6 +502,16 @@ export class SodaFactoryApp extends LitElement {
         };
         return view;
       }
+      case 'project-new': {
+        const create = context.projects?.create;
+        check(route.kind === 'project-new' && create !== undefined);
+        const view = new SodaFactoryNewProject();
+        this.own(view, () => {
+          view.context = undefined;
+        });
+        view.context = {accountLabel: context.accountLabel, port: {...context.projects!, create}};
+        return view;
+      }
       case 'watch': {
         check(
           route.kind === 'watch' &&
@@ -597,6 +610,7 @@ export class SodaFactoryApp extends LitElement {
     const pages = links.map((link) => ({group: project ? 'In ' + project : 'Pages', label: link.label, meta: 'page', run: () => this.navigate(link.route)}));
     const actions: JumpItem[] = [
       ...(port && context.destinations?.includes('projects') ? [{group: 'Actions', label: 'All projects', meta: 'action', run: () => this.navigate({kind: 'projects'})}] : []),
+      ...(port?.create && context.destinations?.includes('project-new') ? [{group: 'Actions', label: 'New project', meta: 'action', run: () => this.navigate({kind: 'project-new'})}] : []),
       ...foot.map((link) => ({group: 'Actions', label: 'Open ' + link.label, meta: 'action', run: () => this.navigate(link.route)})),
     ];
     return [...projectItems, ...pages, ...actions];
@@ -651,6 +665,15 @@ export class SodaFactoryApp extends LitElement {
               >
                 All projects
               </button>
+              ${port.create && context.destinations.includes('project-new')
+                ? html`<button
+                    type="button"
+                    aria-current=${context.route.kind === 'project-new' ? 'page' : 'false'}
+                    @click=${() => this.navigate({kind: 'project-new'})}
+                  >
+                    New project
+                  </button>`
+                : ''}
             </nav>`
           : ''}
         <div class="soda-factory-project">

@@ -52,6 +52,10 @@ export function projectStoryPort(element: () => HTMLElement | undefined, rows: r
     async signIn(key) {
       record('signIn:' + key);
     },
+    async create(project) {
+      record('create:' + project.name + ':' + project.visibility);
+      if (project.name === 'taken') throw Error('GitHub refused the name “taken”. You may already have a project with it; choose another name.');
+    },
   };
   return {port, calls};
 }

@@ -11,7 +11,7 @@ const meta = {
   argTypes: {
     state: {
       control: 'select',
-      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts', 'projects', 'feed-projects', 'jump'],
+      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts', 'projects', 'project-new', 'feed-projects', 'jump'],
     },
   },
   render: ({state}, context) => {
@@ -34,6 +34,7 @@ export const Settings: Story = {args: {state: 'settings'}};
 export const Accounts: Story = {args: {state: 'accounts'}};
 /** Projects across accounts, one row in each state. */
 export const Projects: Story = {args: {state: 'projects'}};
+export const NewProject: Story = {args: {state: 'project-new'}};
 /** A feed route whose sidebar lists the host's other projects. */
 export const FeedWithProjectList: Story = {args: {state: 'feed-projects'}};
 /** The quick switcher open over a feed that has the project list. */

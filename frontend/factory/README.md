@@ -46,6 +46,9 @@ optional summary and an `asOf` time, plus `open(key, 'here' | 'window')` and
 optional `reconnect`, `disconnect` and `signIn`. The host decides when the
 list is read (`list(signal, {refresh: true})` asks for a new read); the UI never
 sees connection ids or sessions. A host that omits the port keeps its frame.
+An optional `create({name, description, visibility})` backs the New project
+page (`projects/new.ts`, destination `project-new`): the desktop host creates
+the repository with the window's GitHub account and connects the window to it.
 
 A host contributes host-only presentation to a shared page with
 `FactoryHostSection` (`app/host-section.ts`): a page-unique `id`, a plain-text

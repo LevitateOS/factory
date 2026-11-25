@@ -4,7 +4,7 @@ mod product;
 mod developer;
 mod developer_protocol;
 use product::{
-    factory_connect, factory_disconnect, factory_find_repository, factory_open_link,
+    factory_connect, factory_create_repository, factory_disconnect, factory_find_repository, factory_open_link,
     factory_prepare_connection, factory_product_cancel, factory_product_output, factory_product_request,
     factory_repositories, factory_save_artifact, factory_window_target,
 };
@@ -719,6 +719,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_query,
         factory_connect,
         factory_prepare_connection,
+        factory_create_repository,
         factory_find_repository,
         factory_open_link,
         factory_disconnect,
@@ -763,6 +764,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         muse_sign_in_open,
         factory_connect,
         factory_prepare_connection,
+        factory_create_repository,
         factory_find_repository,
         factory_open_link,
         factory_disconnect,

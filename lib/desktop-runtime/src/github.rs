@@ -285,6 +285,47 @@ impl NativeSupervisor {
             Ok(result)
         }
     }
+    /// Creates a repository owned by the signed-in account (New project). A
+    /// 200 reply carries the discovery projection of the new repository; 202
+    /// means GitHub's outcome is unknown and the name may now exist.
+    pub fn github_create_repository<'a>(
+        &self,
+        credentials: &'a Credentials,
+        capability: &'a TokenCapability,
+        repository: crate::github_provider::RepositoryCreate,
+    ) -> impl std::future::Future<Output = Result<Reply, Error>> + 'a {
+        let client = self.github_client();
+        async move {
+            repository.validate().map_err(|_| Error::Invalid)?;
+            let account = capability.account();
+            if account.provider != Provider::Github || account.origin != "https://github.com" {
+                return Err(Error::Invalid);
+            }
+            let client = client.map_err(|_| Error::Unavailable)?;
+            let operation = crate::provider_contract::operation::Operation::new(8, Duration::from_secs(20));
+            operation
+                .owned_scope(credentials.with_token_operation(capability, async |token| {
+                    Ok(match client.create_repository(token, &account.account, &repository).await {
+                        crate::github_provider::CreateOutcome::Created(created) => Reply {
+                            status: 200,
+                            body: json!({"repository":created,"connection":account.connection}),
+                        },
+                        // GitHub refused the request itself, usually a name already in use.
+                        crate::github_provider::CreateOutcome::Indeterminate(failure) if failure.code == "github_write_rejected" => Reply {
+                            status: 409,
+                            body: json!({"error":"github_repository_rejected"}),
+                        },
+                        crate::github_provider::CreateOutcome::Indeterminate(_) => Reply {
+                            status: 202,
+                            body: json!({"error":"github_repository_creation_unknown"}),
+                        },
+                        crate::github_provider::CreateOutcome::NotSent(failure) => failure_reply(failure),
+                    })
+                }))
+                .await
+                .map_err(Error::Credential)?
+        }
+    }
 }
 
 pub(crate) fn provider_error(failure: crate::github_provider::Failure) -> Error {
