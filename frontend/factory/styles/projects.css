@@ -1,0 +1,146 @@
+/* Projects page: a header with Refresh above one card per project. */
+.soda-factory-projects-page > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.soda-factory-projects-page > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.soda-factory-projects-page h2 {
+  margin: 0;
+  font: 800 28px/1.1 "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+.soda-factory-projects-page > header p {
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-factory-projects-note,
+.soda-factory-projects-message {
+  margin: 0 0 16px;
+  font: var(--soda-font-meta);
+}
+.soda-factory-projects-message {
+  padding: 8px 12px;
+  border: 1px solid var(--soda-page-warning-edge);
+  color: var(--soda-page-warning);
+  background: var(--soda-page-warning-bg);
+}
+.soda-factory-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 960px;
+}
+.soda-factory-project-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+}
+.soda-factory-project-card[data-connection="current"] {
+  border: 2px solid var(--soda-page-text);
+}
+.soda-factory-project-card-body {
+  flex: 999 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.soda-factory-project-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.soda-factory-project-card h3 {
+  margin: 0;
+  font: 700 26px/1.1 "Barlow Condensed", "Arial Narrow", sans-serif;
+  overflow-wrap: anywhere;
+}
+.soda-factory-tag {
+  padding: 1px 8px;
+  border: 1px solid var(--soda-page-text);
+  font: 600 12px/18px Barlow, Arial, sans-serif;
+}
+.soda-factory-tag[data-tone="needs"] {
+  border-color: var(--soda-page-action);
+  color: var(--soda-page-on-action);
+  background: var(--soda-page-action);
+}
+.soda-factory-tag[data-tone="paused"],
+.soda-factory-tag[data-tone="sign-in"] {
+  border-color: var(--soda-page-warning-edge);
+  color: var(--soda-page-warning);
+  background: var(--soda-page-warning-bg);
+}
+.soda-factory-tag[data-tone="idle"] {
+  border-color: var(--soda-page-edge);
+  color: var(--soda-page-muted);
+}
+.soda-factory-tag[data-tone="here"] {
+  font: 500 12px/18px "IBM Plex Mono", monospace;
+}
+.soda-factory-project-meta,
+.soda-factory-project-latest {
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+  overflow-wrap: anywhere;
+}
+.soda-factory-project-working {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.soda-factory-project-working p {
+  margin: 0;
+  font: 400 15px/1.5 Barlow, Arial, sans-serif;
+}
+.soda-factory-portraits {
+  display: inline-flex;
+  flex: none;
+}
+.soda-factory-portraits img {
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--soda-page-surface);
+}
+.soda-factory-portraits img + img {
+  margin-left: -6px;
+}
+.soda-factory-project-actions {
+  flex: 0 1 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.soda-factory-project-actions button {
+  width: 100%;
+}
+.soda-factory-project-actions button[data-tone="primary"] {
+  min-height: 44px;
+  border-color: var(--soda-button-primary-border);
+  color: var(--soda-button-primary-text);
+  background: var(--soda-button-primary-bg);
+}
+.soda-factory-project-actions button[data-tone="primary"]:hover:not(:disabled) {
+  background: var(--soda-button-primary-hover);
+}
+.soda-factory-project-pair {
+  display: flex;
+  gap: 8px;
+}
+.soda-factory-project-pair button {
+  flex: 1 1 0;
+  padding: 0 4px;
+}

@@ -5,6 +5,7 @@
 @import './output.css';
 @import './issues.css';
 @import './settings.css';
+@import './projects.css';
 
 /* The standalone product supplies its own envelope. Fountain keeps its native
    document/theme envelope and imports the same component CSS independently. */
@@ -113,6 +114,40 @@
   color: var(--soda-page-canvas);
   background: var(--soda-page-text);
   font-weight: 600;
+}
+/* With a project list: All projects above, other projects collapsed below. */
+.soda-factory-all-projects button,
+.soda-factory-other-projects button {
+  padding-left: 8px;
+}
+.soda-factory-other-projects {
+  gap: 1px;
+}
+.soda-factory-other-projects button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.soda-factory-other-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.soda-factory-other-mark {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--soda-page-edge);
+  font: var(--soda-font-caption);
+}
+.soda-factory-other-mark[data-mark="needs"] {
+  border-color: var(--soda-page-action);
+  color: var(--soda-page-on-action);
+  background: var(--soda-page-action);
+}
+.soda-factory-other-mark[data-mark="paused"] {
+  border-color: var(--soda-page-warning-edge);
+  color: var(--soda-page-warning);
+  background: var(--soda-page-warning-bg);
 }
 /* Host-declared destinations such as Settings sit at the foot, above the account. */
 .soda-factory-sidebar-foot {

@@ -32,8 +32,9 @@ import {SodaFactoryAccounts} from '../accounts/accounts.js';
 import type {FactoryAccountsContext} from '../accounts/accounts.js';
 import {admitFactoryRoute, admitHostDestinations, factoryRouteTitle, hostResolves} from './routes.js';
 import type {FactoryHostDestination, FactoryRoute} from './routes.js';
-import {admitProjectsPort} from '../projects/projects.js';
-import type {FactoryProjectsPort} from '../projects/projects.js';
+import {admitProjectRows, admitProjectsPort} from '../projects/projects.js';
+import type {FactoryProject, FactoryProjectsPort} from '../projects/projects.js';
+import {SodaFactoryProjects} from '../projects/page.js';
 
 /** Host-resolved ports, never a second workflow model. Host-created DOM enters
  * only as a `FactoryHostSection` (host-section.ts) the shared page places. */
@@ -65,7 +66,9 @@ export type FactoryScreen =
       /** The frame supplies the actor, account label, scope and project name. */
       readonly context: Omit<FactorySettingsContext, 'actor' | 'accountLabel' | 'scope' | 'repositoryLabel'>;
     }
-  | {readonly kind: 'accounts'; readonly context: FactoryAccountsContext};
+  | {readonly kind: 'accounts'; readonly context: FactoryAccountsContext}
+  /** The frame supplies the project port; the host only binds the connection. */
+  | {readonly kind: 'projects'; readonly context: {readonly transport: FactoryTransport}};
 
 export interface FactoryAppContext {
   readonly transport: FactoryTransport;
@@ -90,11 +93,15 @@ export interface FactoryAppContext {
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
-  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, scheme: {type: String}};
+  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, scheme: {type: String}};
   declare scheme: 'light' | 'dark' | undefined;
   declare private message: string;
   declare private busy: boolean;
   declare private screen: HTMLElement | undefined;
+  /** The host's kept project list for the sidebar; undefined until read or without the port. */
+  declare private projectRows: readonly FactoryProject[] | undefined;
+  private projectsPort: FactoryProjectsPort | undefined;
+  private openingProject = false;
   private current: FactoryAppContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
@@ -107,6 +114,7 @@ export class SodaFactoryApp extends LitElement {
     this.message = 'Choose an account to open Factory.';
     this.busy = false;
     this.screen = undefined;
+    this.projectRows = undefined;
     this.scheme = undefined;
     this.addEventListener('library-source-open', this.openLibrarySource);
   }
@@ -116,7 +124,10 @@ export class SodaFactoryApp extends LitElement {
   set context(context: FactoryAppContext | undefined) {
     if (context === this.current && context?.transport.generation === this.generation) return;
     this.retire();
-    if (!context) return;
+    if (!context) {
+      this.projectRows = this.projectsPort = undefined;
+      return;
+    }
     try {
       check(
         /^[a-f0-9]{32}$/.test(context.host) &&
@@ -153,6 +164,7 @@ export class SodaFactoryApp extends LitElement {
       this.current = context;
       this.generation = context.transport.generation;
       void this.load(context);
+      void this.readProjects(context);
     } catch {
       this.message = 'The Factory account or destination is unavailable.';
     }
@@ -169,6 +181,35 @@ export class SodaFactoryApp extends LitElement {
     this.message = 'Choose an account to open Factory.';
     this.busy = false;
     this.clearScreen();
+  }
+  // Plain list() reads the host's kept list; only the Projects page asks for a refresh.
+  private async readProjects(context: FactoryAppContext) {
+    const port = context.projects,
+      signal = this.lifetime.signal;
+    if (port !== this.projectsPort) this.projectRows = undefined;
+    this.projectsPort = port;
+    if (!port) return;
+    try {
+      const rows = admitProjectRows(await port.list(signal));
+      if (this.live(context, signal)) this.projectRows = rows;
+    } catch {
+      // The sidebar keeps its last list; the Projects page reports failures.
+    }
+  }
+  private async openProject(context: FactoryAppContext, row: FactoryProject) {
+    const port = context.projects,
+      signal = this.lifetime.signal;
+    if (!port || this.openingProject) return;
+    this.openingProject = true;
+    try {
+      if (row.connection === 'sign_in') await port.signIn?.(row.key);
+      else await port.open(row.key, 'here');
+    } catch {
+      if (this.live(context, signal)) this.message = 'This project could not be opened.';
+    } finally {
+      this.openingProject = false;
+    }
+    if (this.live(context, signal)) await this.readProjects(context);
   }
   private clearScreen() {
     const dispose = this.disposeScreen;
@@ -449,6 +490,24 @@ export class SodaFactoryApp extends LitElement {
         view.context = ports.context;
         return view;
       }
+      case 'projects': {
+        check(route.kind === 'projects' && context.projects !== undefined);
+        const view = new SodaFactoryProjects();
+        this.own(view, () => {
+          view.context = undefined;
+        });
+        view.context = {
+          transport: ports.context.transport,
+          port: context.projects,
+          onRows: (rows) => {
+            if (this.live(context, signal)) this.projectRows = rows;
+          },
+          openFeed: () => {
+            if (this.live(context, signal)) this.navigate({kind: 'feed', ...(context.selectedRepository ? {repository: context.selectedRepository} : {})});
+          },
+        };
+        return view;
+      }
       case 'watch': {
         check(
           route.kind === 'watch' &&
@@ -530,6 +589,8 @@ export class SodaFactoryApp extends LitElement {
         : []),
     ];
     const project = context?.repositoryLabel?.trim();
+    const port = context?.projects;
+    const others = port ? (this.projectRows ?? []).filter((row) => row.connection !== 'current') : [];
     // Host-declared destinations at the foot: project settings, then account sign-ins.
     const foot: {label: string; route: FactoryRoute}[] = [
       ...(repository && context?.destinations?.includes('settings')
@@ -540,6 +601,17 @@ export class SodaFactoryApp extends LitElement {
     return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''}>
       <aside class="soda-factory-sidebar">
         <p class="soda-factory-wordmark">Factory</p>
+        ${port && context?.destinations?.includes('projects')
+          ? html`<nav class="soda-factory-all-projects" aria-label="Projects">
+              <button
+                type="button"
+                aria-current=${context.route.kind === 'projects' ? 'page' : 'false'}
+                @click=${() => this.navigate({kind: 'projects'})}
+              >
+                All projects
+              </button>
+            </nav>`
+          : ''}
         <div class="soda-factory-project">
           ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
           <nav aria-label="Factory">
@@ -555,6 +627,24 @@ export class SodaFactoryApp extends LitElement {
             )}
           </nav>
         </div>
+        ${others.length
+          ? html`<nav class="soda-factory-other-projects" aria-label="Other projects">
+              ${others.map((row) => {
+                const mark =
+                  row.connection === 'sign_in' ? 'Sign in' : row.summary?.needsYou ? String(row.summary.needsYou) : row.summary?.dispatch === 'closed' ? 'Paused' : '';
+                return html`<button
+                  type="button"
+                  ?disabled=${(row.connection === 'sign_in' && !port?.signIn) || this.openingProject}
+                  title=${row.name + (mark ? ' · ' + (row.summary?.needsYou && row.connection !== 'sign_in' ? mark + ' need you' : mark) : '')}
+                  @click=${() => void this.openProject(context!, row)}
+                >
+                  <span class="soda-factory-other-name">${row.name}</span>${mark
+                    ? html`<span class="soda-factory-other-mark" data-mark=${row.connection === 'sign_in' ? 'sign-in' : row.summary?.needsYou ? 'needs' : 'paused'}>${mark}</span>`
+                    : ''}
+                </button>`;
+              })}
+            </nav>`
+          : ''}
         <div class="soda-factory-sidebar-foot">
           ${foot.length
             ? html`<nav aria-label="Settings and accounts">

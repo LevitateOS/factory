@@ -11,7 +11,7 @@ const meta = {
   argTypes: {
     state: {
       control: 'select',
-      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts'],
+      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts', 'projects', 'feed-projects'],
     },
   },
   render: ({state}, context) => {
@@ -32,6 +32,10 @@ export const NewIssue: Story = {args: {state: 'issue-new'}};
 export const IssueAndFactoryFacts: Story = {args: {state: 'issue'}};
 export const Settings: Story = {args: {state: 'settings'}};
 export const Accounts: Story = {args: {state: 'accounts'}};
+/** Projects across accounts, one row in each state. */
+export const Projects: Story = {args: {state: 'projects'}};
+/** A feed route whose sidebar lists the host's other projects. */
+export const FeedWithProjectList: Story = {args: {state: 'feed-projects'}};
 /** The desktop's guided first run, shown while the frame has no context. */
 const firstRun = (state: SignInStoryState): Story => ({
   args: {state: 'disconnected'},

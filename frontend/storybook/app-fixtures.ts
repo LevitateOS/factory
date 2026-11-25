@@ -13,8 +13,9 @@ import {journeyResponse} from './journey-fixtures.js';
 import {issueCreateStoryPeer} from './issue-create-fixtures.js';
 import {PlacementController, placementView} from '../desktop/placement.js';
 import {signInStoryPlacement} from './sign-in-fixtures.js';
+import {projectStoryPort} from './projects-fixtures.js';
 
-export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings' | 'accounts';
+export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings' | 'accounts' | 'projects' | 'feed-projects';
 export const appRepository = '7';
 
 /** Composition peer only. All services/renderers are existing declared story
@@ -31,8 +32,12 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
             ? {kind: 'settings', repository: appRepository}
             : state === 'accounts'
               ? {kind: 'accounts'}
-              : {kind: 'feed', repository: appRepository};
+              : state === 'projects'
+                ? {kind: 'projects'}
+                : {kind: 'feed', repository: appRepository};
   let view: SodaFactoryApp | undefined;
+  const withProjects = state === 'projects' || state === 'feed-projects';
+  const projects = projectStoryPort(() => view);
   let unavailable = state === 'unavailable',
     held = state === 'loading',
     generation = 'declared-app:' + account;
@@ -140,7 +145,8 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     accountLabel: account,
     selectedRepository: appRepository,
     repositoryLabel: 'acme/factory',
-    destinations: ['settings', 'accounts'],
+    destinations: withProjects ? ['settings', 'accounts', 'projects'] : ['settings', 'accounts'],
+    ...(withProjects ? {projects: projects.port} : {}),
     route,
     async resolve(selected, signal) {
       resolved.push(selected);
@@ -272,6 +278,8 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
             },
           };
         }
+        case 'projects':
+          return {kind: 'projects', context: {transport: supplied}};
         case 'accounts': {
           // The desktop sign-in views with saved accounts, framed on the page.
           const placement = signInStoryPlacement(document.createElement('section'), 'saved');
@@ -295,6 +303,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
       if (view) view.context = context();
     },
     calls,
+    projectCalls: projects.calls,
     resolved,
     hold() {
       held = true;

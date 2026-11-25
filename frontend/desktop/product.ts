@@ -80,7 +80,7 @@ export class DesktopProduct {
       ...this.selected.identity,
       accountLabel: this.selected.account_label,
       ...(this.selected.repository ? {selectedRepository: this.selected.repository.id, repositoryLabel: this.selected.repository.name} : {}),
-      destinations: ['settings', 'accounts'],
+      destinations: ['settings', 'accounts', 'projects'],
       projects: this.projects,
       route,
       resolve: (route, signal) => this.resolve(route, AbortSignal.any([this.lifetime.signal, signal])),
@@ -294,6 +294,8 @@ export class DesktopProduct {
       }
       case 'accounts':
         return {kind: 'accounts', context: {transport, sections: this.accounts}};
+      case 'projects':
+        return {kind: 'projects', context: {transport}};
       case 'watch':
         throw Error('Native execution is unavailable');
     }
