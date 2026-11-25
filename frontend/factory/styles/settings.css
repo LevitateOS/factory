@@ -92,18 +92,18 @@
 .soda-factory-sections button {
   margin: 0 8px 12px 0;
 }
-.soda-factory-settings-unavailable {
+.soda-factory-unavailable {
   border-style: dashed;
 }
-.soda-factory-settings-unavailable dl {
+.soda-factory-unavailable dl {
   display: grid;
   gap: 8px;
   margin: 0;
 }
-.soda-factory-settings-unavailable dt {
+.soda-factory-unavailable dt {
   font: var(--soda-font-label);
 }
-.soda-factory-settings-unavailable dd {
+.soda-factory-unavailable dd {
   margin: 0;
   color: var(--soda-page-muted);
 }

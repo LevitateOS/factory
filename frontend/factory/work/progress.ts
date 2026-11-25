@@ -1,5 +1,9 @@
 import {LitElement, html} from 'lit';
 import {SodaFactoryRoleSettings} from './role-settings.js';
+import {SodaFactoryActivity} from './activity.js';
+import type {ActivityContext} from './activity.js';
+import {SodaFactoryRepair} from './repair-funding.js';
+import {renderUnavailable, unavailableFeatures} from '../shared/unavailable.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
 import {check, id, object} from '../api/models.js';
@@ -39,6 +43,13 @@ export interface WorkOverviewContext {
   repository: string;
   readonly links?: FactoryWorkLinks;
   intentID?: string;
+  /** A host that mounts these panels declares them here: true mounts, false shows
+   * "Unavailable in this app" and sends nothing. Absent leaves them to the host. */
+  readonly activityAvailable?: boolean;
+  readonly repairFundingAvailable?: boolean;
+  /** Fresh authenticated command scope for the activity and repair saves. */
+  readonly commandScope?: (signal: AbortSignal) => Promise<string>;
+  readonly presentItem?: ActivityContext['presentItem'];
 }
 
 function overviewSignature(context: WorkOverviewContext): string {
@@ -57,6 +68,8 @@ interface OverviewRead {
 
 export class SodaFactoryWorkOverview extends LitElement {
   private readonly roleSettings = new SodaFactoryRoleSettings();
+  private readonly activity = new SodaFactoryActivity();
+  private readonly repair = new SodaFactoryRepair();
   private scope: OverviewScope;
   private read = new ScopedRead<WorkOverviewContext, OverviewRead>(
     sameOverview,
@@ -88,6 +101,14 @@ export class SodaFactoryWorkOverview extends LitElement {
           (context.intentID === undefined || decisionID(context.intentID))
       );
     this.roleSettings.context = context;
+    const {transport, repository, commandScope, presentItem} = context ?? {};
+    this.activity.context = context?.activityAvailable
+      ? {transport: transport!, repository: repository!, editable: true,
+        ...(commandScope ? {commandScope} : {}), ...(presentItem ? {presentItem} : {})}
+      : undefined;
+    this.repair.context = context?.repairFundingAvailable
+      ? {transport: transport!, repository: repository!, ...(commandScope ? {commandScope} : {})}
+      : undefined;
     if (this.read.bind(context) === 'same') {
       this.requestUpdate();
       return;
@@ -134,20 +155,31 @@ export class SodaFactoryWorkOverview extends LitElement {
     const context = this.read.current;
     if (!context) return html``;
     const value = readValue(this.read.state);
-    return html`<section aria-label="Factory work overview">
-      <p data-work-message aria-live="polite">${readReason(this.read.state)}</p>
-      <button type="button" class="ui button" ?disabled=${this.read.busy} @click=${() => this.load()}>
-        Refresh overview</button
-      >${
-        value?.recorded
-          ? renderRequestOverview(describeRequestOverview(value.recorded, context.links))
-          : value?.model
-            ? renderWorkOverview(value.model)
-            : this.read.busy
-              ? html`<p>Loading work overview…</p>`
-              : ''
-      }
-      ${this.roleSettings}
+    const unavailable = unavailableFeatures(context);
+    const [noActivity, noRepair] = [unavailable.filter((key) => key === 'activityAvailable'), unavailable.filter((key) => key === 'repairFundingAvailable')];
+    return html`<section class="soda-work-overview" aria-label="Factory work overview">
+      <div class="soda-work-head">
+        <p data-work-message aria-live="polite">${readReason(this.read.state)}</p>
+        <button type="button" ?disabled=${this.read.busy} @click=${() => this.load()}>Refresh overview</button>
+      </div>
+      <div class="soda-work-layout">
+        <div class="soda-work-main">
+          ${
+            value?.recorded
+              ? renderRequestOverview(describeRequestOverview(value.recorded, context.links))
+              : value?.model
+                ? renderWorkOverview(value.model)
+                : this.read.busy
+                  ? html`<p>Loading work overview…</p>`
+                  : ''
+          }
+          ${context.activityAvailable ? this.activity : renderUnavailable('work-activity-unavailable', noActivity)}
+          ${this.roleSettings}
+        </div>
+        <div class="soda-work-side">
+          ${context.repairFundingAvailable ? this.repair : renderUnavailable('work-repair-unavailable', noRepair)}
+        </div>
+      </div>
     </section>`;
   }
 }

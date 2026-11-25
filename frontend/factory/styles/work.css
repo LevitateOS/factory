@@ -203,3 +203,85 @@ soda-factory-work-journey h3 {
   font: var(--soda-font-label);
   color: var(--soda-page-muted);
 }
+
+/* Work overview: request and activity beside dispatch, owner controls and repair funding. */
+.soda-work-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-wrap: anywhere;
+}
+.soda-work-overview .soda-work-head > p {
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-work-overview .soda-work-head > p:empty {
+  display: none;
+}
+.soda-work-overview :is(h2, h3) {
+  margin: 0;
+  font: var(--soda-font-heading);
+}
+.soda-work-overview h3 {
+  font-size: 20px;
+}
+.soda-work-overview :is(p, ul) {
+  margin: 0;
+}
+:is(.soda-work-overview .soda-work-main, soda-factory-repair) :is(section, form),
+soda-factory-repair > section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.soda-work-overview .soda-work-side > :is(soda-factory-repair, soda-factory-role-settings) > section,
+.soda-work-overview .soda-work-side > .soda-factory-unavailable {
+  padding: 16px;
+  border: 1px solid var(--soda-page-edge);
+}
+.soda-work-overview soda-factory-repair section > p {
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-work-overview .soda-work-main > soda-factory-activity > section {
+  padding-top: 16px;
+  border-top: 1px solid var(--soda-page-edge);
+}
+.soda-work-overview :is(.soda-work-main, soda-factory-repair) ul {
+  padding: 0;
+  list-style: none;
+}
+.soda-work-overview .soda-work-main li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.soda-work-overview .soda-work-main li:last-child {
+  border-bottom: 0;
+}
+.soda-work-overview soda-factory-activity fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.soda-work-overview soda-factory-activity legend {
+  padding: 0;
+  font: var(--soda-font-label);
+}
+.soda-work-overview :is(.soda-work-head, soda-factory-activity, soda-factory-repair) button {
+  align-self: flex-start;
+  min-height: var(--soda-workspace-control);
+  padding: 0 14px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 0;
+  color: var(--soda-page-text);
+  background: var(--soda-page-canvas);
+  font: var(--soda-font-button);
+}
+.soda-work-overview :is(.soda-work-head, soda-factory-activity, soda-factory-repair) button:disabled {
+  color: var(--soda-page-muted);
+  background: var(--soda-page-selected);
+}

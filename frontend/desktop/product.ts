@@ -248,6 +248,16 @@ export class DesktopProduct {
             repository: route.repository,
             ...(route.intent ? {intentID: route.intent} : {}),
             links: this.links(route.repository),
+            commandScope,
+            activityAvailable: true,
+            repairFundingAvailable: true,
+            // Items name their issue or pull request; the host-relative url is not followed.
+            // Each becomes the app's own route, and an unresolvable one stays plain text.
+            presentItem: (item) => {
+              const links = this.links(route.repository);
+              const href = item.pr ? links.pull(item.pr) : links.issue(item.issue);
+              return href ? {href} : {};
+            },
           },
         };
       case 'work-detail':
@@ -286,9 +296,8 @@ export class DesktopProduct {
             sections: placement
               ? [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}]
               : [],
-            // Their stores are not bound on the native host.
-            repairFundingAvailable: false,
-            activityAvailable: false,
+            repairFundingAvailable: true,
+            activityAvailable: true,
           },
         };
       }

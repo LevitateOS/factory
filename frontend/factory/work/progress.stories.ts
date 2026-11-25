@@ -2,20 +2,27 @@ import {html} from 'lit';
 import type {Meta, StoryObj} from '@storybook/web-components-vite';
 import {progressStoryPeer} from '../../storybook/progress-fixtures.js';
 import type {ProgressStoryState} from '../../storybook/progress-fixtures.js';
+import {workPageStoryPeer} from '../../storybook/work-page-fixtures.js';
 import './progress.js';
 
 interface Args {
-  view: 'overview' | 'repository' | 'plan' | 'direction' | 'roles' | 'setup';
+  view: 'overview' | 'repository' | 'panels' | 'panels-unavailable' | 'plan' | 'direction' | 'roles' | 'setup';
   state: ProgressStoryState;
 }
 const meta = {
   title: 'Factory/Work progress',
   args: {view: 'overview', state: 'ready'},
   argTypes: {
-    view: {control: 'select', options: ['overview', 'repository', 'plan', 'direction', 'roles', 'setup']},
+    view: {control: 'select', options: ['overview', 'repository', 'panels', 'panels-unavailable', 'plan', 'direction', 'roles', 'setup']},
     state: {control: 'select', options: ['ready', 'loading', 'missing', 'denied', 'offline', 'partial']},
   },
   render: ({view, state}) => {
+    if (view === 'panels' || view === 'panels-unavailable') {
+      const page = workPageStoryPeer(view === 'panels' ? 'available' : 'unavailable');
+      // Lets a browser check count what each panel's fixture received.
+      Object.assign(globalThis, {sodaStoryCalls: page.calls});
+      return html`<soda-factory-work-overview .context=${page.context}></soda-factory-work-overview>`;
+    }
     const peer = progressStoryPeer(state, undefined, view === 'setup' ? 'setup' : view === 'roles');
     if (view === 'plan') return html`<soda-factory-work-plan .context=${peer.plan}></soda-factory-work-plan>`;
     if (view === 'direction')
@@ -31,6 +38,8 @@ export default meta;
 type Story = StoryObj<Args>;
 export const RequestOverview: Story = {};
 export const RepositoryOverview: Story = {args: {view: 'repository'}};
+export const WithActivityAndRepair: Story = {args: {view: 'panels'}};
+export const PanelsUnavailable: Story = {args: {view: 'panels-unavailable'}};
 export const Plan: Story = {args: {view: 'plan'}};
 export const PartialPlan: Story = {args: {view: 'plan', state: 'partial'}};
 export const DirectionHistory: Story = {args: {view: 'direction'}};

@@ -4,6 +4,7 @@ import type {FactoryTransport} from '../api/transport.js';
 import {SodaFactoryRoleSettings} from '../work/role-settings.js';
 import {admitHostSections, hostSectionAnchor, mountHostSections, renderHostSection} from '../app/host-section.js';
 import type {FactoryHostSection, MountedHostSection} from '../app/host-section.js';
+import {renderUnavailable, unavailableFeatures} from '../shared/unavailable.js';
 
 export interface FactorySettingsContext {
   readonly transport: FactoryTransport;
@@ -20,10 +21,6 @@ export interface FactorySettingsContext {
   readonly activityAvailable?: boolean;
 }
 
-const unavailableFeatures = [
-  ['repairFundingAvailable', 'Repository repair funding', 'No repair grant is assumed.'],
-  ['activityAvailable', 'Activity visibility', 'Factory activity is unavailable.'],
-] as const;
 const prefix = 'settings';
 
 /** Project settings: the shared role, limit, automation and workspace settings,
@@ -65,7 +62,7 @@ export class SodaFactorySettings extends LitElement {
   protected render() {
     const context = this.current;
     if (!context) return html``;
-    const unavailable = unavailableFeatures.filter(([key]) => context[key] === false);
+    const unavailable = unavailableFeatures(context);
     const entries: [string, string][] = [
       [prefix + '-roles', 'Roles and automation'],
       ...this.mounted.map((section): [string, string] => [hostSectionAnchor(prefix, section.id), section.title]),
@@ -84,16 +81,7 @@ export class SodaFactorySettings extends LitElement {
         <div class="soda-factory-sections">
           <div id=${prefix + '-roles'}>${this.roles}</div>
           ${this.mounted.map((section) => renderHostSection(prefix, section))}
-          ${unavailable.length
-            ? html`<section id=${prefix + '-unavailable'} class="soda-factory-settings-unavailable"
-                aria-labelledby=${prefix + '-unavailable-title'}>
-                <h3 id=${prefix + '-unavailable-title'}>Unavailable in this app</h3>
-                <p>These settings exist in Factory, but this app cannot read or save them yet. Nothing here is assumed to be on.</p>
-                <dl>
-                  ${unavailable.map(([, title, detail]) => html`<div><dt>${title}</dt><dd>${detail}</dd></div>`)}
-                </dl>
-              </section>`
-            : ''}
+          ${renderUnavailable(prefix + '-unavailable', unavailable)}
         </div>
       </div>
     </section>`;
