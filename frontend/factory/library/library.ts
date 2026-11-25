@@ -269,6 +269,7 @@ export class SodaFactoryLibrary extends LitElement {
               this.notifyNavigation();
             }}
         /></label>
+        <div class="soda-library-filters">
         <label
           >Show<select
             aria-label="Item type"
@@ -283,7 +284,6 @@ export class SodaFactoryLibrary extends LitElement {
             <option value="decision">Decisions</option>
           </select></label
         >
-        <button type="submit" ?disabled=${this.view.busy}>Search</button>
         <label
           ><input
             type="checkbox"
@@ -296,6 +296,8 @@ export class SodaFactoryLibrary extends LitElement {
             }}
           />Include removed items</label
         >
+        </div>
+        <button type="submit" ?disabled=${this.view.busy}>Search</button>
       </form>
       ${
         this.view.message
@@ -321,7 +323,7 @@ export class SodaFactoryLibrary extends LitElement {
               <p class="soda-library-item-meta">
                 ${item.role}${item.updated ? ` · ${new Date(item.updated * 1000).toLocaleString()}` : ''}
               </p>
-              ${this.sourceLink(item)}${this.content(item)}${this.related('Replaced by', item.replacements)}${this.related('Derived from', item.derived)}
+              ${this.content(item)}${this.related('Replaced by', item.replacements)}${this.related('Derived from', item.derived)}
               ${
                 item.relations.length
                   ? html`<section>
@@ -332,6 +334,7 @@ export class SodaFactoryLibrary extends LitElement {
                     </section>`
                   : ''
               }
+              <div class="soda-library-source">${this.sourceLink(item)}</div>
               <details class="soda-library-history">
                 <summary>Recent revisions · ${this.view.history.length}</summary>
                 ${this.view.history.map(
