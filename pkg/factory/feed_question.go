@@ -82,19 +82,19 @@ var questionOptionID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
 func plainText(value, field string, max int, required bool) error {
 	if strings.TrimSpace(value) == "" {
 		if required {
-			return fmt.Errorf("question %s is required", field)
+			return fmt.Errorf("%s is required", field)
 		}
 		if value != "" {
-			return fmt.Errorf("question %s is blank", field)
+			return fmt.Errorf("%s is blank", field)
 		}
 		return nil
 	}
 	if utf8.RuneCountInString(value) > max || !utf8.ValidString(value) {
-		return fmt.Errorf("question %s exceeds %d characters", field, max)
+		return fmt.Errorf("%s exceeds %d characters", field, max)
 	}
 	for _, r := range value {
 		if unicode.IsControl(r) || r == '<' || r == '>' || r == '`' || r == ' ' || r == ' ' {
-			return fmt.Errorf("question %s must be plain text on one line", field)
+			return fmt.Errorf("%s must be plain text on one line", field)
 		}
 	}
 	return nil
@@ -142,14 +142,14 @@ func (f FeedQuestionForm) Validate() error {
 				return errors.New("question option ids must be unique lowercase identifiers of at most 32 characters")
 			}
 			ids[option.ID] = true
-			if err := plainText(option.Label, "option label", 80, true); err != nil {
+			if err := plainText(option.Label, "question option label", 80, true); err != nil {
 				return err
 			}
 			if labels[strings.TrimSpace(option.Label)] {
 				return errors.New("question option labels must be unique")
 			}
 			labels[strings.TrimSpace(option.Label)] = true
-			if err := plainText(option.Detail, "option detail", 240, false); err != nil {
+			if err := plainText(option.Detail, "question option detail", 240, false); err != nil {
 				return err
 			}
 		}
@@ -161,10 +161,10 @@ func (f FeedQuestionForm) Validate() error {
 		if err := only(yesNo); err != nil {
 			return err
 		}
-		if err := plainText(f.YesMeans, "yes_means", 160, false); err != nil {
+		if err := plainText(f.YesMeans, "question yes_means", 160, false); err != nil {
 			return err
 		}
-		return plainText(f.NoMeans, "no_means", 160, false)
+		return plainText(f.NoMeans, "question no_means", 160, false)
 	case QuestionScore:
 		if err := only(score); err != nil {
 			return err
@@ -172,18 +172,18 @@ func (f FeedQuestionForm) Validate() error {
 		if f.Low < 0 || f.High > 10 || f.Low >= f.High {
 			return errors.New("question score needs an integer range inside 0..10")
 		}
-		if err := plainText(f.LowLabel, "low_label", 40, false); err != nil {
+		if err := plainText(f.LowLabel, "question low_label", 40, false); err != nil {
 			return err
 		}
-		return plainText(f.HighLabel, "high_label", 40, false)
+		return plainText(f.HighLabel, "question high_label", 40, false)
 	case QuestionValue:
 		if err := only(value); err != nil {
 			return err
 		}
-		if err := plainText(f.Label, "label", 80, true); err != nil {
+		if err := plainText(f.Label, "question label", 80, true); err != nil {
 			return err
 		}
-		return plainText(f.Unit, "unit", 16, false)
+		return plainText(f.Unit, "question unit", 16, false)
 	default:
 		return errors.New("unknown question form kind")
 	}
@@ -294,7 +294,7 @@ func (f FeedQuestionForm) Admit(a FeedQuestionAnswer) (FeedQuestionAnswer, strin
 		return out, strings.Join(labels, "; "), nil
 	case QuestionValue:
 		value := strings.TrimSpace(a.Value)
-		if others(a.Value != "") || plainText(value, "value", 200, true) != nil {
+		if others(a.Value != "") || plainText(value, "question value", 200, true) != nil {
 			return refuse("give a short value on one line")
 		}
 		if f.Number {

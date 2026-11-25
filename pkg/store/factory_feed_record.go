@@ -350,8 +350,9 @@ func judgmentState(judgment *factory.FeedJudgment) factory.FeedState {
 
 // feedNeedsYouSQL is the one definition of what waits for the person in a
 // repository, selecting one row per waiting item: an open ask (a live
-// question with no feedReplySQL reply, the feed's "open" question state), a
-// delivery judgment whose effective action is outside deliveryCarriedOn
+// question with no feedReplySQL reply, the feed's "open" question state;
+// an agent request also leaves once its recorded setting meets it,
+// feedRequestMetSQL), a delivery judgment whose effective action is outside deliveryCarriedOn
 // (judgmentState's needs_you) and an open assumption challenge
 // (feedAssumptionSQL). repository is the SQL expression for the repository
 // key; carried is the placeholder bound to deliveryCarriedOn.
@@ -360,6 +361,7 @@ func feedNeedsYouSQL(repository, carried string) string {
  AND p.data->'communication'->>'kind'='ask'
  AND NOT COALESCE((p.data->>'deleted')::boolean,false) AND NOT COALESCE((p.data->>'revoked')::boolean,false)
  AND NOT EXISTS(SELECT 1 FROM factory_feed_posts c WHERE ` + feedReplySQL + `)
+ AND NOT ` + feedRequestMetSQL("p") + `
  UNION ALL SELECT j.snapshot FROM factory_priority_judgments j
  JOIN factory_publications pub ON (pub.data->>'id')=(j.data->'input'->>'publication_id')
  JOIN factory_assignments a ON a.id=pub.assignment

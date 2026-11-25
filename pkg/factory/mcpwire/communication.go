@@ -36,6 +36,7 @@ func communicationPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 			roles = append(roles, string(profile))
 		}
 		props["addressed_to"] = &jsonschema.Schema{Type: "string", Enum: roles, Description: "Optional: the Factory role whose expertise the question asks for, never a person or login and never your own role. The person can still answer."}
+		props["request"] = requestSchema()
 	case factory.MCPToolAnswer, factory.MCPToolReply:
 		required = append(required, "parent_id")
 	case factory.MCPToolFlag:
@@ -73,4 +74,18 @@ func answerFormSchema() *jsonschema.Schema {
 		"low_label": text(40, "Name of the lowest score."), "high_label": text(40, "Name of the highest score."),
 		"label": text(80, "What the value is."), "unit": text(16, "Optional unit."), "number": {Type: "boolean"},
 	}, Required: []string{"kind"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
+}
+
+// requestSchema advertises an ask for more allowance or for access. The post
+// explains the request and links the person to the setting; it grants
+// nothing. factory.FeedRequest.Validate enforces the same rules on every call.
+func requestSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{Type: "object", Description: "Optional: ask the person to raise an allowance or grant access in Settings. allowance: setting capacity (unit runs, 1-64 concurrent runs) or sponsorships (unit minutes, 1-10080); amount is the total you need. access: setting policy, operator_grant, sponsorships or environment_grant, with no amount. reason and blocks are plain text on one line. Do not also send options, answer_form or addressed_to. The request stays open until the recorded setting meets it or someone replies.", Properties: map[string]*jsonschema.Schema{
+		"kind":    {Type: "string", Enum: []any{factory.RequestAllowance, factory.RequestAccess}},
+		"setting": {Type: "string", Enum: []any{factory.SettingCapacity, factory.SettingSponsorships, factory.SettingPolicy, factory.SettingOperatorGrant, factory.SettingEnvironmentGrant}},
+		"amount":  {Type: "integer"},
+		"unit":    {Type: "string", Enum: []any{"runs", "minutes"}},
+		"reason":  {Type: "string", MaxLength: ptrInt(400), Description: "Why you need it."},
+		"blocks":  {Type: "string", MaxLength: ptrInt(160), Description: "Optional: the work that waits on it."},
+	}, Required: []string{"kind", "setting", "reason"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
 }

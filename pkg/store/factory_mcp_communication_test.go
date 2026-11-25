@@ -496,6 +496,74 @@ func TestMCPCommunicationPersistsFeedAndReplay(t *testing.T) {
 	if page, err := s.MCPDiscussion(ctx, cap, addressed.Record.ID, ""); err != nil || len(page.Items) != 1 || page.Items[0].Communication == nil || page.Items[0].Communication.AddressedTo != factory.MCPProfileArchitect {
 		t.Fatalf("addressed ask missing from the worker read: %+v %v", page, err)
 	}
+	// An agent request (factory.FeedRequest) names one canonical setting; it is
+	// open, and waits for the person, until the recorded setting meets it or
+	// someone replies.
+	for _, refused := range []string{
+		`{"kind":"allowance","setting":"budget","amount":3,"unit":"runs","reason":"More runs"}`,
+		`{"kind":"access","setting":"operator_grant","amount":2,"unit":"runs","reason":"Use this machine"}`,
+		`{"kind":"allowance","setting":"capacity","amount":4,"unit":"minutes","reason":"More runs"}`,
+		`{"kind":"allowance","setting":"capacity","amount":65,"unit":"runs","reason":"More runs"}`,
+		`{"kind":"access","setting":"lifecycle","reason":"Open dispatch"}`,
+		`{"kind":"access","setting":"policy","reason":"Enable","state":"met"}`,
+		`{"kind":"access","setting":"policy","reason":"<b>Enable</b>"}`,
+	} {
+		bad := testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Request","summary":"A request","question":"May I?","request":`+refused+`}`))
+		if _, err := s.RecordWorkerPost(ctx, bad); err == nil {
+			t.Fatalf("invalid request admitted: %s", refused)
+		}
+	}
+	if _, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Request","summary":"A request","question":"May I?","options":["Yes","No"],"request":{"kind":"access","setting":"policy","reason":"Enable"}}`))); err == nil {
+		t.Fatal("request with answer choices admitted")
+	}
+	waiting := func(id string) bool {
+		var n int
+		if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM (`+feedNeedsYouSQL("7", "$1")+`) w WHERE w.id=$2`, deliveryCarriedOn, id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	requestState := func(id string) *factory.FeedRequest {
+		served, err := s.FeedPostDetails(ctx, []string{id})
+		if err != nil || served[id].Payload == nil || served[id].Payload.Communication.Request == nil {
+			t.Fatalf("request not served: %+v %v", served[id], err)
+		}
+		return served[id].Payload.Communication.Request
+	}
+	allowance, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Builder asks for 4 concurrent runs","summary":"Tests and the build wait on each other.","question":"Can capacity rise to 4 runs?","request":{"kind":"allowance","setting":"capacity","amount":4,"unit":"runs","reason":"The test suite and the build cannot run side by side at 2.","blocks":"Search index rebuild"}}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := requestState(allowance.Record.ID); r.State != "open" || r.Setting != factory.SettingCapacity || r.Amount != 4 || r.Unit != "runs" || r.Blocks != "Search index rebuild" || !waiting(allowance.Record.ID) {
+		t.Fatalf("open allowance request: %+v waiting=%v", r, waiting(allowance.Record.ID))
+	}
+	capacity := func(runs int) {
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO factory_capacity(id,revision,data) VALUES(1,1,jsonb_build_object('max_concurrent_runs',$1::int,'updated_by','1'))
+ ON CONFLICT(id) DO UPDATE SET revision=factory_capacity.revision+1,data=EXCLUDED.data`, runs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capacity(2)
+	if r := requestState(allowance.Record.ID); r.State != "open" || !waiting(allowance.Record.ID) {
+		t.Fatalf("short capacity resolved the request: %+v", r)
+	}
+	capacity(4)
+	if r := requestState(allowance.Record.ID); r.State != "met" || waiting(allowance.Record.ID) {
+		t.Fatalf("met request still open: %+v", r)
+	}
+	access, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Builder asks for the environment","summary":"No environment is granted.","question":"Can this project use the environment?","request":{"kind":"access","setting":"environment_grant","reason":"Checks need the project environment."}}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := requestState(access.Record.ID); r.State != "open" || r.Amount != 0 || !waiting(access.Record.ID) {
+		t.Fatalf("open access request: %+v", r)
+	}
+	if _, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 7, Body: "Not this week.", ParentID: access.Record.ID, IdempotencyKey: "request-reply"}, "7", "Owner", 3); err != nil {
+		t.Fatal(err)
+	}
+	if r := requestState(access.Record.ID); r.State != "replied" || waiting(access.Record.ID) {
+		t.Fatalf("replied request still open: %+v", r)
+	}
 	// A person's read_first_by is a routing hint on the same rule. Two running
 	// roles in another project: Builder's work started first.
 	if err := (factory.PostRequest{Repository: 9, Body: "Hint", IdempotencyKey: "login-hint", ReadFirstBy: "octocat"}).Validate(); !errors.Is(err, factory.ErrRoleReference) {

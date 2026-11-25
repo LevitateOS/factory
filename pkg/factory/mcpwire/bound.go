@@ -63,7 +63,7 @@ func factoryToolDescription(tool factory.MCPTool) string {
 		factory.MCPToolEvidence:             "Read the evidence available to this assignment, with explicit completeness information. Includes the recorded research report or maintenance result when the assignment finished one.",
 		factory.MCPToolInbox:                "Read recent posts and human or worker replies for your assignment. Use the returned cursor for earlier messages.",
 		factory.MCPToolDiscussion:           "Read a post and its replies within your assignment, including the full question or answer. read_first_by names the role a person asked to read the post first; addressed_to names the role a question asks.",
-		factory.MCPToolAsk:                  "Publish a specific question with optional suggested answers, or an answer_form when the answer takes a fixed shape (pick one, yes or no, score, pick several, value). Read responses with factory.inbox or factory.discussion; a typed reply carries answer beside its text.",
+		factory.MCPToolAsk:                  "Publish a specific question with optional suggested answers, or an answer_form when the answer takes a fixed shape (pick one, yes or no, score, pick several, value). Read responses with factory.inbox or factory.discussion; a typed reply carries answer beside its text. To ask the person for more allowance or for access, add request; it links them to the setting and grants nothing.",
 		factory.MCPToolAnswer:               "Answer an existing question using its post ID. This records your answer without changing product authority.",
 		factory.MCPToolReply:                "Contribute to an existing discussion using its post ID.",
 		factory.MCPToolFlag:                 "Report a concern with its severity, evidence and impact.",

@@ -50,6 +50,9 @@ type FeedCommunication struct {
 	// AddressedTo names the role whose expertise an ask asks for
 	// (feed_role.go). The person may still answer.
 	AddressedTo MCPProfile `json:"addressed_to,omitempty"`
+	// Request is an ask for more allowance or for access (feed_request.go);
+	// its state is served.
+	Request *FeedRequest `json:"request,omitempty"`
 	// Disposition and DispositionReason are server-assigned from the
 	// recorded disposition beside the post; worker payloads carrying
 	// them refuse like question_state.
@@ -321,6 +324,17 @@ func (c FeedCommunication) Validate() error {
 			return errors.New("a typed question carries its options in answer_form")
 		}
 		if err := c.AnswerForm.Validate(); err != nil {
+			return err
+		}
+	}
+	if c.Request != nil {
+		if c.Kind != "ask" {
+			return errors.New("only ask carries a request")
+		}
+		if c.AnswerForm != nil || len(c.Options) > 0 || c.AddressedTo != "" {
+			return errors.New("a request goes to the person and carries no answer choices")
+		}
+		if err := c.Request.Validate(); err != nil {
 			return err
 		}
 	}

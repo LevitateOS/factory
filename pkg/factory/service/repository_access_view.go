@@ -125,20 +125,20 @@ func accessRequiredActions(missing []string) []accessActionView {
 		action := accessActionView{Code: code}
 		switch code {
 		case factory.MissingPolicy, factory.MissingPolicyDisabled, factory.MissingPolicyPaused, factory.MissingSpendingAccount:
-			action.ResolveBy, action.Setting = accessResolveOwnerAdmin, "policy"
+			action.ResolveBy, action.Setting = accessResolveOwnerAdmin, factory.SettingPolicy
 		case factory.MissingOperatorGrant, factory.MissingOperatorWithdrawn, factory.MissingCapacity:
-			action.ResolveBy, action.Setting = accessResolveOperator, "operator_grant"
+			action.ResolveBy, action.Setting = accessResolveOperator, factory.SettingOperatorGrant
 			if code == factory.MissingCapacity {
-				action.Setting = "capacity"
+				action.Setting = factory.SettingCapacity
 			}
 		case factory.MissingSponsorship, factory.MissingSponsorshipGone, factory.MissingSponsorshipRole:
-			action.ResolveBy, action.Setting = accessResolveConnOwner, "sponsorships"
+			action.ResolveBy, action.Setting = accessResolveConnOwner, factory.SettingSponsorships
 		case factory.MissingEnvironment, factory.MissingEnvironmentGone:
-			action.ResolveBy, action.Setting = accessResolveRepoOwner, "environment_grant"
+			action.ResolveBy, action.Setting = accessResolveRepoOwner, factory.SettingEnvironmentGrant
 		case factory.MissingPreparation:
-			action.ResolveBy, action.Setting = accessResolveOwnerAdmin, "project"
+			action.ResolveBy, action.Setting = accessResolveOwnerAdmin, factory.SettingProject
 		case factory.MissingDispatch:
-			action.ResolveBy, action.Setting = accessResolveMaintainer, "lifecycle"
+			action.ResolveBy, action.Setting = accessResolveMaintainer, factory.SettingLifecycle
 		}
 		actions = append(actions, action)
 	}

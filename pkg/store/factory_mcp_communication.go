@@ -272,7 +272,10 @@ func (s *Store) feedQuestionStates(ctx context.Context, details map[string]FeedP
 		}
 		detail.Payload.Communication.QuestionState = state
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return s.feedRequestStates(ctx, details)
 }
 
 // feedDecisionOwners names the owner of each served decision in one query.
