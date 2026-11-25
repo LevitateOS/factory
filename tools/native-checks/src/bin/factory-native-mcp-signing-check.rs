@@ -237,7 +237,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if args.len() == 5 && args[4] == "execution" {
-        return tokio::runtime::Builder::new_current_thread()
+        // Synchronous fixture commands block one worker while Go calls back into
+        // credentials driven by this runtime; a second worker keeps them live.
+        return tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
             .enable_all()
             .build()?
             .block_on(managed_execution(
