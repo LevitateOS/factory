@@ -23,6 +23,8 @@ type Runs struct {
 	AuthorityError  func(http.ResponseWriter, error)
 	VisibilityError func(http.ResponseWriter, error)
 	HostError       func(http.ResponseWriter, error) bool
+	// Nil keeps live output unavailable on this host.
+	OutputStream *OutputStream
 }
 
 func (s Runs) Handler() http.Handler {
@@ -52,6 +54,7 @@ func (s Runs) Handler() http.Handler {
 		})
 	}
 	register(http.MethodGet, "/api/factory/runs/{runID}", s.status)
+	register(http.MethodGet, "/api/factory/runs/{runID}/output", s.output)
 	register(http.MethodPost, "/api/repositories/{repositoryID}/factory/actions", s.repositoryAction)
 	register(http.MethodPost, "/api/factory/runs/{runID}/actions", s.runAction)
 	register(http.MethodPost, "/api/factory/publications/{publicationID}/actions", s.publicationAction)

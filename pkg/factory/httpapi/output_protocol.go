@@ -60,7 +60,26 @@ func rejectOutputInput(ctx context.Context, cancel context.CancelFunc, conn *web
 	}
 }
 
+// outputEmit writes one frame to the viewer's transport.
+type outputEmit func(context.Context, any) error
+
 func (s Output) pump(ctx context.Context, conn *websocket.Conn, cursor int64) {
+	emit := func(ctx context.Context, frame any) error { return writeOutputFrame(ctx, conn, frame) }
+	beat := func(ctx context.Context) bool {
+		if !s.heartbeat(ctx, emit) {
+			return false
+		}
+		check, done := context.WithTimeout(ctx, 5*time.Second)
+		defer done()
+		return conn.Ping(check) == nil
+	}
+	pumpOutput(ctx, s.Attachment, s.Current, emit, beat, cursor, nil)
+}
+
+// pumpOutput is the one read loop over an admitted attachment for every
+// transport. It ends on EOF, refusal, ctx or `end`; it never sends input.
+func pumpOutput(ctx context.Context, attachment *factoryservice.OutputAttachment, current func(context.Context) bool,
+	emit outputEmit, beat func(context.Context) bool, cursor int64, end <-chan time.Time) {
 	poll := time.NewTicker(500 * time.Millisecond)
 	defer poll.Stop()
 	heart := time.NewTicker(15 * time.Second)
@@ -72,12 +91,15 @@ func (s Output) pump(ctx context.Context, conn *websocket.Conn, cursor int64) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-end:
+			_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: "renew"})
+			return
 		case <-heart.C:
-			if !s.heartbeat(ctx, conn) {
+			if !beat(ctx) {
 				return
 			}
 		case <-poll.C:
-			next, done, ok := s.slice(ctx, conn, cursor, &last, &sent)
+			next, done, ok := sliceOutput(ctx, attachment, current, emit, cursor, &last, &sent)
 			cursor = next
 			if done {
 				return
@@ -85,7 +107,7 @@ func (s Output) pump(ctx context.Context, conn *websocket.Conn, cursor int64) {
 			if !ok {
 				failures++
 				if failures > 10 {
-					_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "output_unavailable"})
+					_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: "output_unavailable"})
 					return
 				}
 				continue
@@ -95,33 +117,33 @@ func (s Output) pump(ctx context.Context, conn *websocket.Conn, cursor int64) {
 	}
 }
 
-func (s Output) slice(ctx context.Context, conn *websocket.Conn, cursor int64, last *factoryservice.RunOutputStatus, sent *bool) (int64, bool, bool) {
-	if !s.Current(ctx) {
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
+func sliceOutput(ctx context.Context, attachment *factoryservice.OutputAttachment, current func(context.Context) bool, emit outputEmit, cursor int64, last *factoryservice.RunOutputStatus, sent *bool) (int64, bool, bool) {
+	if !current(ctx) {
+		_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
 		return cursor, true, false
 	}
-	out, err := s.Attachment.Read(ctx, cursor)
+	out, err := attachment.Read(ctx, cursor)
 	if err != nil {
-		return cursor, closeOutputSlice(ctx, conn, err), false
+		return cursor, closeOutputSlice(ctx, emit, err), false
 	}
-	if !s.Current(ctx) {
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
+	if !current(ctx) {
+		_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
 		return cursor, true, false
 	}
 	status := out.Status
 	if !*sent || !status.Same(*last) {
-		if writeOutputFrame(ctx, conn, status) != nil {
+		if emit(ctx, status) != nil {
 			return cursor, true, false
 		}
 		*last, *sent = status, true
 	}
 	if out.Output != nil {
-		if writeOutputFrame(ctx, conn, out.Output) != nil {
+		if emit(ctx, out.Output) != nil {
 			return cursor, true, false
 		}
 	}
 	if out.Done {
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "eof"})
+		_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: "eof"})
 		return out.Next, true, true
 	}
 	return out.Next, false, true
@@ -130,31 +152,30 @@ func (s Output) slice(ctx context.Context, conn *websocket.Conn, cursor int64, l
 // closeOutputSlice ends the attachment for a host read failure. Unknown
 // runs and changed incarnations close with their reason; anything else is
 // a transient miss the pump retries within its failure budget.
-func closeOutputSlice(ctx context.Context, conn *websocket.Conn, err error) bool {
+func closeOutputSlice(ctx context.Context, emit outputEmit, err error) bool {
+	reason := ""
 	switch {
 	case errors.Is(err, factoryservice.ErrRunOutputMissing):
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "run_unknown"})
-		return true
+		reason = "run_unknown"
 	case errors.Is(err, factoryservice.ErrRunOutputChanged):
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "incarnation_changed"})
-		return true
+		reason = "incarnation_changed"
 	case errors.Is(err, factoryservice.ErrRunOutputAccess):
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
-		return true
+		reason = "authority_lost"
 	case errors.Is(err, factoryservice.ErrRunOutputInvalid), errors.Is(err, factoryservice.ErrRunOutputCursor):
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "output_unavailable"})
-		return true
+		reason = "output_unavailable"
 	default:
 		return false
 	}
+	_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: reason})
+	return true
 }
 
-func (s Output) heartbeat(ctx context.Context, conn *websocket.Conn) bool {
+func (s Output) heartbeat(ctx context.Context, emit outputEmit) bool {
 	check, done := context.WithTimeout(ctx, 5*time.Second)
 	defer done()
 	if !s.Current(check) || s.Attachment.Check(check) != nil {
-		_ = writeOutputFrame(ctx, conn, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
+		_ = emit(ctx, factoryservice.RunOutputClosed{Type: "closed", Reason: "authority_lost"})
 		return false
 	}
-	return conn.Ping(check) == nil
+	return true
 }

@@ -3,12 +3,14 @@ package runtime
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"os"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
@@ -196,4 +198,62 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 		observed.Reason = *snapshot.Reason
 	}
 	return observed, observed.ValidateFor(address)
+}
+
+type nativeOutputRead struct {
+	IntentDigest string  `json:"intent_digest"`
+	Offset       int64   `json:"offset"`
+	Total        int64   `json:"total"`
+	Data         string  `json:"data"`
+	Live         bool    `json:"live"`
+	Terminal     bool    `json:"terminal"`
+	Reason       *string `json:"reason"`
+	ExitCode     *int    `json:"exit_code"`
+}
+
+// ReadOutput reads this instance's run output from cursor through the
+// supervisor's bounded output query. It spends the read budget, never a
+// liveness query, and never inspects, cancels, settles or records the run.
+// The status it reports is a display projection; InspectRun owns settlement.
+func (p NativeExecution) ReadOutput(ctx context.Context, run factory.Run, cursor int64) (project.FactoryOutputState, error) {
+	var empty project.FactoryOutputState
+	if run.Native == nil || run.Native.Intent == "" || run.Reconciled ||
+		run.Native.Provenance.Profile != p.Config.Profile || run.Native.Provenance.InstanceID != p.Instance {
+		return empty, execution.ErrRunNotObserved
+	}
+	var read nativeOutputRead
+	if err := nativeHostCall(ctx, p.Config, p.Instance, "/api/native/execution", struct {
+		Intent    string `json:"intent"`
+		Operation string `json:"operation"`
+		Offset    int64  `json:"offset"`
+	}{run.Native.Intent, "output", cursor}, &read); err != nil {
+		return empty, execution.ErrRunNotObserved
+	}
+	digest := sha256.Sum256([]byte(run.Native.Intent))
+	data, err := base64.StdEncoding.DecodeString(read.Data)
+	if read.IntentDigest != hex.EncodeToString(digest[:]) || err != nil || read.Offset != min(cursor, read.Total) ||
+		read.Offset+int64(len(data)) > read.Total || read.Total > project.MaxFactoryOutputOffset || read.Terminal && read.Live {
+		return empty, execution.ErrObservation
+	}
+	phase := project.FactoryUncertain
+	switch {
+	case read.Live:
+		phase = project.FactoryRunning
+	case read.Terminal && read.Reason != nil && *read.Reason == "exited" && read.ExitCode != nil && *read.ExitCode == 0:
+		phase = project.FactoryCompleted
+	case read.Terminal && read.Reason != nil && *read.Reason == "cancelled":
+		phase = project.FactoryStopped
+	case read.Terminal:
+		phase = project.FactoryFailed
+	}
+	out := project.FactoryOutputState{ID: run.ID, Project: run.ProjectID, Phase: phase, Invocation: run.InvocationID(),
+		Live: read.Live, Terminal: read.Terminal, Total: read.Total, Offset: read.Offset, Next: read.Offset + int64(len(data)),
+		Data: read.Data, Gap: read.Offset != cursor}
+	if read.Terminal {
+		out.ExitCode = read.ExitCode
+		if read.Reason != nil {
+			out.Reason = *read.Reason
+		}
+	}
+	return out, nil
 }

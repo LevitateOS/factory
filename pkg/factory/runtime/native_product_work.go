@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -12,6 +13,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory/execution"
 	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	service "github.com/levitateos/factory/pkg/factory/service"
+	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -144,6 +146,44 @@ func (b *nativeProductAccount) bindWork(application service.Application, view *n
 			return c.AcceptanceStatus(ctx, int64(repository), strconv.FormatInt(issue, 10))
 		}}
 	commands := service.Interventions{Store: b.store, Writer: c, WriteAccess: access, RunRepository: writeRepository, RecoveryTarget: target}
-	return factoryhttp.Work{Reads: service.WorkReads{Store: b.store, Visibility: b.readVisibility(view)}, Issues: issues, VisibilityError: nativeProductResourceError},
-		factoryhttp.Runs{Store: b.store, Visibility: b.visible, Status: service.RunStatus{Store: b.store, WriteAccess: readAccess, RunRepository: readRepository, Inspect: inspect, Availability: c}, Commands: commands, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError}
+	runs := factoryhttp.Runs{Store: b.store, Visibility: b.visible, Status: service.RunStatus{Store: b.store, WriteAccess: readAccess, RunRepository: readRepository, Inspect: inspect, Availability: c}, Commands: commands, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError}
+	runs.OutputStream = b.outputStream(c, view, func(ctx context.Context, actor collaboration.ActorID, run factory.Run) (collaboration.RepositoryID, error) {
+		return repository(view, ctx, actor, run)
+	})
+	return factoryhttp.Work{Reads: service.WorkReads{Store: b.store, Visibility: b.readVisibility(view)}, Issues: issues, VisibilityError: nativeProductResourceError}, runs
+}
+
+// nativeOutputLifetime bounds one live-output response, and with it how long
+// the binding's single provider observation stands for the viewer. A renewed
+// response costs one more binding. The native operation outlives this bound.
+const nativeOutputLifetime = 4*time.Minute + 30*time.Second
+
+// outputStream serves live output only from this request's authenticated
+// selection: every check during the response is local (store, native port
+// current-account) and every read spends the native output budget, never a
+// provider observation. Without a shared selection it stays unavailable.
+func (b *nativeProductAccount) outputStream(c *control.Coordinator, view *nativeProductAccount,
+	scope func(context.Context, collaboration.ActorID, factory.Run) (collaboration.RepositoryID, error)) *factoryhttp.OutputStream {
+	native, ok := c.Host.(NativeExecution)
+	// Fountain's current-account check is itself a gateway request.
+	if !ok || native.Config.Profile != b.binding.Profile.ID || view.readAdmission == nil || b.binding.Host.Provider != collaboration.GitHub {
+		return nil
+	}
+	return &factoryhttp.OutputStream{Lifetime: nativeOutputLifetime,
+		Current: func(ctx context.Context) bool { return view.current(ctx) == nil },
+		Service: service.RunOutput{Store: b.store, Scope: scope,
+			// Scope already observed this repository through the shared view.
+			Access: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, _ factory.Run) error {
+				if actor != view.binding.Actor.ID || view.repository == nil || repository != view.repository.ID {
+					return service.ErrRepositoryHidden
+				}
+				return ctx.Err()
+			},
+			Source: func(ctx context.Context, _ collaboration.ActorID, run factory.Run, cursor int64, _ int) (project.FactoryOutputState, error) {
+				out, err := native.ReadOutput(ctx, run, cursor)
+				if errors.Is(err, execution.ErrRunNotObserved) && (run.Native == nil || run.Reconciled || run.Native.Provenance.InstanceID != native.Instance) {
+					return out, service.ErrRunOutputMissing
+				}
+				return out, err
+			}}}
 }
