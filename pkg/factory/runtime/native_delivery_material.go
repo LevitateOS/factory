@@ -160,12 +160,11 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if err != nil {
 		return empty, err
 	}
-	// Merge admission already read the selected accepted sources. Its revision
-	// brackets this request's complete collection; the closing input read below
-	// must still match. Public material reads retain their own opening observation.
-	beforeInput := control.AcceptanceEvidence{Revision: w.NativeRev}
+	// Merge admission already read the selected accepted sources; public material
+	// reads take their own. Submission compares a fresh read with this revision.
+	inputs := control.AcceptanceEvidence{Revision: w.NativeRev}
 	if capture == nil || w.NativeRev < 1 {
-		beforeInput, err = p.ReadAcceptanceEvidence(bounded, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
+		inputs, err = p.ReadAcceptanceEvidence(bounded, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 		if err != nil {
 			return empty, nativeDeliveryReadFailure(bounded, "accepted input", err)
 		}
@@ -215,13 +214,6 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if err := account.current(bounded); err != nil {
 		return empty, err
 	}
-	afterInput, err := p.ReadAcceptanceEvidence(bounded, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
-	if err != nil {
-		return empty, nativeDeliveryReadFailure(bounded, "accepted input recheck", err)
-	}
-	if beforeInput.Revision != afterInput.Revision {
-		return empty, errNativeDeliveryMaterial
-	}
 	currentPolicy, err := p.Store.RepositoryPolicy(bounded, w.Repository)
 	if err != nil {
 		return empty, err
@@ -229,7 +221,7 @@ func (p NativeMerges) readDeliveryMaterial(ctx context.Context, w factory.MergeW
 	if currentPolicy.Revision != policy.Revision {
 		return empty, errNativeDeliveryMaterial
 	}
-	first.Revision = afterInput.Revision
+	first.Revision = inputs.Revision
 	first.PolicyRevision = policy.Revision
 	first.Eligible = after.ProviderComplete && after.ProviderEligible && after.MethodAvailable
 	if first.ReviewDecision != nil && (*first.ReviewDecision == "CHANGES_REQUESTED" || *first.ReviewDecision == "REVIEW_REQUIRED") {
