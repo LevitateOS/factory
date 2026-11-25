@@ -1,1 +1,1 @@
-{"identifier":"desktop","windows":["main","view-*"],"permissions":[]}
+{"identifier":"desktop","windows":["main","view-*"],"permissions":["core:window:allow-start-dragging","core:window:allow-toggle-maximize"]}

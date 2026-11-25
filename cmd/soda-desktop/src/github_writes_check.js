@@ -87,7 +87,9 @@
         assert(response.status === expected, 'placement change status: ' + response.status);
         return response.ok ? (await response.json()).placement : undefined;
       };
-      const controls = document.querySelector('#runtime-placement');
+      location.hash = new URLSearchParams({view: 'settings', repository: repo});
+      await until(() => document.querySelector('soda-desktop-placement'), 'settings execution controller');
+      const controls = document.querySelector('soda-desktop-placement');
       await click(controls, 'Use this computer');
       await until(() => controls.textContent.includes('This computer · active · generation 1') && !button(controls, 'Retire controller')?.disabled, 'selected controller UI unavailable');
       let p = await get();

@@ -169,3 +169,41 @@
 .soda-factory-new-project legend {
   margin-bottom: 6px;
 }
+/* Host cards (the desktop's "Add a project") sit to the right of the list and
+   drop below it when the page is narrow. */
+.soda-factory-projects-page:has(> .soda-factory-projects-aside) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  column-gap: 32px;
+  align-items: start;
+}
+.soda-factory-projects-page:has(> .soda-factory-projects-aside) > * {
+  grid-column: 1;
+}
+.soda-factory-projects-page:has(> .soda-factory-projects-aside) > header {
+  grid-column: 1 / -1;
+}
+.soda-factory-projects-page:has(> .soda-factory-projects-aside) > .soda-factory-projects-aside {
+  grid-column: 2;
+  grid-row: 2 / span 9;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.soda-factory-projects-aside > section {
+  padding: 20px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+}
+.soda-factory-projects-aside h3 {
+  margin: 0 0 12px;
+  font: 700 24px/1.2 "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+@media (max-width: 999px) {
+  .soda-factory-projects-page:has(> .soda-factory-projects-aside) {
+    display: block;
+  }
+  .soda-factory-projects-aside {
+    margin-top: 24px;
+  }
+}

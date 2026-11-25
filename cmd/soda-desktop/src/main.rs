@@ -497,10 +497,14 @@ fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
         return Ok(());
     }
     let profile = app.state::<Desktop>().paths.profile.clone();
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+    let builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title("Factory")
         .inner_size(1180.0, 900.0)
-        .data_directory(profile.join("webview"))
+        .data_directory(profile.join("webview"));
+    // The page draws its own top strip under the traffic lights.
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+    builder
         .on_navigation(|url| {
             #[cfg(feature = "native-check")]
             eprintln!(
@@ -526,11 +530,28 @@ fn open_window(
     target: Option<product::WindowTarget>,
 ) -> Result<(), String> {
     caller(&window)?;
+    open_new(&app, &state, target)
+}
+fn open_new(app: &tauri::AppHandle, state: &Desktop, target: Option<product::WindowTarget>) -> Result<(), String> {
     let label = format!("view-{}", state.windows.fetch_add(1, Ordering::SeqCst));
     if let Some(target) = target {
         state.product.aim(&label, target)?;
     }
-    open(&app, &label).inspect_err(|_| drop(state.product.retire(Some(&label))))
+    open(app, &label).inspect_err(|_| drop(state.product.retire(Some(&label))))
+}
+/// The native menu holds the window actions: New Window, Close Window and Quit.
+fn window_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+    let quit = MenuItemBuilder::with_id("quit", "Quit Factory").accelerator("CmdOrCtrl+Q").build(app)?;
+    let new_window = MenuItemBuilder::with_id("new-window", "New Window").accelerator("CmdOrCtrl+N").build(app)?;
+    let factory = SubmenuBuilder::new(app, "Factory");
+    #[cfg(target_os = "macos")]
+    let factory = factory.about(None).separator().services().separator().hide().hide_others().show_all().separator();
+    let factory = factory.item(&quit).build()?;
+    let file = SubmenuBuilder::new(app, "File").item(&new_window).close_window().build()?;
+    let edit = SubmenuBuilder::new(app, "Edit").undo().redo().separator().cut().copy().paste().select_all().build()?;
+    let window = SubmenuBuilder::new(app, "Window").minimize().maximize().fullscreen().build()?;
+    MenuBuilder::new(app).items(&[&factory, &file, &edit, &window]).build()
 }
 #[tauri::command]
 fn close_window(window: WebviewWindow) -> Result<(), String> {
@@ -571,12 +592,6 @@ fn quit(app: tauri::AppHandle) {
         };
         app.exit(code);
     });
-}
-#[tauri::command]
-fn quit_factory(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), String> {
-    caller(&window)?;
-    quit(app);
-    Ok(())
 }
 fn main() {
     if let Err(error) = run() {
@@ -737,7 +752,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         cancel_stream,
         open_window,
         close_window,
-        quit_factory,
         app_icon::app_icon_status,
         app_icon::app_icon_select,
         developer::developer_context,
@@ -781,13 +795,18 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         factory_window_target,
         open_window,
         close_window,
-        quit_factory,
         app_icon::app_icon_status,
         app_icon::app_icon_select,
         developer::developer_context,
         developer::developer_reply
     ]);
     let app = builder
+        .menu(window_menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "new-window" => drop(open_new(app, &app.state::<Desktop>(), None)),
+            "quit" => quit(app.clone()),
+            _ => {}
+        })
         .setup(|app| {
             app.state::<Desktop>().developer.start(app.handle()).map_err(std::io::Error::other)?;
             open(app.handle(), "main").map_err(std::io::Error::other)?;
@@ -830,6 +849,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(tauri::generate_context!())?;
     app.run(|app, event| {
+        // Closing a window only hides it; the Dock icon brings the main one back.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { has_visible_windows: false, .. } = event {
+            let _ = open(app, "main");
+        }
         if let RunEvent::Ready = event {
             // After Tauri's own debug-build icon, so the saved choice wins.
             let icon = *app.state::<Desktop>().app_icon.lock().unwrap_or_else(|e| e.into_inner());

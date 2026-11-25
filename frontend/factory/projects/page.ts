@@ -4,6 +4,8 @@ import type {FactoryTransport} from '../api/transport.js';
 import {feedRolePortraits, roleLabel} from '../feed/roles.js';
 import {admitProjectRows} from './projects.js';
 import type {FactoryProject, FactoryProjectsPort} from './projects.js';
+import {admitHostSections, mountHostSections, renderHostSection} from '../app/host-section.js';
+import type {FactoryHostSection, MountedHostSection} from '../app/host-section.js';
 
 export interface FactoryProjectsContext {
   /** Binds the page to the frame's current connection; supplies the portrait base. */
@@ -13,6 +15,8 @@ export interface FactoryProjectsContext {
   readonly onRows?: (rows: readonly FactoryProject[]) => void;
   /** Shows the frame's Feed for the project this window now has open. */
   readonly openFeed: () => void;
+  /** Host cards beside the list, such as the desktop's account and repository picker. */
+  readonly sections?: readonly FactoryHostSection[];
 }
 
 type Action = 'here' | 'window' | 'reconnect' | 'disconnect' | 'sign-in';
@@ -30,6 +34,7 @@ export class SodaFactoryProjects extends LitElement {
   declare private message: string;
   declare private pending: string;
   private current: FactoryProjectsContext | undefined;
+  private mounted: MountedHostSection[] = [];
   private lifetime = new AbortController();
   constructor() {
     super();
@@ -46,11 +51,14 @@ export class SodaFactoryProjects extends LitElement {
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.current = context;
+    this.mounted = [];
     this.rows = [];
     this.message = this.pending = '';
     this.state = 'loading';
     if (!context) return;
     check(typeof context.transport.generation === 'string' && !!context.transport.generation && typeof context.openFeed === 'function');
+    admitHostSections(context.sections);
+    this.mounted = mountHostSections(context.sections, this.lifetime.signal);
     void this.read(context, false);
   }
   disconnectedCallback() {
@@ -184,7 +192,10 @@ export class SodaFactoryProjects extends LitElement {
           ? html`<p class="soda-factory-projects-note" role="alert">Projects are unavailable. Refresh to try again.</p>`
           : this.rows.length
             ? html`<div class="soda-factory-project-list">${this.rows.map((row) => this.card(row))}</div>`
-            : html`<p class="soda-factory-projects-note">No projects yet. Connect an account and choose a repository to see it here.</p>`}
+            : html`<p class="soda-factory-projects-note">No projects yet. Add one with your account and a repository.</p>`}
+      ${this.mounted.length
+        ? html`<aside class="soda-factory-projects-aside">${this.mounted.map((section) => renderHostSection('projects', section))}</aside>`
+        : ''}
     </section>`;
   }
 }

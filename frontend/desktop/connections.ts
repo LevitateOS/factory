@@ -5,7 +5,6 @@ import type {Account} from './accounts.js';
 import {binding} from './transport.js';
 import type {Binding, Core, NativeReply} from './transport.js';
 import {DesktopProduct, readRoute, routeURL} from './product.js';
-import {SodaDesktopPlacement} from './placement.js';
 import type {SignInPlacement} from './sign-in.js';
 import {DesktopProjects} from './projects.js';
 
@@ -26,23 +25,18 @@ function repository(value: unknown): Repository {
   );
   return {external_id: row.external_id, name: row.name, private: row.private, default_branch: row.default_branch};
 }
-export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignInPlacement) {
-  // The connection panel keeps its controller view for routes other than
-  // Settings, which shows its own view of the same controller.
-  const placementRoot = document.querySelector<HTMLElement>('#runtime-placement')!;
-  const placementTitle = document.createElement('h2');
-  placementTitle.textContent = 'Execution controller';
-  const placement = new SodaDesktopPlacement();
-  placementRoot.replaceChildren(placementTitle, placement);
-  const accounts = document.querySelector<HTMLSelectElement>('#factory-account')!;
-  const repositories = document.querySelector<HTMLSelectElement>('#factory-repository')!;
-  const status = document.querySelector<HTMLElement>('#connection-status')!;
-  const more = document.querySelector<HTMLButtonElement>('#repository-more')!;
-  const reconnect = document.querySelector<HTMLButtonElement>('#connection-reconnect')!;
-  const disconnect = document.querySelector<HTMLButtonElement>('#connection-disconnect')!;
-  const find = document.querySelector<HTMLFormElement>('#repository-find')!;
-  const name = document.querySelector<HTMLInputElement>('#repository-name')!;
-  const details = document.querySelector<HTMLDetailsElement>('#connection-details')!;
+/** `panel` holds the account and repository picker; the sign-in placement may
+ * hold it outside the document, so its controls are found through it. */
+export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignInPlacement, panel: HTMLElement) {
+  const accounts = panel.querySelector<HTMLSelectElement>('#factory-account')!;
+  const repositories = panel.querySelector<HTMLSelectElement>('#factory-repository')!;
+  const status = panel.querySelector<HTMLElement>('#connection-status')!;
+  const more = panel.querySelector<HTMLButtonElement>('#repository-more')!;
+  const reconnect = panel.querySelector<HTMLButtonElement>('#connection-reconnect')!;
+  const disconnect = panel.querySelector<HTMLButtonElement>('#connection-disconnect')!;
+  const find = panel.querySelector<HTMLFormElement>('#repository-find')!;
+  const name = panel.querySelector<HTMLInputElement>('#repository-name')!;
+  const actions = panel.querySelector<HTMLElement>('.desktop-connections-actions')!;
   let ready = false,
     epoch = -1,
     profile = '',
@@ -61,6 +55,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   // a window opened for a project opens that instead.
   let autoOpened = false,
     targetRead = false;
+  // A remembered project is about to open; set once the first account status arrives.
+  let launching = false;
   let known: readonly Account[] = [],
     discovered: Repository[] = [];
   let message = 'Choose a saved account to connect.';
@@ -71,7 +67,9 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   const live = (captured: number) => ready && serial === captured && !document.hidden;
   // Sign-in views live on the Accounts page only while the frame has a context
   // and accepts input; otherwise the desktop shows them outside the frame.
-  const framed = () => signIn.frame(mounted !== '' && !app.inert);
+  // While a project opens or resumes, setup stays hidden behind the frame.
+  const framed = () =>
+    signIn.frame(mounted !== '' && !app.inert, (!!connection && (busy || resumeRequested)) || launching);
   function inert(value: boolean) {
     app.inert = value;
     framed();
@@ -148,6 +146,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       else localStorage.removeItem(lastKey);
     } catch {}
   }
+  launching = remembered() !== undefined;
   // A window opened for a project starts with that account and repository
   // through the same path as resuming a saved choice.
   void core.invoke<{connection: string; repository: string} | null>('factory_window_target').then((target) => {
@@ -161,8 +160,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     if (accountsCurrent) api.accounts(known);
   });
   function render() {
-    // Nothing to fold away until a project is open or opening.
-    if (!selected && !busy) details.open = true;
+    framed();
     const options = JSON.stringify(
       known.map((account) => [account.connection, account.label, account.account, account.state, account.provider, account.origin])
     );
@@ -190,7 +188,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
         )
       );
     }
-    repositories.value = wanted;
+    repositories.value = discovered.some((repo) => repo.external_id === wanted) ? wanted : '';
     repositories.disabled = !selected || busy;
     more.hidden = !nextPage;
     more.disabled = busy || !selected;
@@ -204,10 +202,13 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     name.disabled = (!selected && !fountain()) || busy;
     find.querySelector<HTMLButtonElement>('button')!.disabled = name.disabled;
     status.textContent = message;
+    // With a project open, its own card on Projects shows the connection and
+    // its Reconnect and Disconnect; this card only adds projects.
+    const open = !!selected?.repository && message === `Connected to ${selected.repository.name}.`;
+    status.hidden = open;
+    actions.hidden = !!selected?.repository;
   }
   function clear() {
-    placement.controller = undefined;
-    placementRoot.hidden = true;
     fragmentObserver?.disconnect();
     fragmentObserver = undefined;
     const old = selected?.session ?? pending;
@@ -231,7 +232,6 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
           : context.route.kind === 'pull' ? routeURL({kind: 'pull', repository: context.route.repository, pull: context.route.pull}) : hash;
       fragmentObserver?.disconnect();
       fragmentObserver = undefined;
-      placementRoot.hidden = !product.placement || context.route.kind === 'settings';
       if (mounted !== view) {
         mounted = view;
         app.context = context;
@@ -325,9 +325,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       selected = value;
       const metadata = discovered.find((repo) => repo.external_id === remote);
       product = new DesktopProduct(core, value, profile, navigate, signIn.sections, projects, metadata?.default_branch);
-      placement.controller = product.placement;
       projects.connected(product.transport);
-      placementRoot.hidden = !product.placement;
       const route = readRoute();
       navigate(
         route &&
@@ -340,10 +338,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       message = value.repository
         ? `Connected to ${value.repository.name}.`
         : 'Connected. Choose a repository to browse its feed and issues.';
-      if (remote) {
-        remember({connection: account, repository: remote, enrolled});
-        details.open = false;
-      }
+      if (remote) remember({connection: account, repository: remote, enrolled});
       if (!remote) await discover(captured, 1);
     } catch (error) {
       if (live(captured)) {
@@ -364,6 +359,18 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     discovered = [];
     nextPage = 0;
     void choose(accounts.value);
+  });
+  // With a project open the list is read only when the person reaches for it.
+  repositories.addEventListener('focus', () => {
+    if (discovered.length || busy || !selected) return;
+    const captured = serial;
+    void discover(captured, 1)
+      .catch(() => {
+        if (live(captured)) message = 'Your repositories could not be listed. Open one by name instead.';
+      })
+      .finally(() => {
+        if (serial === captured) render();
+      });
   });
   repositories.addEventListener('change', () => {
     void choose(connection, repositories.value, fountainRepository);
@@ -527,13 +534,13 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
                 ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
                 : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
+      if (targetRead) launching = false;
       const stored = known.filter((account) => account.state === 'stored');
       if (!autoOpened && targetRead && ready && !document.hidden && !connection && !busy && stored.length) {
         autoOpened = true;
         const last = remembered(),
           github = stored.filter((account) => account.provider === 'github');
         if (last && stored.some((account) => account.connection === last.connection)) {
-          details.open = false;
           void choose(last.connection, last.repository, last.enrolled);
           return;
         }

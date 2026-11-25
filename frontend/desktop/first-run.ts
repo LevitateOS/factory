@@ -68,7 +68,7 @@ export class SodaDesktopFirstRun extends LitElement {
         title: 'Start Factory on this computer',
         state: state(0),
         badge: runtime ? 'Done' : 'Starting',
-        line: runtime ? 'Factory is ready.' : 'Factory is starting. The toolbar says when it is ready or needs a retry.',
+        line: runtime ? 'Factory is ready.' : 'Factory is starting. A notice at the top says if it needs a retry.',
       },
       {
         id: 'muse',
@@ -96,10 +96,7 @@ export class SodaDesktopFirstRun extends LitElement {
         state: state(3),
         badge: state(3) === 'current' ? 'Waiting for you' : 'Next',
         line: 'Pick a repository from your account, or open it by owner/name or repository URL.',
-        body: state(3) === 'current'
-          ? html`<p>Choose your account and repository, or find one by name, in the connection panel below.</p>
-              <button type="button" class="first-run-go" @click=${() => document.querySelector<HTMLElement>('#factory-account')?.focus()}>Go to the repository picker</button>`
-          : undefined,
+        body: home('connection'),
       },
     ];
   }

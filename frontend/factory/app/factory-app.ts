@@ -28,6 +28,7 @@ import type {FactoryWatchContext, FactoryWatchRenderer} from '../watch/ports.js'
 import {SodaFactorySettings} from '../settings/settings.js';
 import type {FactorySettingsContext} from '../settings/settings.js';
 import {SodaFactoryAccounts} from '../accounts/accounts.js';
+import type {FactoryHostSection} from './host-section.js';
 import type {FactoryAccountsContext} from '../accounts/accounts.js';
 import {admitFactoryRoute, admitHostDestinations, factoryRouteTitle, hostResolves} from './routes.js';
 import type {FactoryHostDestination, FactoryRoute} from './routes.js';
@@ -69,7 +70,7 @@ export type FactoryScreen =
     }
   | {readonly kind: 'accounts'; readonly context: FactoryAccountsContext}
   /** The frame supplies the project port; the host only binds the connection. */
-  | {readonly kind: 'projects'; readonly context: {readonly transport: FactoryTransport}}
+  | {readonly kind: 'projects'; readonly context: {readonly transport: FactoryTransport; readonly sections?: readonly FactoryHostSection[]}}
   /** The frame supplies the project port and account label. */
   | {readonly kind: 'project-new'; readonly context: {readonly transport: FactoryTransport}};
 
@@ -493,6 +494,7 @@ export class SodaFactoryApp extends LitElement {
         view.context = {
           transport: ports.context.transport,
           port: context.projects,
+          ...(ports.context.sections ? {sections: ports.context.sections} : {}),
           onRows: (rows) => {
             if (this.live(context, signal)) this.projectRows = rows;
           },

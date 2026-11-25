@@ -7,40 +7,74 @@ body {
   background: var(--soda-page-canvas);
   font: var(--soda-font-body);
 }
-.desktop-toolbar {
+/* Factory's own notices: shown only while it starts or when it needs a retry,
+   floating over the page instead of taking a bar above it. */
+#desktop-notices {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 20;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--soda-page-edge);
+  gap: 12px;
+  max-width: calc(100vw - 48px);
+  transform: translateX(-50%);
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
+  font: var(--soda-font-meta);
 }
-.desktop-toolbar nav {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+#desktop-notices:not(:has(> :not([hidden]))) {
+  display: none;
 }
-.desktop-toolbar button {
+#desktop-notices p {
+  margin: 0;
+}
+#desktop-notices p:only-child,
+#desktop-notices p:has(+ [hidden]) {
+  padding-right: 8px;
+}
+#desktop-notices button {
   font: inherit;
 }
-/* The sign-in region (#sign-in) uses the shared Accounts styles. */
+/* Developer tools say they are on from a small badge in the corner. */
+#factory-developer-mode {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 20;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px dashed var(--soda-page-edge);
+  background: var(--soda-page-surface);
+  color: var(--soda-page-muted);
+  font: var(--soda-font-caption);
+  opacity: 0.85;
+  pointer-events: none;
+}
+/* Setup (#sign-in) is a page of its own: while it shows, the app frame does not. */
 #sign-in {
-  padding: 32px 24px 40px;
-  border-bottom: 1px solid var(--soda-page-edge);
+  padding: 40px 24px;
 }
 #sign-in[hidden] {
   display: none;
 }
+#sign-in:not([hidden]) ~ #application {
+  display: none;
+}
+/* The account and repository picker: Projects' "Add a project" card, or
+   setup's last step. */
 .desktop-connections {
-  padding: 8px 24px;
-  border-bottom: 1px solid var(--soda-page-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .desktop-connections label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 12px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: var(--soda-font-label);
 }
 .desktop-connections select,
 .desktop-connections input,
@@ -48,27 +82,64 @@ body {
   font: inherit;
   max-width: 100%;
 }
+.desktop-connections select,
 .desktop-connections input {
-  min-width: 260px;
+  min-height: 36px;
+  box-sizing: border-box;
+  font: var(--soda-font-body);
 }
 .desktop-connections form {
-  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .desktop-connections p {
-  margin: 8px 0 0;
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
 }
-.desktop-connections summary {
-  cursor: pointer;
-  padding: 4px 0;
+.desktop-connections-actions {
+  display: flex;
+  gap: 8px;
 }
-.desktop-connections details[open] > summary {
-  margin-bottom: 8px;
-}
-.desktop-connections-change {
-  text-decoration: underline;
-}
-.desktop-connections details[open] .desktop-connections-change {
+.desktop-connections [hidden],
+.desktop-connections-actions button:disabled {
   display: none;
+}
+/* macOS: no title bar. The traffic lights sit over the sidebar's top, the
+   content header becomes the window's top strip, and both move the window. */
+html[data-shell="mac"] .soda-factory-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  box-sizing: border-box;
+  height: 100vh;
+  overflow-y: auto;
+  padding-top: 48px;
+}
+html[data-shell="mac"] .soda-factory-content > header,
+html[data-shell="mac"] .soda-factory-content > header:has(> p:empty) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--soda-page-edge);
+  background: color-mix(in srgb, var(--soda-page-canvas) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+html[data-shell="mac"] .soda-factory-content > header p {
+  pointer-events: none;
+}
+html[data-shell="mac"] #sign-in {
+  padding-top: 64px;
+}
+@media (max-width: 799px) {
+  html[data-shell="mac"] .soda-factory-sidebar {
+    position: static;
+    height: auto;
+  }
 }
 .soda-desktop-app-icon {
   display: flex;

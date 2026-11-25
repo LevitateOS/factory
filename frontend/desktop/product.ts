@@ -34,7 +34,7 @@ export class DesktopProduct {
   readonly transport: DesktopTransport;
   readonly scope: string;
   /** One execution controller per connected repository; it reads when the
-   * connection opens. Settings and the connection panel show views of it. */
+   * connection opens. Settings shows a view of it. */
   readonly placement: PlacementController | undefined;
   private lifetime = new AbortController();
   constructor(
@@ -42,8 +42,9 @@ export class DesktopProduct {
     readonly selected: Binding,
     profile: string,
     private navigate: (route: FactoryRoute) => void,
-    /** The sign-in sections for the Accounts page; their controllers outlive this connection. */
-    private accounts: readonly FactoryHostSection[],
+    /** Host sections for Accounts (sign-ins) and Projects (the picker); their
+     * controllers outlive this connection. */
+    private sections: {readonly accounts: readonly FactoryHostSection[]; readonly projects: readonly FactoryHostSection[]},
     /** The window's project list; it outlives this connection. */
     private projects: FactoryProjectsPort,
     private defaultBranch?: string
@@ -289,9 +290,9 @@ export class DesktopProduct {
         };
       }
       case 'accounts':
-        return {kind: 'accounts', context: {transport, sections: this.accounts}};
+        return {kind: 'accounts', context: {transport, sections: this.sections.accounts}};
       case 'projects':
-        return {kind: 'projects', context: {transport}};
+        return {kind: 'projects', context: {transport, sections: this.sections.projects}};
       case 'project-new':
         return {kind: 'project-new', context: {transport}};
       case 'watch': {

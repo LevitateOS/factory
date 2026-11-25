@@ -47,7 +47,7 @@ function signInCore(state: SignInStoryState): Pick<Core, 'invoke'> {
 
 /** The desktop sign-in controllers and views, placed into `root` as the desktop does. */
 export function signInStoryPlacement(root: HTMLElement, state: SignInStoryState) {
-  const signIn = mountSignIn(root);
+  const signIn = mountSignIn(root, document.createElement('div'));
   void signIn.start(signInCore(state))(state !== 'starting', 1);
   return signIn.placement;
 }

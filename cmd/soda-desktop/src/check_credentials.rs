@@ -2065,7 +2065,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
       const assert=(ok,message)=>{if(!ok)throw Error(message);};
       const report=stage=>invoke('report',{stage,error:null});
       const view=()=>invoke('github_sign_in_status');
-      const until=async check=>{for(let i=0;i<300;i++){document.querySelector('#refresh').click();if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('sign-in observation deadline');};
+      const until=async check=>{for(let i=0;i<300;i++){document.dispatchEvent(new Event('visibilitychange'));if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('sign-in observation deadline');};
       const control=async stage=>{
         if(stage==='signin-binding-retained-done'&&__ISSUE_READ__){
           const deadline=Date.now()+120000;
@@ -2081,7 +2081,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
           await begin();await report('signin-consent-prompt');
           const deadline=Date.now()+950000;
           for(;;){
-            document.querySelector('#refresh').click();const state=await view();
+            document.dispatchEvent(new Event('visibilitychange'));const state=await view();
             if(state.phase==='complete')break;
             assert(state.phase==='waiting'||state.phase==='verifying'||state.phase==='saving','Factory sign-in failed: '+String(state.error));
             assert(Date.now()<deadline,'Factory consent deadline');
@@ -2105,7 +2105,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
           await report('signin-consent-prompt');
           const deadline=Date.now()+950000;
           for(;;){
-            document.querySelector('#refresh').click();const s=await view();
+            document.dispatchEvent(new Event('visibilitychange'));const s=await view();
             if(s.phase==='complete')break;
             assert(s.phase!=='failed'&&s.phase!=='cancelled'&&s.phase!=='idle','approved native sign-in failed: '+String(s.error));
             assert(Date.now()<deadline,'browser consent deadline');

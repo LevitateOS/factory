@@ -278,7 +278,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
           // The desktop sign-in views with saved accounts, framed on the page.
           const placement = signInStoryPlacement(document.createElement('section'), 'saved');
           placement.frame(true);
-          return {kind: 'accounts', context: {transport: supplied, sections: placement.sections}};
+          return {kind: 'accounts', context: {transport: supplied, sections: placement.sections.accounts}};
         }
       }
     },

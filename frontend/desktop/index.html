@@ -10,45 +10,40 @@
     <link rel="stylesheet" href="desktop.css" />
   </head>
   <body>
-    <header class="desktop-toolbar">
+    <!-- Shown only while Factory starts or when it needs a retry. -->
+    <div id="desktop-notices">
       <p id="runtime-status" role="status">Opening Factory…</p>
-      <nav aria-label="Application">
-        <button id="refresh" type="button">Refresh</button>
-        <button id="retry" type="button" hidden>Retry startup</button>
-        <button id="new-window" type="button">New window</button>
-        <button id="close" type="button">Close window</button>
-        <button id="quit" type="button">Quit Factory</button>
-      </nav>
-    </header>
-    <section id="sign-in" class="soda-factory-root soda-factory-accounts" aria-label="Accounts"></section>
-    <section class="desktop-connections" aria-label="Factory connection">
-      <details id="connection-details" open>
-        <summary><span id="connection-status" role="status">Choose a saved account to connect.</span> <span class="desktop-connections-change">Change</span></summary>
+      <button id="retry" type="button" hidden>Retry startup</button>
+    </div>
+    <section id="sign-in" class="soda-factory-root soda-factory-accounts" aria-label="Set up Factory"></section>
+    <!-- Placed by the sign-in placement: Projects' "Add a project" card, or setup's last step. -->
+    <div id="connection-panel" class="desktop-connections">
+      <label
+        >Account
+        <select id="factory-account" disabled>
+          <option value="">Choose an account</option>
+        </select></label
+      >
+      <label
+        >Your repositories
+        <select id="factory-repository" disabled>
+          <option value="">Choose a repository</option>
+        </select></label
+      >
+      <button id="repository-more" type="button" hidden>Load more repositories</button>
+      <form id="repository-find">
         <label
-          >Account
-          <select id="factory-account" disabled>
-            <option value="">Choose an account</option>
-          </select></label
-        >
-        <label
-          >Repository
-          <select id="factory-repository" disabled>
-            <option value="">Choose a repository</option>
-          </select></label
-        >
-        <button id="repository-more" type="button" hidden>Load more repositories</button>
+          >Or open by name
+          <input id="repository-name" placeholder="owner/name or repository URL" autocomplete="off" disabled
+        /></label>
+        <button type="submit" disabled>Open repository</button>
+      </form>
+      <p id="connection-status" role="status">Choose a saved account to connect.</p>
+      <div class="desktop-connections-actions">
         <button id="connection-reconnect" type="button" disabled>Reconnect</button>
         <button id="connection-disconnect" type="button" disabled>Disconnect</button>
-        <form id="repository-find">
-          <label
-            >Repository
-            <input id="repository-name" placeholder="owner/name or repository URL" autocomplete="off" disabled
-          /></label>
-          <button type="submit" disabled>Open repository</button>
-        </form>
-        <section id="runtime-placement" aria-label="Execution controller" hidden></section>
-      </details>
-    </section>
+      </div>
+    </div>
     <div id="application"></div>
     <script type="module" src="desktop.js"></script>
   </body>

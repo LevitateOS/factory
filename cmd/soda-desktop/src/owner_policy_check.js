@@ -6,7 +6,7 @@
     waiting = why;
     const end = Date.now() + 45000;
     while (!await check()) {
-      assert(Date.now() < end, 'Owner policy deadline: ' + why + '; ' + document.querySelector('#runtime-placement')?.textContent);
+      assert(Date.now() < end, 'Owner policy deadline: ' + why + '; ' + document.querySelector('soda-desktop-placement')?.textContent);
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   };
@@ -67,8 +67,8 @@
     const limit = [...document.querySelectorAll('label')].find(node => node.textContent.includes('Maximum simultaneous agent runs'))?.querySelector('input');
     assert(limit, 'run limit input'); limit.value = '2'; runLimit.click();
     await until(async () => (await status()).capacity?.max_concurrent_runs === 2, 'capacity readback');
-    await until(() => button(document.querySelector('#runtime-placement'), 'Use this computer') && !button(document.querySelector('#runtime-placement'), 'Use this computer').disabled, 'controller observation settled');
-    button(document.querySelector('#runtime-placement'), 'Use this computer').click();
+    await until(() => button(document.querySelector('soda-desktop-placement'), 'Use this computer') && !button(document.querySelector('soda-desktop-placement'), 'Use this computer').disabled, 'controller observation settled');
+    button(document.querySelector('soda-desktop-placement'), 'Use this computer').click();
     await until(async () => (await api('GET', `${path}/placement`)).body.placement?.state === 'active', 'controller readback');
     await until(() => button(document, 'Allow this repository to use this computer') && !button(document, 'Allow this repository to use this computer').disabled, 'current local consent');
     const permission = button(document, 'Allow this repository to use this computer');
@@ -85,14 +85,14 @@
     const firstPlacement = (await api('GET', `${path}/placement`)).body.placement;
     assert((await api('PUT', `${path}/placement`, {state: 'active', expected_revision: firstPlacement.revision, runtime: 'f'.repeat(32)})).status === 400, 'browser chose another controller');
     assert((await api('PUT', `${path}/placement`, {state: 'retiring', expected_revision: firstPlacement.revision})).status === 200, 'competing placement transition');
-    await until(() => button(document.querySelector('#runtime-placement'), 'Retire controller') && !button(document.querySelector('#runtime-placement'), 'Retire controller').disabled, 'stale controller action');
-    button(document.querySelector('#runtime-placement'), 'Retire controller').click();
-    await until(() => document.querySelector('#runtime-placement').textContent.includes('could not be confirmed'), 'stale placement refused');
-    button(document.querySelector('#runtime-placement'), 'Refresh controller').click();
-    await until(() => button(document.querySelector('#runtime-placement'), 'Finish retirement') && !button(document.querySelector('#runtime-placement'), 'Finish retirement').disabled, 'current retirement observation');
-    button(document.querySelector('#runtime-placement'), 'Finish retirement').click();
-    await until(() => button(document.querySelector('#runtime-placement'), 'Use this computer') && !button(document.querySelector('#runtime-placement'), 'Use this computer').disabled, 'inactive controller');
-    button(document.querySelector('#runtime-placement'), 'Use this computer').click();
+    await until(() => button(document.querySelector('soda-desktop-placement'), 'Retire controller') && !button(document.querySelector('soda-desktop-placement'), 'Retire controller').disabled, 'stale controller action');
+    button(document.querySelector('soda-desktop-placement'), 'Retire controller').click();
+    await until(() => document.querySelector('soda-desktop-placement').textContent.includes('could not be confirmed'), 'stale placement refused');
+    button(document.querySelector('soda-desktop-placement'), 'Refresh controller').click();
+    await until(() => button(document.querySelector('soda-desktop-placement'), 'Finish retirement') && !button(document.querySelector('soda-desktop-placement'), 'Finish retirement').disabled, 'current retirement observation');
+    button(document.querySelector('soda-desktop-placement'), 'Finish retirement').click();
+    await until(() => button(document.querySelector('soda-desktop-placement'), 'Use this computer') && !button(document.querySelector('soda-desktop-placement'), 'Use this computer').disabled, 'inactive controller');
+    button(document.querySelector('soda-desktop-placement'), 'Use this computer').click();
     await until(async () => {
       const next = (await api('GET', `${path}/placement`)).body.placement;
       return next.state === 'active' && BigInt(next.generation) === BigInt(firstPlacement.generation) + 1n;
