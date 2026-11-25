@@ -125,6 +125,8 @@ write_plist "/Library/LaunchDaemons/$label.plist" <<PLIST
   </dict>
   <key>UserName</key><string>root</string>
   <key>Umask</key><integer>63</integer>
+  <!-- inetd mode wires stderr to the client socket; refusals go to the log. -->
+  <key>StandardErrorPath</key><string>/private/var/log/soda-factory-broker.log</string>
   <key>AbandonProcessGroup</key><true/>
 </dict>
 </plist>

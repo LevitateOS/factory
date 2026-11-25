@@ -128,7 +128,7 @@ fn resolve_tools(approved: &ApprovedFiles) -> (BTreeMap<String, String>, Vec<Str
     for name in &approved.tools {
         let resolved = std::env::split_paths(&search).find_map(|directory| {
             let path = directory.join(name).canonicalize().ok()?;
-            ((path.starts_with("/usr") || path.starts_with(&home))
+            ((soda_execution_protocol::system_tool(&path) || path.starts_with(&home))
                 && path
                     .metadata()
                     .is_ok_and(|meta| meta.is_file() && meta.mode() & 0o111 != 0))

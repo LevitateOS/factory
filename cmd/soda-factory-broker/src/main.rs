@@ -34,7 +34,10 @@ const MAX_REQUEST: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
 const MAX_PREPARATION_CHARGE: u64 = preparation_quota::MAX_ACTIVE_BYTES;
+#[cfg(target_os = "linux")]
 const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
+#[cfg(target_os = "macos")]
+const MACOS_DISK_RESERVE: u64 = 8 * 1024 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -1018,13 +1021,20 @@ fn runtime_capacity(extra: u64) -> io::Result<()> {
     }
     let space = unsafe { space.assume_init() };
     let block = space.f_frsize as u64;
-    let total = (space.f_blocks as u64)
-        .checked_mul(block)
-        .ok_or_else(|| denied("broker runtime capacity invalid"))?;
     let free = (space.f_bavail as u64)
         .checked_mul(block)
         .ok_or_else(|| denied("broker runtime capacity invalid"))?;
-    let reserve = (total / 4).max(MIN_RUNTIME_RESERVE);
+    // A quarter of a memory-backed /run bounds memory; a quarter of a whole
+    // macOS disk would refuse ordinary free space, so it keeps a fixed reserve.
+    #[cfg(target_os = "linux")]
+    let reserve = (space.f_blocks as u64)
+        .checked_mul(block)
+        .ok_or_else(|| denied("broker runtime capacity invalid"))?
+        / 4;
+    #[cfg(target_os = "linux")]
+    let reserve = reserve.max(MIN_RUNTIME_RESERVE);
+    #[cfg(target_os = "macos")]
+    let reserve = MACOS_DISK_RESERVE;
     if free < reserve.saturating_add(extra) {
         return Err(denied("broker runtime free-space reserve unavailable"));
     }

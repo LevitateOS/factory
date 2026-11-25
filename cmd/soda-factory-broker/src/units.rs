@@ -514,6 +514,8 @@ fn profile(plan: &Plan, view: &Path, temp: Option<&Path>, relay_port: Option<u16
         quote(Path::new(host::TIMEOUT))
     ));
     rules.push_str("(allow file-read* file-test-existence (subpath \"/private/etc\") (literal \"/private/var/db/xcode_select_link\"))\n");
+    // Resolving a developer tool's real path stats each ancestor directory.
+    rules.push_str("(allow file-read-metadata (literal \"/Library\") (literal \"/Library/Developer\") (literal \"/Applications\"))\n");
     // Units track their own trees; the agent also owns ptys for launches.
     rules.push_str("(allow process-info* (target same-sandbox))\n(allow process-info-listpids)\n");
     if plan.spec.kind == "agent" {

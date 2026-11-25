@@ -39,8 +39,25 @@ pub const MAX_PREPARED_TREE_ENTRIES: usize = 100_000;
 
 // Both preparation and worker use their own isolated HOME. Never borrow the
 // desktop's PATH or tool configuration when replaying an approved environment.
+// macOS puts the real Git first: /usr/bin/git is an xcrun shim.
 pub fn setup_path(home: &str) -> String {
-    format!("{home}/.local/bin:{home}/.cargo/bin:{home}/.bun/bin:/usr/bin:/bin:/usr/local/bin")
+    let developer = std::path::Path::new(host::git())
+        .parent()
+        .filter(|_| cfg!(target_os = "macos"))
+        .map(|directory| format!("{}:", directory.display()))
+        .unwrap_or_default();
+    format!("{home}/.local/bin:{home}/.cargo/bin:{home}/.bun/bin:{developer}/usr/bin:/bin:/usr/local/bin")
+}
+
+/// A resolved system tool lives in the OS tool tree. Linux merges /bin into
+/// /usr; macOS keeps a sealed /bin and its Git in the developer directory.
+pub fn system_tool(path: &std::path::Path) -> bool {
+    path.starts_with("/usr")
+        || (cfg!(target_os = "macos")
+            && (path.starts_with("/bin")
+                || std::path::Path::new(host::git())
+                    .parent()
+                    .is_some_and(|directory| path.starts_with(directory))))
 }
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
