@@ -34,7 +34,7 @@ interface SpendingSource {
   connection: string;
   label: string;
   available: boolean;
-  allowanceAvailable: boolean;
+  authorizable: boolean;
   judgmentAvailable: boolean;
   judgmentModels: readonly string[];
   tool: {
@@ -146,7 +146,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
           connection: source.connection as string,
           label: source.label,
           available: source.execution_available,
-          allowanceAvailable: source.allowance_available === true,
+          authorizable: source.authorizable === true,
           judgmentAvailable: source.judgment_available === true,
           judgmentModels,
           tool: rawTool ? {
@@ -226,8 +226,8 @@ function policySelections(roles: Selections) {
   return {roles: agents, judgments: judgments.account || judgments.model ? judgments : null};
 }
 
-/** Shared editor; saved sponsorship references are nonsecret spending choices.
- * It neither connects an account nor chooses a replacement for a missing one. */
+/** Shared editor. Choosing a login for a role and saving authorizes that login
+ * for the roles that use it; it never connects an account or picks a replacement. */
 export class SodaFactoryRoleSettings extends LitElement {
   static properties = {
     view: {state: true},
@@ -236,8 +236,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     limits: {state: true},
     automationReviewer: {state: true},
     automaticExternalPulls: {state: true},
-    fundingSource: {state: true},
-    fundingRoles: {state: true},
     workspaceOpened: {state: true},
     busy: {state: true},
     message: {state: true},
@@ -250,8 +248,6 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private limits: LimitDraft;
   declare private automationReviewer: boolean;
   declare private automaticExternalPulls: boolean;
-  declare private fundingSource: string;
-  declare private fundingRoles: string[];
   declare private workspaceOpened: boolean;
   private current: RoleContext | undefined;
   private generation = '';
@@ -263,8 +259,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.busy = false;
     this.automationReviewer = false;
     this.automaticExternalPulls = false;
-    this.fundingSource = '';
-    this.fundingRoles = Object.keys(roleNames);
     this.workspaceOpened = false;
     this.message = '';
   }
@@ -287,8 +281,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.generation = context?.transport.generation ?? '';
     this.view = this.roles = undefined;
     this.automaticExternalPulls = false;
-    this.fundingSource = '';
-    this.fundingRoles = Object.keys(roleNames);
     this.workspaceOpened = false;
     this.busy = false;
     this.message = '';
@@ -354,10 +346,15 @@ export class SodaFactoryRoleSettings extends LitElement {
   private choose(role: Role, field: 'account' | 'model', value: string) {
     if (this.roles) this.roles = {...this.roles, [role]: {...this.roles[role], [field]: value}};
   }
-  private eligible(role: Role, account: string) {
+  private authorized(role: Role, account: string) {
     return !!this.view?.accounts.some(
       (source) => source.connection === account && source.active && source.roles.includes(role)
     );
+  }
+  // A login is eligible when it already covers the role or saving can authorize it.
+  private eligible(role: Role, account: string) {
+    return this.authorized(role, account) ||
+      !!this.view?.sources.some((source) => source.connection === account && source.authorizable);
   }
   private validSelection(role: Role, initial: boolean) {
     const selected = this.roles?.[role];
@@ -366,74 +363,37 @@ export class SodaFactoryRoleSettings extends LitElement {
     return selected.harness === 'muse' && !!selected.model.trim() &&
       ((initial && role !== judgmentRole && !selected.account) || this.eligible(role, selected.account));
   }
-  private canWithdraw(account: Account | undefined, actor = this.current?.actor) {
-    return !!account && account.native && account.active && account.owner !== undefined && account.owner === actor;
-  }
-  private selectFundingSource(connection: string) {
-    this.fundingSource = connection;
-    const stored = this.view?.accounts.find(account => account.connection === connection);
-    this.fundingRoles = stored ? [...stored.roles] : Object.keys(roleNames);
-  }
-  private async saveFunding(event: SubmitEvent) {
-    event.preventDefault();
-    const context = this.current,
-      signal = this.lifetime.signal,
-      view = this.view;
-    if (!context || !view?.editable || this.busy || !this.live(context, signal)) return;
-    const form = event.currentTarget as HTMLFormElement;
-    if (!form.reportValidity()) return;
-    const values = new FormData(form),
-      connection = String(values.get('source') ?? ''),
-      active = event.submitter?.getAttribute('value') !== 'withdraw';
-    const source = view.sources.find((source) => source.connection === connection);
-    const stored = view.accounts.find((account) => account.connection === connection);
-    const roles = active ? values.getAll('allowed_roles').map(String) : stored?.roles ?? Object.keys(roleNames);
-    if (!roles.length || new Set(roles).size !== roles.length || roles.some(role => !Object.hasOwn(roleNames, role))) return;
-    if (active ? !source?.allowanceAvailable : !this.canWithdraw(stored, context.actor)) return;
-    if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) return;
-    this.busy = true;
-    this.message = '';
-    try {
-      const response = await context.transport.request(
-        `repositories/${context.repository}/factory/sponsorships/${connection}`,
-        {
-          method: 'PUT',
-          signal,
-          body: JSON.stringify({
-            expected_revision: stored?.revision ?? 0,
-            roles,
-            active,
-          }),
-        }
-      );
+  // authorizeLogins lets each chosen login run the roles it was chosen for,
+  // through the existing sponsorship command, before the policy names it.
+  private async authorizeLogins(context: RoleContext, signal: AbortSignal, view: Settings, roles: Selections) {
+    const needed = new Map<string, Set<string>>();
+    for (const role of Object.keys(roleNames) as Role[]) {
+      const account = roles[role].account;
+      if (account && !this.authorized(role, account)) needed.set(account, (needed.get(account) ?? new Set()).add(role));
+    }
+    const accounts = [...view.accounts];
+    for (const [connection, added] of needed) {
+      const stored = accounts.find((account) => account.connection === connection);
+      if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) throw new RoleSaveError('Refresh before saving again.', 409);
+      const granted = [...new Set([...(stored?.active ? stored.roles : []), ...added])];
+      const response = await context.transport.request(`repositories/${context.repository}/factory/sponsorships/${connection}`, {
+        method: 'PUT',
+        signal,
+        body: JSON.stringify({expected_revision: stored?.revision ?? 0, roles: granted, active: true}),
+      });
       if (!response.ok)
         throw new RoleSaveError(
-          'The source could not be saved. Refresh before trying again.',
+          response.status === 409 || response.status === 412
+            ? 'This login changed. Refresh before saving again.'
+            : 'This login cannot run work yet. Check the computer and workspace permission, then refresh roles.',
           response.status
         );
       const receipt = object(await readSodaJSON(response));
       check(Number.isSafeInteger(receipt.revision) && receipt.revision === (stored?.revision ?? 0) + 1);
-      // The CAS receipt acknowledges this exact write. A later competing change
-      // will refuse our next revision; saving need not reload provider settings.
-      const account: Account = {
-        connection, active, roles, revision: Number(receipt.revision),
-        owner: context.actor, native: true,
-      };
-      if (this.live(context, signal)) {
-        this.view = {...view, accounts: [...view.accounts.filter(saved => saved.connection !== connection), account]};
-        this.selectFundingSource(connection);
-        this.message = active
-          ? 'Source allowed. Select it separately for each role.'
-          : 'Source withdrawn. Existing work may still need retirement.';
-      }
-    } catch {
-      if (this.live(context, signal)) {
-        this.view = undefined;
-        this.message = 'The source could not be confirmed. Refresh before changing it again.';
-      }
-    } finally {
-      if (this.live(context, signal)) this.busy = false;
+      const account: Account = {connection, active: true, roles: granted, revision: Number(receipt.revision), owner: context.actor, native: true};
+      accounts.splice(0, accounts.length, ...accounts.filter((saved) => saved.connection !== connection), account);
     }
+    if (needed.size && this.live(context, signal)) this.view = {...view, accounts};
   }
   private initialActors() {
     const actor = this.current?.actor;
@@ -532,6 +492,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.busy = true;
     this.message = '';
     try {
+      if (!disabling) await this.authorizeLogins(context, signal, view, roles);
       const response = await context.transport.request(`repositories/${context.repository}/factory/policy`, {
         method: 'PUT',
         signal,
@@ -624,63 +585,21 @@ export class SodaFactoryRoleSettings extends LitElement {
         : html`<button type="button" @click=${() => { this.workspaceOpened = true; }}>Workspace setup</button>` : ''}
       <h3>Agent roles and judgments</h3>
       <p>
-        Choose the provider, model and saved spending source for each role. Factory does not switch sources
-        automatically.
+        Choose the model and Muse login for each role. Saving lets that login run those roles. Factory does not
+        switch logins automatically.
       </p>
       <p role="status">${this.message}</p>
       <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh roles</button>
-      ${
-        view && (view.sources.length || view.accounts.some(account => this.canWithdraw(account)))
-          ? html`<form @submit=${(event: SubmitEvent) => this.saveFunding(event)}>
-              <fieldset ?disabled=${this.busy || !view.editable}>
-                <legend>Allow a spending source</legend>
-                <p>
-                  Muse manages its saved login and account choice. Factory does not copy its credentials or pin a
-                  subscription.
-                </p>
-                <label
-                  >Source
-                  <select name="source" aria-label="Spending source" required
-                    @change=${(event: Event) => this.selectFundingSource((event.target as HTMLSelectElement).value)}>
-                    <option value="" .selected=${!this.fundingSource}>Choose a source</option>
-                    ${this.fundingSource && !view.sources.some(source => source.connection === this.fundingSource) && !view.accounts.some(account => account.connection === this.fundingSource && this.canWithdraw(account))
-                      ? html`<option .value=${this.fundingSource} .selected=${true} disabled>Selected source unavailable</option>` : ''}
-                    ${view.sources.map((source) => html`<option .value=${source.connection} .selected=${source.connection === this.fundingSource}>${source.label}</option>`)}
-                    ${view.accounts.filter(account => this.canWithdraw(account) && !view.sources.some(source => source.connection === account.connection))
-                      .map(account => html`<option .value=${account.connection} .selected=${account.connection === this.fundingSource}>Saved source — unavailable</option>`)}
-                  </select></label
-                >
-                <fieldset>
-                  <legend>Allow spending for</legend>
-                  ${Object.entries(roleNames).map(([role, name]) => html`<label>
-                    <input type="checkbox" name="allowed_roles" value=${role}
-                      .checked=${this.fundingRoles.includes(role)}
-                      @change=${(event: Event) => {
-                        this.fundingRoles = (event.target as HTMLInputElement).checked
-                          ? [...this.fundingRoles, role]
-                          : this.fundingRoles.filter(selected => selected !== role);
-                      }} />${name}
-                  </label>`)}
-                  <p>Removing a role withdraws its spending permission. Withdraw the source to stop all roles.</p>
-                </fieldset>
-                ${view.sources.map((source) => source.tool
-                  ? html`<div role="status">
-                      <p>${toolStatusLabels[source.tool.state]}</p>
-                      ${source.tool.latest ? html`<p>Latest release: ${source.tool.latest}</p>` : ''}
-                      ${source.tool.selected ? html`<p>Selected release: ${source.tool.selected}</p>` : ''}
-                      ${source.tool.checked ? html`<p>Last verified: <time datetime=${new Date(source.tool.checked * 1000).toISOString()}>${new Date(source.tool.checked * 1000).toLocaleString()}</time></p>` : ''}
-                      ${source.tool.error ? html`<p>${source.tool.error}</p>` : ''}
-                    </div>`
-                  : '')}
-                ${view.sources.some((source) => !source.available) ? html`<p>Execution through this source is currently unavailable. You can still save its role choices.</p>` : ''}
-                ${this.fundingSource && !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)
-                  ? html`<p>This source cannot be allowed yet. Check the selected controller and workspace permission, then refresh roles.</p>` : ''}
-                <button type="submit" value="save" ?disabled=${!this.fundingRoles.length || !view.sources.some(source => source.connection === this.fundingSource && source.allowanceAvailable)}>Allow source</button>
-                <button type="submit" value="withdraw" ?disabled=${!view.accounts.some(account => account.connection === this.fundingSource && this.canWithdraw(account))}>Withdraw source</button>
-              </fieldset>
-            </form>`
-          : ''
-      }
+      ${view?.sources.map((source) => source.tool
+        ? html`<div role="status">
+            <p>${toolStatusLabels[source.tool.state]}</p>
+            ${source.tool.latest ? html`<p>Latest release: ${source.tool.latest}</p>` : ''}
+            ${source.tool.selected ? html`<p>Selected release: ${source.tool.selected}</p>` : ''}
+            ${source.tool.checked ? html`<p>Last verified: <time datetime=${new Date(source.tool.checked * 1000).toISOString()}>${new Date(source.tool.checked * 1000).toLocaleString()}</time></p>` : ''}
+            ${source.tool.error ? html`<p>${source.tool.error}</p>` : ''}
+          </div>`
+        : '')}
+      ${view?.sources.some((source) => !source.available) ? html`<p>Execution through this login is currently unavailable. You can still save its role choices.</p>` : ''}
       ${
         view && roles
           ? html`<form @submit=${(event: SubmitEvent) => this.save(event)}>
@@ -689,7 +608,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                   ? html`<fieldset ?disabled=${this.busy || !view.editable}>
                       <legend>Set up repository automation</legend>
                       <p>
-                        Save the full pipeline policy with automation disabled. Execution setup and funding are still
+                        Save the full pipeline policy with automation disabled. Execution setup is still
                         required.
                       </p>
                       <label
@@ -750,7 +669,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                     .value=${this.setup.controllerGrant}
                     @input=${(event: Event)=>{this.setup={...this.setup,controllerGrant:(event.target as HTMLInputElement).value.trim()};}}>
                 </label>
-                <p>Choose the grant from an explicit Repository controller authorization. Saving captures it for new work with its original expiry. Leave blank to retain an existing policy's grant. Funding and workspace consent remain separate.</p>
+                <p>Choose the grant from an explicit Repository controller authorization. Saving captures it for new work with its original expiry. Leave blank to retain an existing policy's grant. Workspace consent remains separate.</p>
               ` : ''}
               <fieldset ?disabled=${this.busy || !view.editable}>
                 <legend>Execution limits</legend>
@@ -778,16 +697,17 @@ export class SodaFactoryRoleSettings extends LitElement {
               </fieldset>
               ${(Object.keys(roleNames) as Role[]).map((role) => {
                 const selected = roles[role],
-                  accounts = view.accounts.filter((account) => account.active && account.roles.includes(role)),
+                  logins = [...new Set([...view.sources.filter((login) => login.authorizable).map((login) => login.connection),
+                    ...view.accounts.filter((account) => account.active && account.roles.includes(role)).map((account) => account.connection)])],
                   source = view.sources.find((source) => source.connection === selected.account);
                 return html`<fieldset ?disabled=${this.busy || !view.editable}>
                   <legend>${roleNames[role]}</legend>
                   ${role === judgmentRole ? html`<p>
-                    Select a source for routing, planning and other product judgments. Leave both fields empty to keep
+                    Select a login for routing, planning and other product judgments. Leave both fields empty to keep
                     judgments unconfigured. The full pipeline waits for admitted judgment execution.
                     ${this.eligible(judgmentRole, selected.account) && source?.judgmentAvailable && source.judgmentModels.includes(selected.model)
-                      ? 'This source can fund Feed, planning, consultations, contribution assessments, same-repository queue comparisons and delivery judgments. Mixed-repository queue funding is unavailable. Delivery still requires the complete inspection, approval and CI evidence.'
-                      : 'Judgment execution through this source is currently unavailable.'}
+                      ? 'This login can run Feed, planning, consultations, contribution assessments, same-repository queue comparisons and delivery judgments. Mixed-repository queue comparisons are unavailable. Delivery still requires the complete inspection, approval and CI evidence.'
+                      : 'Judgment execution through this login is currently unavailable.'}
                     ${source?.judgmentModels.length
                       ? html`Supported judgment models: ${source.judgmentModels.join(', ')}.`
                       : ''}
@@ -808,18 +728,18 @@ export class SodaFactoryRoleSettings extends LitElement {
                       @input=${(event: Event) => this.choose(role, 'model', (event.target as HTMLInputElement).value)}
                   /></label>
                   <label
-                    >Spending source
+                    >Login
                     <select
-                      aria-label=${`${roleNames[role]} spending source`}
+                      aria-label=${`${roleNames[role]} login`}
                       ?required=${role === judgmentRole ? !!selected.model : !initial}
                       @change=${(event: Event) => this.choose(role, 'account', (event.target as HTMLSelectElement).value)}
                     >
-                      <option value="" .selected=${!selected.account}>Choose a saved source</option>
+                      <option value="" .selected=${!selected.account}>Choose a login</option>
                       ${selected.account && !this.eligible(role, selected.account) ? html`<option .value=${selected.account} .selected=${true} disabled>${selected.account} — unavailable for this role</option>` : ''}
-                      ${accounts.map((account) => html`<option .value=${account.connection} .selected=${account.connection === selected.account}>${view.sources.find((source) => source.connection === account.connection)?.label ?? account.connection}</option>`)}
+                      ${logins.map((login) => html`<option .value=${login} .selected=${login === selected.account}>${view.sources.find((source) => source.connection === login)?.label ?? login}</option>`)}
                     </select></label
                   >
-                  ${accounts.length === 0 ? html`<p>No active saved spending source is available for this role.</p>` : ''}
+                  ${logins.length === 0 ? html`<p>Sign in to Muse on this computer to choose a login.</p>` : ''}
                 </fieldset>`;
               })}
               <fieldset ?disabled=${this.busy || !view.editable}>
@@ -832,19 +752,19 @@ export class SodaFactoryRoleSettings extends LitElement {
                   @change=${(event: Event) => {this.automaticExternalPulls = (event.target as HTMLInputElement).checked;}}
                 />Automatically adopt eligible same-repository pull requests.</label>
                 <p>Adoption requires the PR author to be a current repository writer and exactly one explicitly accepted issue linked through the provider's structured closing links. Factory verifies the current head, base and policy target and keeps the existing finite attempt limits. Fork pull requests require an explicit command.</p>
-                <p>Select one saved paying source shared by Coding and Review. Optional Judgments must use that same source. Populate the finite execution limits before enabling this choice.</p>
+                <p>Select one login shared by Coding and Review. Optional Judgments must use that same login. Populate the finite execution limits before enabling this choice.</p>
                 <p>This choice is separate from policy enrollment and automatic issue polling.</p>
                 ${view.options?.controllerGrantRequired ? html`<p>Automatic external pull request adoption is unavailable in Fountain.</p>` : ''}
               </fieldset>
               <p>
                 Only Muse is currently supported.
-                ${initial ? 'Automation stays disabled until execution setup and funding are ready.' : 'Saving retains the other automation policy settings and existing attempt captures.'}
+                ${initial ? 'Automation stays disabled until execution setup is ready.' : 'Saving retains the other automation policy settings and existing attempt captures.'}
               </p>
               <button type="submit" value="save" ?disabled=${this.busy || !canSave}>
                 ${initial ? 'Save disabled automation policy' : 'Save role selections'}
               </button>
               ${!initial ? html`
-                <p>Policy enrollment permits the full automated delivery workflow. Placement, funding, reviewed setup and available execution are checked before dispatch.</p>
+                <p>Policy enrollment permits the full automated delivery workflow. Placement, reviewed setup and available execution are checked before dispatch.</p>
                 ${view.policy?.enabled
                   ? html`<button type="submit" value="disable" formnovalidate ?disabled=${this.busy || !view.editable}>Disable automation policy</button>`
                   : html`<button type="submit" value="enroll" ?disabled=${this.busy || !canSave}>Enroll automation policy</button>`}

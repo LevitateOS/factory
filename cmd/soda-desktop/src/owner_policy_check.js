@@ -47,7 +47,7 @@
     const sourceID = source.connection, model = source.judgment_models[0];
     assert(button(roles, 'Enroll automation policy') === undefined, 'initial policy enrolled automatically');
     input(roles, 'Coding model', model); input(roles, 'Review model', model);
-    assert(roles.querySelector('[aria-label="Judgments model"]').value === '' && roles.querySelector('[aria-label="Judgments spending source"]').value === '', 'judgment was selected automatically');
+    assert(roles.querySelector('[aria-label="Judgments model"]').value === '' && roles.querySelector('[aria-label="Judgments login"]').value === '', 'judgment was selected automatically');
     input(roles, 'Automation target branch', before.policy_options.target_branch);
     input(roles, 'Required CI checks', 'fixture/check');
     assert(before.policy_options.merge_methods.includes('squash'), 'observed squash option');
@@ -74,8 +74,9 @@
     const permission = button(document, 'Allow this repository to use this computer');
     assert(permission && !permission.disabled, 'local repository consent'); permission.click();
     await until(async () => (await status()).operator_grant?.active === true, 'operator consent readback');
-    input(roles, 'Spending source', sourceID);
-    await until(() => button(roles, 'Allow source').disabled && roles.textContent.includes('workspace permission'), 'missing workspace grant unavailable');
+    const offered = () => [...roles.querySelector('[aria-label="Coding login"]').options].some(option => option.value === sourceID && !option.disabled);
+    await click('Refresh roles');
+    assert(!offered(), 'login offered without workspace permission');
     await until(() => button(document, 'Allow isolated workspaces') && !button(document, 'Allow isolated workspaces').disabled, 'workspace permission control');
     button(document, 'Allow isolated workspaces').click();
     await until(async () => (await status()).environment_grant?.active === true, 'workspace permission readback');
@@ -98,24 +99,24 @@
     }, 'new placement generation');
     await until(() => button(document, 'Allow isolated workspaces') && !button(document, 'Allow isolated workspaces').disabled, 'stale workspace permission unavailable');
     await click('Refresh roles');
-    assert(button(roles, 'Allow source').disabled, 'stale workspace generation allowed funding');
+    assert(!offered(), 'stale workspace generation offered the login');
     button(document, 'Allow isolated workspaces').click();
     await until(async () => (await status()).environment_grant.native.generation !== firstPlacement.generation, 'explicit workspace reenrollment');
     await click('Refresh roles');
-    await click('Allow source');
-    const funded = await status();
-    assert(funded.sponsorships[0].active && funded.policy.enabled === false, 'allowing a source enabled automation');
+    assert(offered() && (await status()).sponsorships.length === 0, 'workspace permission authorized a login by itself');
     for (const role of ['Coding', 'Review', 'Judgments']) {
-      assert(roles.querySelector(`[aria-label="${role} spending source"]`).value === '', 'funding automatically chose role source');
-      input(roles, `${role} spending source`, sourceID); input(roles, `${role} model`, model);
+      assert(roles.querySelector(`[aria-label="${role} login"]`).value === '', 'a role login was chosen automatically');
+      input(roles, `${role} login`, sourceID); input(roles, `${role} model`, model);
     }
     await click('Save role selections');
+    const funded = await status();
+    assert(funded.sponsorships.length === 1 && funded.sponsorships[0].active && funded.sponsorships[0].roles.length === 3 && funded.policy.enabled === false, 'saving roles did not authorize exactly the chosen login, or enabled automation');
     await click('Refresh roles');
     const judgmentSource = (await status()).spending_sources.find(source => source.connection === sourceID);
     assert(judgmentSource && roles.textContent.includes(judgmentSource.judgment_available
-      ? 'This source can fund Feed' : 'Judgment execution through this source is currently unavailable.'), 'judgment readiness presentation mismatched native availability');
+      ? 'This login can run Feed' : 'Judgment execution through this login is currently unavailable.'), 'judgment readiness presentation mismatched native availability');
     input(roles, 'Judgments model', 'unsupported-owner-fixture');
-    await until(() => roles.textContent.includes('Judgment execution through this source is currently unavailable.'), 'unsupported model unavailable');
+    await until(() => roles.textContent.includes('Judgment execution through this login is currently unavailable.'), 'unsupported model unavailable');
     assert(roles.querySelector('[aria-label="Coding model"]').value === model && roles.querySelector('[aria-label="Review model"]').value === model, 'judgment edit changed agent choices');
     input(roles, 'Judgments model', model);
     await click('Save role selections');
@@ -124,30 +125,12 @@
     await click('Enroll automation policy');
     assert((await status()).policy.enabled === true, 'explicit policy enrollment failed');
     assert((await status()).spending_sources.find(source => source.connection === sourceID).execution_available === false && document.querySelector('#runtime-status').textContent.includes('execution is unavailable'), 'missing execution port became available');
+    // A role removed from the login elsewhere is authorized again by the next role save.
     const saved = selected.sponsorships[0];
-    const competing = await api('PUT', `${path}/sponsorships/${sourceID}`, {expected_revision: saved.revision, roles: saved.roles, active: true});
-    assert(competing.status === 200, 'competing source revision');
-    input(roles, 'Spending source', sourceID);
-    await click('Allow source');
-    assert(roles.textContent.includes('could not be confirmed'), 'stale source change was not refused');
-    await click('Refresh roles');
-    input(roles, 'Spending source', sourceID);
-    await roles.updateComplete;
-    const codingAllowance = roles.querySelector('input[name="allowed_roles"][value="soda-coder"]');
-    assert(codingAllowance?.checked, 'saved Coding permission missing');
-    codingAllowance.click();
-    await click('Allow source');
-    const limited = await status();
-    assert(limited.sponsorships[0].active &&
-      !limited.sponsorships[0].roles.includes('soda-coder') && limited.sponsorships[0].roles.includes('soda-reviewer') &&
-      limited.sponsorships[0].roles.includes('factory-judgment') && limited.policy.roles['soda-coder'].account === sourceID,
-      'role withdrawal changed other roles or the selected source');
-    roles.querySelector('input[name="allowed_roles"][value="soda-coder"]').click();
-    await click('Allow source');
-    assert((await status()).sponsorships[0].roles.length === 3, 'explicit role permission restoration failed');
-    for (const checkbox of roles.querySelectorAll('input[name="allowed_roles"]')) checkbox.click();
-    await until(() => button(roles, 'Allow source').disabled && !button(roles, 'Withdraw source').disabled, 'empty active role grant refused');
-    input(roles, 'Spending source', sourceID);
+    assert((await api('PUT', `${path}/sponsorships/${sourceID}`, {expected_revision: saved.revision, roles: saved.roles.filter(role => role !== 'soda-coder'), active: true})).status === 200, 'competing login revision');
+    await click('Refresh roles'); await click('Save role selections');
+    const restored = await status();
+    assert(restored.sponsorships[0].roles.length === 3 && restored.sponsorships[0].revision === saved.revision + 2 && restored.policy.roles['soda-coder'].account === sourceID, 'role save did not restore the chosen login for Coding');
     const current = await status(), p = current.policy;
     const actor = value => { const {kind, ...ref} = value; return ref; };
     const change = {expected_revision: p.revision, enabled: p.enabled, paused: p.paused, target_branch: p.target_branch, merge_method: p.merge_method,
@@ -159,22 +142,16 @@
     assert(roles.textContent.includes('Policy changed'), 'stale policy was not refused');
     await click('Refresh roles'); await click('Save role selections');
     assert((await status()).policy.required_checks.includes('fixture/concurrent'), 'role save erased concurrent policy');
-    roles.context = {...context, actor: undefined};
-    await until(() => idle() && roles.querySelector('[aria-label="Spending source"]'), 'unknown actor observation');
-    input(roles, 'Spending source', sourceID);
-    await until(() => button(roles, 'Withdraw source').disabled, 'unknown actor withdrawal unavailable');
-    roles.context = context;
-    await until(() => idle() && roles.querySelector('[aria-label="Spending source"]'), 'current actor restored');
     await until(() => button(document, 'Withdraw workspace permission') && !button(document, 'Withdraw workspace permission').disabled, 'workspace withdrawal control');
     button(document, 'Withdraw workspace permission').click();
     await until(async () => (await status()).environment_grant?.active === false, 'workspace withdrawal readback');
     await click('Refresh roles');
-    input(roles, 'Spending source', sourceID);
-    await until(() => button(roles, 'Allow source').disabled && !button(roles, 'Withdraw source').disabled, 'withdrawal independent of workspace grant');
-    await click('Withdraw source');
+    const authorized = (await status()).sponsorships[0];
+    assert((await api('PUT', `${path}/sponsorships/${sourceID}`, {expected_revision: authorized.revision, roles: authorized.roles, active: false})).status === 200, 'withdrawal independent of workspace grant');
+    await click('Refresh roles');
     const withdrawn = await status();
     assert(withdrawn.sponsorships[0].active === false && withdrawn.policy.enabled === true && withdrawn.policy.judgments.account === sourceID && ['soda-coder', 'soda-reviewer'].every(role => withdrawn.policy.roles[role].account === sourceID), 'withdrawal selected a fallback or rewrote enrollment');
-    assert(roles.textContent.includes('Judgment execution through this source is currently unavailable.'), 'withdrawn source still labeled available');
+    assert(roles.textContent.includes('Judgment execution through this login is currently unavailable.'), 'withdrawn login still labeled available');
     await click('Disable automation policy');
     const disabled = await status();
     assert(disabled.policy.enabled === false && disabled.policy.judgments.account === sourceID, 'disable after funding withdrawal lost policy choices');

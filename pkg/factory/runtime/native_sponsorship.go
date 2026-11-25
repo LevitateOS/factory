@@ -105,7 +105,7 @@ func (b *nativeProductAccount) spendingSources(ctx context.Context, actor collab
 	// The same read-only workspace/placement check used by sponsorship admission.
 	// An unavailable observation never becomes permission to save an allowance.
 	_, workspace, workspaceErr := b.store.ExecutionWorkspace(ctx, repository)
-	source.AllowanceAvailable = workspaceErr == nil && workspace != nil && workspace.Profile == source.Native.Profile
+	source.Authorizable = workspaceErr == nil && workspace != nil && workspace.Profile == source.Native.Profile
 	if err = b.current(ctx); err != nil {
 		return nil, err
 	}
