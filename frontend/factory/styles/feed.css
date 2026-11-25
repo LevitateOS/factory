@@ -1810,29 +1810,21 @@ soda-factory-library {
   line-height: 1.5;
 }
 .soda-action-investigation {
-  border: 1px solid var(--soda-feed-edge);
-  border-radius: 0;
-  overflow: hidden;
+  display: grid;
+  gap: 12px;
 }
-.soda-action-investigation > header {
-  padding: 10px 14px;
-  background: var(--soda-feed-tint);
-  border-bottom: 1px solid var(--soda-feed-edge);
-}
-.soda-action-investigation > .soda-action-items {
-  padding-inline: 14px;
+.soda-feed-card .soda-action-investigation > header h4 {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--soda-page-text);
 }
 .soda-action-items .soda-action-path {
   font: var(--soda-font-mono);
   font-size: 12px;
 }
 .soda-investigation-insight {
-  padding: 12px 14px;
-  border-top: 1px solid var(--soda-feed-edge);
-  background: var(--soda-feed-tint);
-}
-.soda-feed-card .soda-investigation-insight h4 {
-  color: var(--soda-feed-role);
+  padding: 10px 12px;
+  border: 1px solid var(--soda-page-text);
 }
 .soda-action-balance {
   display: grid;
@@ -2009,8 +2001,9 @@ soda-factory-library {
   color: var(--soda-page-muted);
   font: 400 12px/18px Barlow, Arial, sans-serif;
 }
-.soda-action-source + .soda-action-comparison {
-  margin-top: 12px;
+.soda-feed-action:is([data-action='correction'], [data-action='comparison'], [data-action='artifact']) {
+  display: grid;
+  gap: 12px;
 }
 .soda-action-checksheet {
   display: grid;
@@ -2082,6 +2075,15 @@ soda-factory-library {
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
+.soda-feed-card .soda-action-merge h4 {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--soda-page-text);
+}
+.soda-action-merge > div {
+  display: grid;
+  gap: 6px;
+}
 .soda-merge-drawing {
   width: 100%;
   max-width: 260px;
@@ -2141,21 +2143,27 @@ soda-factory-library {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
   gap: 12px;
-  border: 1px solid var(--soda-feed-edge);
-  padding: 14px;
+}
+.soda-action-result > div:not(.soda-result-seal) {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.soda-feed-card .soda-action-result h4 {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--soda-page-text);
 }
 .soda-result-seal {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
   display: grid;
   place-items: center;
-  background: var(--soda-feed-tint);
-  border-radius: 50%;
-  color: var(--soda-feed-role);
+  border: 1px solid var(--soda-feed-ok);
+  color: var(--soda-feed-ok);
 }
-.soda-action-result .soda-action-balance {
-  margin-top: 12px;
-}
+
 .soda-action-discussion {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
