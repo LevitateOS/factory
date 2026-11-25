@@ -97,6 +97,10 @@ type PostRequest struct {
 	// the store checks the answer against the ask's form and records its
 	// plain-text rendering as the body.
 	Answer *FeedQuestionAnswer `json:"answer,omitempty"`
+	// ReadFirstBy is the person's routing hint (feed_role.go): the role
+	// invited to read this post first. It never enters JEV's routing
+	// judgment and changes no admission or decision.
+	ReadFirstBy MCPProfile `json:"read_first_by,omitempty"`
 }
 
 // Validate admits one comment request with its scope, bounded body and
@@ -111,6 +115,14 @@ func (r PostRequest) Validate() error {
 		}
 	} else if body := strings.TrimSpace(r.Body); body == "" || utf8.RuneCountInString(r.Body) > PostBodyLimit {
 		return errors.New("comment needs its bounded body")
+	}
+	if r.ReadFirstBy != "" {
+		if r.Answer != nil {
+			return errors.New("a typed answer is not routed to a first reader")
+		}
+		if err := CheckRoleReference(r.ReadFirstBy); err != nil {
+			return err
+		}
 	}
 	if r.Issue < 0 {
 		return errors.New("comment needs its non-negative issue scope")

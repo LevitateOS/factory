@@ -171,6 +171,10 @@ func (s *Store) ContributionContext(ctx context.Context, id string) (factory.Con
 			Body: source.Body, SourceActor: source.Actor, State: "pending", Replies: []factory.ContributionReply{},
 			PolicyVersion: "single-role-discussion-v1", ProbabilityThreshold: factory.ContributionProbability, ConfidenceThreshold: factory.ContributionConfidence,
 		}
+		review.NamedRole = source.ReadFirstBy
+		if source.Payload != nil && source.Payload.Communication != nil && source.Payload.Communication.AddressedTo != "" {
+			review.NamedRole = source.Payload.Communication.AddressedTo
+		}
 		if source.Source != nil {
 			review.Context = TruncateFeedSummary(source.Source.Summary)
 		}
@@ -274,7 +278,7 @@ func (s *Store) contributionRoles(ctx context.Context, review factory.Contributi
  JOIN factory_runs r ON r.id=c.run AND r.active AND NOT r.settled
  WHERE c.repository=$1 AND c.state='active' AND c.deadline>$2 AND a.stage='assigned'
  AND c.profile=ANY($3) AND c.profile<>$4 AND `+contributionRoleScopeSQL+`<>''
- ORDER BY a.seq,c.id LIMIT 64`, review.Repository, time.Now().Unix(), contributionReplyProfiles(), review.SourceActor)
+ ORDER BY c.profile=$5 DESC,a.seq,c.id LIMIT 64`, review.Repository, time.Now().Unix(), contributionReplyProfiles(), review.SourceActor, string(review.NamedRole))
 	if err != nil {
 		return nil, err
 	}

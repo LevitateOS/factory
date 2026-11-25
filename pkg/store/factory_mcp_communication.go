@@ -73,6 +73,9 @@ func (s *Store) RecordWorkerPost(ctx context.Context, submission factory.MCPSubm
 		if err != nil {
 			return out, err
 		}
+		if content.AddressedTo == capability.Profile {
+			return out, errors.New("a question is addressed to another role, not the asking role")
+		}
 		if content.ParentID != "" {
 			var parentKind string
 			if err = tx.QueryRowContext(ctx, `SELECT COALESCE(data->'communication'->>'kind','') FROM factory_feed_posts WHERE id=$1 AND repository=$2 AND NOT COALESCE((data->>'deleted')::boolean,false) AND NOT COALESCE((data->>'revoked')::boolean,false) FOR SHARE`, content.ParentID, capability.Repository).Scan(&parentKind); err != nil {
@@ -169,11 +172,13 @@ func applyFeedCommunicationDetail(detail *FeedPostDetail, raw []byte) error {
 		Source        *factory.PostSource         `json:"source"`
 		Work          *mcpSubmittedWork           `json:"work"`
 		Answer        *factory.FeedQuestionAnswer `json:"answer"`
+		ReadFirstBy   factory.MCPProfile          `json:"read_first_by"`
 	}
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return err
 	}
 	detail.Answer = data.Answer
+	detail.ReadFirstBy = data.ReadFirstBy
 	if data.Source != nil {
 		detail.Source = data.Source
 		if detail.Record.ParentID == "" && data.Source.Kind == factory.PostSourcePost {

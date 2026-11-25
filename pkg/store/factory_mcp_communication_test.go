@@ -475,6 +475,136 @@ func TestMCPCommunicationPersistsFeedAndReplay(t *testing.T) {
 	if post, err := s.FeedPost(ctx, strayReceipt.Record.ID); err != nil || post.Payload == nil || post.Payload.Communication == nil || post.Payload.Communication.ComponentID != "" {
 		t.Fatalf("stray component kept: %+v %v", post, err)
 	}
+	// A role named on a post (factory.CheckRoleReference): an ask is addressed
+	// to another canonical role, never a person, login, JEV or the asking role.
+	for _, refused := range []string{`"addressed_to":"octocat"`, `"addressed_to":"@octocat"`, `"addressed_to":"designer"`, `"addressed_to":"jev"`, `"addressed_to":"builder"`} {
+		bad := testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Addressed","summary":"Addressed ask","question":"Who?",`+refused+`}`))
+		if _, err := s.RecordWorkerPost(ctx, bad); err == nil {
+			t.Fatalf("ask admitted %s", refused)
+		}
+	}
+	if _, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(cap, factory.MCPToolPartial, []byte(`{"title":"Progress","summary":"Half done","completed":["one"],"addressed_to":"architect"}`))); err == nil {
+		t.Fatal("a report other than ask was addressed to a role")
+	}
+	addressed, err := s.RecordWorkerPost(ctx, testMCPSubmissionRow(cap, factory.MCPToolAsk, []byte(`{"title":"Is the index timer still needed?","summary":"The removal fix is in, but the timed index pass still runs.","question":"Did you mean to leave the timer in place?","addressed_to":"architect"}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if question, err := s.FeedPost(ctx, addressed.Record.ID); err != nil || question.Payload.Communication.AddressedTo != factory.MCPProfileArchitect || question.Payload.Communication.QuestionState != "open" {
+		t.Fatalf("addressed ask not served: %+v %v", question.Payload, err)
+	}
+	if page, err := s.MCPDiscussion(ctx, cap, addressed.Record.ID, ""); err != nil || len(page.Items) != 1 || page.Items[0].Communication == nil || page.Items[0].Communication.AddressedTo != factory.MCPProfileArchitect {
+		t.Fatalf("addressed ask missing from the worker read: %+v %v", page, err)
+	}
+	// A person's read_first_by is a routing hint on the same rule. Two running
+	// roles in another project: Builder's work started first.
+	if err := (factory.PostRequest{Repository: 9, Body: "Hint", IdempotencyKey: "login-hint", ReadFirstBy: "octocat"}).Validate(); !errors.Is(err, factory.ErrRoleReference) {
+		t.Fatalf("login accepted as first reader: %v", err)
+	}
+	db := journeySQL(t, dsn)
+	if _, err := db.Exec(`INSERT INTO factory_runs(id,active,settled,data) VALUES('run-roles',true,false,'{}')`); err != nil {
+		t.Fatal(err)
+	}
+	roles := map[factory.MCPProfile]factory.MCPCapability{}
+	for issue, profile := range []factory.MCPProfile{factory.MCPProfileBuilder, factory.MCPProfileArchitect} {
+		role := testMCPCapabilityRow()
+		role.Repository, role.RunID, role.Profile = 9, "run-roles", profile
+		work := journeyAssignment(role.AssignmentID, role.AssignmentID, "d"+strings.Repeat("a", 24), 9, int64(43+issue), true)
+		work.Run = role.RunID
+		work.AcceptedContext = &factory.AcceptedContext{Title: "Search index", Body: "Remove the stale index timer without losing pending updates."}
+		insertJourneyAssignment(t, db, work, "assigned", 1)
+		roles[profile] = activateMCPCapability(t, ctx, s, role)
+	}
+	body := "The timed index pass still runs after the removal fix. Is it still needed?"
+	plain, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 9, Body: body, IdempotencyKey: "plain-post"}, "7", "Maya", time.Now().Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hinted, _, err := s.SaveFeedPost(ctx, factory.PostRequest{Repository: 9, Body: body, IdempotencyKey: "read-first", ReadFirstBy: factory.MCPProfileArchitect}, "7", "Maya", time.Now().Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+	intakes := map[string]factory.PostIntake{}
+	posts := map[string]FeedPostDetail{}
+	for _, id := range []string{plain, hinted} {
+		if err := s.RecordIssueMakerIntake(ctx, id, 0); err != nil {
+			t.Fatal(err)
+		}
+		intake, err := s.PostIntake(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		intake.SourcePost = ""
+		intakes[id] = intake
+		if posts[id], err = s.FeedPost(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if posts[hinted].ReadFirstBy != factory.MCPProfileArchitect || posts[plain].ReadFirstBy != "" {
+		t.Fatalf("hint not stored: %q %q", posts[hinted].ReadFirstBy, posts[plain].ReadFirstBy)
+	}
+	if served, err := s.FeedPostDetails(ctx, []string{hinted}); err != nil || served[hinted].ReadFirstBy != factory.MCPProfileArchitect {
+		t.Fatalf("hint not served: %+v %v", served[hinted], err)
+	}
+	// JEV routes from the body, issue scope, parent and source
+	// (service.PostJudgeState) and the same pending intake: the hint is in none.
+	a, b := posts[plain], posts[hinted]
+	if a.Body != b.Body || a.Record.Issue != b.Record.Issue || a.Record.ParentID != b.Record.ParentID || a.Source != nil || b.Source != nil || intakes[plain] != intakes[hinted] || intakes[hinted].Judgment != factory.PostJudgmentPending || intakes[hinted].Route != "" {
+		t.Fatalf("hint changed JEV classification input: %+v %+v %+v %+v", a, b, intakes[plain], intakes[hinted])
+	}
+	order := func(review factory.ContributionReview) string {
+		names := []string{}
+		for _, role := range review.Roles {
+			names = append(names, string(role.Profile))
+		}
+		return strings.Join(names, ",")
+	}
+	plainReview, err := s.ContributionContext(ctx, plain)
+	if err != nil || order(plainReview) != "builder,architect" || plainReview.NamedRole != "" {
+		t.Fatalf("unhinted roles: %s %+v %v", order(plainReview), plainReview, err)
+	}
+	review, err := s.ContributionContext(ctx, hinted)
+	if err != nil || order(review) != "architect,builder" || review.NamedRole != factory.MCPProfileArchitect {
+		t.Fatalf("hint did not reach routing: %s %+v %v", order(review), review, err)
+	}
+	vote := func(review *factory.ContributionReview, profile factory.MCPProfile, selected string, p float64) {
+		for _, question := range factory.ContributionQuestions {
+			review.Calls = append(review.Calls, factory.ContributionCall{Assignment: roles[profile].AssignmentID, Question: question, Answer: factory.PriorityAnswer{Model: "fixture-jev", Selected: selected, Probabilities: map[string]float64{"contribute": p, "no_contribution": 1 - p}, Confidence: .9}})
+		}
+	}
+	// The named role still needs JEV's answers: declined, the other role is invited.
+	declined := review
+	vote(&declined, factory.MCPProfileArchitect, "no_contribution", .2)
+	vote(&declined, factory.MCPProfileBuilder, "contribute", .9)
+	factory.SelectContribution(&declined)
+	if declined.State != "invited" || declined.Profile != factory.MCPProfileBuilder {
+		t.Fatalf("hint bypassed JEV's contribution answers: %+v", declined)
+	}
+	// On equal answers the named role is invited and reads the hint.
+	owner := contributionOwnerFixture(t, s)
+	if claimed, err := owner.ClaimContributionReview(ctx, review); err != nil || !claimed {
+		t.Fatalf("claim: %v %v", claimed, err)
+	}
+	vote(&review, factory.MCPProfileBuilder, "contribute", .9)
+	vote(&review, factory.MCPProfileArchitect, "contribute", .9)
+	factory.SelectContribution(&review)
+	if review.Profile != factory.MCPProfileArchitect {
+		t.Fatalf("named role did not win the tie: %+v", review)
+	}
+	if err := owner.SettleContributionReview(ctx, review); err != nil {
+		t.Fatal(err)
+	}
+	read, err := s.MCPDiscussion(ctx, roles[factory.MCPProfileArchitect], hinted, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asked := false
+	for _, message := range read.Items {
+		asked = asked || (message.ID == hinted && message.ReadFirstBy == factory.MCPProfileArchitect)
+	}
+	if !asked {
+		t.Fatalf("invited role did not read the hint: %+v", read.Items)
+	}
 }
 
 func TestMCPCommunicationPostsDoNotConsumeFinishCapacity(t *testing.T) {

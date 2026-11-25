@@ -47,6 +47,9 @@ type FeedCommunication struct {
 	// Answered is served from its first live typed answer reply.
 	AnswerForm *FeedQuestionForm     `json:"answer_form,omitempty"`
 	Answered   *FeedQuestionAnswered `json:"answered,omitempty"`
+	// AddressedTo names the role whose expertise an ask asks for
+	// (feed_role.go). The person may still answer.
+	AddressedTo MCPProfile `json:"addressed_to,omitempty"`
 	// Disposition and DispositionReason are server-assigned from the
 	// recorded disposition beside the post; worker payloads carrying
 	// them refuse like question_state.
@@ -318,6 +321,14 @@ func (c FeedCommunication) Validate() error {
 			return errors.New("a typed question carries its options in answer_form")
 		}
 		if err := c.AnswerForm.Validate(); err != nil {
+			return err
+		}
+	}
+	if c.AddressedTo != "" {
+		if c.Kind != "ask" {
+			return errors.New("only ask is addressed to a role")
+		}
+		if err := CheckRoleReference(c.AddressedTo); err != nil {
 			return err
 		}
 	}

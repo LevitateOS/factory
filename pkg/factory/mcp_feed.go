@@ -18,7 +18,9 @@ type MCPFeedMessage struct {
 	Communication *FeedCommunication `json:"communication,omitempty"`
 	// Answer is a person's typed answer to an ask; Body/Summary carry its
 	// plain-text rendering.
-	Answer       *FeedQuestionAnswer `json:"answer,omitempty"`
+	Answer *FeedQuestionAnswer `json:"answer,omitempty"`
+	// ReadFirstBy is the role the person asked to read this post first.
+	ReadFirstBy  MCPProfile          `json:"read_first_by,omitempty"`
 	Consultation *FeedConsultation   `json:"consultation,omitempty"`
 	Source       *PostSource         `json:"source,omitempty"`
 	Contribution *ContributionReview `json:"contribution,omitempty"`

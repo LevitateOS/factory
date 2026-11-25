@@ -117,7 +117,7 @@ func (s *Store) mcpDiscussionPage(ctx context.Context, capability factory.MCPCap
 		if !ok {
 			continue
 		}
-		message := factory.MCPFeedMessage{ID: m.id, ParentID: detail.Record.ParentID, Actor: detail.Record.Author, Author: detail.AuthorName, At: detail.At, Status: detail.Status, Summary: TruncateFeedSummary(detail.Body), Answer: detail.Answer}
+		message := factory.MCPFeedMessage{ID: m.id, ParentID: detail.Record.ParentID, Actor: detail.Record.Author, Author: detail.AuthorName, At: detail.At, Status: detail.Status, Summary: TruncateFeedSummary(detail.Body), Answer: detail.Answer, ReadFirstBy: detail.ReadFirstBy}
 		if detail.Actor != "" {
 			message.Actor = detail.Actor
 		}

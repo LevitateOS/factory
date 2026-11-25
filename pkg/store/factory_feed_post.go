@@ -35,13 +35,15 @@ type FeedPostDetail struct {
 	Payload       *factory.FeedPayload
 	// Answer is the typed answer a reply recorded to its ask; Body holds its
 	// plain-text rendering.
-	Answer     *factory.FeedQuestionAnswer
-	Record     factory.PostRecord
-	Body       string
-	AuthorName string
-	At         int64
-	Status     string
-	Source     *factory.PostSource
+	Answer *factory.FeedQuestionAnswer
+	// ReadFirstBy is the person's recorded routing hint.
+	ReadFirstBy factory.MCPProfile
+	Record      factory.PostRecord
+	Body        string
+	AuthorName  string
+	At          int64
+	Status      string
+	Source      *factory.PostSource
 }
 
 var ErrInvalidPostDraft = errors.New("invalid issue draft")
@@ -169,6 +171,9 @@ func (s *Store) SaveFeedPostWithSource(ctx context.Context, req factory.PostRequ
 	}
 	if source != nil {
 		fields["source"] = source
+	}
+	if req.ReadFirstBy != "" {
+		fields["read_first_by"] = req.ReadFirstBy
 	}
 	if req.Answer != nil {
 		return s.saveQuestionAnswer(ctx, req, author, fields)

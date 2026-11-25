@@ -65,6 +65,10 @@ type ContributionReview struct {
 	ProbabilityThreshold float64             `json:"probability_threshold"`
 	ConfidenceThreshold  float64             `json:"confidence_threshold"`
 	RepliesVersion       string              `json:"replies_version"`
+	// NamedRole is the role the source names (a person's read_first_by or
+	// an ask's addressed_to). It is assessed first among the eligible
+	// roles and wins a tie; every role still needs the same JEV answers.
+	NamedRole MCPProfile `json:"named_role,omitempty"`
 }
 
 type ContributionCall struct {

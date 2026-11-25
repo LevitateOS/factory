@@ -31,6 +31,11 @@ func communicationPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	case factory.MCPToolAsk:
 		required = append(required, "question")
 		props["answer_form"] = answerFormSchema()
+		roles := make([]any, 0, len(factory.MCPProfiles))
+		for _, profile := range factory.MCPProfiles {
+			roles = append(roles, string(profile))
+		}
+		props["addressed_to"] = &jsonschema.Schema{Type: "string", Enum: roles, Description: "Optional: the Factory role whose expertise the question asks for, never a person or login and never your own role. The person can still answer."}
 	case factory.MCPToolAnswer, factory.MCPToolReply:
 		required = append(required, "parent_id")
 	case factory.MCPToolFlag:
