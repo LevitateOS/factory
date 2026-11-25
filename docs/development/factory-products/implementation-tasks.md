@@ -239,8 +239,7 @@ before the next one starts.
 
 ### J1 — Connect a TypeSafe key (Rust, shell UI)
 
-**INCOMPLETE (2026-11-25): built and checked with controlled replies; the signed-build
-connect with a real key is still to do.**
+**COMPLETE (2026-11-25), except Remove and first run seen live.** Commit `dcb42631`.
 
 - `factory-credential-operation-check --typesafe NEW_PROFILE` passes against the
   loopback TypeSafe stand-in. It sends exactly 11 requests for 11 scripted replies:
@@ -256,9 +255,15 @@ connect with a real key is still to do.**
   - Accounts shows the JEV card.
   - An empty or too-short key is refused without a request.
   - The developer tools cannot fill the hidden key field.
-- Not yet done:
-  - The first-run step was not seen live; the app has a project open.
-  - The connect, relaunch, Check now and Remove run with a key the user pastes.
+- **Connected run on the signed app with the key the user pasted:**
+  - TypeSafe accepted it and the account offers `jev-latest` and `jev-preview`.
+  - After a relaunch, the sidebar showed "JEV connected" with no Keychain dialog.
+  - Check now made one request and moved `checked_at` forward.
+  - The record `jev-<profile>.json` is mode 0600 and holds no key.
+  - The app log never mentions the key.
+- **Not seen live:**
+  - Remove, which ran only against controlled replies. The key stays saved for J2.
+  - The first-run step, because the app has a project open.
 - Usage ("This month") is J5.
 
 **Behavior:**
