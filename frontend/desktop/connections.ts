@@ -335,7 +335,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       message = value.repository
         ? `Connected to ${value.repository.name}.`
         : 'Connected. Choose a repository to browse its feed and issues.';
-      if (remote) remember({connection: account, repository: remote, enrolled});
+      if (remote) {
+        remember({connection: account, repository: remote, enrolled});
+        projects.refusal(account, remote, '');
+      }
       if (!remote) await discover(captured, 1);
     } catch (error) {
       if (live(captured)) {
@@ -345,7 +348,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
             ? `Could not connect. ${error}`
             : 'Could not connect. Refresh Factory status and try reconnecting.';
         // A repository that will not open leaves the account itself usable.
-        if (remote && !fountain()) refused = typeof error === 'string' ? `Could not open that repository. ${error}` : message;
+        if (remote && !fountain()) {
+          refused = typeof error === 'string' ? `Could not open that repository. ${error}` : message;
+          projects.refusal(account, remote, typeof error === 'string' ? error : 'The repository could not be opened.');
+        }
       }
     } finally {
       if (serial === captured) {

@@ -24,6 +24,8 @@ export interface FactoryProject {
   readonly summary?: FactoryProjectSummary;
   /** Unix seconds when the host last read this row. */
   readonly asOf: number;
+  /** Why the provider refused the last attempt to open it here; absent once it opens. */
+  readonly refused?: string;
 }
 
 /** The host's retained project list. The host decides when the list is read;
@@ -88,8 +90,10 @@ function admitProject(value: unknown): FactoryProject | undefined {
     }
     summary = {needsYou: found.needsYou, working, dispatch: found.dispatch as 'open' | 'closed' | 'none', ...(latestPost ? {latestPost} : {})};
   }
+  if (row.refused !== undefined && (!plain(row.refused, 512) || !row.refused)) return;
   return {key: row.key, name: row.name, accountLabel: row.accountLabel, provider: row.provider,
-    connection: row.connection as FactoryProjectConnection, ...(summary ? {summary} : {}), asOf: row.asOf as number};
+    connection: row.connection as FactoryProjectConnection, ...(summary ? {summary} : {}), asOf: row.asOf as number,
+    ...(row.refused ? {refused: row.refused as string} : {})};
 }
 
 /** Host rows are data: keep the well-formed ones (bounded, known states, unique

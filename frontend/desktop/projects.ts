@@ -75,7 +75,16 @@ export class DesktopProjects implements FactoryProjectsPort {
   private transport: DesktopTransport | undefined;
   private asked = false;
   private generation = 0;
+  /** Refusals from opening a repository here, by connection/external id, kept
+   * across connections so the list can say which projects will not open. */
+  private readonly refusals = new Map<string, string>();
   constructor(private readonly host: ProjectsHost) {}
+
+  /** The provider refused (or, with no reason, accepted) opening this repository. */
+  refusal(connection: string, external: string, reason: string) {
+    if (reason) this.refusals.set(connection + '/' + external, reason);
+    else this.refusals.delete(connection + '/' + external);
+  }
 
   /** A new connection; reads only when nothing is retained. */
   connected(transport: DesktopTransport) {
@@ -123,6 +132,7 @@ export class DesktopProjects implements FactoryProjectsPort {
     return this.merge().map(({row, account, connection}): FactoryProject => ({
       key: row.repository, name: row.name, accountLabel: account.label ?? account.account, provider: account.provider,
       connection, ...(row.summary ? {summary: row.summary} : {}), asOf: row.asOf,
+      ...(this.refusals.has(row.connection + '/' + row.external) ? {refused: this.refusals.get(row.connection + '/' + row.external)!} : {}),
     }));
   }
   /** One row per repository. A repository opened by several saved accounts is

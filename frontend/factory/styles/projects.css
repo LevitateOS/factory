@@ -90,12 +90,16 @@
 .soda-factory-tag[data-tone="here"] {
   font: 500 12px/18px "IBM Plex Mono", monospace;
 }
+.soda-factory-project-refused,
 .soda-factory-project-meta,
 .soda-factory-project-latest {
   margin: 0;
   color: var(--soda-page-muted);
   font: var(--soda-font-meta);
   overflow-wrap: anywhere;
+}
+.soda-factory-project-refused {
+  color: var(--soda-page-warning);
 }
 .soda-factory-project-working {
   display: flex;

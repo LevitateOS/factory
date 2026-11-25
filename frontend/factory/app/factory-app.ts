@@ -591,7 +591,9 @@ export class SodaFactoryApp extends LitElement {
               ? 'Current'
               : row.connection === 'sign_in'
                 ? 'Sign in again'
-                : summary?.needsYou
+                : row.refused
+                  ? 'No access'
+                  : summary?.needsYou
                   ? summary.needsYou + (summary.needsYou === 1 ? ' needs you' : ' need you')
                   : summary?.dispatch === 'closed'
                     ? 'Paused'
@@ -682,15 +684,15 @@ export class SodaFactoryApp extends LitElement {
           ? html`<nav class="soda-factory-other-projects" aria-label="Other projects">
               ${others.map((row) => {
                 const mark =
-                  row.connection === 'sign_in' ? 'Sign in' : row.summary?.needsYou ? String(row.summary.needsYou) : row.summary?.dispatch === 'closed' ? 'Paused' : '';
+                  row.connection === 'sign_in' ? 'Sign in' : row.refused ? 'No access' : row.summary?.needsYou ? String(row.summary.needsYou) : row.summary?.dispatch === 'closed' ? 'Paused' : '';
                 return html`<button
                   type="button"
                   ?disabled=${(row.connection === 'sign_in' && !port?.signIn) || this.openingProject}
-                  title=${row.name + (mark ? ' · ' + (row.summary?.needsYou && row.connection !== 'sign_in' ? mark + ' need you' : mark) : '')}
+                  title=${row.name + (row.refused && row.connection !== 'sign_in' ? ' · ' + row.refused : mark ? ' · ' + (row.summary?.needsYou && row.connection !== 'sign_in' ? mark + ' need you' : mark) : '')}
                   @click=${() => void this.openProject(context!, row)}
                 >
                   <span class="soda-factory-other-name">${row.name}</span>${mark
-                    ? html`<span class="soda-factory-other-mark" data-mark=${row.connection === 'sign_in' ? 'sign-in' : row.summary?.needsYou ? 'needs' : 'paused'}>${mark}</span>`
+                    ? html`<span class="soda-factory-other-mark" data-mark=${row.connection === 'sign_in' ? 'sign-in' : row.refused ? 'refused' : row.summary?.needsYou ? 'needs' : 'paused'}>${mark}</span>`
                     : ''}
                 </button>`;
               })}

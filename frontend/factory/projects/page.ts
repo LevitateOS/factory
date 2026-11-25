@@ -123,6 +123,7 @@ export class SodaFactoryProjects extends LitElement {
     if (row.connection === 'sign_in') return [html`<span class="soda-factory-tag" data-tone="sign-in">Sign in</span>`];
     if (row.connection === 'not_connected') return [html`<span class="soda-factory-tag" data-tone="idle">Not connected</span>`];
     const tags = [];
+    if (row.refused) tags.push(html`<span class="soda-factory-tag" data-tone="paused">No access</span>`);
     if (row.summary?.needsYou) tags.push(html`<span class="soda-factory-tag" data-tone="needs">Needs you · ${row.summary.needsYou}</span>`);
     if (row.summary?.dispatch === 'closed') tags.push(html`<span class="soda-factory-tag" data-tone="paused">Paused</span>`);
     return tags;
@@ -155,6 +156,7 @@ export class SodaFactoryProjects extends LitElement {
           ${this.tags(row)}
           ${here ? html`<span class="soda-factory-tag" data-tone="here">Open in this window</span>` : ''}
         </div>
+        ${row.refused && row.connection !== 'sign_in' ? html`<p class="soda-factory-project-refused" role="note">${row.refused}</p>` : ''}
         <p class="soda-factory-project-meta">${row.provider} · ${row.accountLabel} · as of ${projectAsOf(row.asOf)}${row.summary ? ' · dispatch ' + row.summary.dispatch : ''}</p>
         ${this.working(row)}
         ${post
