@@ -729,7 +729,7 @@ export class SodaFactoryApp extends LitElement {
         </div>
       </aside>
       <div class="soda-factory-content">
-        <header>
+        <header ?data-empty=${!this.message.trim()}>
           <p role="status">${this.message}</p>
         </header>
         <main

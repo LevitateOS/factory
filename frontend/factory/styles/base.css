@@ -188,8 +188,9 @@
   border-bottom: 1px solid var(--soda-page-edge);
 }
 /* The strip holds only the frame's status message; with none it takes no space.
-   Each screen draws its own title. */
-.soda-factory-content > header:has(> p:empty) {
+   Each screen draws its own title. Lit's markers keep the <p> from matching
+   :empty, so the app marks the empty state. */
+.soda-factory-content > header[data-empty] {
   padding-top: 0;
   padding-bottom: 0;
   border-bottom: 0;
