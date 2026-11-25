@@ -61,7 +61,7 @@ dialog.soda-factory-jump::backdrop {
 }
 .soda-factory-jump-field input:focus-visible {
   outline: 2px solid var(--soda-page-focus);
-  outline-offset: 4px;
+  outline-offset: -2px;
 }
 .soda-factory-jump-list {
   max-height: min(560px, 60vh);

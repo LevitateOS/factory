@@ -256,6 +256,31 @@ nothing from a post:
    sets; if the review finds the sandbox cannot be made safe in this app, the
    capability stays unavailable.
 
+**Result of the 5.7 review (2026-11-25, Fable 5.2, read-only): 5.7 stays
+unavailable.** Three findings block it today:
+- The desktop CSP (`cmd/soda-desktop/tauri.conf.json:7`: `script-src 'self'`,
+  `frame-src 'none'`) stops agent script in any `srcdoc`, `blob:` or `data:`
+  frame, and loosening it with `'unsafe-inline'` would weaken the one document
+  that holds the IPC bridge.
+- On Linux, wry stamps IPC messages with the top-level URI and the app's
+  `caller()` check (`cmd/soda-desktop/src/main.rs:393-401`) is top-level too,
+  so the invoke key is the only barrier between a frame and 43 commands.
+- No storage path exists: communications cap at 8 KiB and artifacts exclude
+  `text/html`.
+
+A later slice must meet this contract before anything ships, even behind a
+flag. First, a frame-origin check in `caller()`. Then delivery from a dedicated
+read-only scheme (never `srcdoc`) with a `sandbox allow-scripts;
+default-src 'none'` CSP header, with the app CSP changing only `frame-src`. The
+iframe gets `sandbox="allow-scripts"` and never `allow-same-origin`, runs on
+click, one live frame at a time. Messages go one way: the frame may send only
+`{v:1, type:"answer"|"height"}`, checked against `event.source` and origin
+`"null"`, and an answer only pre-fills the composer for the person to send.
+Bytes go through `publish_artifact` as a new capped `text/html` type with a
+required summary that always renders. Residual risks are CPU freezes, spoofing
+inside the box and WebRTC leaks; Windows, macOS and Fountain's own CSP were
+not assessed.
+
 ## Decisions the owner still has to make
 
 None open. The owner may revisit any decision above; each is recorded with its
