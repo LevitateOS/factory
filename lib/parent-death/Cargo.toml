@@ -1,0 +1,10 @@
+[package]
+name = "soda-parent-death"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Signal a native child when its owning process dies"
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }

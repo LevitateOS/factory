@@ -469,7 +469,7 @@ fn git(alive: &AtomicBool, scratch: &Path, directory: &Path, args: &[&str]) -> i
         .stdout(Stdio::from(output))
         .stderr(Stdio::null())
         .process_group(0);
-    crate::child_process::parent_death(&mut command, libc::SIGKILL);
+    soda_parent_death::parent_death(&mut command, libc::SIGKILL);
     unsafe {
         command.pre_exec(|| {
             for (resource, maximum) in [

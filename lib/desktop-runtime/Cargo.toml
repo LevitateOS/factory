@@ -7,6 +7,7 @@ publish = false
 description = "Native Factory desktop process and storage lifecycle"
 
 [target.'cfg(unix)'.dependencies]
+soda-parent-death = { path = "../parent-death" }
 libc = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
 url = { workspace = true }

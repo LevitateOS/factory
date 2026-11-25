@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "Headless Linux native process and cgroup lifetime primitive"
+description = "Headless native process and process-tree lifetime primitive"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(unix)'.dependencies]
+soda-parent-death = { path = "../parent-death" }
 libc = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
 sha2 = { workspace = true }

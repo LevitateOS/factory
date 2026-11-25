@@ -29,6 +29,42 @@ pub(super) fn directory(path: &Path) -> Result<File> {
         .open(path)
         .map_err(|_| Error::Storage)
 }
+#[cfg(target_os = "macos")]
+pub(super) fn system_instance() -> Result<String> {
+    let mut value = [0u8; 64];
+    let mut length = value.len();
+    if unsafe {
+        libc::sysctlbyname(
+            c"kern.bootsessionuuid".as_ptr(),
+            value.as_mut_ptr().cast(),
+            &mut length,
+            std::ptr::null_mut(),
+            0,
+        )
+    } != 0
+    {
+        return Err(Error::Scope);
+    }
+    let value = std::str::from_utf8(&value[..length])
+        .map_err(|_| Error::Scope)?
+        .trim_end_matches('\0')
+        .to_ascii_lowercase();
+    if value.len() != 36 || !value.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
+        return Err(Error::Scope);
+    }
+    Ok(value)
+}
+#[cfg(target_os = "macos")]
+use super::scope::start_identity;
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn ptsname_r(fd: libc::c_int, buffer: *mut libc::c_char, length: libc::size_t) -> libc::c_int;
+}
+#[cfg(target_os = "macos")]
+const TIOCSCTTY: libc::c_ulong = 0x2000_7461;
+#[cfg(target_os = "linux")]
+use libc::{ptsname_r, TIOCSCTTY};
+#[cfg(target_os = "linux")]
 pub(super) fn system_instance() -> Result<String> {
     let value =
         std::fs::read_to_string("/proc/sys/kernel/random/boot_id").map_err(|_| Error::Scope)?;
@@ -38,6 +74,7 @@ pub(super) fn system_instance() -> Result<String> {
     }
     Ok(value.into())
 }
+#[cfg(target_os = "linux")]
 fn start_identity(pid: u32) -> Result<String> {
     let value = std::fs::read_to_string(format!("/proc/{pid}/stat")).map_err(|_| Error::Spawn)?;
     let (_, fields) = value.rsplit_once(") ").ok_or(Error::Spawn)?;
@@ -59,7 +96,7 @@ fn terminal(rows: u16, columns: u16) -> Result<(File, File)> {
     let mut name = [0 as libc::c_char; 4096];
     if unsafe { libc::grantpt(master.as_raw_fd()) } != 0
         || unsafe { libc::unlockpt(master.as_raw_fd()) } != 0
-        || unsafe { libc::ptsname_r(master.as_raw_fd(), name.as_mut_ptr(), name.len()) } != 0
+        || unsafe { ptsname_r(master.as_raw_fd(), name.as_mut_ptr(), name.len()) } != 0
     {
         return Err(Error::Spawn);
     }
@@ -91,6 +128,34 @@ fn terminal(rows: u16, columns: u16) -> Result<(File, File)> {
     }
     Ok((master, slave))
 }
+/// A kernel handle bound to this exact child before it can be reaped: a pidfd
+/// on Linux, a kqueue exit registration on macOS.
+#[cfg(target_os = "linux")]
+fn exit_handle(pid: u32) -> Option<File> {
+    let descriptor = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0u32) };
+    (descriptor >= 0).then(|| unsafe { File::from_raw_fd(descriptor as i32) })
+}
+#[cfg(target_os = "macos")]
+fn exit_handle(pid: u32) -> Option<File> {
+    let queue = unsafe { libc::kqueue() };
+    if queue < 0 {
+        return None;
+    }
+    let queue = unsafe { File::from_raw_fd(queue) };
+    if unsafe { libc::fcntl(queue.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) } != 0 {
+        return None;
+    }
+    let mut change: libc::kevent = unsafe { std::mem::zeroed() };
+    change.ident = pid as usize;
+    change.filter = libc::EVFILT_PROC;
+    change.flags = libc::EV_ADD | libc::EV_RECEIPT;
+    change.fflags = libc::NOTE_EXIT;
+    let mut receipt: libc::kevent = unsafe { std::mem::zeroed() };
+    let received = unsafe {
+        libc::kevent(queue.as_raw_fd(), &change, 1, &mut receipt, 1, std::ptr::null())
+    };
+    (received == 1 && (receipt.flags & libc::EV_ERROR == 0 || receipt.data == 0)).then_some(queue)
+}
 pub(super) fn run(
     mut input: Prepared,
     mut scope: Scope,
@@ -102,10 +167,16 @@ pub(super) fn run(
     let launched = (|| {
         let (master, slave) = terminal(input.rows, input.columns)?;
         let parent = unsafe { libc::getpid() };
+        #[cfg(target_os = "linux")]
         let group = scope.procs.as_raw_fd();
+        #[cfg(target_os = "macos")]
+        let tty = {
+            let meta = std::os::unix::fs::MetadataExt::rdev(&slave.metadata().map_err(|_| Error::Spawn)?);
+            u32::try_from(meta).map_err(|_| Error::Spawn)?
+        };
         let directory = input.directory.as_raw_fd();
         let terminal_fd = if input.stdin.is_some() { 1 } else { 0 };
-        let mut command = input.executable.command();
+        let mut command = input.executable.command()?;
         command
             .args(&input.arguments)
             .env_clear()
@@ -126,11 +197,16 @@ pub(super) fn run(
         // executable code can fork. setsid descendants stay in that scope.
         unsafe {
             command.pre_exec(move || {
-                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) != 0
-                    || libc::getppid() != parent
-                    || libc::write(group, b"0".as_ptr().cast(), 1) != 1
+                // macOS has no cgroup to enter; the owner tracks this
+                // session from launch and its watchdog signals the group.
+                soda_parent_death::arm(parent, libc::SIGKILL, true)?;
+                #[cfg(target_os = "linux")]
+                if libc::write(group, b"0".as_ptr().cast(), 1) != 1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::getppid() != parent
                     || libc::setsid() < 0
-                    || libc::ioctl(terminal_fd, libc::TIOCSCTTY, 0) < 0
+                    || libc::ioctl(terminal_fd, TIOCSCTTY as _, 0) < 0
                     || libc::fchdir(directory) != 0
                 {
                     return Err(std::io::Error::last_os_error());
@@ -140,9 +216,12 @@ pub(super) fn run(
         }
         let child = command.spawn().map_err(|_| Error::Spawn)?;
         drop(command);
-        Ok((child, master))
+        #[cfg(target_os = "macos")]
+        return Ok((child, master, tty));
+        #[cfg(target_os = "linux")]
+        Ok((child, master, 0u32))
     })();
-    let (mut child, master) = match launched {
+    let (mut child, master, _tty) = match launched {
         Ok(value) => value,
         Err(error) => {
             let retired = scope.remove().is_ok();
@@ -155,17 +234,20 @@ pub(super) fn run(
         }
     };
     let identity = start_identity(child.id());
+    #[cfg(target_os = "macos")]
+    let identity = identity.and_then(|identity| scope.adopt(child.id(), _tty).map(|_| identity));
     // Capture before exposing readiness or reaping the child. Even a child
     // which has already exited remains this exact kernel process identity.
-    let descriptor = unsafe { libc::syscall(libc::SYS_pidfd_open, child.id(), 0u32) };
-    let pidfd_ok = descriptor >= 0;
-    if pidfd_ok {
-        let descriptor = unsafe { File::from_raw_fd(descriptor as i32) };
-        *shared
-            .pidfd
-            .lock()
-            .unwrap_or_else(|error| error.into_inner()) = Some(descriptor);
-    }
+    let pidfd_ok = match exit_handle(child.id()) {
+        Some(descriptor) => {
+            *shared
+                .pidfd
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some(descriptor);
+            true
+        }
+        None => false,
+    };
     let input_ok = if let Some(bytes) = input.stdin.take() {
         child
             .stdin
@@ -266,6 +348,11 @@ pub(super) fn run(
                     reason.get_or_insert(StopReason::ObservationUnavailable);
                 }
             }
+        }
+        #[cfg(target_os = "macos")]
+        if stopping.is_none() && scope.enforce().is_err() {
+            observation_ok = false;
+            reason.get_or_insert(StopReason::ObservationUnavailable);
         }
         if reason.is_some() && stopping.is_none() {
             observation_ok &= scope.kill().is_ok();

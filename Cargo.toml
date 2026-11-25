@@ -7,6 +7,7 @@ members = [
   "lib/desktop-runtime",
   "lib/execution-protocol",
   "lib/native-process",
+  "lib/parent-death",
   "lib/unix-http",
   "tools/factory-ui",
   "tools/pg-fixture",

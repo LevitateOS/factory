@@ -1,6 +1,6 @@
 # Headless native process primitive
 
-`soda-native-process` owns finite Linux processes without Tauri, Secret Service,
+`soda-native-process` owns finite native processes on Linux and macOS without Tauri, Secret Service,
 a Go product workflow or a browser command surface. Its caller supplies a
 private directory, sealed `Executable`, explicit arguments/environment, PTY size
 and hard limits. The crate executes under its caller's host UID. It is not linked
@@ -55,6 +55,31 @@ exit, empty process tree, complete output and credential release remain distinct
 facts. Owner retirement joins monitors; uncertain cleanup fences further work.
 An exclusive private lock and its file identity bind the scope namespace to its
 profile/storage owner. Reopen retires only retained scopes of that owner.
+
+## macOS
+
+macOS has no cgroups, memfds or pidfds, so the same API is backed differently:
+
+- `Processes::open(root, profile)` takes no delegated root. The owner tracks the
+  launched session leader and every process that descends from it, shares its
+  process group or keeps its terminal as the controlling tty. Membership is
+  judged by exact start time and recorded under `root`, so reopen retires a
+  crashed owner's survivors.
+- Exceeding the memory (physical footprint) or process ceiling kills the whole
+  tree, as a cgroup OOM group kill does. The CPU ceiling is a stop/continue
+  duty cycle. A descendant that both reparents and leaves the group and tty
+  between 10 ms polls can escape tracking; untrusted work therefore runs as a
+  dedicated pool user, never in the desktop user's tree alone.
+- `Executable::capture` copies the hashed bytes to a fresh 0500 file in the
+  per-user private temporary directory and executes that path only while it
+  still names the hashed inode.
+- A kqueue exit registration replaces the pidfd; a detached watchdog replaces
+  `PR_SET_PDEATHSIG` and signals the child's process group.
+
+The Muse connector fixture (finish, cancel, owner loss at initial and observation
+replies) and one live saved-login Muse call passed through this backend on
+macOS 27 arm64 with `factory-native-mcp-signing-check ROOT HELPER muse-connector`
+and `muse-login`.
 
 Launch also captures a Linux pidfd before readiness or reaping. `Process::is_live`
 polls that exact kernel identity; missing or failed observation returns an error.

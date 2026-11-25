@@ -61,11 +61,74 @@ pub(super) fn private(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// macOS has no user service manager to own the connector. Launch it directly
+/// as its own process-group leader with the same fixed environment, no core
+/// dumps and an owner-only umask. Like the Linux service it outlives a lost
+/// owner: input EOF makes it cancel, retire its tree and retain the terminal
+/// receipt within its own deadline.
+#[cfg(target_os = "macos")]
+fn connector_command(helper: &Path, directory: &Path) -> Command {
+    use std::os::unix::process::CommandExt;
+    let mut command = Command::new(helper);
+    command
+        .current_dir(directory)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .process_group(0);
+    for name in USER_ENV {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
+    unsafe {
+        command.pre_exec(|| {
+            libc::umask(0o077);
+            let zero = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            if libc::setrlimit(libc::RLIMIT_CORE, &zero) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    command
+}
+/// Exact start time of a live, non-zombie process.
+#[cfg(target_os = "macos")]
+pub(super) fn process_start(pid: i32) -> Option<u64> {
+    let mut value = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
+    let read = unsafe {
+        libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, value.as_mut_ptr().cast(), size)
+    };
+    if read != size {
+        return None;
+    }
+    let value = unsafe { value.assume_init() };
+    (value.pbi_status != libc::SZOMB)
+        .then_some(value.pbi_start_tvsec * 1_000_000 + value.pbi_start_tvusec)
+}
+/// Persist the launched connector's exact process identity so recovery can
+/// prove it stopped without a service manager.
+#[cfg(target_os = "macos")]
+fn record_connector(directory: &Path, pid: u32) -> io::Result<()> {
+    let start = process_start(pid as i32).ok_or_else(|| refused("Muse connector exited at launch"))?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("connector.json"))?;
+    file.write_all(&serde_json::to_vec(&serde_json::json!({"pid": pid, "start": start}))?)?;
+    file.sync_all()?;
+    File::open(directory)?.sync_all()
+}
+
 pub struct MuseConnector {
     child: Child,
     input: Option<ChildStdin>,
     output: ChildStdout,
     buffer: Vec<u8>,
+    #[cfg(target_os = "linux")]
     unit: String,
     directory: PathBuf,
     run: String,
@@ -155,9 +218,13 @@ impl MuseConnector {
         file.write_all(&serde_json::to_vec(&binding)?)?;
         file.sync_all()?;
         File::open(&directory)?.sync_all()?;
+        #[cfg(target_os = "macos")]
+        let mut command = connector_command(&helper, &directory);
+        #[cfg(target_os = "linux")]
         let mut command = Command::new("/usr/bin/systemd-run");
         // The provider may use an isolated Secret Service session. Reach the
         // user manager independently, then pass that session to the provider.
+        #[cfg(target_os = "linux")]
         command
             .env_remove("DBUS_SESSION_BUS_ADDRESS")
             .args([
@@ -182,6 +249,7 @@ impl MuseConnector {
                 request.duration_ms.div_ceil(1000) + 150
             ))
             .arg(format!("--working-directory={}", directory.display()));
+        #[cfg(target_os = "linux")]
         for name in USER_ENV {
             if let Some(value) = std::env::var_os(name) {
                 let mut argument = std::ffi::OsString::from(format!("--setenv={name}="));
@@ -189,13 +257,20 @@ impl MuseConnector {
                 command.arg(argument);
             }
         }
+        #[cfg(target_os = "linux")]
+        command.arg("--").arg(&helper);
         command
-            .arg("--")
-            .arg(&helper)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(stderr);
         let mut child = command.spawn()?;
+        #[cfg(target_os = "macos")]
+        if let Err(error) = record_connector(&directory, child.id()) {
+            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL) };
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
         let output = child
             .stdout
             .take()
@@ -209,6 +284,7 @@ impl MuseConnector {
             input: Some(input),
             output,
             buffer: Vec::new(),
+            #[cfg(target_os = "linux")]
             unit,
             directory,
             run: request.run,
@@ -507,8 +583,23 @@ impl Drop for MuseConnector {
         }
         let _ = self.cancel();
         self.input.take();
+        #[cfg(target_os = "macos")]
+        {
+            // The connector leads its own process group and its native owner
+            // retires the Muse tree on cancellation or input EOF. Wait for
+            // that bounded retirement before forcing the group.
+            let until = Instant::now() + Duration::from_secs(12);
+            while Instant::now() < until {
+                if self.child.try_wait().ok().flatten().is_some() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            unsafe { libc::kill(-(self.child.id() as i32), libc::SIGKILL) };
+        }
         // The fresh native service name was retained before launch. Stop only
         // that service, including descendants if a protocol reply was lost.
+        #[cfg(target_os = "linux")]
         let stop = Command::new("/usr/bin/systemctl")
             .env_remove("DBUS_SESSION_BUS_ADDRESS")
             .args(["--user", "stop", "--", &self.unit])
@@ -516,6 +607,7 @@ impl Drop for MuseConnector {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn();
+        #[cfg(target_os = "linux")]
         if let Ok(mut stop) = stop {
             let until = Instant::now() + Duration::from_secs(12);
             while Instant::now() < until {

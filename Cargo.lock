@@ -3911,6 +3911,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "soda-execution-protocol",
+ "soda-parent-death",
  "soda-unix-http",
  "time",
  "tokio",
@@ -3972,7 +3973,15 @@ dependencies = [
  "libc",
  "sha2 0.11.1",
  "soda-execution-protocol",
+ "soda-parent-death",
  "zeroize",
+]
+
+[[package]]
+name = "soda-parent-death"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

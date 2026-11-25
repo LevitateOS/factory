@@ -31,6 +31,11 @@ impl CreationContext {
         if metadata.uid() != unsafe { libc::geteuid() } || metadata.mode() & 0o7777 != 0o700 {
             return Err(refused("snapshot destination is not private"));
         }
+        // macOS has no filename-based label transitions to suppress.
+        #[cfg(not(target_os = "linux"))]
+        return Ok(Self(None));
+        #[cfg(target_os = "linux")]
+        {
         let mut label = vec![0; 4096];
         let size = unsafe {
             libc::fgetxattr(
@@ -64,6 +69,7 @@ impl CreationContext {
         let context = Self(Some((attribute, previous)));
         Self::write(&context.0.as_ref().unwrap().0, &label)?;
         Ok(context)
+        }
     }
     fn write(attribute: &File, label: &[u8]) -> io::Result<()> {
         // A zero-length write resets the default; write_all([]) would skip it.

@@ -1,4 +1,5 @@
-//! Headless Linux process/resource primitive. It executes as its own caller UID;
+//! Headless native process/resource primitive: a delegated cgroup on Linux, an
+//! owner-tracked session tree on macOS. It executes as its own caller UID;
 //! callers must supply an isolated worker identity for untrusted workspace
 //! commands. A trusted provider connector may use its caller's saved login with
 //! a fixed CLI/tool contract; that is not an isolated workspace worker.
@@ -21,6 +22,7 @@ use storage::{private_dir, private_file};
 use zeroize::Zeroizing;
 mod executable;
 mod process;
+#[cfg_attr(target_os = "macos", path = "scope_macos.rs")]
 mod scope;
 pub use executable::Executable;
 
@@ -128,6 +130,8 @@ struct Shared {
     // The bounded terminal capture, readable while the process runs.
     captured: Mutex<Vec<u8>>,
     pidfd: Mutex<Option<File>>,
+    #[cfg(target_os = "macos")]
+    exited: AtomicBool,
     cancelled: AtomicBool,
     done: Condvar,
 }
@@ -141,6 +145,35 @@ impl Process {
     /// Query the kernel handle captured at launch. PID reuse cannot turn an
     /// exited child into a live observation. This says nothing about remaining
     /// descendants, sealed output, custody or product admission.
+    #[cfg(target_os = "macos")]
+    pub fn is_live(&self) -> Result<bool> {
+        if self.shared.exited.load(Ordering::SeqCst) {
+            return Ok(false);
+        }
+        let descriptor = self.shared.pidfd.lock().map_err(|_| Error::Observation)?;
+        let descriptor = descriptor.as_ref().ok_or(Error::Observation)?;
+        let mut event: libc::kevent = unsafe { std::mem::zeroed() };
+        let zero = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        for _ in 0..8 {
+            let ready = unsafe {
+                libc::kevent(descriptor.as_raw_fd(), std::ptr::null(), 0, &mut event, 1, &zero)
+            };
+            if ready == 0 {
+                return Ok(true);
+            }
+            if ready == 1 && event.filter == libc::EVFILT_PROC && event.fflags & libc::NOTE_EXIT != 0 {
+                self.shared.exited.store(true, Ordering::SeqCst);
+                return Ok(false);
+            }
+            if ready >= 0
+                || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted
+            {
+                return Err(Error::Observation);
+            }
+        }
+        Err(Error::Observation)
+    }
+    #[cfg(target_os = "linux")]
     pub fn is_live(&self) -> Result<bool> {
         let descriptor = self.shared.pidfd.lock().map_err(|_| Error::Observation)?;
         let descriptor = descriptor.as_ref().ok_or(Error::Observation)?;
@@ -218,7 +251,21 @@ pub struct Processes {
 impl Processes {
     /// root is private retained native storage; profile is the configured Rust
     /// profile identity, not a browser-selected canonical product identifier.
+    #[cfg(target_os = "linux")]
     pub fn open(root: &Path, delegated: &Path, profile: &str) -> Result<Self> {
+        Self::open_scoped(root, profile, |namespace| scope::Root::open(delegated, namespace))
+    }
+    /// macOS has no delegated kernel scope; the owner tracks each launched
+    /// session tree and records it under `root`.
+    #[cfg(target_os = "macos")]
+    pub fn open(root: &Path, profile: &str) -> Result<Self> {
+        Self::open_scoped(root, profile, |namespace| scope::Root::open(root, namespace))
+    }
+    fn open_scoped(
+        root: &Path,
+        profile: &str,
+        scopes: impl FnOnce(&str) -> Result<scope::Root>,
+    ) -> Result<Self> {
         if !id(profile) {
             return Err(Error::Invalid);
         }
@@ -239,7 +286,7 @@ impl Processes {
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect();
-        let scopes = scope::Root::open(delegated, &namespace)?;
+        let scopes = scopes(&namespace)?;
         Ok(Self {
             root: root.into(),
             scopes,
@@ -320,6 +367,8 @@ impl Processes {
         let scope = self.scopes.create(&invocation, &input.limits)?;
         let shared = Arc::new(Shared {
             pidfd: Mutex::new(None),
+            #[cfg(target_os = "macos")]
+            exited: AtomicBool::new(false),
             captured: Mutex::new(Vec::new()),
             observation: Mutex::new(Observation {
                 invocation,

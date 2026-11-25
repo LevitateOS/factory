@@ -11,7 +11,9 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
+#[cfg(target_os = "linux")]
 use std::time::{Duration, Instant};
 
 const HEADER_LIMIT: usize = 8192;
@@ -346,6 +348,50 @@ pub(super) fn retained_process(
     Ok(found)
 }
 
+/// macOS: the recorded connector and every process its native owner still
+/// records must be gone, each judged by exact start time, not PID alone.
+#[cfg(target_os = "macos")]
+pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::Result<()> {
+    let directory = profile.join("native-muse-runs").join(&process.service);
+    super::muse::private(&directory)?;
+    let live = |pid: i64, start: u64| {
+        i32::try_from(pid).ok().filter(|pid| *pid > 1).and_then(super::muse::process_start) == Some(start)
+    };
+    match read(&directory.join("connector.json"), 256) {
+        Ok(bytes) => {
+            let connector: serde_json::Value = serde_json::from_slice(&bytes)?;
+            let pid = connector["pid"].as_i64().ok_or_else(denied)?;
+            let start = connector["start"].as_u64().ok_or_else(denied)?;
+            if live(pid, start) {
+                return Err(denied());
+            }
+        }
+        // Without a recorded identity the connector was killed at launch,
+        // before it could read its invocation.
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
+    for entry in std::fs::read_dir(&directory)? {
+        let entry = entry?;
+        if !entry.file_name().to_str().is_some_and(|name| name.starts_with("scopes-")) {
+            continue;
+        }
+        super::muse::private(&entry.path())?;
+        for record in std::fs::read_dir(entry.path())? {
+            let text = String::from_utf8(read(&record?.path(), 65536)?).map_err(io::Error::other)?;
+            for line in text.lines() {
+                let (pid, start) = line.split_once(' ').ok_or_else(denied)?;
+                let pid: i64 = pid.parse().map_err(|_| denied())?;
+                let start: u64 = start.parse().map_err(|_| denied())?;
+                if live(pid, start) {
+                    return Err(denied());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+#[cfg(target_os = "linux")]
 pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::Result<()> {
     let unit = format!(
         "soda-factory-muse-{}-{}.service",

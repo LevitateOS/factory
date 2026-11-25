@@ -93,7 +93,7 @@ impl MuseLogin {
                 for name in super::muse::USER_ENV {
                     if let Some(value) = std::env::var_os(name) { command.env(name, value); }
                 }
-                crate::child_process::parent_death(&mut command, libc::SIGKILL);
+                soda_parent_death::parent_death(&mut command, libc::SIGKILL);
                 let mut child = command.spawn()?;
                 let mut exited = false;
                 let result = (|| {

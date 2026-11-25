@@ -9,8 +9,6 @@ pub mod credentials;
 #[cfg(unix)]
 pub mod database;
 #[cfg(unix)]
-mod child_process;
-#[cfg(unix)]
 mod private_fs;
 #[cfg(unix)]
 mod unix_socket;

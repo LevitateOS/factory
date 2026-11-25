@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if args.first().is_some_and(|arg| arg == "exec") {
-        let fixture = fs::read("/proc/self/exe")?;
+        let fixture = fs::read(own_executable()?)?;
         if fixture.ends_with(b"\0factory-tool-pause-probe") {
             fs::write("probe-entered", std::process::id().to_string())?;
             std::thread::sleep(Duration::from_secs(120));
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.first().is_some_and(|arg| arg == "tool-capture") {
         use sha2::Digest;
-        let captured = fs::read("/proc/self/exe")?;
+        let captured = fs::read(own_executable()?)?;
         let captured_sha: String = Sha256::digest(&captured).iter().map(|byte| format!("{byte:02x}")).collect();
         println!("{captured_sha}");
         std::io::stdout().flush()?;
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if unsafe { libc::poll(&mut input, 1, 30000) } != 1 {
             return Err("captured tool release missing".into());
         }
-        if fs::read("/proc/self/exe")? != captured {
+        if fs::read(own_executable()?)? != captured {
             return Err("active captured executable changed".into());
         }
         println!("{captured_sha}");
@@ -622,7 +622,7 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     let prompt = fs::read_to_string(option("--prompt-file")?)?;
     if prompt == "wait" {
-        let mut child = Command::new("/proc/self/exe")
+        let mut child = Command::new(own_executable()?)
             .arg("muse-fixture-descendant")
             .spawn()?;
         fs::write("child.pid", child.id().to_string())?;
@@ -928,7 +928,7 @@ fn muse_connector(
         let binding: serde_json::Value =
             serde_json::from_slice(&fs::read(directory.join("binding.json"))?)?;
         let unit = binding["unit"].as_str().ok_or("connector unit missing")?;
-        connector_service_retired(unit)?;
+        connector_service_retired(&directory, unit)?;
         println!("PASS: {mode}: fixed CLI source, exact process/output receipt, tree retired and service MainPID zero ({})",directory.display());
     }
     if !live {
@@ -964,14 +964,60 @@ fn muse_connector(
                 || result.output_sha256.as_deref() != Some(digest.as_str()) {
                 return Err("lost owner terminal process/output binding differs".into());
             }
-            connector_service_retired(binding["unit"].as_str().ok_or("interrupted unit missing")?)?;
+            connector_service_retired(&directory, binding["unit"].as_str().ok_or("interrupted unit missing")?)?;
             println!("PASS: owner lost at {phase} reply; actual terminal process/output receipt survives disconnected pipes, exact service retires; no model or inference replay");
         }
     }
     Ok(())
 }
 
-fn connector_service_retired(unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+/// The running fixture's own bytes: Linux reopens the captured memfd image;
+/// macOS executes the owner's pinned private copy by path.
+fn own_executable() -> std::io::Result<PathBuf> {
+    if cfg!(target_os = "linux") {
+        Ok(PathBuf::from("/proc/self/exe"))
+    } else {
+        std::env::current_exe()
+    }
+}
+/// macOS has no service manager: the recorded connector process and every
+/// process its native owner recorded must be gone by exact start time.
+#[cfg(target_os = "macos")]
+fn connector_service_retired(directory: &Path, _unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let start = |pid: i32| -> Option<u64> {
+        let mut value = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+        let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
+        let read = unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, value.as_mut_ptr().cast(), size) };
+        let value = unsafe { value.assume_init() };
+        (read == size && value.pbi_status != libc::SZOMB).then_some(value.pbi_start_tvsec * 1_000_000 + value.pbi_start_tvusec)
+    };
+    let connector: serde_json::Value = serde_json::from_slice(&fs::read(directory.join("connector.json"))?)?;
+    let mut recorded = vec![(connector["pid"].as_i64().ok_or("connector pid missing")?, connector["start"].as_u64().ok_or("connector start missing")?)];
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        if entry.file_name().to_str().is_some_and(|name| name.starts_with("scopes-")) {
+            for record in fs::read_dir(entry.path())? {
+                let record = record?;
+                if record.file_name().to_str().is_some_and(|name| !name.starts_with(".pending-")) {
+                    return Err("native owner left a process scope record".into());
+                }
+            }
+        }
+    }
+    let until = std::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        recorded.retain(|(pid, expected)| start(*pid as i32) == Some(*expected));
+        if recorded.is_empty() {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= until {
+            return Err("connector process retirement unconfirmed".into());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+#[cfg(target_os = "linux")]
+fn connector_service_retired(_directory: &Path, unit: &str) -> Result<(), Box<dyn std::error::Error>> {
     let until = std::time::Instant::now() + Duration::from_secs(3);
     loop {
         let state = Command::new("/usr/bin/systemctl").env_remove("DBUS_SESSION_BUS_ADDRESS")

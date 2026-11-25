@@ -1,3 +1,6 @@
+//! Parent-death delivery shared by the desktop runtime and the native process
+//! owner, so both rely on one defining implementation per host.
+#![cfg(unix)]
 use std::io;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
@@ -5,11 +8,11 @@ use std::process::Command;
 /// Delivers `signal` to the child when this process dies, including abrupt
 /// death. The child refuses to exec if the watch cannot be armed or its parent
 /// is already gone.
-pub(crate) fn parent_death(command: &mut Command, signal: i32) {
+pub fn parent_death(command: &mut Command, signal: i32) {
     let parent = unsafe { libc::getpid() };
     unsafe {
         command.pre_exec(move || {
-            arm(parent, signal)?;
+            arm(parent, signal, false)?;
             if libc::getppid() != parent {
                 return Err(io::Error::from_raw_os_error(libc::ESRCH));
             }
@@ -18,10 +21,16 @@ pub(crate) fn parent_death(command: &mut Command, signal: i32) {
     }
 }
 
+/// Arm parent death from inside a caller's own `pre_exec`. With `group`, macOS
+/// also signals the child's process group, which the caller must make it lead
+/// before exec; Linux callers own their tree through a cgroup instead.
+///
+/// # Safety
+/// Call only between fork and exec, with `parent` read before the fork.
 // Linux parent-death ownership is tied to the spawning thread. The supervisor
 // keeps a dedicated owner thread alive until its children have stopped.
 #[cfg(target_os = "linux")]
-unsafe fn arm(_parent: libc::pid_t, signal: i32) -> io::Result<()> {
+pub unsafe fn arm(_parent: libc::pid_t, signal: i32, _group: bool) -> io::Result<()> {
     if libc::prctl(libc::PR_SET_PDEATHSIG, signal) != 0 {
         return Err(io::Error::last_os_error());
     }
@@ -35,7 +44,7 @@ unsafe fn arm(_parent: libc::pid_t, signal: i32) -> io::Result<()> {
 // from ever observing an unknown child of its own. Only async-signal-safe
 // system calls run between fork and exec.
 #[cfg(target_os = "macos")]
-unsafe fn arm(parent: libc::pid_t, signal: i32) -> io::Result<()> {
+pub unsafe fn arm(parent: libc::pid_t, signal: i32, group: bool) -> io::Result<()> {
     let child = libc::getpid();
     let mut ready = [0; 2];
     if libc::pipe(ready.as_mut_ptr()) != 0 {
@@ -51,7 +60,7 @@ unsafe fn arm(parent: libc::pid_t, signal: i32) -> io::Result<()> {
     if middle == 0 {
         libc::close(ready[0]);
         if libc::fork() == 0 {
-            watchdog(parent, child, signal, ready[1]);
+            watchdog(parent, child, signal, group, ready[1]);
         }
         libc::_exit(0);
     }
@@ -73,7 +82,7 @@ unsafe fn arm(parent: libc::pid_t, signal: i32) -> io::Result<()> {
 }
 
 #[cfg(target_os = "macos")]
-unsafe fn watchdog(parent: libc::pid_t, child: libc::pid_t, signal: i32, ready: i32) -> ! {
+unsafe fn watchdog(parent: libc::pid_t, child: libc::pid_t, signal: i32, group: bool, ready: i32) -> ! {
     libc::setsid();
     for ignored in [
         libc::SIGHUP,
@@ -143,6 +152,9 @@ unsafe fn watchdog(parent: libc::pid_t, child: libc::pid_t, signal: i32, ready: 
                 continue;
             }
             // An unobservable parent is treated as a dead one.
+            if group {
+                libc::kill(-child, signal);
+            }
             libc::kill(child, signal);
             libc::_exit(1);
         }
@@ -151,6 +163,9 @@ unsafe fn watchdog(parent: libc::pid_t, child: libc::pid_t, signal: i32, ready: 
             libc::_exit(0);
         }
         if events.iter().any(|event| event.ident == parent as usize) {
+            if group {
+                libc::kill(-child, signal);
+            }
             libc::kill(child, signal);
             libc::_exit(0);
         }

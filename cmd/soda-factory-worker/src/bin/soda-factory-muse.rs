@@ -2,20 +2,24 @@
 //! isolated worker; this process lets Muse read its own saved authentication.
 //! Launched only by the native owner in a dedicated delegated user service.
 #[cfg(unix)]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
 mod connector {
     use sha2::{Digest, Sha256};
     use soda_execution_protocol::{MuseInvocation, MuseObservation, MAX_MUSE_INPUT};
-    #[cfg(target_os = "linux")]
     use soda_native_process::{Executable, Invocation, Limits, Observation, Processes};
     use std::collections::BTreeMap;
-    use std::ffi::{OsStr, OsString};
+    #[cfg(target_os = "linux")]
+    use std::ffi::OsStr;
+    use std::ffi::OsString;
     use std::fs::{self, File, OpenOptions};
     use std::io::{self, Read, Write};
-    use std::os::fd::{AsRawFd, FromRawFd};
+    #[cfg(target_os = "linux")]
+    use std::os::fd::AsRawFd;
+    use std::os::fd::FromRawFd;
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
     use std::os::unix::process::CommandExt;
-    use std::path::{Component, Path};
+    #[cfg(target_os = "linux")]
+    use std::path::Component;
+    use std::path::Path;
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant, UNIX_EPOCH};
 
@@ -48,6 +52,12 @@ mod connector {
             .open(path)?;
         file.write_all(bytes)?;
         file.sync_all()
+    }
+    // The desktop owner starts this connector as its own session leader; the
+    // native owner tracks and bounds the Muse tree beneath it.
+    #[cfg(target_os = "macos")]
+    fn process_owner(root: &Path, run: &str, _service: &str) -> io::Result<Processes> {
+        Processes::open(root, run).map_err(io::Error::other)
     }
     #[cfg(target_os = "linux")]
     fn process_owner(root: &Path, run: &str, service: &str) -> io::Result<Processes> {
@@ -291,7 +301,6 @@ mod connector {
         }
         Err(command.exec())
     }
-    #[cfg(target_os = "linux")]
     fn observation(
         request: &MuseInvocation,
         state: &Observation,
@@ -355,7 +364,6 @@ mod connector {
         output.flush()
     }
 
-    #[cfg(target_os = "linux")]
     fn retain_terminal(
         root: &Path,
         request: &MuseInvocation,
@@ -393,11 +401,6 @@ mod connector {
         }
         connect()
     }
-    #[cfg(not(target_os = "linux"))]
-    fn connect() -> io::Result<()> {
-        Err(refused("Muse connector run launch is not installed on this host"))
-    }
-    #[cfg(target_os = "linux")]
     fn connect() -> io::Result<()> {
         let root = std::env::current_dir()?;
         private(&root)?;

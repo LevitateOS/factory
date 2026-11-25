@@ -1,6 +1,6 @@
 //! Owned PostgreSQL child on a private, authenticated Unix socket. Never adopts
 //! or stops another server, overwrites a cluster, or opens a TCP listener.
-use crate::child_process::parent_death;
+use soda_parent_death::parent_death;
 use crate::private_fs::{private_dir, private_file, read_bytes};
 use std::error::Error;
 use std::fs::{self, File};

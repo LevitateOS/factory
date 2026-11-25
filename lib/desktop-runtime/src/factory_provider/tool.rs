@@ -322,7 +322,7 @@ impl Tools {
                 command.arg("--inspect-tool").arg(&executable).arg(&expected).arg(mode)
                     .current_dir(&directory.0).env_clear().env("PATH", "/usr/bin:/bin")
                     .stdin(Stdio::null()).stdout(output).stderr(Stdio::null()).process_group(0);
-                crate::child_process::parent_death(&mut command, libc::SIGKILL);
+                soda_parent_death::parent_death(&mut command, libc::SIGKILL);
                 unsafe {
                     command.pre_exec(|| {
                         let bound = libc::rlimit { rlim_cur: 1024 * 1024, rlim_max: 1024 * 1024 };
