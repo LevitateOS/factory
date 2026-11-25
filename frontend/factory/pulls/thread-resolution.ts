@@ -99,8 +99,10 @@ export class SodaFactoryThreadResolution extends LitElement {
     if (!context || !this.journal.live(context, signal) || this.busy || this.journal.blocked) return;
     this.busy = true; this.message = ''; this.touch();
     try {
-      const selected = action === 'submit' || action === 'retry' ? await this.admit(context, signal) : undefined;
-      if (!selected) await this.journal.identity(context, signal);
+      // The selection opened for this thread is the one submitted; the connector
+      // checks the thread again right before it sends.
+      await this.journal.identity(context, signal);
+      const selected = action === 'submit' || action === 'retry' ? this.selection : undefined;
       let pending = this.journal.stored(context);
       if (action === 'submit') {
         check(selected && !pending && desired !== undefined && desired !== selected.resolved);

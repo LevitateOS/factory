@@ -132,30 +132,15 @@ func (s nativeHumanReviewRequests) PrepareHumanReviewRequest(ctx context.Context
 	if err != nil {
 		return empty, err
 	}
+	// The connector checks plan limits and the current requests right before it
+	// sends, so they are not read here.
 	pullID := ""
-	if q.Requested {
-		requests, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadReviewRequests(ctx, q.Actor, q.Repository, q.Number)
-		if err != nil {
-			return empty, err
-		}
-		manual := 0
-		for _, request := range requests.Items {
-			if !request.AsCodeOwner {
-				manual++
-			}
-		}
-		if requests.Limits == nil || target.Kind == "team" && !requests.Limits.Teams || manual >= requests.Limits.Maximum {
-			return empty, factoryservice.ErrHumanReviewRequestAdmission
-		}
-		pullID = requests.Pull.ExternalID
-	} else {
-		page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadPulls(ctx, q.Actor, q.Repository, factoryservice.CollaborationPullQuery{Number: q.Number, Limit: 1})
-		if err != nil {
-			return empty, err
-		}
-		if len(page.Items) == 1 {
-			pullID = page.Items[0].Ref.ExternalID
-		}
+	page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadPulls(ctx, q.Actor, q.Repository, factoryservice.CollaborationPullQuery{Number: q.Number, Limit: 1})
+	if err != nil {
+		return empty, err
+	}
+	if len(page.Items) == 1 {
+		pullID = page.Items[0].Ref.ExternalID
 	}
 	if !nativeRemoteID(pullID) {
 		return empty, factoryservice.ErrHumanReviewRequestAdmission
