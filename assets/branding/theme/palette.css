@@ -2,6 +2,7 @@
  * Values only: native theme selection and application keys belong in adapters. */
 :root {
   /* Approved factory role identities, shared by feed posts and role artwork. */
+  --soda-role-issue-maker: #8a5a2b;
   --soda-role-product-lead: #df001b;
   --soda-role-architect: #8054e8;
   --soda-role-builder: #f47b20;

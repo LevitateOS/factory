@@ -3,7 +3,7 @@ import {live} from 'lit/directives/live.js';
 import type {TemplateResult} from 'lit';
 import type {FeedPostDetail, PostPipelineState, FeedEntry, FeedJudgment} from './feed-response.js';
 import {postAttemptsExhausted, feedEntryKey} from './feed-response.js';
-import {feedRolePortraits, roleLabel} from './roles.js';
+import {feedRolePortraits, roleInitials, roleLabel} from './roles.js';
 import {describePostLine, feedStateWords} from './feed-thread.js';
 import type {FeedState, FeedThreadItem} from './feed-thread.js';
 import {renderFeedCommunication} from './feed-communication.js';
@@ -649,7 +649,7 @@ export function renderNeedsMe(
               (row) => html`<li>
                 <a href=${row.href}>
                   <span class="soda-feed-needs-face" aria-hidden="true"
-                    >${row.avatarFile ? html`<img src=${assetBase + row.avatarFile} alt="" width="28" height="28" loading="lazy" />` : row.name.slice(0, 1).toUpperCase()}</span
+                    >${row.avatarFile ? html`<img src=${assetBase + row.avatarFile} alt="" width="28" height="28" loading="lazy" />` : (roleInitials(row.role) ?? row.name.slice(0, 1).toUpperCase())}</span
                   >
                   <span class="soda-feed-needs-text"
                     ><span class="soda-feed-needs-hl">${row.headline}</span
@@ -862,7 +862,7 @@ function renderPortrait(model: FeedPostModel, assetBase: string): TemplateResult
               loading="lazy"
               decoding="async"
             />`
-          : model.name.slice(0, 1).toUpperCase()
+          : (roleInitials(model.role) ?? model.name.slice(0, 1).toUpperCase())
       }</span
     >
   </div>`;

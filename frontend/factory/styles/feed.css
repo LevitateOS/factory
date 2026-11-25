@@ -132,6 +132,9 @@ soda-factory-feed {
 /* The shared palette owns the approved role colors. Keep the exact color on
    each card's top edge; derive readable text and subtle surfaces for both themes.
    Status retains its own semantic colors independently of author identity. */
+.soda-feed-post[data-role='issue_maker'] {
+  --soda-feed-role-color: var(--soda-role-issue-maker);
+}
 .soda-feed-post[data-role='product_lead'] {
   --soda-feed-role-color: var(--soda-role-product-lead);
 }
