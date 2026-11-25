@@ -1775,39 +1775,31 @@ soda-factory-library {
 .soda-action-decision {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 .soda-decision-inputs {
-  background: var(--soda-feed-tint);
-  border: 1px solid var(--soda-feed-edge);
-  padding: 12px 16px;
-}
-.soda-decision-inputs .soda-action-items > li {
-  padding-block: 8px;
+  border: 1px solid var(--soda-feed-line);
+  padding: 10px 12px;
 }
 .soda-decision-route {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  color: var(--soda-feed-role);
-  line-height: 1.2;
-  gap: 3px;
-  padding-block: 5px;
-}
-.soda-decision-route strong {
-  padding: 3px 12px;
-  border: 1px solid var(--soda-feed-role);
-  font: var(--soda-font-caption);
-  letter-spacing: 0.04em;
+  justify-content: center;
+  gap: 10px;
+  color: var(--soda-page-text);
+  font: 500 13px/20px var(--soda-font-mono-family);
 }
 .soda-decision-choice {
-  border: 1px solid var(--soda-feed-edge);
-  border-top: 2px solid var(--soda-feed-role);
-  padding: 14px 16px;
+  border: 1px solid var(--soda-page-text);
+  padding: 10px 12px;
 }
 .soda-feed-card .soda-decision-choice > p {
   font: var(--soda-font-label);
   font-size: 15px;
   line-height: 1.5;
+}
+.soda-feed-card .soda-decision-choice .soda-action-reason {
+  padding-top: 6px;
 }
 .soda-action-investigation {
   display: grid;
@@ -2035,24 +2027,24 @@ soda-factory-library {
   color: var(--soda-feed-bad);
 }
 .soda-action-notebook {
-  border: 1px solid var(--soda-feed-edge);
-  border-inline-start: 3px solid var(--soda-feed-role);
-  padding: 14px 16px;
-  background: var(--soda-feed-tint);
+  display: grid;
+  gap: 10px;
 }
 .soda-notebook-label {
-  margin-bottom: 12px;
-  color: var(--soda-feed-role);
-  font: var(--soda-font-caption);
+  font: 600 14px/20px Barlow, Arial, sans-serif;
 }
 .soda-notebook-label > span {
   color: var(--soda-page-muted);
+  font: 500 12px/18px var(--soda-font-mono-family);
 }
 .soda-action-notebook blockquote {
   margin: 0;
-  font-size: 15px;
+  padding: 10px 12px;
+  border: 0;
+  background: var(--soda-page-selected);
+  font-size: 16px;
   line-height: 1.5;
-  font-weight: 500;
+  font-weight: 400;
 }
 .soda-action-proposal {
   display: grid;
@@ -2193,11 +2185,13 @@ soda-factory-library {
   font-size: 15px;
 }
 .soda-action-maintenance {
-  border: 1px solid var(--soda-feed-edge);
-  padding: 14px;
+  display: grid;
+  gap: 12px;
 }
-.soda-action-maintenance > header {
-  margin-bottom: 12px;
+.soda-feed-card .soda-action-maintenance > header h4 {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--soda-page-text);
 }
 .soda-canonical-context {
   display: grid;
@@ -2258,26 +2252,15 @@ soda-factory-library {
 }
 .soda-reassessment-retained {
   padding: 10px 12px;
-  border-inline-start: 2px solid var(--soda-feed-role);
-  background: var(--soda-feed-tint);
+  background: var(--soda-feed-ok-bg);
+}
+.soda-feed-card .soda-reassessment-retained h4 {
+  color: var(--soda-feed-ok);
 }
 .soda-feed-card .soda-reassessment-retained p {
-  font: var(--soda-font-caption);
+  font: var(--soda-font-meta);
 }
 @container (min-width: 480px) {
-  .soda-action-decision:has(> .soda-decision-inputs) {
-    grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
-    align-items: stretch;
-  }
-  .soda-action-decision:has(> .soda-decision-inputs) > .soda-decision-route {
-    justify-content: center;
-  }
-  .soda-action-decision:has(> .soda-decision-inputs) > .soda-decision-route > span {
-    transform: rotate(-90deg);
-  }
-  .soda-action-decision > :is(details, .soda-action-next) {
-    grid-column: 1 / -1;
-  }
   .soda-action-comparison {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   }
@@ -2508,18 +2491,10 @@ soda-factory-library {
   min-height: 30px;
 }
 .soda-feed-card .soda-decision-route strong {
-  background: var(--soda-page-text);
-  color: var(--soda-page-canvas);
-  font-family: var(--soda-font-mono-family);
-  font-size: 10px;
-  white-space: nowrap;
-  padding-inline: 6px;
-}
-.soda-feed-card .soda-decision-choice {
-  border-top-color: var(--soda-feed-role-color);
+  font-weight: 500;
 }
 .soda-feed-card .soda-notebook-label {
-  color: var(--soda-page-muted);
+  color: var(--soda-page-text);
 }
 @media (max-width: 640px) {
   .soda-feed-page {
