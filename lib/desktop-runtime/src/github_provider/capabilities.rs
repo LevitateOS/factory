@@ -29,12 +29,7 @@ impl Reader<'_> {
         // Repository capabilities are all in the repository GitHub already
         // returned; only a subject's viewer capabilities need a query.
         if number.is_none() {
-            let archived = r::boolean(repository, "archived")?;
-            let issues = r::boolean(repository, "has_issues")?;
-            return Ok(json!({"repository":self.repository,"name":self.name,"archived":archived,"disabled":r::boolean(repository,"disabled")?,
-                "issues_enabled":issues,"can_create_issues":issues == true && archived == false,
-                "writer":repository["permissions"]["push"] == true,"merge":r::boolean(repository,"allow_merge_commit")?,
-                "squash":r::boolean(repository,"allow_squash_merge")?,"rebase":r::boolean(repository,"allow_rebase_merge")?,"subject":Value::Null}));
+            return rest_repository_capabilities(self.repository, &self.name, repository);
         }
         let subject=match number{
             Some(_) if pull=>"subject:pullRequest(number:$number){id fullDatabaseId number state locked isDraft merged headRefOid baseRefOid viewerCanUpdate viewerCanClose viewerCanReopen viewerDidAuthor mergeStateStatus reviews(first:1,states:[PENDING]){totalCount nodes{body viewerDidAuthor}}}",
@@ -103,5 +98,36 @@ impl Reader<'_> {
         Ok(
             json!({"repository":self.repository,"name":self.name,"archived":r::boolean(raw,"isArchived")?,"disabled":r::boolean(raw,"isDisabled")?,"issues_enabled":r::boolean(raw,"hasIssuesEnabled")?,"can_create_issues":r::boolean(raw,"viewerCanCreateIssues")?,"writer":matches!(raw["viewerPermission"].as_str(),Some("WRITE"|"MAINTAIN"|"ADMIN")),"merge":r::boolean(raw,"mergeCommitAllowed")?,"squash":r::boolean(raw,"squashMergeAllowed")?,"rebase":r::boolean(raw,"rebaseMergeAllowed")?,"subject":target}),
         )
+    }
+}
+
+fn rest_repository_capabilities(id: &str, name: &str, repository: &Value) -> Result<Value> {
+    let archived = r::boolean(repository, "archived")?;
+    let issues = r::boolean(repository, "has_issues")?;
+    Ok(json!({"repository":id,"name":name,"archived":archived,"disabled":r::boolean(repository,"disabled")?,
+        "issues_enabled":issues,"can_create_issues":issues == true && archived == false,
+        "writer":repository["permissions"]["push"] == true,"merge":r::boolean(repository,"allow_merge_commit")?,
+        "squash":r::boolean(repository,"allow_squash_merge")?,"rebase":r::boolean(repository,"allow_rebase_merge")?,"subject":Value::Null}))
+}
+
+impl Reader<'_> {
+    /// A pull's capabilities from the REST pull and repository already read.
+    /// Pending-review facts are not in them and stay unobserved.
+    pub(super) async fn pull_capabilities_from_rest(&self, pull: &Value) -> Result<Value> {
+        let account = self.client.identity(self.token).await?;
+        let mut projected = rest_repository_capabilities(self.repository, &self.name, &self.raw_repository)?;
+        let head = r::text(&pull["head"], "sha")?;
+        let base = r::text(&pull["base"], "sha")?;
+        if !commit(head) || !commit(base) {
+            return Err(Failure::protocol());
+        }
+        let own = r::id(&pull["user"]["id"])? == account.external_id;
+        let writer = projected["writer"] == true;
+        projected["subject"] = json!({"draft_review":Value::Null,"inline_publish":Value::Null,"kind":"pull",
+            "external_id":r::id(&pull["id"])?,"number":pull["number"],"state":r::text(pull,"state")?,
+            "locked":r::boolean(pull,"locked")?,"can_update":writer || own,"can_close":writer || own,"can_reopen":writer || own,
+            "own":own,"draft":r::boolean(pull,"draft")?,"merged":r::boolean(pull,"merged")?,"head":head,"base":base,
+            "merge_ready":pull["mergeable_state"] == "clean"});
+        Ok(projected)
     }
 }

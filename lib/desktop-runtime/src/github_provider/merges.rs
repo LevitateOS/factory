@@ -170,7 +170,7 @@ impl Reader<'_> {
                 let review = self.automation_review_with_base_tip(number.into(), &pull, Some(r::text(&protection, "branch_commit")?)).await?;
                 Ok((review, protection))
             },
-            self.write_capabilities_for_repository(&self.raw_repository, Some(number), true),
+            self.pull_capabilities_from_rest(&pull),
             self.delivery_opinions_for_pull(number.into(), &self.raw_repository, &pull)
         )?;
         if review["head_tip"] != binding["head"] || review["base_tip"] != binding["base"]
