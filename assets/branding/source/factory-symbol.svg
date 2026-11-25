@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="brand-title brand-description" shape-rendering="geometricPrecision">
+  <title id="brand-title">Factory</title>
+  <desc id="brand-description">Offset geometric plates, the front one a sawtooth roof, surrounding an open bay.</desc>
+  <path fill="#df001b" fill-rule="evenodd" d="M40 0H128V88L88 128H0V40Z M22 83.33L48 66V82L74 64.67V110H22Z"/>
+  <path fill="#101010" fill-rule="evenodd" d="M0 56L48 24V56L96 24V104L72 128H0Z M24 84L48 68V84L72 68V108H24Z"/>
+</svg>
