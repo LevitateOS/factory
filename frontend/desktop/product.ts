@@ -69,7 +69,7 @@ export class DesktopProduct {
       scope: this.scope,
       ...this.selected.identity,
       accountLabel: this.selected.account_label,
-      ...(this.selected.repository ? {selectedRepository: this.selected.repository.id} : {}),
+      ...(this.selected.repository ? {selectedRepository: this.selected.repository.id, repositoryLabel: this.selected.repository.name} : {}),
       route,
       resolve: (route, signal) => this.resolve(route, AbortSignal.any([this.lifetime.signal, signal])),
       navigate: (route) => {

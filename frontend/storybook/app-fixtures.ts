@@ -112,6 +112,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     scope,
     accountLabel: account,
     selectedRepository: appRepository,
+    repositoryLabel: 'acme/factory',
     route,
     async resolve(selected, signal) {
       resolved.push(selected);

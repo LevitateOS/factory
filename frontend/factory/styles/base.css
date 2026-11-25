@@ -44,24 +44,134 @@
   outline: 2px solid var(--soda-page-focus);
   outline-offset: 2px;
 }
-.soda-factory-app > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.soda-factory-app > nav {
+/* Application frame: sidebar plus content. The root keeps the canvas; the
+   sidebar becomes a top block when the window is narrow. */
+.soda-factory-app.soda-factory-root {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 24px;
+  align-items: stretch;
+  min-height: 100vh;
+  padding: 0;
 }
-.soda-factory-app > nav [aria-current='page'] {
-  font-weight: bold;
+.soda-factory-sidebar {
+  flex: 1 0 240px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 12px;
+  border-right: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-selected);
 }
-.soda-factory-app > main {
+.soda-factory-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 12px;
+  font: 800 24px/1 "Barlow Condensed", "Arial Narrow", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.soda-factory-wordmark::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background: var(--soda-role-product-lead);
+}
+.soda-factory-project {
+  border: 1px solid var(--soda-page-text);
+  background: var(--soda-page-surface);
+}
+.soda-factory-project-name {
+  margin: 0;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--soda-page-edge);
+  font: var(--soda-font-label);
+  overflow-wrap: anywhere;
+}
+.soda-factory-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+}
+.soda-factory-sidebar nav button {
+  width: 100%;
+  min-height: 0;
+  padding: 7px 10px 7px 22px;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  font: 400 15px/20px Barlow, Arial, sans-serif;
+}
+.soda-factory-sidebar nav button:hover:not(:disabled) {
+  background: var(--soda-page-hover);
+}
+.soda-factory-sidebar nav button[aria-current="page"] {
+  color: var(--soda-page-canvas);
+  background: var(--soda-page-text);
+  font-weight: 600;
+}
+.soda-factory-acting {
+  margin: auto 0 0;
+  padding: 0 12px;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-caption);
+  overflow-wrap: anywhere;
+}
+.soda-factory-content {
+  flex: 999 1 560px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.soda-factory-content > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+/* The strip holds only the frame's status message; with none it takes no space.
+   Each screen draws its own title. */
+.soda-factory-content > header:has(> p:empty) {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.soda-factory-content > header p {
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-factory-content > main {
+  min-width: 0;
+  padding: 24px 32px 64px;
+}
+@media (max-width: 799px) {
+  .soda-factory-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--soda-page-edge);
+  }
+  .soda-factory-sidebar nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .soda-factory-sidebar nav button {
+    width: auto;
+    padding: 7px 12px;
+  }
+  .soda-factory-acting {
+    margin-top: 0;
+  }
+  .soda-factory-content > header,
+  .soda-factory-content > main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
 
 /* Control defaults for the standalone envelope. Every selector is wrapped in

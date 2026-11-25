@@ -63,6 +63,8 @@ export interface FactoryAppContext {
   readonly accountLabel: string;
   /** Host-selected workspace, retained independently of the current destination. */
   readonly selectedRepository?: string;
+  /** Optional plain-text name of the selected workspace for the sidebar; the frame shows no name without it. */
+  readonly repositoryLabel?: string;
   readonly route: FactoryRoute;
   resolve(route: FactoryRoute, signal: AbortSignal): Promise<FactoryScreen>;
   navigate(route: FactoryRoute): void;
@@ -118,6 +120,12 @@ export class SodaFactoryApp extends LitElement {
       );
       admitFactoryRoute(context.route);
       check(context.selectedRepository === undefined || id(context.selectedRepository));
+      check(
+        context.repositoryLabel === undefined ||
+          (typeof context.repositoryLabel === 'string' &&
+            context.repositoryLabel.length <= 256 &&
+            !/[\u0000-\u001f\u007f]/.test(context.repositoryLabel))
+      );
       if (context.selectedRepository !== undefined && 'repository' in context.route && context.route.repository !== undefined)
         check(context.selectedRepository === context.route.repository);
       if (context.route.kind === 'feed' && !context.route.repository && context.selectedRepository)
@@ -476,31 +484,39 @@ export class SodaFactoryApp extends LitElement {
           ]
         : []),
     ];
+    const project = context?.repositoryLabel?.trim();
     return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''}>
-      <header>
-        <h1>Factory</h1>
-        ${context ? html`<p>Acting as ${context.accountLabel}</p>` : ''}
-      </header>
-      <nav aria-label="Factory">
-        ${links.map(
-          (link) => html`<button
-            type="button"
-            aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
-            ?disabled=${!context}
-            @click=${() => this.navigate(link.route)}
-          >
-            ${link.label}
-          </button>`
-        )}
-      </nav>
-      <main
-        aria-label=${context ? factoryRouteTitle(context.route) : 'Factory'}
-        aria-busy=${this.busy ? 'true' : 'false'}
-      >
-        <p role="status">${this.message}</p>
-        ${this.screen ?? ''}
-        ${context && !this.screen && !this.busy ? html`<button type="button" @click=${() => void this.load(context)}>Refresh view</button>` : ''}
-      </main>
+      <aside class="soda-factory-sidebar">
+        <p class="soda-factory-wordmark">Factory</p>
+        <div class="soda-factory-project">
+          ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
+          <nav aria-label="Factory">
+            ${links.map(
+              (link) => html`<button
+                type="button"
+                aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
+                ?disabled=${!context}
+                @click=${() => this.navigate(link.route)}
+              >
+                ${link.label}
+              </button>`
+            )}
+          </nav>
+        </div>
+        ${context ? html`<p class="soda-factory-acting">Acting as ${context.accountLabel}</p>` : ''}
+      </aside>
+      <div class="soda-factory-content">
+        <header>
+          <p role="status">${this.message}</p>
+        </header>
+        <main
+          aria-label=${context ? factoryRouteTitle(context.route) : 'Factory'}
+          aria-busy=${this.busy ? 'true' : 'false'}
+        >
+          ${this.screen ?? ''}
+          ${context && !this.screen && !this.busy ? html`<button type="button" @click=${() => void this.load(context)}>Refresh view</button>` : ''}
+        </main>
+      </div>
     </div>`;
   }
 }
