@@ -116,7 +116,7 @@ func TestSaveIntentReviewExactReplay(t *testing.T) {
 		}
 		details, err := s.FeedPostDetails(ctx, ids)
 		card := details[ids[0]].Payload.Communication.Assumption
-		if err != nil || card == nil || card.State != wantState || EventState(details[ids[0]].Status) != map[string]factory.FeedState{"open": factory.FeedStateNeedsYou, "answered": factory.FeedStateDecided}[wantState] {
+		if err != nil || card == nil || card.State != wantState || details[ids[0]].Payload.Communication.Title != assumptionTitles[wantState] || (wantState == "answered" && card.Decision != "accept") || EventState(details[ids[0]].Status) != map[string]factory.FeedState{"open": factory.FeedStateNeedsYou, "answered": factory.FeedStateDecided}[wantState] {
 			t.Fatalf("challenge served %+v status=%s %v", card, details[ids[0]].Status, err)
 		}
 		var waiting int

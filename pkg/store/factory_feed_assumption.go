@@ -20,7 +20,7 @@ func recordAssumptionChallengesTx(ctx context.Context, tx *sql.Tx, r factory.Int
 	for _, challenge := range challenges {
 		content := factory.FeedCommunication{
 			ComponentID: "F13",
-			Title:       "One consequential assumption still needs your decision",
+			Title:       assumptionTitles["open"],
 			Summary:     TruncateFeedSummary(challenge.Assumption),
 			Scope:       "Build request",
 			Assumption: &factory.FeedAssumption{
@@ -57,9 +57,17 @@ func feedAssumptionOpenSQL(p string) string {
 	return `(` + p + `.author='factory' AND ` + p + `.data->'communication' ? 'assumption' AND (` + feedAssumptionSQL(p) + `)->>'state'='open')`
 }
 
-// feedAssumptionStates serves each challenge's state, decision and correction
-// from the request head in one bounded read, and sets the event status the
-// feed state derives from.
+// assumptionTitles name a challenge card by its served state, so the headline
+// and the Needs me rail follow the answer.
+var assumptionTitles = map[string]string{
+	"open":     "One consequential assumption still needs your decision",
+	"answered": "Assumption answered",
+	"closed":   "Assumption no longer open",
+}
+
+// feedAssumptionStates serves each challenge's state, decision, correction and
+// title from the request head in one bounded read, and sets the event status
+// the feed state derives from.
 func (s *Store) feedAssumptionStates(ctx context.Context, details map[string]FeedPostDetail) error {
 	ids := []string{}
 	for id, detail := range details {
@@ -95,6 +103,7 @@ func (s *Store) feedAssumptionStates(ctx context.Context, details map[string]Fee
 		if served.State == "answered" {
 			assumption.Decision, assumption.Correction = served.Decision, served.Correction
 		}
+		detail.Payload.Communication.Title = assumptionTitles[served.State]
 		detail.Status = "assumption:" + served.State
 		details[id] = detail
 	}
