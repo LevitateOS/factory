@@ -12,10 +12,34 @@ export class FactoryReadError extends Error {
   }
 }
 
-export async function getJSON(transport: FactoryTransport, path: string, signal?: AbortSignal): Promise<unknown> {
+// Components on one page often ask for the same thing at once. They share one
+// request, so GitHub sees it once, and each keeps its own cancellation and copy.
+const inFlight = new WeakMap<FactoryTransport, Map<string, Promise<unknown>>>();
+
+export function getJSON(transport: FactoryTransport, path: string, signal?: AbortSignal): Promise<unknown> {
+  signal?.throwIfAborted();
+  let reads = inFlight.get(transport);
+  if (!reads) inFlight.set(transport, (reads = new Map()));
+  const key = `${transport.generation}\n${path}`;
+  let shared = reads.get(key);
+  if (!shared) {
+    const started = readJSON(transport, path).finally(() => {
+      if (reads.get(key) === started) reads.delete(key);
+    });
+    reads.set(key, (shared = started));
+  }
+  const copy = shared.then((value) => structuredClone(value));
+  if (!signal) return copy;
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, {once: true});
+    copy.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+
+async function readJSON(transport: FactoryTransport, path: string): Promise<unknown> {
   const generation = transport.generation;
-  const lifetime = signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
-  lifetime.throwIfAborted();
+  const lifetime = AbortSignal.timeout(15000);
   const response = await transport.request(path, {method: 'GET', signal: lifetime});
   lifetime.throwIfAborted();
   if (transport.generation !== generation) throw Error('Factory runtime binding changed.');
