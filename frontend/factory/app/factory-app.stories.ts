@@ -11,7 +11,7 @@ const meta = {
   argTypes: {
     state: {
       control: 'select',
-      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts', 'projects', 'feed-projects'],
+      options: ['ready', 'loading', 'unavailable', 'disconnected', 'issues', 'issue', 'issue-new', 'settings', 'accounts', 'projects', 'feed-projects', 'jump'],
     },
   },
   render: ({state}, context) => {
@@ -36,6 +36,16 @@ export const Accounts: Story = {args: {state: 'accounts'}};
 export const Projects: Story = {args: {state: 'projects'}};
 /** A feed route whose sidebar lists the host's other projects. */
 export const FeedWithProjectList: Story = {args: {state: 'feed-projects'}};
+/** The quick switcher open over a feed that has the project list. */
+export const JumpToOpen: Story = {
+  args: {state: 'jump'},
+  play: async ({canvasElement}) => {
+    const button = canvasElement.querySelector<HTMLButtonElement>('.soda-factory-jump-open');
+    for (let i = 0; i < 50 && (!button || button.disabled); i++) await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 300));
+    button?.click();
+  },
+};
 /** The desktop's guided first run, shown while the frame has no context. */
 const firstRun = (state: SignInStoryState): Story => ({
   args: {state: 'disconnected'},

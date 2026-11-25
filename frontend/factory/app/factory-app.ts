@@ -35,6 +35,8 @@ import type {FactoryHostDestination, FactoryRoute} from './routes.js';
 import {admitProjectRows, admitProjectsPort} from '../projects/projects.js';
 import type {FactoryProject, FactoryProjectsPort} from '../projects/projects.js';
 import {SodaFactoryProjects} from '../projects/page.js';
+import './jump.js';
+import type {JumpItem, SodaFactoryJump} from './jump.js';
 
 /** Host-resolved ports, never a second workflow model. Host-created DOM enters
  * only as a `FactoryHostSection` (host-section.ts) the shared page places. */
@@ -169,7 +171,22 @@ export class SodaFactoryApp extends LitElement {
       this.message = 'The Factory account or destination is unavailable.';
     }
   }
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('keydown', this.jumpKey);
+  }
+  // Ctrl/Cmd+K toggles the switcher from anywhere in the page except other text fields.
+  private jumpKey = (event: KeyboardEvent) => {
+    if (event.key.toLowerCase() !== 'k' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    const jump = this.querySelector<SodaFactoryJump>('soda-factory-jump');
+    const target = event.composedPath()[0];
+    const typing = target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+    if (!jump || !this.current || (typing && !jump.owns(target))) return;
+    event.preventDefault();
+    jump.toggle();
+  };
   disconnectedCallback() {
+    document.removeEventListener('keydown', this.jumpKey);
     this.retire();
     super.disconnectedCallback();
   }
@@ -569,6 +586,47 @@ export class SodaFactoryApp extends LitElement {
       this.message = 'The source post is unavailable.';
     }
   };
+  private jumpItems(
+    context: FactoryAppContext | undefined,
+    project: string | undefined,
+    links: readonly {label: string; route: FactoryRoute}[],
+    foot: readonly {label: string; route: FactoryRoute}[]
+  ): JumpItem[] {
+    if (!context) return [];
+    const port = context.projects;
+    const projectItems: JumpItem[] = port
+      ? (this.projectRows ?? []).map((row) => {
+          const summary = row.summary;
+          const meta =
+            row.connection === 'current'
+              ? 'Current'
+              : row.connection === 'sign_in'
+                ? 'Sign in again'
+                : summary?.needsYou
+                  ? summary.needsYou + (summary.needsYou === 1 ? ' needs you' : ' need you')
+                  : summary?.dispatch === 'closed'
+                    ? 'Paused'
+                    : row.connection === 'not_connected'
+                      ? 'Other account'
+                      : row.accountLabel;
+          return {
+            group: 'Projects',
+            label: row.name,
+            meta,
+            disabled: row.connection === 'sign_in' && !port.signIn,
+            run: () => {
+              if (row.connection !== 'current') void this.openProject(context, row);
+            },
+          };
+        })
+      : [];
+    const pages = links.map((link) => ({group: project ? 'In ' + project : 'Pages', label: link.label, meta: 'page', run: () => this.navigate(link.route)}));
+    const actions: JumpItem[] = [
+      ...(port && context.destinations?.includes('projects') ? [{group: 'Actions', label: 'All projects', meta: 'action', run: () => this.navigate({kind: 'projects'})}] : []),
+      ...foot.map((link) => ({group: 'Actions', label: 'Open ' + link.label, meta: 'action', run: () => this.navigate(link.route)})),
+    ];
+    return [...projectItems, ...pages, ...actions];
+  }
   protected render() {
     const context = this.current;
     const repository = context?.selectedRepository ?? (context && 'repository' in context.route ? context.route.repository : undefined);
@@ -601,6 +659,16 @@ export class SodaFactoryApp extends LitElement {
     return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''}>
       <aside class="soda-factory-sidebar">
         <p class="soda-factory-wordmark">Factory</p>
+        <button
+          type="button"
+          class="soda-factory-jump-open"
+          aria-haspopup="dialog"
+          aria-keyshortcuts="Control+K Meta+K"
+          ?disabled=${!context}
+          @click=${(event: Event) => this.querySelector<SodaFactoryJump>('soda-factory-jump')?.show(event.currentTarget as HTMLElement)}
+        >
+          <span>Jump to…</span><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+        </button>
         ${port && context?.destinations?.includes('projects')
           ? html`<nav class="soda-factory-all-projects" aria-label="Projects">
               <button
@@ -674,6 +742,7 @@ export class SodaFactoryApp extends LitElement {
           ${context && !this.screen && !this.busy ? html`<button type="button" @click=${() => void this.load(context)}>Refresh view</button>` : ''}
         </main>
       </div>
+      <soda-factory-jump .items=${this.jumpItems(context, project, links, foot)}></soda-factory-jump>
     </div>`;
   }
 }

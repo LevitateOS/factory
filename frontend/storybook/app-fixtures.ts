@@ -15,7 +15,7 @@ import {PlacementController, placementView} from '../desktop/placement.js';
 import {signInStoryPlacement} from './sign-in-fixtures.js';
 import {projectStoryPort} from './projects-fixtures.js';
 
-export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings' | 'accounts' | 'projects' | 'feed-projects';
+export type AppStoryState = 'ready' | 'loading' | 'unavailable' | 'disconnected' | 'issues' | 'issue' | 'issue-new' | 'settings' | 'accounts' | 'projects' | 'feed-projects' | 'jump';
 export const appRepository = '7';
 
 /** Composition peer only. All services/renderers are existing declared story
@@ -36,7 +36,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
                 ? {kind: 'projects'}
                 : {kind: 'feed', repository: appRepository};
   let view: SodaFactoryApp | undefined;
-  const withProjects = state === 'projects' || state === 'feed-projects';
+  const withProjects = state === 'projects' || state === 'feed-projects' || state === 'jump';
   const projects = projectStoryPort(() => view);
   let unavailable = state === 'unavailable',
     held = state === 'loading',
