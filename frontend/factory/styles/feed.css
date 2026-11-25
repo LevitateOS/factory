@@ -3268,6 +3268,71 @@ soda-factory-library {
   border-top: 0;
   padding-left: 0;
 }
+/* "Read first by" (slice 5.6): a compact role choice above the Post row. */
+.soda-feed .soda-feed-composer > .soda-feed-read-first-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 8px;
+  font: 500 12px/18px var(--soda-font-mono-family);
+  color: var(--soda-page-muted);
+}
+.soda-feed .soda-feed-read-first-pick select {
+  min-height: 36px;
+  border-radius: 0;
+  font: 500 13px/20px var(--soda-font-mono-family);
+}
+.soda-feed-composer .soda-feed-compose-hint .soda-role-chip {
+  vertical-align: middle;
+}
+/* A role named on a post: an ask's "Addressed to", a post's "Read first by".
+   The portrait (or initials on the role colour) and the role's name. */
+.soda-role-chip {
+  --soda-role-chip-color: var(--soda-page-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 8px 1px 1px;
+  border: 1px solid color-mix(in srgb, var(--soda-role-chip-color) 55%, var(--soda-page-edge));
+  background: color-mix(in srgb, var(--soda-role-chip-color) 8%, var(--soda-page-surface));
+  color: var(--soda-page-text);
+  font: 500 12px/20px var(--soda-font-mono-family);
+  white-space: nowrap;
+}
+.soda-role-chip-face {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--soda-role-chip-color);
+  color: #ffffff;
+  font: 600 9px/1 var(--soda-font-mono-family);
+}
+.soda-role-chip-face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.soda-feed-addressed,
+.soda-feed-read-first {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: 500 12px/18px var(--soda-font-mono-family);
+  color: var(--soda-page-muted);
+}
+.soda-feed-addressed > span:last-child:not(.soda-role-chip) {
+  font: var(--soda-font-caption);
+}
+.soda-feed-read-first {
+  margin-top: 8px;
+}
 .soda-feed-composer[data-open='false'] .soda-feed-compose-hint {
   display: none;
 }

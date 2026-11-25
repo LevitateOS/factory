@@ -4,6 +4,7 @@ import type {FeedCommunication, FeedGraphItem, FeedSourceExcerpt} from './feed-r
 import {renderFeedGraph} from './feed-graph.js';
 import {renderTypedQuestion} from './feed-question.js';
 import type {FeedQuestionContext} from './feed-question.js';
+import {roleChip} from './role-chip.js';
 
 // The communication lists every action reads, present even when the server
 // omitted an empty one.
@@ -271,11 +272,22 @@ export function dispositionOutcome(c: FilledCommunication): TemplateResult | str
   </div>`;
 }
 
+// The role a question names (slice 5.3). The person still answers here;
+// the named role is assessed first for an invitation to reply.
+function addressedTo(c: FilledCommunication, typed?: FeedQuestionContext): TemplateResult | string {
+  const chip = roleChip(c.addressedTo, typed?.transport.assetBase);
+  const open = c.questionState !== 'answered' && c.questionState !== 'incorporated';
+  return chip
+    ? html`<p class="soda-feed-addressed">Addressed to ${chip}${open ? html`<span>You can answer too.</span>` : ''}</p>`
+    : '';
+}
+
 function question(c: FilledCommunication, entryKey: string, typed?: FeedQuestionContext): TemplateResult {
   const ask = c.kind === 'ask';
   return html`<section class="soda-action-question" data-question=${ask ? (c.questionState ?? 'open') : 'recorded'}>
     <div class="soda-question-mark" aria-hidden="true">?</div>
     <div>
+      ${ask ? addressedTo(c, typed) : ''}
       <h4>
         ${ask ? (!c.questionState || c.questionState === 'open' ? 'Your input is needed' : 'Question') : 'Question and answer'}
       </h4>
@@ -306,6 +318,7 @@ export function questionPrompt(
   // Each distinct line once: a summary or question that repeats the title is dropped.
   const lines = [...new Set([c.summary, c.question].filter((line): line is string => !!line && line !== c.title))];
   return html`<div class="soda-feed-question">
+    ${addressedTo(c, typed)}
     <h3 class="soda-feed-question-text">${c.title}</h3>
     ${questionStatus(c)}
     ${lines.map((line) => html`<p>${line}</p>`)}

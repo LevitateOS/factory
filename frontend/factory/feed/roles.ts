@@ -40,3 +40,21 @@ export function roleLabel(actor: string | undefined): string | undefined {
   if (actor === undefined) return;
   return roleLabels.get(roleKey(actor)) ?? actor;
 }
+
+// The roles a post may name (an ask's addressed_to, a post's read_first_by).
+// factory.MCPProfiles owns the list and factory.CheckRoleReference refuses
+// anything else; people and logins are never named.
+export const postRoleIds = [
+  'product_lead',
+  'architect',
+  'builder',
+  'inspector',
+  'fixer',
+  'strategist',
+  'test_pilot',
+  'issue_maker',
+] as const;
+export type PostRoleId = (typeof postRoleIds)[number];
+export function postRole(value: unknown): PostRoleId | undefined {
+  return postRoleIds.find((role) => role === value);
+}

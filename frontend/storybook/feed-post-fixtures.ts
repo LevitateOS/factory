@@ -74,7 +74,25 @@ export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[]) {
       // A typed answer: the declared peer records it on its question, with
       // a stand-in for the server's plain-text rendering.
       if (method === 'POST' && path === 'factory/feed/posts' && typeof init?.body === 'string') {
-        const sent = JSON.parse(init.body) as {parent_id?: string; answer?: Record<string, unknown>};
+        const sent = JSON.parse(init.body) as {
+          parent_id?: string;
+          answer?: Record<string, unknown>;
+          body?: string;
+          read_first_by?: string;
+        };
+        // A new post: logged for the workbench, then served first as stored.
+        if (!sent.answer && !sent.parent_id && typeof sent.body === 'string') {
+          console.info('POST factory/feed/posts', init.body);
+          const id = (0xc0000 + entries.length).toString(16).padStart(32, '0');
+          const post = {post_id: id, repository: feedPostRepository, author_name: 'Alex', actor: '1', at: stamp, body: sent.body};
+          entries.unshift({
+            id,
+            repository: feedPostRepository,
+            seq: 100001 + entries.length,
+            ...humanPost('Alex', {...post, ...(sent.read_first_by ? {read_first_by: sent.read_first_by} : {})}),
+          });
+          return Response.json({post_id: id, revision: 0});
+        }
         const asked = entries.find((entry) => entry.id === sent.parent_id);
         const c = (asked?.payload as {communication?: Record<string, unknown>} | undefined)?.communication;
         if (!asked || !c?.answer_form || !sent.answer || c.answered)
@@ -353,6 +371,45 @@ export const typedQuestions: FeedPostSpecimen[] = [
     text: 'Results before “load more”: 30 rows',
     answer: {kind: 'value', value: '30'},
   }),
+];
+
+// Roles named on posts (5.3 and 5.6): a question addressed to a role, and a
+// person's post with its "Read first by" routing hint while JEV still routes it.
+export const namedRoles: FeedPostSpecimen[] = [
+  specimen(
+    'ask · addressed to a role',
+    'Did you mean to leave the timer in place?',
+    record(
+      'Inspector',
+      communication({
+        kind: 'ask',
+        scope: '#13',
+        title: 'Did you mean to leave the timer in place?',
+        summary: 'The removal fix is in, but the timed index pass still runs.',
+        addressed_to: 'builder',
+        question_state: 'open',
+      }),
+      'needs_you'
+    )
+  ),
+  typedAsk('ask · addressed typed question · answered', 'Architect', 'Merge #14 before the paging fix?', merge, {
+    text: 'Yes',
+    answer: {kind: 'yes_no', yes: true},
+  }, {addressed_to: 'issue_maker'}),
+  specimen(
+    'post · read first by',
+    'The timed index pass still runs after the removal fix.',
+    humanPost('Alex', {
+      body: 'The timed index pass still runs after the removal fix. Is it still needed?',
+      read_first_by: 'architect',
+      judgment: 'pending',
+      intake: 'recorded',
+      route: '',
+      draft: 'pending',
+      effect: 'pending',
+      revision: 0,
+    })
+  ),
 ];
 
 // The Progress sheet: work that is moving, checks, unlocks and handovers.

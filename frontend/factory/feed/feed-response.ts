@@ -1,6 +1,7 @@
 import {check, id, object} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import type {AllowanceHold} from './allowance.js';
+import {postRole} from './roles.js';
 
 // Combined feed wire contract. The server owns identity, visibility,
 // cursors and every bound on the JSON it sends; the browser reads only
@@ -242,6 +243,8 @@ export interface FeedCommunication {
   answerForm?: FeedQuestionForm;
   /** Served from the ask's first live typed answer reply. */
   answered?: {post: string; text: string; answer: FeedQuestionAnswer};
+  /** The role whose expertise an ask asks for (roles.ts postRoleIds). The person may still answer. */
+  addressedTo?: string;
 }
 
 // Typed questions (pkg/factory/feed_question.go owns validation and the
@@ -490,6 +493,8 @@ export interface FeedPostBody {
   issue?: number;
   parent_id?: string;
   idempotency_key: string;
+  /** The routing hint: the role invited to read the post first. */
+  read_first_by?: string;
 }
 
 export interface FeedContribution {
@@ -549,6 +554,8 @@ export interface FeedPostDetail {
   communication?: FeedCommunication;
   consultation?: FeedConsultation;
   contribution?: FeedContribution;
+  /** The role the person asked to read this post first (a routing hint). */
+  readFirstBy?: string;
 }
 
 // parseFeedPostDetail reads one post as the server serves it (post GET,
@@ -578,6 +585,7 @@ export function parseFeedPostDetail(value: unknown): FeedPostDetail {
     ...(raw.communication ? {communication: data.communication as FeedCommunication} : {}),
     ...(raw.consultation ? {consultation: raw.consultation as FeedConsultation} : {}),
     ...(raw.contribution ? {contribution: raw.contribution as FeedContribution} : {}),
+    ...(postRole(raw.read_first_by) ? {readFirstBy: raw.read_first_by as string} : {}),
   };
 }
 

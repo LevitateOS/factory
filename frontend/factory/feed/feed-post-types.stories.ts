@@ -34,3 +34,12 @@ export const Results: Story = {args: {sheet: 'results'}};
 export const Decisions: Story = {args: {sheet: 'decisions'}};
 export const RunRecords: Story = {args: {sheet: 'runRecords'}};
 export const ClosingTheLoop: Story = {args: {sheet: 'closingTheLoop'}};
+// The post box opens with its "Read first by" choice; posting sends one
+// request carrying read_first_by, and the stored post shows it.
+export const NamedRoles: Story = {
+  args: {sheet: 'namedRoles'},
+  render: ({sheet}) => {
+    const peer = feedPostStoryPeer(feedPostSheets[sheet]);
+    return html`<soda-factory-feed .context=${peer.context} .compose=${true}></soda-factory-feed>`;
+  },
+};

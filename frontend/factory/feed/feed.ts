@@ -38,7 +38,7 @@ import {renderFeedCommunication} from './feed-communication.js';
 import type {FeedArtifactContext} from './feed-artifact.js';
 import {renderConsultation, renderContribution} from './consultation.js';
 import {threadFeed} from './feed-thread.js';
-import {feedRolePortraits, roleLabel} from './roles.js';
+import {feedRolePortraits, postRole, roleLabel} from './roles.js';
 import {readRevision} from './revision-record.js';
 import {FeedRevisionEditor} from './revision-editor.js';
 import type {RevisionAddress} from './revision-record.js';
@@ -133,6 +133,8 @@ export class SodaFactoryFeed extends LitElement {
   // Verified delivery id → the origin of a Ready app the viewer may open.
   private appOrigins = new Map<string, string>();
   private postOpen = false;
+  // The repository post box's "Read first by" role ('' for none).
+  private readFirstBy = '';
   private replyingTo = new Set<string>();
   private composeRequested = false;
   // A post to show alone (the Feed place's ?post=, e.g. a Knowledge item's source).
@@ -207,6 +209,7 @@ export class SodaFactoryFeed extends LitElement {
     this.viewerID = undefined;
     this.appOrigins = new Map();
     this.postOpen = false;
+    this.readFirstBy = '';
     this.replyingTo.clear();
     this.focusedEntry = undefined;
     this.filters = {view: 'all', search: '', role: '', current: false};
@@ -653,6 +656,11 @@ export class SodaFactoryFeed extends LitElement {
 
   private onDraft = (event: Event) => {
     const area = event.target;
+    if (area instanceof HTMLSelectElement && area.dataset.feedReadFirst === this.projectPostKey()) {
+      this.readFirstBy = postRole(area.value) ?? '';
+      this.requestUpdate();
+      return;
+    }
     if (!(area instanceof HTMLTextAreaElement)) return;
     if (this.revisionEditor.current && (area.hasAttribute('data-revision-body') || area.hasAttribute('data-revision-original'))) {
       this.revisionEditor.change(area.hasAttribute('data-revision-body') ? 'body' : 'original', area.value);
@@ -876,6 +884,7 @@ export class SodaFactoryFeed extends LitElement {
     const commandKey = `soda-feed-draftkey:v2:${this.storageKey(key)}`;
     let post: FeedPostBody = {repository, body: text, idempotency_key: ''};
     if (entry?.issue) post.issue = entry.issue;
+    if (!entry && this.readFirstBy) post.read_first_by = this.readFirstBy;
     const source = entry ? postSourceForEntry(entry) : undefined;
     if (source) {
       post.parent_id = source.id;
@@ -893,6 +902,8 @@ export class SodaFactoryFeed extends LitElement {
         check((saved.parent_id ?? '') === (post.parent_id ?? ''));
         const issue = saved.issue;
         check(issue === undefined || (typeof issue === 'number' && Number.isSafeInteger(issue) && issue >= 0));
+        const reader = saved.read_first_by === undefined ? undefined : postRole(saved.read_first_by);
+        check(saved.read_first_by === undefined || (reader !== undefined && !entry));
         // Recover the immutable submitted text/key, even if the separately
         // stored nonce was lost. Never attach newer writing to this command.
         // An entry's live issue linkage may have advanced since submission.
@@ -902,6 +913,7 @@ export class SodaFactoryFeed extends LitElement {
           idempotency_key: saved.idempotency_key,
           ...(saved.parent_id !== undefined ? {parent_id: saved.parent_id} : {}),
           ...(issue !== undefined ? {issue} : {}),
+          ...(reader ? {read_first_by: reader} : {}),
         };
         writeStored(commandKey, post.idempotency_key);
       } catch {
@@ -932,6 +944,7 @@ export class SodaFactoryFeed extends LitElement {
       writeStored(commandKey, '');
       writeStored(pendingKey, '');
       if (this.draftFor(key) === post.body) this.setDraft(key, '');
+      if (!entry && this.readFirstBy === (post.read_first_by ?? '')) this.readFirstBy = '';
       this.view = {
         ...this.view,
         postBusy: this.view.postBusy.filter((row) => row !== key),
@@ -1630,6 +1643,8 @@ export class SodaFactoryFeed extends LitElement {
         submitLabel: 'Post',
         submitAvailable: !this.accessFailure && draft.trim() !== '' && !this.view.postBusy.includes(key),
         collapsed: !this.postOpen && draft.trim() === '',
+        readFirstBy: this.readFirstBy,
+        assetBase: context.transport.assetBase,
       })}
     </div>`;
   }

@@ -3,7 +3,8 @@ import {live} from 'lit/directives/live.js';
 import type {TemplateResult} from 'lit';
 import type {FeedPostDetail, PostPipelineState, FeedEntry, FeedJudgment} from './feed-response.js';
 import {postAttemptsExhausted, feedEntryKey} from './feed-response.js';
-import {feedRolePortraits, roleInitials, roleLabel} from './roles.js';
+import {feedRolePortraits, postRole, postRoleIds, roleInitials, roleLabel} from './roles.js';
+import {namedRoleLabel, roleChip} from './role-chip.js';
 import {describePostLine, feedStateWords} from './feed-thread.js';
 import type {FeedState, FeedThreadItem} from './feed-thread.js';
 import {questionContext, renderFeedCommunication} from './feed-communication.js';
@@ -451,6 +452,9 @@ export interface ComposerModel {
   readonly discussionFactoryStatus?: string | undefined;
   /** One line until focused (the repository post box). */
   readonly collapsed?: boolean;
+  /** The repository post box's chosen first reader ('' for none). */
+  readonly readFirstBy?: string;
+  readonly assetBase?: string;
 }
 
 // Ctrl/Cmd+Enter posts from any composer.
@@ -465,8 +469,21 @@ function submitShortcut(event: KeyboardEvent) {
 }
 
 // The repository request box: one card holding the text and its Post action.
+// "Read first by" (slice 5.6): a routing hint sent as read_first_by. JEV still
+// classifies the post; the named role is only assessed first for a reply.
+function renderReadFirstPicker(model: ComposerModel): TemplateResult {
+  return html`<label class="soda-feed-read-first-pick"
+    >Read first by
+    <select data-feed-read-first=${model.key}>
+      <option value="" ?selected=${!model.readFirstBy}>JEV routes it</option>
+      ${postRoleIds.map((role) => html`<option value=${role} ?selected=${model.readFirstBy === role}>${roleLabel(role)}</option>`)}
+    </select></label
+  >`;
+}
+
 function renderRequestComposer(model: ComposerModel): TemplateResult {
   const open = !model.collapsed;
+  const reader = open ? postRole(model.readFirstBy) : undefined;
   return html`<section aria-label="Discussion" class="soda-feed-composer" data-open=${open ? 'true' : 'false'}>
     <label
       ><span class="soda-visually-hidden">${model.label ?? 'New post'}</span>
@@ -480,8 +497,16 @@ function renderRequestComposer(model: ComposerModel): TemplateResult {
         @keydown=${submitShortcut}
       ></textarea>
     </label>
+    ${open ? renderReadFirstPicker(model) : ''}
     <div class="soda-feed-composer-foot">
-      <span class="soda-feed-compose-hint">JEV turns it into new work, feedback on an issue, or a discussion.</span>
+      <span class="soda-feed-compose-hint"
+        >${
+          reader
+            ? html`${roleChip(reader, model.assetBase)} is considered first for a reply while it has work running here.
+                JEV still routes the post.`
+            : 'JEV turns it into new work, feedback on an issue, or a discussion.'
+        }</span
+      >
       <button
         type="button"
         class="ui primary button"
@@ -613,6 +638,8 @@ export interface NeedsMeRow {
   readonly avatarFile: string | undefined;
   readonly name: string;
   readonly at: number | undefined;
+  /** The role a waiting question is addressed to. */
+  readonly addressedTo: string | undefined;
 }
 
 // needsMeRows lists the posts whose thread state waits for the viewer, in feed order.
@@ -628,6 +655,7 @@ export function needsMeRows(items: readonly FeedThreadItem[]): NeedsMeRow[] {
         avatarFile: feedRolePortraits[role],
         name: entry.author ?? role,
         at: entry.at,
+        addressedTo: namedRoleLabel(entry.payload?.communication?.addressedTo),
       };
     });
 }
@@ -653,7 +681,7 @@ export function renderNeedsMe(
                   >
                   <span class="soda-feed-needs-text"
                     ><span class="soda-feed-needs-hl">${row.headline}</span
-                    ><span class="soda-feed-needs-meta">${row.role} · waits for you${row.at ? ' · ' + ageText(row.at) : ''}</span></span
+                    ><span class="soda-feed-needs-meta">${row.role}${row.addressedTo ? ` asks ${row.addressedTo}` : ''} · waits for you${row.at ? ' · ' + ageText(row.at) : ''}</span></span
                   >
                 </a>
               </li>`
@@ -817,7 +845,7 @@ function renderJudgment(judgment: FeedJudgment): TemplateResult {
   </div>`;
 }
 
-function renderPostBody(post: FeedPostDetail | undefined): TemplateResult {
+function renderPostBody(post: FeedPostDetail | undefined, assetBase = ''): TemplateResult {
   const text = !post
     ? 'Discussion text unavailable; refresh the feed to load it.'
     : post.removed
@@ -825,6 +853,7 @@ function renderPostBody(post: FeedPostDetail | undefined): TemplateResult {
       : post.body || 'No post text recorded.';
   return html`<section aria-label="Discussion text">
     <p class="soda-feed-body-text">${text}${post?.edited ? ' (edited)' : ''}</p>
+    ${post?.readFirstBy && !post.removed ? html`<p class="soda-feed-read-first">Read first by ${roleChip(post.readFirstBy, assetBase)}</p>` : ''}
   </section>`;
 }
 
@@ -837,7 +866,7 @@ function renderCardContent(
 ): TemplateResult | string {
   const entry = model.entry;
   if (model.type === 'post')
-    return html`${renderPostBody(model.post)}${model.outcome ? renderOutcome(model.outcome, assetBase) : ''}`;
+    return html`${renderPostBody(model.post, assetBase)}${model.outcome ? renderOutcome(model.outcome, assetBase) : ''}`;
   const communication = entry.payload?.communication;
   if (communication) return renderFeedCommunication(communication, model.key, artifacts, links);
   const judgment = entry.payload?.judgment;
