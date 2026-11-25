@@ -323,7 +323,7 @@ export class SodaFactoryPull extends LitElement {
         ${this.tab === 'conversation' && context.commandScope ? html`<soda-factory-issue-comment
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, issue: context.pull, kind: 'pull' as const, scope: context.scope,
-            parent: pull.ref, commandScope: context.commandScope}}
+            parent: pull.ref, commandScope: context.commandScope, display: (signal: AbortSignal, refresh?: boolean) => this.display(signal, refresh)}}
           @pull-comment-saved=${() => void this.refresh()}
         ></soda-factory-issue-comment>` : ''}
         ${this.tab === 'commits' ? html`<section aria-label="Commits">
@@ -335,7 +335,7 @@ export class SodaFactoryPull extends LitElement {
             .context=${{transport: context.transport, host: context.host, actor: context.actor,
               repository: context.repository, pull: context.pull, scope: context.scope,
               parent: pull.ref, head, commandScope: context.commandScope,
-              resolveLink: context.resolveLink, openLink: context.openLink}}
+              resolveLink: context.resolveLink, openLink: context.openLink, display: (signal: AbortSignal, refresh?: boolean) => this.display(signal, refresh)}}
             .files=${this.view.files} .threads=${this.view.threads}
             @pull-inline-saved=${() => void this.refresh()}
           ></soda-factory-pull-inline>` : this.view.files.length ? this.view.files.map(file => {
@@ -391,7 +391,7 @@ export class SodaFactoryPull extends LitElement {
         ${this.tab === 'reviews' && context.commandScope ? html`<soda-factory-pull-reviewers
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, commandScope: context.commandScope}}
+            parent: pull.ref, commandScope: context.commandScope, display: (signal: AbortSignal, refresh?: boolean) => this.display(signal, refresh)}}
           .participants=${[...(pull.author ? [{kind: 'user' as const, id: pull.author.id, label: pull.author.login}] : []),
             ...this.view.reviews.flatMap(review => review.authorID ? [{kind: 'user' as const, id: review.authorID, label: review.author}] : [])]}
         ></soda-factory-pull-reviewers>` : ''}

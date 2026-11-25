@@ -67,6 +67,7 @@ export function mountIssueScreen(
   if (state) element.append(stateControl);
   if (comment) element.append(composer);
   if (journey) element.append(facts);
+  const display = (childSignal: AbortSignal) => view.display(AbortSignal.any([signal, childSignal]));
   view.addEventListener('factory-issue-read', (event) => {
     if (signal.aborted || !live() || event.target !== view || !(event instanceof CustomEvent)) return;
     let available = false;
@@ -90,6 +91,7 @@ export function mountIssueScreen(
       available && external && comment
         ? {
             ...comment,
+            issueDisplay: display,
             parent: {kind: 'issue', repository: context.repository, number: context.issue, external_id: external},
           }
         : undefined;
@@ -97,12 +99,13 @@ export function mountIssueScreen(
       available && external && editor
         ? {
             ...editor,
+            issueDisplay: display,
             parent: {kind: 'issue', repository: context.repository, number: context.issue, external_id: external},
           }
         : undefined;
     stateControl.context =
       available && external && state
-        ? {...state, parent: {kind: 'issue', repository: context.repository, number: context.issue, external_id: external}}
+        ? {...state, issueDisplay: display, parent: {kind: 'issue', repository: context.repository, number: context.issue, external_id: external}}
         : undefined;
     availability?.(available);
   });

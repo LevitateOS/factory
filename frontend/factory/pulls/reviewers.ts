@@ -6,11 +6,12 @@ import {pullActionAllowed} from '../api/capability-response.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {JournalCommand} from '../shared/journal-command.js';
-import {pullItem, pullReviewRequests, pullReviewerLookup} from './response.js';
+import {pullItem, pullReviewRequests, pullReviewerLookup, type PullDisplayRead} from './response.js';
 import {reviewerRecord, sameReviewer, type PendingReviewer, type ReviewerAddress, type ReviewerTarget} from './reviewer-record.js';
 
 export interface PullReviewersContext extends ReviewerAddress {
   readonly transport: FactoryTransport;
+  readonly display?: PullDisplayRead;
   readonly parent: PullRef;
   commandScope(signal: AbortSignal): Promise<string>;
 }
@@ -67,10 +68,11 @@ export class SodaFactoryPullReviewers extends LitElement {
     this.allowed = false;
     await this.journal.identity(context, signal);
     const path = this.path(context);
-    const [raw, caps, requested] = await Promise.all([getJSON(context.transport, path, signal),
-      getJSON(context.transport, path + '/capabilities', signal), getJSON(context.transport, path + '/review-requests', signal)]);
+    const display = context.display ? await context.display(signal) : undefined;
+    const [raw, caps, requested] = await Promise.all([display ? display.pull : getJSON(context.transport, path, signal),
+      display ? display.capabilities : getJSON(context.transport, path + '/capabilities', signal), getJSON(context.transport, path + '/review-requests', signal)]);
     check(this.journal.live(context, signal));
-    const pull = pullItem(raw, context.host, context.repository, context.pull);
+    const pull = display ? display.pull : pullItem(raw, context.host, context.repository, context.pull);
     const snapshot = pullReviewRequests(requested, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id && snapshot.pull.external_id === context.parent.external_id);
     this.items = snapshot.items;
@@ -98,8 +100,8 @@ export class SodaFactoryPullReviewers extends LitElement {
     if (!context || this.busy || this.journal.blocked || !this.journal.live(context, signal)) return;
     this.busy = true; this.message = ''; this.touch();
     try {
-      if (action === 'submit' || action === 'retry') { await this.read(context, signal); check(this.allowed); }
-      else await this.journal.identity(context, signal);
+      await this.journal.identity(context, signal);
+      if (action === 'submit' || action === 'retry') check(this.allowed);
       let pending = this.journal.stored(context);
       if (this.journal.pending) check(pending && sameReviewer(this.journal.pending, pending));
       if (action === 'submit') {

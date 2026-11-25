@@ -4,6 +4,7 @@ import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef} from '../api/collaboration.js';
 import {issueStateAllowed} from '../api/capability-response.js';
 import {issueDetail} from '../api/issue-response.js';
+import type {IssueDisplayRead} from './detail.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {JournalCommand} from '../shared/journal-command.js';
@@ -11,6 +12,7 @@ import {issueStateRecord, issueStateRecordKey, type IssueStateAddress, type Pend
 
 export interface IssueStateContext extends IssueStateAddress {
   readonly transport: FactoryTransport;
+  readonly issueDisplay?: IssueDisplayRead;
   readonly parent: IssueRef;
   commandScope(signal: AbortSignal): Promise<string>;
 }
@@ -68,12 +70,13 @@ export class SodaFactoryIssueState extends LitElement {
   private async admit(context: IssueStateContext, signal: AbortSignal) {
     this.allowed = false; this.state = 'unknown';
     await this.journal.identity(context, signal);
-    const [raw, caps] = await Promise.all([
+    const shown = context.issueDisplay ? await context.issueDisplay(signal) : undefined;
+    const [raw, caps] = shown ? [shown.issue, shown.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
-    const issue = issueDetail(raw, context.host, context.repository, context.issue);
+    const issue = shown ? shown.issue : issueDetail(raw, context.host, context.repository, context.issue);
     check(issue.ref.external_id === context.parent.external_id);
     this.state = issue.state;
     this.allowed = issue.state !== 'unknown' && issueStateAllowed(caps, context.repository, context.actor, context.parent, issue.state === 'open');

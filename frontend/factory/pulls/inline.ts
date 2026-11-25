@@ -9,7 +9,7 @@ import {JournalCommand} from '../shared/journal-command.js';
 import type {DiffThread, ReviewDraft} from '../review/diff.js';
 import '../review/diff.js';
 import {humanAnchor} from './anchor.js';
-import {pullItem, type PullThreadView} from './response.js';
+import {pullItem, type PullDisplayRead, type PullThreadView} from './response.js';
 import {
   inlineRecordKey, newInlineDraft, readInlineWriting, reloadInlineWriting, sameInlinePending,
   saveInlineWriting, validInlineBody, validInlineDraftBody, type InlineAddress, type InlinePending, type InlineSaved, type InlineWriting,
@@ -18,6 +18,7 @@ import {
 export interface PullInlineContext extends InlineAddress {
   readonly transport: FactoryTransport;
   readonly head: string;
+  readonly display?: PullDisplayRead;
   readonly resolveLink?: (href: string) => string | undefined;
   readonly openLink?: (url: string, signal: AbortSignal) => void | Promise<void>;
   commandScope(signal: AbortSignal): Promise<string>;
@@ -79,12 +80,13 @@ export class SodaFactoryPullInline extends LitElement {
   private async admit(context: PullInlineContext, signal: AbortSignal) {
     this.allowed = false; this.publishAllowed = false;
     await this.journal.identity(context, signal);
-    const [raw, caps] = await Promise.all([
+    const display = context.display ? await context.display(signal) : undefined;
+    const [raw, caps] = display ? [display.pull, display.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
-    const pull = pullItem(raw, context.host, context.repository, context.pull);
+    const pull = display ? display.pull : pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id);
     this.allowed = pull.state === 'open' && (pull.head.commit === null || pull.head.commit === context.head) &&
       pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.review.comment');

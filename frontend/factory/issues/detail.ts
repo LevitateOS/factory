@@ -15,6 +15,10 @@ export interface IssueDetailContext extends Omit<IssueListContext, 'openIssue'> 
   resolveLink(href: string): string | undefined;
   openLink(url: string, signal: AbortSignal): void | Promise<void>;
 }
+/** The issue the page last read, and its capabilities read once per page read. */
+export interface IssueDisplay { readonly issue: IssueDetail; readonly capabilities: unknown; }
+export type IssueDisplayRead = (signal: AbortSignal) => Promise<IssueDisplay>;
+
 const empty = () => ({
   busy: false,
   opening: false,
@@ -35,6 +39,8 @@ export class SodaFactoryIssue extends LitElement {
   private previous: string[] = [];
   private serial = 0;
   private lifetime = new AbortController();
+  private loaded: Promise<void> = Promise.resolve();
+  private capabilities: Promise<unknown> | undefined;
   private read = new AbortController();
   /** Display availability only; it grants no Factory or provider authority. */
   private notify(available: boolean) {
@@ -114,6 +120,8 @@ export class SodaFactoryIssue extends LitElement {
     this.cursor = '';
     this.previous = [];
     this.view = empty();
+    this.loaded = Promise.resolve();
+    this.capabilities = undefined;
   }
   private live(context: IssueDetailContext, serial = this.serial) {
     if (this.current !== context || this.serial !== serial || this.lifetime.signal.aborted) return false;
@@ -128,7 +136,32 @@ export class SodaFactoryIssue extends LitElement {
     this.previous = [];
     return this.load();
   }
-  private async load() {
+  private load() {
+    // Comment pages reuse the issue already shown; only a first page reads it.
+    if (!this.cursor) this.capabilities = undefined;
+    return (this.loaded = this.readView());
+  }
+  /** Controls on this page take the issue it read instead of reading it again. */
+  async display(signal: AbortSignal): Promise<IssueDisplay> {
+    for (let loading = this.loaded; ; loading = this.loaded) {
+      await loading;
+      if (loading === this.loaded) break;
+    }
+    signal.throwIfAborted();
+    const context = this.current, issue = this.view.issue;
+    check(context && issue && this.live(context));
+    if (!this.capabilities) {
+      const path = `factory/collaboration/repositories/${context.repository}/issues/${context.issue}/capabilities`;
+      const read = getJSON(context.transport, path, this.lifetime.signal);
+      this.capabilities = read;
+      read.catch(() => { if (this.capabilities === read) this.capabilities = undefined; });
+    }
+    const capabilities = await this.capabilities;
+    signal.throwIfAborted();
+    check(this.live(context) && this.view.issue === issue);
+    return {issue, capabilities};
+  }
+  private async readView() {
     const context = this.current;
     if (!context || !this.live(context)) return;
     const parent = this.view.issue?.ref;
@@ -140,7 +173,7 @@ export class SodaFactoryIssue extends LitElement {
       path = `factory/collaboration/repositories/${context.repository}/issues/${context.issue}`;
     this.view = {...this.view, busy: true};
     try {
-      const issue = issueDetail(
+      const issue = cursor && this.view.issue ? this.view.issue : issueDetail(
         await getJSON(context.transport, path, signal),
         context.host,
         context.repository,

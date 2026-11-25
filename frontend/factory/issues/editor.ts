@@ -8,6 +8,7 @@ import {type PullDisplayRead, pullItem} from '../pulls/response.js';
 import {issueEditAllowed, editBodyDigest, sameEditOriginal, scalarEditText} from '../api/issue-edit-response.js';
 import type {EditOriginal} from '../api/issue-edit-response.js';
 import {factoryCommandId} from '../api/run-response.js';
+import type {IssueDisplayRead} from './detail.js';
 import {getJSON} from '../api/read.js';
 import {JournalCommand} from '../shared/journal-command.js';
 import {
@@ -25,6 +26,7 @@ import type {EditorAddress, EditorSaved, EditorWriting, EditorDraft, PendingEdit
 export interface IssueEditorContext extends EditorAddress {
   readonly transport: FactoryTransport;
   readonly display?: PullDisplayRead;
+  readonly issueDisplay?: IssueDisplayRead;
   readonly parent: IssueRef | PullRef;
   commandScope(signal: AbortSignal): Promise<string>;
 }
@@ -133,14 +135,16 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.allowed = false;
     await this.journal.identity(context, signal);
     const display = context.kind === 'pull' && context.display ? await context.display(signal, refresh) : undefined;
-    const [value, capabilities] = display ? [display.pull, display.capabilities] : await Promise.all([
+    // The pre-submit stale check (refresh) reads the issue itself.
+    const shown = context.kind !== 'pull' && !refresh && context.issueDisplay ? await context.issueDisplay(signal) : undefined;
+    const [value, capabilities] = display ? [display.pull, display.capabilities] : shown ? [shown.issue, shown.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.journal.live(context, signal));
     const issue = context.kind === 'pull'
       ? (display ? display.pull : pullItem(value, context.host, context.repository, context.issue))
-      : issueDetail(value, context.host, context.repository, context.issue);
+      : shown ? shown.issue : issueDetail(value, context.host, context.repository, context.issue);
     check(
       issue.ref.external_id === context.parent.external_id &&
         scalarEditText(issue.title) &&

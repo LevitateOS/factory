@@ -7,6 +7,7 @@ import {issueCommentAllowed} from '../api/comment-response.js';
 import {pullActionAllowed} from '../api/capability-response.js';
 import {type PullDisplayRead, pullItem} from '../pulls/response.js';
 import {factoryCommandId} from '../api/run-response.js';
+import type {IssueDisplayRead} from './detail.js';
 import {getJSON} from '../api/read.js';
 import {JournalCommand} from '../shared/journal-command.js';
 import {
@@ -23,6 +24,7 @@ import type {CommentAddress, CommentSaved, CommentWriting, PendingComment} from 
 export interface IssueCommentContext extends CommentAddress {
   readonly transport: FactoryTransport;
   readonly display?: PullDisplayRead;
+  readonly issueDisplay?: IssueDisplayRead;
   readonly parent: IssueRef | PullRef;
   /** Fresh host-admitted account custody, matching the captured stable scope. */
   commandScope(signal: AbortSignal): Promise<string>;
@@ -128,7 +130,8 @@ export class SodaFactoryIssueComment extends LitElement {
     this.allowed = false;
     await this.journal.identity(context, signal);
     const display = context.kind === 'pull' && context.display ? await context.display(signal) : undefined;
-    const [value, capabilities] = display ? [display.pull, display.capabilities] : await Promise.all([
+    const shown = context.parent.kind === 'issue' && context.issueDisplay ? await context.issueDisplay(signal) : undefined;
+    const [value, capabilities] = display ? [display.pull, display.capabilities] : shown ? [shown.issue, shown.capabilities] : await Promise.all([
       getJSON(context.transport, this.path(context), signal),
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
@@ -138,7 +141,7 @@ export class SodaFactoryIssueComment extends LitElement {
       check(pull.ref.external_id === context.parent.external_id);
       this.allowed = pullActionAllowed(capabilities, context.repository, context.actor, context.parent, pull.head.commit, 'pull.comment');
     } else {
-      const issue = issueDetail(value, context.host, context.repository, context.issue);
+      const issue = shown ? shown.issue : issueDetail(value, context.host, context.repository, context.issue);
       check(issue.ref.external_id === context.parent.external_id);
       this.allowed = issueCommentAllowed(capabilities, context.repository, context.actor, context.parent);
     }
