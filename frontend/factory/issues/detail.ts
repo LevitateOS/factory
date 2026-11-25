@@ -9,7 +9,7 @@ import type {IssueListContext} from './issues.js';
 import {getJSON, FactoryReadError} from '../api/read.js';
 import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 
-export interface IssueDetailContext extends Omit<IssueListContext, 'openIssue'> {
+export interface IssueDetailContext extends Omit<IssueListContext, 'openIssue' | 'newIssue'> {
   readonly issue: string;
   /** Resolve provider-specific relative/fragment links; unsupported links stay text. */
   resolveLink(href: string): string | undefined;

@@ -15,6 +15,8 @@ export interface IssueListContext {
   /** Stable host-admitted profile/provider/account reference, never a secret. */
   readonly scope: string;
   openIssue(issue: IssueRef, signal: AbortSignal): void | Promise<void>;
+  /** Opens the frame's new-issue page; a host without one omits it. */
+  newIssue?(): void;
 }
 const empty = () => ({busy: false, opening: '', message: '', items: [] as readonly IssueListItem[], next: ''});
 
@@ -181,6 +183,7 @@ export class SodaFactoryIssues extends LitElement {
         ><button type="button" @click=${this.refresh} ?disabled=${this.view.busy || !!this.view.opening}>
           Refresh issues
         </button>
+        ${this.current.newIssue ? html`<button type="button" data-tone="primary" @click=${() => this.current?.newIssue?.()}>New issue</button>` : ''}
       </header>
       <p role="status">
         ${this.view.busy ? 'Loading issues…' : this.view.message || (!this.view.items.length ? (this.view.next ? 'No issues on this page. More results are available on the next page.' : 'No issues in this view.') : '')}

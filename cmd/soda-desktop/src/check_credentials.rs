@@ -1766,19 +1766,20 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         await openRepository('rust-lang/rust');
         await until(()=>document.querySelector('soda-factory-feed'),'shared feed');
         const nav=label=>{const button=[...document.querySelectorAll('soda-factory-app nav[aria-label="Factory"] button')].find(b=>b.textContent.trim()===label);assert(button&&!button.disabled,'shared navigation '+label);button.click();};
+        const newIssue=async()=>{nav('Issues');const find=()=>[...document.querySelectorAll('soda-factory-issues .soda-issue-list header button')].find(b=>b.textContent.trim()==='New issue');await until(find,'issues page New issue');find().click();};
         nav('Issues');
         await until(()=>document.querySelector('.soda-issue-title:not([disabled])'),'actual shared issues');
         document.querySelector('.soda-issue-title').click();
         await until(()=>document.querySelector('soda-factory-issue .soda-issue-detail h2')?.textContent!=='Issue'&&document.querySelector('soda-factory-issue .soda-issue-detail h2'),'actual shared issue detail');
-        nav('New issue');
+        await newIssue();
         await until(()=>document.querySelector('soda-factory-issue-create input:not([disabled])'),'shared creation draft');
         const title='Unsubmitted native issue draft';
         const writing=document.querySelector('soda-factory-issue-create input');writing.value=title;writing.dispatchEvent(new Event('input',{bubbles:true}));
         await until(()=>Object.keys(localStorage).some(k=>k.includes('issue')&&localStorage.getItem(k).includes(title)),'issue draft retained');
         await openRepository('rust-lang/cargo');
-        nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input:not([disabled])'),'second repository draft');
+        await newIssue();await until(()=>document.querySelector('soda-factory-issue-create input:not([disabled])'),'second repository draft');
         assert(document.querySelector('soda-factory-issue-create input').value!==title,'repository draft leaked');
-        await openRepository('rust-lang/rust');nav('New issue');
+        await openRepository('rust-lang/rust');await newIssue();
         await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'original repository draft restored');
         if(__SESSION_LIFECYCLE__){
           const repositorySelect=document.querySelector('#repository-name');
@@ -1794,7 +1795,7 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
           document.removeEventListener('visibilitychange',observeVisibility);
           await until(()=>document.querySelector('#connection-status').textContent==='Connected to rust-lang/rust.','restored native selection');
           assert(accountSelect.value===__CONNECTION__&&repositorySelect.dataset.repository===selectedRepository,'hide/restore lost selection');
-          nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'hide/restore draft');
+          await newIssue();await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'hide/restore draft');
           for(const cycle of [1,2]){
             await invoke('report',{stage:'signin-session-unavailable-'+cycle,error:null});
             await until(()=>accountSelect.disabled&&document.querySelector('#connection-reconnect').disabled&&document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'unavailable account retires product');
@@ -1805,7 +1806,7 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
             await until(()=>!accountSelect.disabled,'current account status restored');
             if(cycle===1){
               await until(()=>document.querySelector('#connection-status').textContent==='Connected to rust-lang/rust.','status recovery reconnect');
-              nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'status recovery draft');
+              await newIssue();await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'status recovery draft');
             }else{
               assert(accountSelect.value===''&&document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'explicit disconnect reconnected on recovery');
             }

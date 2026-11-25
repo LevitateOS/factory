@@ -44,7 +44,7 @@ import type {JumpItem, SodaFactoryJump} from './jump.js';
 export type FactoryScreen =
   | {readonly kind: 'feed'; readonly context: FactoryFeedContext}
   | {readonly kind: 'work'; readonly context: WorkOverviewContext}
-  | {readonly kind: 'issues'; readonly context: Omit<IssueListContext, 'openIssue'>}
+  | {readonly kind: 'issues'; readonly context: Omit<IssueListContext, 'openIssue' | 'newIssue'>}
   | {readonly kind: 'pulls'; readonly context: Omit<PullListContext, 'openPull'>}
   | {readonly kind: 'pull'; readonly context: PullDetailContext}
   | {readonly kind: 'issue-new'; readonly context: IssueCreatePorts}
@@ -325,6 +325,9 @@ export class SodaFactoryApp extends LitElement {
         });
         view.context = {
           ...ports.context,
+          newIssue: () => {
+            if (this.live(context, signal)) this.navigate({kind: 'issue-new', repository: route.repository});
+          },
           openIssue: (issue, childSignal) => {
             check(
               this.live(context, signal) &&
@@ -611,6 +614,7 @@ export class SodaFactoryApp extends LitElement {
     const actions: JumpItem[] = [
       ...(port && context.destinations?.includes('projects') ? [{group: 'Actions', label: 'All projects', meta: 'action', run: () => this.navigate({kind: 'projects'})}] : []),
       ...(port?.create && context.destinations?.includes('project-new') ? [{group: 'Actions', label: 'New project', meta: 'action', run: () => this.navigate({kind: 'project-new'})}] : []),
+      ...links.flatMap(({route}) => (route.kind === 'issues' ? [{group: 'Actions', label: 'New issue', meta: 'action', run: () => this.navigate({kind: 'issue-new', repository: route.repository})}] : [])),
       ...foot.map((link) => ({group: 'Actions', label: 'Open ' + link.label, meta: 'action', run: () => this.navigate(link.route)})),
     ];
     return [...projectItems, ...pages, ...actions];
@@ -628,7 +632,6 @@ export class SodaFactoryApp extends LitElement {
               : []),
             {label: 'Issues', route: {kind: 'issues' as const, repository}},
             {label: 'Pull requests', route: {kind: 'pulls' as const, repository}},
-            {label: 'New issue', route: {kind: 'issue-new' as const, repository}},
             {label: 'Knowledge', route: {kind: 'library' as const, repository}},
           ]
         : []),
@@ -737,7 +740,7 @@ export class SodaFactoryApp extends LitElement {
               ${links.map(
                 (link) => html`<button
                   type="button"
-                  aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
+                  aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && (context?.route.kind === 'issue' || context?.route.kind === 'issue-new')) || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
                   ?disabled=${!context}
                   @click=${() => this.navigate(link.route)}
                 >
