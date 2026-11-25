@@ -60,9 +60,29 @@ impl Client {
         let deadline = crate::provider_contract::operation::Operation::current()
             .and_then(|work| work.deadline()).unwrap_or_else(|| std::time::Instant::now() + query.timeout());
         tokio::time::timeout_at(deadline.into(), async {
-            let identity = match identity {
-                Some(identity) => identity,
-                None => self.identity(token).await?,
+            // The account check and the first repository read do not depend on
+            // each other, so they run together; nothing is returned unless the
+            // account still matches.
+            let account = async {
+                match identity {
+                    Some(identity) => Ok(identity),
+                    None => self.identity(token).await,
+                }
+            };
+            let selector = match query {
+                Read::Identity | Read::Repositories { .. } | Read::FindRepository { .. } => None,
+                _ => Some(r::text(&q, "repository")?),
+            };
+            let (identity, observed, reader) = match (query, selector) {
+                (Read::Repository { repository }, _) => {
+                    let (identity, observed) = tokio::try_join!(account, self.repository(repository, token))?;
+                    (identity, Some(observed), None)
+                }
+                (_, Some(repository)) => {
+                    let (identity, reader) = tokio::try_join!(account, Reader::new(self, token, repository))?;
+                    (identity, None, Some(reader))
+                }
+                _ => (account.await?, None, None),
             };
             if identity.external_id != expected {
                 return Err(Failure::new(409, "github_account_changed"));
@@ -98,8 +118,8 @@ impl Client {
                     result["items"] = json!(projected);
                     result["next_page"] = json!(response.next);
                 }
-                Read::Repository { repository } => {
-                    result["repository"] = self.repository(repository, token).await?;
+                Read::Repository { .. } => {
+                    result["repository"] = observed.ok_or_else(Failure::invalid)?;
                 }
                 Read::FindRepository { name } => {
                     let response = self.get(&format!("/repos/{name}"), &[], token).await?;
@@ -110,8 +130,7 @@ impl Client {
                     result["repository"] = observed;
                 }
                 _ => {
-                    let repository = r::text(&q, "repository")?;
-                    let reader = Reader::new(self, token, repository).await?;
+                    let reader = reader.ok_or_else(Failure::invalid)?;
                     let (field, value) = match kind {
                         "issue_creator_permission" => ("capabilities", reader.issue_creator_permission(q["number"].as_u64().ok_or_else(Failure::invalid)?, r::text(&q,"creator")?).await?),
                         "target_tip" => ("publication", reader.target_tip(r::text(&q, "target_ref")?).await?),
