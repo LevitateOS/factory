@@ -14326,6 +14326,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 	var materialVersion atomic.Int64
 	var materialReads atomic.Int64
 	var closingReadiness atomic.Int64
+	var nonAdmin atomic.Bool
 	host := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var command struct {
 			Operation                       string
@@ -14364,7 +14365,7 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 				json.NewEncoder(w).Encode(map[string]string{"error": "github_not_visible"})
 				return
 			}
-			observation = map[string]any{"kind": "repository", "account": account, "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture", "private": true, "default_branch": "main", "push": true, "admin": true, "merge_methods": map[string]bool{"merge": true, "squash": true, "rebase": true}}}
+			observation = map[string]any{"kind": "repository", "account": account, "repository": map[string]any{"external_id": "123", "name": "fixture/read-capture", "private": true, "default_branch": "main", "push": true, "admin": !nonAdmin.Load(), "merge_methods": map[string]bool{"merge": true, "squash": true, "rebase": true}}}
 		case background && command.Call.Kind == "read" && command.Call.Query.Repository == "123":
 			kind := command.Call.Query.Kind
 			if kind == "merge_readiness" {
@@ -14740,10 +14741,108 @@ func progressRepositoryReadCaptureFixture(ctx context.Context, config factoryrun
 		return err
 	}
 	inventoryMode.Store(false)
+	if err = progressActivityRepairCapture(ctx, db, raw, request, repository, mapping.Binding.Actor.ID, &calls, &denyAt, &nonAdmin); err != nil {
+		return err
+	}
+	fmt.Println("PASS: actual Go native HTTP/PG activity and repair-funding reads each use two repository reads (selection and closing) and final withdrawal refuses; activity links follow the provider path shape. An administrator's activity save uses three (selection, fresh administration, closing) and a repair save two (selection, fresh pre-write administration); a non-administrator is refused 403 after two and one reads with nothing recorded. Provider replies declared.")
 	fmt.Println("PASS: real Go material reader accepts version1 compound pages, refuses a compound kind absent from the frozen prior contract, rejects unknown versions/mixed payloads at the first input read, and preserves closing withdrawal refusal with no provider/model/write.")
 	fmt.Println("PASS: production material reader projects complete native-paired discussion pages through existing decoders, then exactly one closing paired CI/protection/current-opinion read; closing permission withdrawal exposes no material. Three declared native reads, no provider/model/write.")
 	fmt.Println("PASS: actual Go native HTTP/PG project list for one and three opened repositories uses exactly one repository read (the binding's selection) and no identity read, and each row carries its provider repository id; an open ask counts as needs-you until a reply arrives; a failed selection read refuses the whole list. Provider replies declared.")
 	fmt.Println("PASS: actual Go native HTTP/PG status/access, Work and retired run status each use exactly two repository reads (selection and closing visibility); inner/initial checks add none, final withdrawal refuses, and foreign actor/repository scope cannot use the capture. Empty Feed retains three reads and final withdrawal exposes no advisory. Provider/acceptance replies declared; no coordinator Start, provider, model or execution.")
+	return nil
+}
+
+// progressActivityRepairCapture drives the native activity and repair-funding
+// routes against the capture's declared provider, counting repository reads.
+func progressActivityRepairCapture(ctx context.Context, db *store.Store, raw *sql.DB, request func(string, string, []byte) (int, map[string]any, error), repository collaboration.RepositoryID, actor collaboration.ActorID, calls, denyAt *atomic.Int64, nonAdmin *atomic.Bool) error {
+	target := factory.CheckTarget{Repository: int64(repository), PRNumber: 3, PRID: 11, IssueID: 13, HeadRef: "refs/heads/factory/check", BaseRef: "refs/heads/main", HeadOID: strings.Repeat("a", 40), BaseOID: strings.Repeat("b", 40)}
+	published := declaredPublishedFixture(target, actor, factory.NewID(), 12, 1, time.Now().Add(time.Minute).Unix())
+	encoded, err := json.Marshal(published)
+	if err != nil {
+		return err
+	}
+	if _, err = raw.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,12,$3,'published',0,$4)`, published.AssignmentID, repository, published.Run, string(encoded)); err != nil {
+		return err
+	}
+	base := fmt.Sprintf("/api/repositories/%d/factory", repository)
+	call := func(name, method, path, payload string, admin bool, deny, want, wantStatus int64) (map[string]any, error) {
+		calls.Store(0)
+		denyAt.Store(deny)
+		nonAdmin.Store(!admin)
+		defer denyAt.Store(0)
+		defer nonAdmin.Store(false)
+		var body []byte
+		if payload != "" {
+			body = []byte(payload)
+		}
+		status, out, err := request(method, base+path, body)
+		if err != nil || calls.Load() != want || int64(status) != wantStatus {
+			return nil, fmt.Errorf("%s: status=%d calls=%d want status=%d calls=%d body=%v: %v", name, status, calls.Load(), wantStatus, want, out, err)
+		}
+		if wantStatus == 403 {
+			if failure, _ := out["error"].(map[string]any); failure["code"] != "repository_admin_required" {
+				return nil, fmt.Errorf("%s refusal body=%v", name, out)
+			}
+		}
+		return out, nil
+	}
+	activity, err := call("activity read", http.MethodGet, "/activity", "", true, 0, 2, 200)
+	if err != nil {
+		return err
+	}
+	settings, _ := activity["settings"].(map[string]any)
+	items, _ := activity["items"].([]any)
+	if activity["repository"] != strconv.FormatInt(int64(repository), 10) || activity["repository_path"] != "/fixture/read-capture" || activity["revision"] != float64(0) ||
+		settings["issue_created"] != true || settings["pr_created"] != true || settings["verified_merge"] != true || len(items) != 1 {
+		return fmt.Errorf("activity read shape: %v", activity)
+	}
+	if item, _ := items[0].(map[string]any); item["kind"] != "pr_created" || item["issue"] != "12" || item["pr"] != "3" || item["url"] != "/fixture/read-capture/pull/3" {
+		return fmt.Errorf("activity item shape: %v", item)
+	}
+	if _, err = call("withdrawn activity read", http.MethodGet, "/activity", "", true, 2, 2, 404); err != nil {
+		return err
+	}
+	save := `{"expected_revision":0,"settings":{"issue_created":true,"pr_created":false,"verified_merge":true}}`
+	if _, err = call("non-administrator activity save", http.MethodPut, "/activity", save, false, 0, 2, 403); err != nil {
+		return err
+	}
+	if _, revision, err := db.ActivitySettings(ctx, int64(repository)); err != nil || revision != 0 {
+		return fmt.Errorf("refused activity save recorded revision=%d: %v", revision, err)
+	}
+	if activity, err = call("administrator activity save", http.MethodPut, "/activity", save, true, 0, 3, 200); err != nil {
+		return err
+	}
+	if items, _ = activity["items"].([]any); activity["revision"] != float64(1) || len(items) != 0 {
+		return fmt.Errorf("activity save readback: %v", activity)
+	}
+	if _, err = call("non-administrator repair read", http.MethodGet, "/repair", "", false, 0, 1, 403); err != nil {
+		return err
+	}
+	repair, err := call("repair read", http.MethodGet, "/repair", "", true, 0, 2, 200)
+	if err != nil {
+		return err
+	}
+	if repair["revision"] != float64(0) || repair["grant"] != nil {
+		return fmt.Errorf("repair read shape: %v", repair)
+	}
+	if _, err = call("withdrawn repair read", http.MethodGet, "/repair", "", true, 2, 2, 404); err != nil {
+		return err
+	}
+	command := factory.NewID()
+	change := fmt.Sprintf(`{"command_id":%q,"expected_revision":0,"investigator_runs":1,"proposal_judgments":1,"active_minutes":5,"effect":"","active":true}`, command)
+	if _, err = call("non-administrator repair save", http.MethodPut, "/repair", change, false, 0, 1, 403); err != nil {
+		return err
+	}
+	if _, err = db.RepairGrantCommand(ctx, int64(repository)); !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("refused repair save recorded a grant: %v", err)
+	}
+	if repair, err = call("administrator repair save", http.MethodPut, "/repair", change, true, 0, 2, 200); err != nil {
+		return err
+	}
+	grant, err := db.RepairGrantCommand(ctx, int64(repository))
+	if err != nil || repair["command_id"] != command || repair["revision"] != float64(1) || grant.Sponsor != int64(actor) || grant.ActiveMinutes != 5 {
+		return fmt.Errorf("repair save result=%v grant=%+v: %v", repair, grant, err)
+	}
 	return nil
 }
 

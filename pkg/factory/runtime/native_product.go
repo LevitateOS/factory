@@ -114,6 +114,10 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 					}
 					return application.Coordinator.LatestDispatchObservation(int64(repository)), nil
 				}},
+			// Settings writers check administration afresh; history reads and the
+			// repair writer's opening check share this request's selection.
+			Activity:        factoryservice.Activity{Store: application.Store, Visibility: bound.activityNavigation(&view), WriteAccess: bound.administration},
+			Repair:          factoryservice.RepairFunding{Store: application.Store, Administration: bound.readAdministration(&view)},
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible},
 			Artifacts: factoryservice.Artifacts{Source: application.Store, Visibility: bound.visible}},
@@ -264,17 +268,25 @@ type nativeProductAccount struct {
 
 // Read services bracket assembly with this callback. Their first check shares
 // the request's defining authenticated selection; the closing check goes back
-// to the provider. No observation is shared across requests or with writers.
+// to the provider. No observation is shared across requests, and a writer's
+// final check before its effect always goes back to the provider.
 func (b *nativeProductAccount) readVisibility(view *nativeProductAccount) factoryservice.WorkVisibility {
+	observe := b.readObservation(view)
+	return func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+		_, err := observe(ctx, actor, repository)
+		return err
+	}
+}
+func (b *nativeProductAccount) readObservation(view *nativeProductAccount) func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (NativeRepository, error) {
 	if b.binding.Host.Provider != collaboration.GitHub || view.readAdmission == nil {
-		return b.visible
+		return b.repositoryObservation
 	}
 	var started atomic.Bool
-	return func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+	return func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (NativeRepository, error) {
 		if started.CompareAndSwap(false, true) {
-			return view.visible(ctx, actor, repository)
+			return view.repositoryObservation(ctx, actor, repository)
 		}
-		return b.visible(ctx, actor, repository)
+		return b.repositoryObservation(ctx, actor, repository)
 	}
 }
 

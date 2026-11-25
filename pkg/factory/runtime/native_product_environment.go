@@ -2,6 +2,9 @@ package runtime
 
 import (
 	"context"
+	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -34,6 +37,80 @@ func (b *nativeProductAccount) localExecutionSettingsAccess(ctx context.Context,
 		return factoryservice.ErrPlacementUnavailable
 	}
 	return b.localResourceAccess(ctx, actor, repository)
+}
+
+// Repository administration is the provider's admin observation, the same
+// standing the access view reports as owner_or_admin. Missing evidence is
+// unavailable, never a grant.
+func nativeAdministered(observed NativeRepository, err error) error {
+	if err != nil {
+		return err
+	}
+	if observed.Admin == nil {
+		return factoryservice.ErrRequestWriteUnavailable
+	}
+	if !*observed.Admin {
+		return factoryservice.ErrPlacementAdminRequired
+	}
+	return nil
+}
+
+// administration observes the provider afresh for every check.
+func (b *nativeProductAccount) administration(ctx context.Context, actor collaboration.ActorID, repository int64) error {
+	return nativeAdministered(b.repositoryObservation(ctx, actor, collaboration.RepositoryID(repository)))
+}
+
+// readAdministration shares the request's selection for its first check and
+// observes the provider afresh for later ones, including a writer's final check.
+func (b *nativeProductAccount) readAdministration(view *nativeProductAccount) factoryservice.RequestWriteAccess {
+	observe := b.readObservation(view)
+	return func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
+		return nativeAdministered(observe(ctx, actor, collaboration.RepositoryID(repository)))
+	}
+}
+
+// activityNavigation projects host-relative links in the provider's own path
+// shape from the observed repository name. The desktop resolves them against
+// its connection origin; malformed names produce no link.
+func (b *nativeProductAccount) activityNavigation(view *nativeProductAccount) factoryservice.ActivityVisibility {
+	observe := b.readObservation(view)
+	pulls := "/pull/"
+	if b.binding.Host.Provider != collaboration.GitHub {
+		pulls = "/pulls/"
+	}
+	return func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factoryservice.ActivityNavigation, error) {
+		observed, err := observe(ctx, actor, repository)
+		if err != nil {
+			return factoryservice.ActivityNavigation{}, err
+		}
+		owner, name, _ := strings.Cut(observed.Name, "/")
+		if !nativeLinkPart(owner) || !nativeLinkPart(name) {
+			return factoryservice.ActivityNavigation{}, factoryservice.ErrActivityNavigation
+		}
+		path := "/" + owner + "/" + name
+		return factoryservice.ActivityNavigation{RepositoryPath: path, ItemURL: func(item factory.ActivityItem) string {
+			if !nativeLinkNumber(item.Issue) {
+				return ""
+			}
+			switch item.Kind {
+			case "issue_created", "verified_merge":
+				return path + "/issues/" + item.Issue
+			case "pr_created":
+				if nativeLinkNumber(item.PR) {
+					return path + pulls + item.PR
+				}
+			}
+			return ""
+		}}, nil
+	}
+}
+func nativeLinkPart(part string) bool {
+	return part != "" && part != "." && part != ".." && !strings.ContainsAny(part, "/\\%?#") &&
+		!strings.ContainsFunc(part, func(c rune) bool { return unicode.IsSpace(c) || unicode.IsControl(c) })
+}
+func nativeLinkNumber(value string) bool {
+	n, err := strconv.ParseInt(value, 10, 64)
+	return err == nil && n > 0 && strconv.FormatInt(n, 10) == value
 }
 
 func (b *nativeProductAccount) repositoryViewer(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factoryservice.RepositoryViewer, error) {

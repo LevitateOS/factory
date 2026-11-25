@@ -62,6 +62,13 @@ func (s Activity) Read(ctx context.Context, actor collaboration.ActorID, reposit
 	if _, err := s.navigation(ctx, actor, repository); err != nil {
 		return empty, err
 	}
+	return s.assemble(ctx, actor, repository)
+}
+
+// assemble reads stored facts, then refreshes authority and navigation once.
+// Callers have already passed an opening navigation check.
+func (s Activity) assemble(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factory.RepositoryActivity, error) {
+	var empty factory.RepositoryActivity
 	view, err := s.Store.RepositoryActivity(ctx, int64(repository))
 	if err != nil {
 		return empty, err
@@ -101,5 +108,5 @@ func (s Activity) Update(ctx context.Context, actor collaboration.ActorID, repos
 	if err := s.Store.SetActivitySettings(ctx, int64(repository), int64(actor), expected, settings); err != nil {
 		return empty, err
 	}
-	return s.Read(ctx, actor, repository)
+	return s.assemble(ctx, actor, repository)
 }
