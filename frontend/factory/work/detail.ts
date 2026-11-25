@@ -486,7 +486,8 @@ export class SodaFactoryWorkDetail extends LitElement {
       new CustomEvent('soda-factory-watch-request', {
         bubbles: true,
         composed: true,
-        detail: {run: runID, repository: this.bound.current?.repository, environment: this.bound.current?.environmentID},
+        detail: {run: runID, role: this.runs.find((entry) => entry.id === runID)?.detail?.role, issue: context.issue,
+          repository: context.repository, environment: context.environmentID},
       })
     );
   }

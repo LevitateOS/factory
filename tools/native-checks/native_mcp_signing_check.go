@@ -1349,6 +1349,46 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 		fmt.Println("PASS: Go exports exact isolated coder commit/bundle; different candidate and preparation refuse")
 		return nil
 	}
+	if mode == "output-live" || mode == "output-terminal" {
+		// The product attachment over the native output source: the same
+		// service validation Watch frames pass, with controlled scope/access.
+		source := factoryservice.RunOutput{Store: db,
+			Scope: func(context.Context, collaboration.ActorID, factory.Run) (collaboration.RepositoryID, error) {
+				return 1, nil
+			},
+			Access: func(context.Context, collaboration.ActorID, collaboration.RepositoryID, factory.Run) error { return nil },
+			Source: func(ctx context.Context, _ collaboration.ActorID, r factory.Run, cursor int64, _ int) (project.FactoryOutputState, error) {
+				return port.ReadOutput(ctx, r, cursor)
+			}}
+		attachment, openErr := source.Open(ctx, 1, run.ID)
+		if openErr != nil {
+			return openErr
+		}
+		var cursor, reads int64
+		var last *factoryservice.RunOutputSlice
+		for reads < 64 {
+			slice, readErr := attachment.Read(ctx, cursor)
+			if readErr != nil {
+				return readErr
+			}
+			reads++
+			last = slice
+			if slice.Next == cursor {
+				break
+			}
+			cursor = slice.Next
+			if slice.Done {
+				break
+			}
+		}
+		live := mode == "output-live"
+		if last == nil || cursor == 0 || last.Status.Live != live || last.Status.Terminal == live || last.Done == live ||
+			live && last.Status.Phase != project.FactoryRunning || !live && last.Status.Phase != project.FactoryCompleted && last.Status.Phase != project.FactoryStopped {
+			return fmt.Errorf("native output read differs: %+v after %d bytes", last, cursor)
+		}
+		fmt.Println("PASS: native Go output source", mode, "read", cursor, "bytes in", reads, "bounded reads through the product attachment")
+		return nil
+	}
 	var observed execution.RunObservation
 	if mode == "cancel" {
 		observed, err = port.RetireRun(ctx, address)

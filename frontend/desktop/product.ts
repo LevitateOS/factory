@@ -7,6 +7,7 @@ import type {Binding, Core} from './transport.js';
 import {DesktopTransport} from './transport.js';
 import {upfrontCapabilities} from '../factory/work/work-view.js';
 import {PlacementController, placementView} from './placement.js';
+import {desktopWatchSource, watchRenderer} from './watch.js';
 
 export function routeURL(route: FactoryRoute): string {
   const query = new URLSearchParams({view: route.kind});
@@ -273,7 +274,8 @@ export class DesktopProduct {
             commandScope,
             links: this.links(route.repository),
             capabilities: upfrontCapabilities(undefined, false),
-            watchAvailable: false,
+            // Live output reads the native response; Fountain keeps it unavailable.
+            watchAvailable: this.selected.provider === 'github',
           },
         };
       case 'plan':
@@ -307,8 +309,21 @@ export class DesktopProduct {
         return {kind: 'accounts', context: {transport, sections: this.accounts}};
       case 'projects':
         return {kind: 'projects', context: {transport}};
-      case 'watch':
-        throw Error('Native execution is unavailable');
+      case 'watch': {
+        check(this.selected.provider === 'github' && repository && route.repository === repository.id);
+        return {
+          kind: 'watch',
+          context: {
+            transport,
+            source: desktopWatchSource(this.core, this.selected, () => !this.lifetime.signal.aborted),
+            runId: route.run,
+            role: route.role,
+            ...(route.issue ? {issue: route.issue} : {}),
+            ...(route.attempt ? {attempt: route.attempt} : {}),
+          },
+          renderer: watchRenderer,
+        };
+      }
     }
   }
 }

@@ -22,6 +22,8 @@ export async function buildDesktopUI(out: string) {
   if (!built.success) throw Error(built.logs.join('\n'));
   for (const file of ['index.html', 'desktop.css'])
     await copyFile(resolve(import.meta.dir, '../frontend/desktop', file), resolve(out, file));
+  // The Watch terminal renderer's own stylesheet.
+  await copyFile(resolve(import.meta.dir, '../node_modules/@xterm/xterm/css/xterm.css'), resolve(out, 'xterm.css'));
   return product;
 }
 if (import.meta.main) {

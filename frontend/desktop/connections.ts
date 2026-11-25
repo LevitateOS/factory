@@ -377,6 +377,12 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
         }
       });
   });
+  // Work detail asks its host to watch one listed run; the route admits it.
+  app.addEventListener('soda-factory-watch-request', (event) => {
+    if (!(event instanceof CustomEvent) || typeof event.detail !== 'object' || !event.detail) return;
+    const {run, role, issue, repository} = event.detail as Record<string, unknown>;
+    navigate({kind: 'watch', repository, run, role, ...(issue ? {issue} : {})} as FactoryRoute);
+  });
   window.addEventListener('popstate', () => {
     const route = readRoute();
     if (route) navigate(route);

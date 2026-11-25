@@ -1,7 +1,7 @@
 # Front-end pages: implementation plan
 
-Status (2026-11-25): every slice is implemented on `main` except two. 4.2 (live
-run output) is blocked on a worker-protocol output query; see its row. 5.7
+Status (2026-11-25): every slice is implemented on `main`. 4.2 (live run output)
+is implemented but not yet qualified on the installed worker path; see its row. 5.7
 (interactive HTML) stays unavailable by the review below. Implemented slices are
 verified with the repository's static checks, Storybook fixtures and the store
 tests on disposable native PostgreSQL. None is qualified in a connected or
@@ -165,7 +165,7 @@ afterwards is removing a fixture state, which Haiku can do.
 | # | Slice | Model |
 |---|---|---|
 | 4.1 | Bind the repository activity and repair-funding stores on the native host (both return 503 today) | Opus |
-| 4.2 | Mount the run-output WebSocket so Watch can attach. **Blocked (2026-11-25):** the native runtime has no live output. The isolated worker's execution protocol carries only liveness and cancel, and output arrives once, in the final receipt (`lib/desktop-runtime/src/factory_provider/broker.rs`, `port.rs`). Polling the run read would cost one provider observation per second per viewer. Order of work: (1) a bounded, read-only output-from-offset query in the worker protocol, with its own query budget, plus an `output` operation on `/api/native/execution`; this is a worker-isolation change and gets its own slice; (2) a native `RunOutput.Source` in Go, served as one long-lived response that costs the binding's single observation; (3) a streaming Unix-socket read and a Tauri channel command in the desktop; (4) `frontend/desktop/watch.ts` and `watchAvailable: true`. Until then the desktop keeps Watch unavailable. | Opus |
+| 4.2 | Mount the run-output WebSocket so Watch can attach. **Implemented, unqualified (2026-11-25):** execution protocol v4 adds a budgeted output-from-offset read (separate 65,536 budget) and an `output` operation on `/api/native/execution`; Go serves `GET /api/factory/runs/{id}/output` as one NDJSON response per binding (4.5 min, then the host renews at its cursor), with only local checks inside it; the desktop streams it over `factory_product_output` and `frontend/desktop/watch.ts`. Muse-login transcripts and Fountain accounts stay unavailable. Verified only by builds and the real-supervisor `schema` check. The installed broker/agent path, the extended `execution` check and the GitHub-bound route with controlled responses have not run; an installed v3 broker refuses v4 launches until the system boundary is reinstalled. A GTK display is needed to see Watch render. | Opus |
 | 4.3 | Deliver feedback for feed posts judged "existing work" | Opus |
 | 4.4 | Confirm artifact download end to end through the desktop bridge | Sonnet to write the check; Opus if it fails |
 

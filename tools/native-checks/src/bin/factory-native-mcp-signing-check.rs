@@ -2655,6 +2655,38 @@ async fn managed_execution(
             }
         }
         command("check-owned-execution", "running")?;
+        // Live output: the private port answers from the worker's capture with
+        // its own read budget, then Go reads it through the product attachment.
+        let read_output = |offset: u64| {
+            let body = serde_json::to_vec(&serde_json::json!({"operation":"output","intent":intent.raw(),"offset":offset}));
+            let bearer = bearer.clone();
+            let socket = profile.join("host.sock");
+            let instance = ready.instance.clone();
+            async move {
+                let response = request_authenticated_async(&socket, "POST", "/api/native/execution", "soda-native", &body?, &bearer,
+                    &[("X-Soda-Native-Instance", instance.as_str())], Duration::from_secs(5), Limits { header_bytes: 4096, body_bytes: 64 * 1024 })
+                    .await.map_err(|error| format!("native output transport: {error:?}"))?;
+                if response.status != 200 { return Err(format!("native output read refused: {}", response.status).into()); }
+                let read: serde_json::Value = serde_json::from_slice(&response.body)?;
+                let data = base64::engine::general_purpose::STANDARD.decode(read["data"].as_str().ok_or("output data missing")?)?;
+                Ok::<_, Box<dyn std::error::Error>>((read, data))
+            }
+        };
+        let mut live_output = Vec::new();
+        let output_deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while live_output.is_empty() && std::time::Instant::now() < output_deadline {
+            let (read, data) = read_output(0).await?;
+            if read["live"] != true || read["terminal"] != false || read["offset"] != 0 || read["total"].as_u64() < Some(data.len() as u64) {
+                return Err("live native output read differs".into());
+            }
+            live_output = data;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        if live_output.is_empty() {
+            return Err("live native output never arrived".into());
+        }
+        command("check-owned-execution", "output-live")?;
+        println!("PASS: live output of the running isolated worker read through the bounded output query ({} bytes)", live_output.len());
         let before = ticket.inspect(Duration::from_secs(2))?.started.process;
         let replay = request_authenticated_async(
             &profile.join("host.sock"),
@@ -2696,6 +2728,13 @@ async fn managed_execution(
                     tokio::time::sleep(Duration::from_millis(20)).await
                 }
                 ExecutionOutcome::Complete(result, _) if mode == "finite" => {
+                    let (read, data) = read_output(0).await?;
+                    if read["terminal"] != true || read["live"] != false || read["reason"] != "exited"
+                        || read["total"].as_u64() != Some(result.output.len() as u64)
+                        || data[..] != result.output[..data.len()] || !data.starts_with(&live_output)
+                    {
+                        return Err("terminal native output differs from the receipt".into());
+                    }
                     if candidate_check {
                         if result.candidate_state != soda_execution_protocol::CandidateState::Captured
                             || result.result_candidate.is_none()
@@ -2725,6 +2764,7 @@ async fn managed_execution(
                 _ => return Err("owned execution result differs".into()),
             }
         }
+        command("check-owned-execution", "output-terminal")?;
         command(
             "check-owned-execution",
             if mode == "finite" {
