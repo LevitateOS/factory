@@ -1037,6 +1037,40 @@ export class SodaFactoryFeed extends LitElement {
   }
 
   // Saved retry is a separate explicit action: it sends the retained body and
+  // reroutePost sends a post where its author chose instead of where JEV
+  // decided. The server refuses once the routed work has started.
+  private async reroutePost(data: DOMStringMap) {
+    const context = this.current,
+      binding = this.lifetime.signal;
+    if (!context || this.accessFailure || this.view.busy) return;
+    this.view = {...this.view, busy: true};
+    let message: string | undefined;
+    try {
+      const response = await this.request(context, 'factory/feed/posts/' + data.postReroute + '/route', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          repository: data.postRepository,
+          expected_revision: Number(data.postRevision),
+          choice: data.rerouteChoice,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!this.bindingLive(context, binding)) return;
+      if (!response.ok) {
+        const value = object(await readSodaJSON(response).catch(() => ({})));
+        message = String(object(value.error ?? {}).message ?? '') || 'Your choice could not be saved.';
+      }
+    } catch {
+      message = 'Your choice could not be saved. Try again.';
+    } finally {
+      if (this.bindingLive(context, binding)) {
+        this.view = {...this.view, busy: false, ...(message ? {message} : {})};
+        void this.readLatest(false);
+      }
+    }
+  }
+
   // CAS unchanged, never the newer writing currently shown in the editor.
   private async revisePost(saved = false) {
     const writer = this.revisionEditor,
@@ -1174,6 +1208,11 @@ export class SodaFactoryFeed extends LitElement {
     if (roleReply) {
       event.preventDefault();
       void this.openRoleReply(roleReply);
+      return;
+    }
+    const reroute = closest('[data-post-reroute]');
+    if (reroute?.dataset.postReroute && reroute.dataset.rerouteChoice) {
+      void this.reroutePost(reroute.dataset);
       return;
     }
     const reviseButton = closest('[data-post-revise]');

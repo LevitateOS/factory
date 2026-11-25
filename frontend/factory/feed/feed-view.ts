@@ -74,6 +74,7 @@ export interface PostOutcomeModel {
   readonly pending: boolean;
   readonly phase?: PostPhase;
   readonly canRetry: boolean;
+  readonly canReroute: boolean;
   readonly needsClarification: boolean;
   readonly revision: number;
   readonly detail: string | undefined;
@@ -351,6 +352,7 @@ export function describePostOutcome(
     pending: phase ? postPhases[phase].working : state.productChange?.state === 'unavailable',
     ...(phase ? {phase} : {}),
     canRetry: state.canRetry === true,
+    canReroute: state.canReroute === true,
     needsClarification: state.route === 'clarify',
     revision: state.revision,
     detail: state.issueMaker ? undefined : state.authoring?.detail || state.detail || undefined,
@@ -418,13 +420,23 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
           ? renderJevReceipt({
               question: 'Where does this post belong: new work, a discussion, a question back to you, or an existing issue?',
               rule: 'Act on the top option when it is at least 70% likely; otherwise ask you.',
-              ruled: outcome.routing.unsure ? 'No option reached 70%, so I asked you.' : 'The top option cleared it.',
+              ruled: outcome.routing.chosen
+                ? `You chose “${routingLabel(outcome.routing, outcome.routing.chosen)}” instead.`
+                : outcome.routing.unsure
+                  ? 'No option reached 70%, so I asked you.'
+                  : 'The top option cleared it.',
               model: outcome.routing.model,
-              inputTokens: outcome.routing.input_tokens,
-              outputTokens: outcome.routing.output_tokens,
+              inputTokens: outcome.routing.inputTokens,
+              outputTokens: outcome.routing.outputTokens,
             })
           : ''
       }
+      ${
+        outcome.routing?.chosen
+          ? html`<p class="soda-feed-rerouted">You sent this to “${routingLabel(outcome.routing, outcome.routing.chosen)}”.</p>`
+          : ''
+      }
+      ${outcome.routing && outcome.canReroute ? renderReroute(outcome, outcome.routing) : ''}
       ${outcome.detail && !outcome.phase?.startsWith('stalled') ? html`<p>${outcome.detail}</p>` : ''}
       ${
         authoring && !outcome.phase?.startsWith('stalled') && outcome.authoring?.checkedUnix
@@ -460,6 +472,38 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
       }
     </div>
   </div>`;
+}
+
+type Routing = NonNullable<PostPipelineState['routing']>;
+
+function routingLabel(routing: Routing, key: string): string {
+  return routing.options.find((option) => option.key === key)?.label || key;
+}
+
+// "Wrong call? Choose where it goes": while nothing has acted on JEV's
+// decision, the author picks one of the places she weighed instead. Asking a
+// question back is JEV's move, so those options are not offered.
+function renderReroute(outcome: PostOutcomeModel, routing: Routing): TemplateResult {
+  const current = routing.chosen || (routing.unsure ? '' : routing.selected);
+  const options = routing.options.filter((option) => !option.key.startsWith('clarify_'));
+  return html`<details class="soda-feed-reroute">
+    <summary>Wrong call? Choose where it goes</summary>
+    <p>Nothing has started yet. Pick where this post belongs and it goes there instead.</p>
+    <div class="soda-feed-reroute-options">
+      ${options.map(
+        (option) => html`<button
+          type="button"
+          data-post-reroute=${outcome.postId}
+          data-reroute-choice=${option.key}
+          data-post-repository=${outcome.productRepository}
+          data-post-revision=${String(outcome.revision)}
+          ?disabled=${outcome.busy || option.key === current}
+        >
+          ${option.label || option.key}${option.key === routing.selected ? html` <small>JEV’s pick</small>` : ''}
+        </button>`
+      )}
+    </div>
+  </details>`;
 }
 
 export interface ComposerModel {

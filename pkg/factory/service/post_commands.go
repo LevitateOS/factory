@@ -156,6 +156,20 @@ func (s PostCommands) Retry(ctx context.Context, actor collaboration.ActorID, id
 	return receipt, nil
 }
 
+// Reroute sends a post where its author chooses instead of where JEV decided,
+// while nothing has acted on JEV's decision yet.
+func (s PostCommands) Reroute(ctx context.Context, actor collaboration.ActorID, id string, repository, expected int64, choice string) error {
+	author, err := s.retryAuthor(ctx, actor, id, repository)
+	if err != nil {
+		return err
+	}
+	if err := s.Posts.Store.ReroutePost(ctx, id, author, expected, choice); err != nil {
+		return errors.Join(ErrPostRetryConflict, err)
+	}
+	s.wake()
+	return nil
+}
+
 // RetryReceipt is read-only recovery. An absent ID does not create a command or
 // retry work, and a retained receipt cannot substitute for current authority.
 func (s PostCommands) RetryReceipt(ctx context.Context, actor collaboration.ActorID, id, commandID string, repository int64) (factory.FeedPostRetryReceipt, error) {

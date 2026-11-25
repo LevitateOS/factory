@@ -8,6 +8,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/factory"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
+	"github.com/levitateos/factory/pkg/store"
 	"github.com/levitateos/factory/pkg/strictjson"
 )
 
@@ -136,6 +137,40 @@ func (s Feed) retryPost(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := s.Commands.Retry(r.Context(), s.Actor, r.PathValue("id"), factory.FeedPostRetryRequest{CommandID: in.CommandID, Repository: repository, ExpectedRevision: *in.ExpectedRevision, Body: in.Body})
 	s.retryAnswer(w, r, response, err)
+}
+
+// reroutePost is "Wrong call? Choose where it goes" on a post JEV routed.
+func (s Feed) reroutePost(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Repository       string `json:"repository"`
+		ExpectedRevision *int64 `json:"expected_revision"`
+		Choice           string `json:"choice"`
+	}
+	if !decodeObject(w, r, &in) || !s.current(w, r) {
+		return
+	}
+	repository, err := strconv.ParseInt(in.Repository, 10, 64)
+	if err != nil || repository <= 0 || strconv.FormatInt(repository, 10) != in.Repository || in.ExpectedRevision == nil || in.Choice == "" || len(in.Choice) > 64 {
+		writeError(w, 400, "invalid_request", "Choose a canonical repository, expected revision and option.")
+		return
+	}
+	err = s.Commands.Reroute(r.Context(), s.Actor, r.PathValue("id"), repository, *in.ExpectedRevision, in.Choice)
+	switch {
+	case err == nil:
+		if s.current(w, r) {
+			writeJSON(w, 200, map[string]string{"chosen": in.Choice})
+		}
+	case errors.Is(err, store.ErrPostRouteStarted):
+		writeError(w, 409, "comment_route_started", "Work on this post has already started, so it can't be sent somewhere else.")
+	case errors.Is(err, factoryservice.ErrPostNotFound), errors.Is(err, factoryservice.ErrPostVisibility):
+		writeError(w, 404, "comment_not_found", "Post not found.")
+	case errors.Is(err, factoryservice.ErrPostAuthorRequired):
+		writeError(w, 403, "comment_author_required", "Only the author can choose where this post goes.")
+	case errors.Is(err, factoryservice.ErrPostRetryConflict):
+		writeError(w, 409, "comment_route_conflict", "This post changed. Refresh and choose again.")
+	default:
+		writeError(w, 503, "store_unavailable", "Could not save your choice.")
+	}
 }
 
 func (s Feed) retryReceipt(w http.ResponseWriter, r *http.Request) {

@@ -269,8 +269,8 @@ The plan will spell these out.
 ## Open questions
 
 1. **When JEV is sure, work starts immediately**, and the post shows
-   "Decided" with "Give it to someone else". Is that right, or should
-   routing wait for a click at first?
+   "Decided" with "Wrong call? Choose where it goes". The author can pick
+   another option JEV weighed until the routed work starts. Agreed.
 2. **One TypeSafe key per Mac**, shared by all projects, with an optional
    model pin per project. Is that enough?
 3. **The long-context header stays off.** A post too large for 64k tokens

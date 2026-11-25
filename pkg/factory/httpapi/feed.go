@@ -53,6 +53,8 @@ func (s Feed) Handler() http.Handler {
 						serve = s.replies
 					case "retry":
 						serve, methods = s.retryPost, http.MethodPost
+					case "route":
+						serve, methods = s.reroutePost, http.MethodPost
 					default:
 						if command, ok := strings.CutPrefix(tail, "retry/"); ok && !strings.Contains(command, "/") {
 							serve = s.retryReceipt

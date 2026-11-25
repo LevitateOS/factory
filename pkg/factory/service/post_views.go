@@ -176,6 +176,11 @@ func (s Posts) project(ctx context.Context, actor collaboration.ActorID, detail 
 	}
 	if routing, err := s.Store.PostRouting(ctx, detail.Record.ID); err == nil && routing != nil {
 		response["routing"] = routing
+		if detail.Record.Author == author && !detail.Record.Deleted && !detail.Record.Revoked {
+			if open, err := s.Store.PostReroutable(ctx, detail.Record.ID); err == nil && open {
+				response["can_reroute"] = true
+			}
+		}
 	}
 	if !detail.Record.Deleted && !detail.Record.Revoked {
 		if stalled := PostStalled(pipe, s.Collaborators); stalled != "" {

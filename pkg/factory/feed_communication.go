@@ -300,6 +300,9 @@ type PostRouting struct {
 	InputTokens  int64  `json:"input_tokens,omitempty"`
 	OutputTokens int64  `json:"output_tokens,omitempty"`
 	Unsure       bool   `json:"unsure,omitempty"`
+	// Chosen is the option the author picked instead ("Wrong call? Choose where
+	// it goes"). Empty while JEV's decision stands.
+	Chosen string `json:"chosen,omitempty"`
 }
 
 // PostRoutingOption is one weighed outcome of a routing Choice.

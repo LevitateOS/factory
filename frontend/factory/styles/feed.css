@@ -4385,3 +4385,28 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
   margin: 0;
   border-radius: 0;
 }
+.soda-feed-reroute {
+  margin-top: 6px;
+  font: var(--soda-font-caption);
+}
+.soda-feed-reroute summary {
+  cursor: pointer;
+  color: var(--soda-page-text);
+}
+.soda-feed-reroute p {
+  margin: 6px 0;
+  color: var(--soda-page-muted);
+}
+.soda-feed-reroute-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.soda-feed-reroute-options small {
+  color: var(--soda-page-muted);
+}
+.soda-feed-rerouted {
+  margin: 6px 0 0;
+  font: var(--soda-font-caption);
+  color: var(--soda-page-muted);
+}

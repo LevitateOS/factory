@@ -216,7 +216,8 @@ required only for work or checks that look like hacking.
 **Current scoped continuation: NOT STARTED.** The owner agreed the
 [JEV connection design](jev-connection-design.md) and its three defaults:
 
-1. When JEV is sure, work starts immediately, with "Give it to someone else".
+1. When JEV is sure, work starts immediately, with "Wrong call? Choose where it goes"
+   while nothing has started.
 2. One TypeSafe key per Mac, with an optional model pin per project.
 3. The long-context header stays off, so an oversized post becomes a Problem.
 
@@ -321,6 +322,11 @@ before the next one starts.
   - Feed routing wired, with the 70% rule and "unsure" asking the author.
   - The five stall posts, and "How I decided".
   - The old Go HTTP and key-file code is deleted.
+  - "Wrong call? Choose where it goes" (replaces "Give it to someone else"):
+    the author picks another option JEV weighed, but only while nothing has
+    acted on the decision. New work and existing-issue feedback start in the
+    same pass, so in practice it is offered on discussion and question-back
+    outcomes. `POST /api/factory/feed/posts/{id}/route`.
 - **Controlled check passed:** `factory-credential-operation-check --typesafe`,
   23 scripted requests.
 - **Connected (2026-11-25, signed app, the user's key):**
@@ -332,7 +338,6 @@ before the next one starts.
     receipt. The post handed off to Issue Maker.
   - No GitHub issue was created. There was no Keychain prompt.
 - **Not done yet:**
-  - "Give it to someone else".
   - Moving the routing wording into `jev_questions.go`.
   - Restart reuse of an answered row, seen live.
   - "How I decided", seen in the desktop window.
@@ -341,7 +346,7 @@ before the next one starts.
 
 - A new Feed post is routed by JEV, and the routed agent picks it up.
 - The post shows "Decided" with "How I decided": question, probabilities,
-  rule, model, tokens and cost. It also has "Give it to someone else".
+  rule, model, tokens and cost. It also has "Wrong call? Choose where it goes" until the work starts.
 - When JEV is unsure, the post asks who should take it.
 - The five stall posts from `JevFeed` replace `stalled_jev`.
 
@@ -380,7 +385,7 @@ before the next one starts.
 - The stall posts.
 - The "How I decided" panel, which extends the existing `jev` decision record
   in `factory_feed_record.go`.
-- "Give it to someone else".
+- "Wrong call? Choose where it goes".
 
 **Verify:**
 

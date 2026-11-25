@@ -522,6 +522,34 @@ export const closingTheLoop: FeedPostSpecimen[] = [
     })
   ),
   specimen(
+    'JEV reply · wrong call? choose where it goes',
+    'I keep wondering whether search should match accents.',
+    humanPost('Alex', {
+      body: 'I keep wondering whether search should match accents. What do others think?',
+      judgment: 'applied',
+      intake: 'recorded',
+      route: 'discussion',
+      draft: 'pending',
+      effect: 'pending',
+      revision: 1,
+      can_retry: false,
+      can_reroute: true,
+      routing: {
+        selected: 'discussion',
+        confidence: 0.81,
+        model: 'jev-1.14.0',
+        input_tokens: 612,
+        output_tokens: 58,
+        options: [
+          {key: 'new_issue', label: 'New work', probability: 0.14},
+          {key: 'discussion', label: 'Just discussion', probability: 0.81},
+          {key: 'clarify_target', label: 'Ask which app or issue', probability: 0.02},
+          {key: 'existing_41', label: '#41 Search results', probability: 0.03},
+        ],
+      },
+    })
+  ),
+  specimen(
     'JEV reply · failed',
     'Search thing from before, same as last time.',
     humanPost('Alex', {

@@ -482,6 +482,8 @@ export interface PostPipelineState {
   productChange?: PostProductChange;
   /** JEV's routing Choice: each option weighed, the pick and her confidence. */
   routing?: PostRouting;
+  /** The author may still choose where the post goes: nothing has acted on JEV's decision. */
+  canReroute?: boolean;
   /** The collaborator the next stage waits for: jev, product_lead or forge. */
   stalled?: string;
   authoring?: {
@@ -502,10 +504,12 @@ export interface PostRouting {
   options: {key: string; label: string; probability: number}[];
   /** The versioned model and token usage behind the answer. */
   model?: string;
-  input_tokens?: number;
-  output_tokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   /** No option reached the 70% rule, so the post asks the person. */
   unsure?: boolean;
+  /** The option the author chose instead of JEV's decision. */
+  chosen?: string;
 }
 
 // postSourceForEntry names the feed entry one reply answers: a post by
