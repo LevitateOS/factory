@@ -2204,19 +2204,45 @@ soda-factory-library {
   font-size: 12px;
 }
 .soda-canonical-finding {
-  border: 1px solid var(--soda-page-warning-edge);
+  border: 1px solid var(--soda-page-edge);
 }
 .soda-canonical-finding > header {
-  padding: 8px 12px;
-  background: var(--soda-feed-tint);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--soda-page-edge);
   display: flex;
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
-  font: var(--soda-font-caption);
+  font: 500 13px/20px Barlow, Arial, sans-serif;
+}
+.soda-canonical-finding > header > span:last-child {
+  color: var(--soda-feed-bad);
 }
 .soda-canonical-finding > div {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+.soda-canonical-context .soda-action-blocker {
+  padding: 10px 12px;
+  background: var(--soda-feed-warn-bg);
+}
+.soda-feed-card .soda-canonical-context .soda-action-blocker h4 {
+  color: var(--soda-feed-warn);
+}
+.soda-canonical-context[data-action='decomposition'] .soda-action-brief {
   padding: 12px;
+  border: 1px solid var(--soda-feed-line);
+}
+.soda-canonical-context[data-action='decomposition'] .soda-action-brief:nth-of-type(1) {
+  border-color: var(--soda-page-text);
+}
+.soda-feed-card .soda-canonical-context[data-action='decomposition'] .soda-action-brief > h4 {
+  font: var(--soda-font-label);
+  color: var(--soda-page-text);
+}
+.soda-action-result code {
+  font: 400 13px/20px var(--soda-font-mono-family);
 }
 .soda-canonical-finding + .soda-canonical-finding {
   margin-top: 10px;
