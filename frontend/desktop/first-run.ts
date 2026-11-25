@@ -7,10 +7,9 @@ import {renderFactoryWordmark} from '../factory/shared/factory-mark.js';
 export interface FirstRunFacts {
   /** Factory's runtime is ready (the controllers' `ready`). */
   runtime: boolean;
-  /** Muse reported that a sign-in finished in this window. Muse keeps its own
-   * saved login and reports no signed-in state, so a returning person's Muse
-   * step stays unconfirmed. */
-  museSignedIn: boolean;
+  /** Muse signed in (a sign-in finished here, or Muse reported a saved login),
+   * not signed in (Muse said so), or unknown (Muse has not answered). */
+  muse: 'signed_in' | 'signed_out' | 'unknown';
   /** The JEV key state, undefined until read. */
   jev: 'none' | 'connected' | 'refused' | 'locked' | undefined;
   /** Saved GitHub accounts, as labels, whose credentials are usable. */
@@ -35,7 +34,7 @@ interface Step {
  * other step. The frame hides this region once it has a usable context. */
 export class SodaDesktopFirstRun extends LitElement {
   /** Read at each render, from the controllers' current state. */
-  facts: () => FirstRunFacts = () => ({runtime: false, museSignedIn: false, jev: undefined, github: []});
+  facts: () => FirstRunFacts = () => ({runtime: false, muse: 'unknown', jev: undefined, github: []});
   homes: Readonly<Record<string, HTMLElement>> = {};
   /** Steps the person opened or closed, over the derived default. */
   private readonly opened = new Map<string, boolean>();
@@ -64,13 +63,14 @@ export class SodaDesktopFirstRun extends LitElement {
     this.requestUpdate();
   }
   private steps(): Step[] {
-    const {runtime, museSignedIn, jev, github} = this.facts(),
+    const {runtime, muse, jev, github} = this.facts(),
+      museSignedIn = muse === 'signed_in',
       account = github.length > 0,
       jevConnected = jev === 'connected';
     const done = [runtime, museSignedIn, jevConnected, account, false];
-    // Muse cannot report a saved login, so once GitHub is usable its step no
-    // longer holds the person back. A skipped JEV step does not either.
-    const waiting = done.map((value, index) => !value && !(index === 1 && account) && !(index === 2 && this.jevSkipped));
+    // Until Muse answers, a usable GitHub account lets setup go on past the Muse
+    // step. A skipped JEV step does not hold it back either.
+    const waiting = done.map((value, index) => !value && !(index === 1 && account && muse === 'unknown') && !(index === 2 && this.jevSkipped));
     const current = waiting.indexOf(true);
     const state = (index: number): StepState => (done[index] ? 'done' : index === current ? 'current' : 'pending');
     const home = (id: string) => this.homes[id];
@@ -86,9 +86,17 @@ export class SodaDesktopFirstRun extends LitElement {
         id: 'muse',
         title: 'Sign in to Muse',
         state: state(1),
-        badge: museSignedIn ? 'Done' : state(1) === 'current' ? 'Waiting for you' : account ? 'Not confirmed' : 'Next',
+        badge: museSignedIn
+          ? 'Done'
+          : muse === 'signed_out'
+            ? 'Not signed in'
+            : state(1) === 'current'
+              ? 'Waiting for you'
+              : account
+                ? 'Not confirmed'
+                : 'Next',
         line: museSignedIn
-          ? 'Muse sign-in finished.'
+          ? 'Muse is signed in.'
           : 'Muse runs the agents. It keeps its own saved login, and its current release is verified for new work.',
         body: home('muse'),
       },

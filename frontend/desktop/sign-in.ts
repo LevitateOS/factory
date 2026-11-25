@@ -35,7 +35,7 @@ export function mountSignIn(root: HTMLElement, connection: HTMLElement) {
       jevView.skip = () => placement.firstRun.skipJev();
       placement.firstRun.facts = () => ({
         runtime: github.ready && muse.ready,
-        museSignedIn: muse.view?.phase === 'complete',
+        muse: muse.view?.phase === 'complete' || muse.saved === true ? 'signed_in' : muse.saved === false ? 'signed_out' : 'unknown',
         jev: jev.state,
         github: github.accountsCurrent
           ? github.accounts.filter((account) => account.state === 'stored').map((account) => account.label ?? account.account)

@@ -289,12 +289,14 @@ mod connector {
             .stdin(Stdio::null()).exec();
         Err(error)
     }
-    fn login_tool(path: &Path, expected: &str) -> io::Result<()> {
+    /// Runs the verified Muse with the user's own login: `login` to sign in, or
+    /// `usage --json`, which answers only when a login is saved.
+    fn user_tool(path: &Path, expected: &str, arguments: &[&str]) -> io::Result<()> {
         let root = std::env::current_dir()?;
         private(&root)?;
         let file = tool_file(path, expected)?;
         let mut command = Command::new(tool_program(path, &file)?);
-        command.arg("login").env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
+        command.args(arguments).env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
             .env("TMPDIR", root.join("tmp")).env("BROWSER", "/usr/bin/false").stdin(Stdio::null());
         for name in ["HOME", "USER", "LOGNAME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"] {
             if let Some(value) = std::env::var_os(name) { command.env(name, value); }
@@ -393,8 +395,9 @@ mod connector {
         if args.len() == 5 && args[1] == "--inspect-tool" {
             return inspect_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?, args[4].to_str().ok_or_else(|| refused("Muse probe mode invalid"))?);
         }
-        if args.len() == 4 && args[1] == "--login" {
-            return login_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?);
+        if args.len() == 4 && (args[1] == "--login" || args[1] == "--usage") {
+            let command: &[&str] = if args[1] == "--login" { &["login"] } else { &["usage", "--json"] };
+            return user_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?, command);
         }
         if args.len() != 1 {
             return Err(refused("Muse connector arguments invalid"));

@@ -16,6 +16,8 @@ struct State {
 }
 pub(super) struct MuseSignIn {
     state: Mutex<State>,
+    /// Whether Muse had a saved login, checked once per Factory generation.
+    saved: Mutex<Option<(u64, bool)>>,
     transition: tauri::async_runtime::Mutex<()>,
 }
 #[derive(Serialize)]
@@ -37,7 +39,7 @@ fn tools(app: &tauri::AppHandle) -> Result<Arc<Tools>, String> {
 }
 impl MuseSignIn {
     pub fn new() -> Self {
-        Self { state: Mutex::new(State { attempt: 0, epoch: 0, owner: String::new(), view: Default::default(), preparing: None, login: None }), transition: tauri::async_runtime::Mutex::new(()) }
+        Self { state: Mutex::new(State { attempt: 0, epoch: 0, owner: String::new(), view: Default::default(), preparing: None, login: None }), saved: Mutex::new(None), transition: tauri::async_runtime::Mutex::new(()) }
     }
     fn view(&self, label: &str, epoch: u64, available: bool, tools: Option<ToolStatus>) -> View {
         let state = self.state.lock().unwrap();
@@ -108,6 +110,26 @@ pub(super) async fn muse_tools_refresh(window: WebviewWindow, app: tauri::AppHan
     drop(auth);
     Ok(status(&app, window.label()))
 }
+/// Asks the verified Muse whether a login is saved. Null when Muse is not
+/// selected yet or gave no clear answer; a definite answer is kept for this
+/// generation, so the one request to Meta is not repeated on every refresh.
+#[tauri::command]
+pub(super) async fn muse_saved_login(window: WebviewWindow, app: tauri::AppHandle) -> Result<Option<bool>, String> {
+    caller(&window)?;
+    let state = app.state::<Desktop>();
+    let epoch = state.generation();
+    if let Some((checked, saved)) = *state.muse_signin.saved.lock().unwrap() {
+        if checked == epoch { return Ok(Some(saved)); }
+    }
+    let Some(selection) = tools(&app)?.current().await else { return Ok(None) };
+    let profile = state.paths.profile.clone();
+    let saved = tauri::async_runtime::spawn_blocking(move || MuseLogin::saved(&profile, &selection))
+        .await.map_err(|_| "Muse login check unavailable".to_string())?.ok().flatten();
+    if let Some(saved) = saved.filter(|_| state.live(epoch)) {
+        *state.muse_signin.saved.lock().unwrap() = Some((epoch, saved));
+    }
+    Ok(saved)
+}
 #[tauri::command]
 pub(super) async fn muse_sign_in_status(window: WebviewWindow, app: tauri::AppHandle) -> Result<View, String> {
     caller(&window)?;
@@ -130,6 +152,7 @@ pub(super) async fn muse_sign_in(window: WebviewWindow, app: tauri::AppHandle) -
     let view = auth.login.as_ref().map(MuseLogin::view).unwrap_or_else(|| auth.view.clone());
     if active(&view) || auth.preparing.is_some() { return Err("A Muse check or sign-in is already in progress".into()); }
     drop(auth.login.take());
+    *state.muse_signin.saved.lock().unwrap() = None;
     auth.attempt += 1;
     let attempt = auth.attempt;
     auth.epoch = epoch;

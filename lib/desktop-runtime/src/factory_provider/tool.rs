@@ -362,6 +362,10 @@ impl Tools {
         drop(cancel);
         result
     }
+    /// The release already selected and verified, without checking again.
+    pub async fn current(&self) -> Option<ToolSelection> {
+        self.selected.lock().await.as_ref().map(|(_, selection, _)| selection.clone())
+    }
     pub async fn inspect(&self) -> io::Result<ToolSelection> {
         self.select(false).await
     }

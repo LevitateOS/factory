@@ -27,6 +27,10 @@ export class MuseLogin extends Observed {
   ready = false;
   busy = false;
   error: string | null = null;
+  /** Whether Muse has a saved login: true or false once Muse answered,
+   * null when it gave no clear answer, undefined before asking. */
+  saved: boolean | null | undefined;
+  private savedAsked = false;
   view: View | undefined;
   private epoch = -1;
   private interaction = 0;
@@ -55,7 +59,10 @@ export class MuseLogin extends Observed {
     this.notify();
     try {
       const next = await this.core.invoke<View>(command, args);
-      if (generation === this.epoch && captured === this.interaction && command !== 'muse_sign_in_open') this.view = next;
+      if (generation === this.epoch && captured === this.interaction && command !== 'muse_sign_in_open') {
+        this.view = next;
+        if (next.tools?.state === 'ready' && !this.savedAsked) void this.askSaved(generation);
+      }
     } catch (failure) {
       if (generation === this.epoch && captured === this.interaction)
         this.error = typeof failure === 'string' ? failure : 'Muse sign-in is unavailable. Try again.';
@@ -69,7 +76,21 @@ export class MuseLogin extends Observed {
   signIn() {
     void this.action('muse_sign_in');
   }
+  /** Asks Muse once per generation whether a login is saved. */
+  private async askSaved(generation: number) {
+    this.savedAsked = true;
+    try {
+      const saved = await this.core.invoke<boolean | null>('muse_saved_login');
+      if (generation !== this.epoch) return;
+      this.saved = saved;
+    } catch {
+      if (generation !== this.epoch) return;
+      this.saved = null;
+    }
+    this.notify();
+  }
   checkUpdate() {
+    this.savedAsked = false;
     void this.action('muse_tools_refresh');
   }
   cancel() {
@@ -84,6 +105,8 @@ export class MuseLogin extends Observed {
       this.epoch = generation;
       this.interaction++;
       this.view = undefined;
+      this.saved = undefined;
+      this.savedAsked = false;
       this.error = null;
       this.busy = false;
     }
@@ -96,6 +119,7 @@ export class MuseLogin extends Observed {
       if (generation !== this.epoch || captured !== this.interaction || !this.ready) return;
       this.view = next;
       this.notify();
+      if (next.tools?.state === 'ready' && !this.savedAsked) void this.askSaved(generation);
     } catch {
       if (generation === this.epoch && captured === this.interaction) {
         this.view = undefined;
@@ -144,9 +168,13 @@ export class SodaDesktopMuse extends ControllerView<MuseLogin> {
           view?.error ??
           (view &&
             {
-              idle: view.available
-                ? 'Muse keeps its own saved login. Sign in here when needed.'
-                : 'Muse sign-in is unavailable in this Factory installation.',
+              idle: !view.available
+                ? 'Muse sign-in is unavailable in this Factory installation.'
+                : c.saved === true
+                  ? 'Muse is signed in.'
+                  : c.saved === false
+                    ? 'Muse is not signed in. Sign in to run agents.'
+                    : 'Muse keeps its own saved login. Sign in here when needed.',
               requesting: 'Requesting a Muse sign-in code…',
               waiting: 'Confirm the matching code on Meta to sign in.',
               complete: 'Muse sign-in finished. Refresh agent roles to use this login.',

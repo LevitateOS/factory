@@ -76,6 +76,46 @@ fn drain(input: &mut impl Read, bytes: &mut Vec<u8>) -> io::Result<()> {
 }
 impl MuseLogin {
     pub fn available() -> bool { super::muse_helper().is_ok() }
+    /// Whether Muse has a saved login: `muse usage --json` answers with a JSON
+    /// object only when it does, and says "not logged in" when it does not.
+    /// None when it gave neither answer (offline, or an unexpected reply).
+    pub fn saved(profile: &Path, selection: &ToolSelection) -> io::Result<Option<bool>> {
+        crate::private_fs::private_dir(profile).map_err(|_| unavailable())?;
+        let mut command = Command::new(super::muse_helper()?);
+        command.arg("--usage").arg(&selection.tool.executable).arg(&selection.tool.sha256)
+            .current_dir(profile).env_clear().env("PATH", "/usr/bin:/bin")
+            .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+        for name in super::muse::USER_ENV {
+            if let Some(value) = std::env::var_os(name) { command.env(name, value); }
+        }
+        soda_parent_death::parent_death(&mut command, libc::SIGKILL);
+        let mut child = command.spawn()?;
+        let output = child.stdout.take().ok_or_else(unavailable)?;
+        let errors = child.stderr.take().ok_or_else(unavailable)?;
+        let read = |mut pipe: Box<dyn Read + Send>| thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = (&mut pipe).take(65536).read_to_end(&mut bytes);
+            bytes
+        });
+        let (out, err) = (read(Box::new(output)), read(Box::new(errors)));
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let status = loop {
+            if let Some(status) = child.try_wait()? { break Some(status); }
+            if Instant::now() >= deadline { break None; }
+            thread::sleep(Duration::from_millis(50));
+        };
+        let Some(status) = status else {
+            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
+            let _ = child.wait();
+            return Ok(None);
+        };
+        let (out, err) = (out.join().map_err(|_| unavailable())?, err.join().map_err(|_| unavailable())?);
+        if status.success() {
+            let reply: serde_json::Value = serde_json::from_slice(&out).unwrap_or_default();
+            return Ok(reply.get("schemaVersion").is_some().then_some(true));
+        }
+        Ok(String::from_utf8_lossy(&err).contains("not logged in").then_some(false))
+    }
     pub fn start(profile: &Path, selection: ToolSelection) -> io::Result<Self> {
         crate::private_fs::private_dir(profile).map_err(|_| unavailable())?;
         let helper = super::muse_helper()?;
