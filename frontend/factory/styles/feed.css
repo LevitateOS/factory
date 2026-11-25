@@ -299,10 +299,6 @@ soda-factory-feed {
 .soda-feed-replies[open] {
   color: var(--soda-page-text);
 }
-.soda-feed-empty {
-  padding: 30px 0;
-  color: var(--soda-page-muted);
-}
 /* Comment drawer: a narrower card tucked behind the post card. Collapsed,
    only its pull-tab peeks out underneath; open, it slides out with the
    thread and the composer. The post card stays in front (z-index) so the

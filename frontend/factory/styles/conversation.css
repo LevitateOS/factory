@@ -41,7 +41,8 @@
   gap: 0.35rem;
 }
 .soda-feed-empty {
-  padding: 1.5rem 1rem;
+  padding: 30px 24px;
+  color: var(--soda-page-muted);
   border: 1px dashed var(--color-secondary, #d6d8de);
   border-radius: 0.6rem;
   margin-block: 1rem;
