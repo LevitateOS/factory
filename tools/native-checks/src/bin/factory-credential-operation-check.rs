@@ -41,6 +41,8 @@ mod native_github_states;
 mod native_github_threads;
 #[path = "../native_github_transport.rs"]
 mod native_github_transport;
+#[path = "../native_typesafe.rs"]
+mod native_typesafe;
 fn ensure(ok: bool, message: &str) -> Result<()> {
     if ok {
         Ok(())
@@ -1817,6 +1819,10 @@ async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path
 }
 
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    if args.first().and_then(|arg| arg.to_str()) == Some("--typesafe") {
+        ensure(args.len() == 2, "TypeSafe custody requires a new profile")?;
+        return native_typesafe::run(Path::new(&args[1])).await;
+    }
     if args.first().and_then(|arg|arg.to_str()) == Some("--fountain-controller-declared") {
         ensure(args.len()==4,"Fountain controller requires new profile, TLS origin and control application")?;
         return fountain_controller(Path::new(&args[1]),args[2].to_str().ok_or("origin missing")?,args[3].to_str().ok_or("application missing")?).await;

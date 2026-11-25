@@ -239,6 +239,28 @@ before the next one starts.
 
 ### J1 — Connect a TypeSafe key (Rust, shell UI)
 
+**INCOMPLETE (2026-11-25): built and checked with controlled replies; the signed-build
+connect with a real key is still to do.**
+
+- `factory-credential-operation-check --typesafe NEW_PROFILE` passes against the
+  loopback TypeSafe stand-in. It sends exactly 11 requests for 11 scripted replies:
+  - 401, offline and 529 on connect store nothing.
+  - 200 stores the key.
+  - A refused replacement keeps the old key.
+  - Check now marks a 401 refused and clears it on 200.
+  - Offline and 429 leave the state unchanged.
+  - Choosing a model and Remove send nothing.
+  - No key appears in the profile directory.
+- On the signed app (designated requirement `identifier`):
+  - The sidebar shows "JEV not connected" and opens Accounts.
+  - Accounts shows the JEV card.
+  - An empty or too-short key is refused without a request.
+  - The developer tools cannot fill the hidden key field.
+- Not yet done:
+  - The first-run step was not seen live; the app has a project open.
+  - The connect, relaunch, Check now and Remove run with a key the user pastes.
+- Usage ("This month") is J5.
+
 **Behavior:**
 
 - First-run step 3 and the Accounts JEV card can connect, check, replace and

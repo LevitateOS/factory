@@ -6,6 +6,10 @@ license = "Apache-2.0"
 publish = false
 description = "Native Factory desktop process and storage lifecycle"
 
+[features]
+# Lets native checks point the JEV connector at a loopback TypeSafe stand-in.
+controlled-replies = []
+
 [target.'cfg(unix)'.dependencies]
 soda-parent-death = { path = "../parent-death" }
 libc = { workspace = true }

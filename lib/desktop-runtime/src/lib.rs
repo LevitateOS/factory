@@ -19,6 +19,8 @@ pub mod github;
 #[cfg(unix)]
 pub mod github_device;
 #[cfg(unix)]
+pub mod jev;
+#[cfg(unix)]
 pub mod fountain_provider;
 #[cfg(unix)]
 pub mod fountain_oauth;

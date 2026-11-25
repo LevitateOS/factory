@@ -4,6 +4,8 @@ import {GitHubAccounts, SodaDesktopGitHub} from './accounts.js';
 import type {Account} from './accounts.js';
 import {MuseLogin, SodaDesktopMuse} from './muse-login.js';
 import {FountainLogin, SodaDesktopFountain} from './fountain-login.js';
+import {JevAccount, SodaDesktopJev} from './jev.js';
+import type {JevState} from './jev.js';
 import {SodaDesktopFirstRun} from './first-run.js';
 
 /** The window's sign-in: one view per provider, placed in `root` until the
@@ -14,23 +16,32 @@ import {SodaDesktopFirstRun} from './first-run.js';
 export function mountSignIn(root: HTMLElement, connection: HTMLElement) {
   const museView = new SodaDesktopMuse(),
     githubView = new SodaDesktopGitHub(),
-    fountainView = new SodaDesktopFountain();
+    fountainView = new SodaDesktopFountain(),
+    jevView = new SodaDesktopJev();
   const placement = new SignInPlacement(root, [
     {id: 'muse', title: 'Muse', view: museView},
+    {id: 'jev', title: 'JEV', view: jevView},
     {id: 'github', title: 'GitHub', view: githubView},
     {id: 'fountain', title: 'Fountain', view: fountainView},
     {id: 'connection', title: 'Add a project', view: connection, page: 'projects'},
   ]);
   return {
     placement,
-    start(core: Pick<Core, 'invoke'>, accounts?: (accounts: readonly Account[] | undefined) => void) {
+    start(
+      core: Pick<Core, 'invoke'>,
+      accounts?: (accounts: readonly Account[] | undefined) => void,
+      jevChanged?: (state: JevState | undefined) => void
+    ) {
       const github = new GitHubAccounts(core, accounts),
         muse = new MuseLogin(core),
-        fountain = new FountainLogin(core);
-      placement.firstRun.follow([github, muse]);
+        fountain = new FountainLogin(core),
+        jev = new JevAccount(core, jevChanged);
+      placement.firstRun.follow([github, muse, jev]);
+      jevView.skip = () => placement.firstRun.skipJev();
       placement.firstRun.facts = () => ({
         runtime: github.ready && muse.ready,
         museSignedIn: muse.view?.phase === 'complete',
+        jev: jev.state,
         github: github.accountsCurrent
           ? github.accounts.filter((account) => account.state === 'stored').map((account) => account.label ?? account.account)
           : [],
@@ -38,8 +49,14 @@ export function mountSignIn(root: HTMLElement, connection: HTMLElement) {
       museView.controller = muse;
       githubView.controller = github;
       fountainView.controller = fountain;
+      jevView.controller = jev;
       return (ready: boolean, generation: number) =>
-        Promise.all([github.refresh(ready, generation), muse.refresh(ready, generation), fountain.refresh(ready, generation)]);
+        Promise.all([
+          github.refresh(ready, generation),
+          muse.refresh(ready, generation),
+          fountain.refresh(ready, generation),
+          jev.refresh(ready, generation),
+        ]);
     },
   };
 }

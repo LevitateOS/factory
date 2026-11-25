@@ -13,9 +13,9 @@ soda-unix-http = { path = "../../lib/unix-http" }
 base64 = "=0.23.1"
 libc = { workspace = true }
 url = { workspace = true }
-soda-desktop-runtime = { path = "../../lib/desktop-runtime" }
+soda-desktop-runtime = { path = "../../lib/desktop-runtime", features = ["controlled-replies"] }
 soda-execution-protocol = { path = "../../lib/execution-protocol" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 secret-service = { workspace = true, features = ["rt-tokio-crypto-rust"] }
-tokio = { workspace = true, default-features = true, features = ["rt", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, default-features = true, features = ["rt", "rt-multi-thread", "sync", "time", "net", "io-util"] }

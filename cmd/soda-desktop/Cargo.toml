@@ -30,6 +30,7 @@ hyper-util = { workspace = true, features = ["tokio"], optional = true }
 http-body-util = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+zeroize = { workspace = true }
 tauri = { workspace = true, optional = true }
 tauri-plugin-single-instance = { version = "=2.5.5", optional = true }
 tauri-plugin-opener = { version = "=2.7.3", optional = true }

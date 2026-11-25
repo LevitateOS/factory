@@ -18,7 +18,7 @@ export {SodaFactoryRuntimeController} from '../work/runtime-controller.js';
 export type {ControllerContext} from '../work/runtime-controller.js';
 export type {IssueEditorContext, IssueEditorPorts} from '../issues/editor.js';
 export {SodaRequestError} from '../api/models.js';
-export type {FactoryAppContext, FactoryScreen} from './factory-app.js';
+export type {FactoryAppContext, FactoryJevState, FactoryScreen} from './factory-app.js';
 export type {FactoryHostDestination, FactoryRoute} from './routes.js';
 export type {FactoryHostSection} from './host-section.js';
 export {SodaFactoryProjects} from '../projects/page.js';

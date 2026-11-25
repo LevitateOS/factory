@@ -13,6 +13,8 @@ mod signin;
 use signin::{github_refresh, github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
 mod fountain_signin;
 mod muse_signin;
+mod jev;
+use jev::{jev_check, jev_connect, jev_open_console, jev_remove, jev_set_model, jev_status};
 use fountain_signin::{
     fountain_controller, fountain_enrollment, fountain_refresh, fountain_sign_in,
     fountain_sign_in_cancel, fountain_sign_in_open, fountain_sign_in_status,
@@ -734,6 +736,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         muse_tools_refresh,
         muse_sign_in_cancel,
         muse_sign_in_open,
+        jev_status,
+        jev_connect,
+        jev_check,
+        jev_set_model,
+        jev_remove,
+        jev_open_console,
         factory_query,
         factory_connect,
         factory_prepare_connection,
@@ -781,6 +789,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         muse_tools_refresh,
         muse_sign_in_cancel,
         muse_sign_in_open,
+        jev_status,
+        jev_connect,
+        jev_check,
+        jev_set_model,
+        jev_remove,
+        jev_open_console,
         factory_connect,
         factory_prepare_connection,
         factory_create_repository,

@@ -11,6 +11,8 @@ export interface FirstRunFacts {
    * saved login and reports no signed-in state, so a returning person's Muse
    * step stays unconfirmed. */
   museSignedIn: boolean;
+  /** The JEV key state, undefined until read. */
+  jev: 'none' | 'connected' | 'refused' | 'locked' | undefined;
   /** Saved GitHub accounts, as labels, whose credentials are usable. */
   github: readonly string[];
 }
@@ -33,11 +35,13 @@ interface Step {
  * other step. The frame hides this region once it has a usable context. */
 export class SodaDesktopFirstRun extends LitElement {
   /** Read at each render, from the controllers' current state. */
-  facts: () => FirstRunFacts = () => ({runtime: false, museSignedIn: false, github: []});
+  facts: () => FirstRunFacts = () => ({runtime: false, museSignedIn: false, jev: undefined, github: []});
   homes: Readonly<Record<string, HTMLElement>> = {};
   /** Steps the person opened or closed, over the derived default. */
   private readonly opened = new Map<string, boolean>();
   private sources: (() => void)[] = [];
+  /** The person chose to connect JEV later; kept for this Mac. */
+  private jevSkipped = readSkip();
 
   protected createRenderRoot() {
     return this;
@@ -52,13 +56,21 @@ export class SodaDesktopFirstRun extends LitElement {
     this.sources = [];
     super.disconnectedCallback();
   }
+  /** "Skip for now" on the JEV step: setup moves on, and Accounts keeps the step. */
+  skipJev() {
+    this.jevSkipped = true;
+    writeSkip();
+    this.opened.delete('jev');
+    this.requestUpdate();
+  }
   private steps(): Step[] {
-    const {runtime, museSignedIn, github} = this.facts(),
-      account = github.length > 0;
-    const done = [runtime, museSignedIn, account, false];
+    const {runtime, museSignedIn, jev, github} = this.facts(),
+      account = github.length > 0,
+      jevConnected = jev === 'connected';
+    const done = [runtime, museSignedIn, jevConnected, account, false];
     // Muse cannot report a saved login, so once GitHub is usable its step no
-    // longer holds the person back.
-    const waiting = done.map((value, index) => !value && !(index === 1 && account));
+    // longer holds the person back. A skipped JEV step does not either.
+    const waiting = done.map((value, index) => !value && !(index === 1 && account) && !(index === 2 && this.jevSkipped));
     const current = waiting.indexOf(true);
     const state = (index: number): StepState => (done[index] ? 'done' : index === current ? 'current' : 'pending');
     const home = (id: string) => this.homes[id];
@@ -81,10 +93,28 @@ export class SodaDesktopFirstRun extends LitElement {
         body: home('muse'),
       },
       {
+        id: 'jev',
+        title: 'Connect JEV',
+        state: state(2),
+        badge: jevConnected
+          ? 'Done'
+          : jev === 'refused'
+            ? 'Key refused'
+            : state(2) === 'current'
+              ? 'Waiting for you'
+              : this.jevSkipped
+                ? 'Skipped'
+                : 'Next',
+        line: jevConnected
+          ? 'JEV is connected with your TypeSafe key.'
+          : 'JEV decides which agent picks up each post, checks plans and decides when work can be delivered. It needs a TypeSafe API key. Until then, posts and plans wait.',
+        body: home('jev'),
+      },
+      {
         id: 'github',
         title: 'Add a GitHub account',
-        state: state(2),
-        badge: account ? 'Done' : state(2) === 'current' ? 'Waiting for you' : 'Next',
+        state: state(3),
+        badge: account ? 'Done' : state(3) === 'current' ? 'Waiting for you' : 'Next',
         line: account
           ? github.join(', ')
           : 'Sign in to access your GitHub repositories. GitHub will ask for repository and profile access.',
@@ -93,8 +123,8 @@ export class SodaDesktopFirstRun extends LitElement {
       {
         id: 'project',
         title: 'Add your first project',
-        state: state(3),
-        badge: state(3) === 'current' ? 'Waiting for you' : 'Next',
+        state: state(4),
+        badge: state(4) === 'current' ? 'Waiting for you' : 'Next',
         line: 'Pick a repository from your account, or open it by owner/name or repository URL.',
         body: home('connection'),
       },
@@ -110,7 +140,7 @@ export class SodaDesktopFirstRun extends LitElement {
       <header>
         ${renderFactoryWordmark()}
         <h2>Set up Factory</h2>
-        <p>Four steps to your first project. You can stop after any step and pick it up again from Accounts.</p>
+        <p>Five steps to your first project. You can stop after any step and pick it up again from Accounts.</p>
       </header>
       <ol class="first-run-steps">
         ${steps.map((step, index) => {
@@ -138,6 +168,7 @@ export class SodaDesktopFirstRun extends LitElement {
         <h2>What this release offers</h2>
         <dl>
           <div><dt>Muse</dt><dd>Offered</dd></div>
+          <div><dt>JEV, for decisions</dt><dd>Offered</dd></div>
           <div><dt>Other providers</dt><dd>None offered</dd></div>
           <div><dt>GitHub repositories</dt><dd>Offered</dd></div>
         </dl>
@@ -151,3 +182,19 @@ export class SodaDesktopFirstRun extends LitElement {
   }
 }
 customElements.define('soda-desktop-first-run', SodaDesktopFirstRun);
+
+const SKIP = 'factory.first-run.jev-skipped';
+function readSkip() {
+  try {
+    return localStorage.getItem(SKIP) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeSkip() {
+  try {
+    localStorage.setItem(SKIP, '1');
+  } catch {
+    // Without storage the skip lasts until the window closes.
+  }
+}

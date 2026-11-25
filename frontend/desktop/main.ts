@@ -16,7 +16,13 @@ document.querySelector('#application')!.replaceChildren(app);
 const panel = document.querySelector<HTMLElement>('#connection-panel')!;
 const signIn = mountSignIn(document.querySelector<HTMLElement>('#sign-in')!, panel);
 const connections = mountConnections(core, app, signIn.placement, panel);
-const refreshSignIn = signIn.start(core, (accounts) => connections.accounts(accounts));
+const refreshSignIn = signIn.start(
+  core,
+  (accounts) => connections.accounts(accounts),
+  (jev) => {
+    app.jev = jev;
+  }
+);
 const status = document.querySelector<HTMLElement>('#runtime-status')!;
 const retry = document.querySelector<HTMLButtonElement>('#retry')!;
 let reading = false,

@@ -62,6 +62,7 @@ pub enum Provider {
     Github,
     Fountain,
     Muse,
+    Typesafe,
 }
 impl Provider {
     fn name(self) -> &'static str {
@@ -69,6 +70,7 @@ impl Provider {
             Self::Github => "github",
             Self::Fountain => "fountain",
             Self::Muse => "muse",
+            Self::Typesafe => "typesafe",
         }
     }
 }
@@ -100,6 +102,7 @@ impl Account {
         let origin = parsed.origin().ascii_serialization();
         if (provider == Provider::Github && origin != "https://github.com")
             || (provider == Provider::Muse && origin != "https://api.meta.ai")
+            || (provider == Provider::Typesafe && origin != "https://api.typesafe.ai")
         {
             return Err(Error::Invalid);
         }
@@ -212,6 +215,9 @@ impl Credentials {
     }
     pub(crate) fn is_profile(&self, profile: &str) -> bool {
         self.profile == profile
+    }
+    pub(crate) fn profile_id(&self) -> &str {
+        &self.profile
     }
     pub fn open(profile_dir: &Path, profile: &str) -> Result<Self> {
         if !id(profile) {
@@ -338,6 +344,7 @@ impl Credentials {
             "github" => Provider::Github,
             "fountain" => Provider::Fountain,
             "muse" => Provider::Muse,
+            "typesafe" => Provider::Typesafe,
             _ => return Err(Error::Invalid),
         };
         let mut account = Account::new(provider, get("origin")?, get("account")?)?;
