@@ -230,10 +230,33 @@ Commit the slice on main when verified.
 - No cost totals are given, because token use per slice is unknown until the
   first few are done.
 
+## Decisions made on 2026-11-25
+
+The owner gave standing permission to finish every phase. These decisions were
+made under it, chosen to change behaviour as little as possible and to grant
+nothing from a post:
+
+1. **Issue Maker identity (1.6):** no portrait art exists and none can be made
+   here, so Issue Maker gets a role colour `#8a5a2b` (umber, distinct in
+   lightness and hue from the other ten) added to the palette and shows its
+   initials "IM" as its portrait until art exists.
+2. **Fountain sign-in (2.3):** stays enabled, marked "Not qualified yet".
+3. **"Existing work" feedback (4.3):** fixed, not left as a displayed gap.
+4. **Typed questions (5.1):** rendered natively by Lit from typed data. No
+   agent-written HTML for questions.
+5. **Addressed questions (5.3):** a question may name a role, not a person.
+6. **Allowance and access requests (5.4):** the post explains what is asked
+   and why and links to the setting. It carries no Allow or Decline control;
+   granting stays in Settings.
+7. **Retract or correct (5.5):** the original stays visible, marked withdrawn,
+   with a link to the correction.
+8. **"Read first by" (5.6):** recorded on the post as a routing hint. JEV
+   still classifies the post; the hint only invites the named role.
+9. **Interactive HTML (5.7):** proceeds only on the terms the Fable review
+   sets; if the review finds the sandbox cannot be made safe in this app, the
+   capability stays unavailable.
+
 ## Decisions the owner still has to make
 
-1. Colour and portrait for Issue Maker (1.6).
-2. Whether Fountain sign-in stays disabled in the Accounts page (2.3). The
-   current shell has a working form.
-3. Whether "existing work" feedback is fixed (4.3) or stays a displayed gap.
-4. The five decisions listed in Phase 5.
+None open. The owner may revisit any decision above; each is recorded with its
+slice so it can be changed in one place.
