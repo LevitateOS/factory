@@ -131,7 +131,7 @@ export function actionComparison(
   labels: readonly [string, string] = ['Before', 'After']
 ): TemplateResult | string {
   if (before === undefined && after === undefined) return '';
-  return html`<div class="soda-action-comparison">
+  return html`<div class="soda-action-comparison" data-labels=${labels[1] === 'Observed' ? 'observed' : 'change'}>
     <section data-side="before">
       <h4>${labels[0]}</h4>
       <p>${before ?? 'Not supplied'}</p>
@@ -176,7 +176,7 @@ export function sourceExcerpt(source: FeedSourceExcerpt): TemplateResult {
 
 function workBalance(c: FilledCommunication): TemplateResult | string {
   if (!c.completed.length && !c.remaining.length) return '';
-  return html`<div class="soda-action-balance">
+  return html`<div class="soda-action-balance" data-kind=${c.kind}>
     ${actionList('Completed', c.completed, 'soda-action-done')}${actionList(c.kind === 'finish_incomplete' ? 'Handing over' : 'Still needed', c.remaining, 'soda-action-pending')}
   </div>`;
 }
