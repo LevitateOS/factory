@@ -13,8 +13,6 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 soda-execution-protocol = { path = "../../lib/execution-protocol" }
 soda-native-process = { path = "../../lib/native-process" }
-
-[target.'cfg(target_os = "linux")'.dependencies]
 base64 = "=0.23.1"
 time = { version = "=0.3.55", features = ["parsing"] }
 tokio = { workspace = true, default-features = true, features = ["io-util", "macros", "net", "rt", "time"] }

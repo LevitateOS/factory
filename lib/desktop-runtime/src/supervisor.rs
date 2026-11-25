@@ -681,14 +681,10 @@ impl Children {
         // The supervisor lock excludes another live owner of this profile.
         // Inspect installation before starting Go. Exact recovery follows
         // Store readiness, before product/provider startup is published.
-        let broker: Result<bool> = (|| match fs::symlink_metadata("/run/soda-factory/broker.sock") {
+        let broker: Result<bool> = (|| match fs::symlink_metadata(soda_execution_protocol::host::broker_socket()) {
             Ok(_) => Ok(true),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                for unit in [
-                    "/etc/systemd/system/soda-factory-broker.socket",
-                    "/run/systemd/system/soda-factory-broker.socket",
-                    "/usr/lib/systemd/system/soda-factory-broker.socket",
-                ] {
+                for unit in soda_execution_protocol::host::BROKER_SERVICE_DEFINITIONS {
                     match fs::symlink_metadata(unit) {
                         Ok(_) => return Err("installed native broker socket unavailable".into()),
                         Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),

@@ -6,10 +6,10 @@ use super::{
 };
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use reqwest::{header, redirect, Client};
-use std::fs::{self, DirBuilder, Metadata};
+use std::fs::{self, Metadata};
 use std::io;
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixListener as StdUnixListener;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
@@ -60,9 +60,9 @@ fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
 }
 
-fn owned_directory(path: &Path, uid: u32) -> io::Result<()> {
+fn owned_directory(path: &Path, uid: u32, mode: u32) -> io::Result<()> {
     let metadata = path.symlink_metadata()?;
-    if !metadata.is_dir() || metadata.uid() != uid || metadata.mode() & 0o7777 != 0o700 {
+    if !metadata.is_dir() || metadata.uid() != uid || metadata.mode() & 0o7777 != mode {
         return Err(refused("provider owner directory invalid"));
     }
     Ok(())
@@ -99,18 +99,24 @@ pub(super) fn bind_run_socket(
     if uid == 0 || unsafe { libc::getuid() } != uid {
         return Err(refused("provider owner desktop identity invalid"));
     }
-    let runtime = PathBuf::from(format!("/run/user/{uid}"));
-    if std::env::var_os("XDG_RUNTIME_DIR").as_deref() != Some(runtime.as_os_str()) {
-        return Err(refused("provider owner runtime path invalid"));
+    let parent = soda_execution_protocol::host::provider_sockets(uid);
+    #[cfg(target_os = "linux")]
+    {
+        let runtime = parent.parent().expect("fixed provider socket parent");
+        if std::env::var_os("XDG_RUNTIME_DIR").as_deref() != Some(runtime.as_os_str()) {
+            return Err(refused("provider owner runtime path invalid"));
+        }
+        owned_directory(runtime, uid, 0o700)?;
+        use std::os::unix::fs::DirBuilderExt;
+        match std::fs::DirBuilder::new().mode(0o700).create(&parent) {
+            Ok(()) => (),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+            Err(error) => return Err(error),
+        }
     }
-    owned_directory(&runtime, uid)?;
-    let parent = runtime.join("soda-factory-provider");
-    match DirBuilder::new().mode(0o700).create(&parent) {
-        Ok(()) => (),
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
-        Err(error) => return Err(error),
-    }
-    owned_directory(&parent, uid)?;
+    // The macOS broker host prepares this desktop-owned directory at boot so
+    // relay pool users can reach exactly a named socket inside it.
+    owned_directory(&parent, uid, soda_execution_protocol::host::PROVIDER_SOCKETS_MODE)?;
     let path = parent.join(format!("{}.sock", run));
     match path.symlink_metadata() {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),

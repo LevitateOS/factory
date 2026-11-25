@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 const PROC_PGRP_ONLY: u32 = 2;
 const PROC_TTY_ONLY: u32 = 3;
 const PROC_PPID_ONLY: u32 = 6;
+const PROC_UID_ONLY: u32 = 4;
+const PROC_RUID_ONLY: u32 = 5;
 
 pub(super) struct Root {
     records: PathBuf,
@@ -150,6 +152,9 @@ pub(super) struct Scope {
     limits: Option<Limits>,
     leader: Option<i32>,
     tty: Option<u32>,
+    /// A dedicated pool user: every process with this real or effective UID is
+    /// a member, whatever its ancestry.
+    uid: Option<u32>,
     members: BTreeMap<i32, u64>,
     cpu: BTreeMap<i32, u64>,
     retired_cpu: u64,
@@ -165,6 +170,7 @@ impl Scope {
             limits,
             leader: None,
             tty: None,
+            uid: None,
             members: BTreeMap::new(),
             cpu: BTreeMap::new(),
             retired_cpu: 0,
@@ -174,7 +180,25 @@ impl Scope {
             removed: false,
         }
     }
+    /// Track every process of a dedicated pool `uid`. The UID itself is the
+    /// durable membership, so nothing is recorded.
+    pub fn user(uid: u32, limits: Limits) -> Self {
+        let mut scope = Self::empty(PathBuf::new(), Some(limits));
+        scope.uid = Some(uid);
+        scope
+    }
+    fn user_processes(&self) -> Result<Vec<i32>> {
+        let Some(uid) = self.uid else { return Ok(Vec::new()) };
+        let mut pids = list(PROC_UID_ONLY, uid)?;
+        pids.extend(list(PROC_RUID_ONLY, uid)?);
+        pids.sort_unstable();
+        pids.dedup();
+        Ok(pids)
+    }
     fn record(&self) -> Result<()> {
+        if self.uid.is_some() {
+            return Ok(());
+        }
         let directory = self.record.parent().ok_or(Error::Scope)?;
         let name = self.record.file_name().and_then(|name| name.to_str()).ok_or(Error::Scope)?;
         let pending = directory.join(format!(".pending-{name}"));
@@ -207,6 +231,11 @@ impl Scope {
         self.record()
     }
     fn alive(&self) -> bool {
+        if self.uid.is_some() {
+            return self.user_processes().map_or(true, |pids| {
+                pids.iter().any(|pid| info(*pid).is_some_and(|info| !info.zombie))
+            });
+        }
         self.members
             .iter()
             .any(|(pid, start)| info(*pid).is_some_and(|info| info.start == *start && !info.zombie))
@@ -227,6 +256,11 @@ impl Scope {
         }
         if let Some(tty) = self.tty {
             candidates.extend(list(PROC_TTY_ONLY, tty)?);
+        }
+        for pid in self.user_processes()? {
+            if let Some(found) = info(pid).filter(|info| !info.zombie) {
+                self.members.entry(pid).or_insert(found.start);
+            }
         }
         let mut frontier: Vec<i32> = self.members.keys().copied().collect();
         while let Some(parent) = frontier.pop() {
@@ -316,6 +350,11 @@ impl Scope {
             unsafe { libc::kill(-leader, libc::SIGKILL) };
         }
         self.signal(libc::SIGKILL);
+        for pid in self.user_processes().unwrap_or_default() {
+            if pid > 1 {
+                unsafe { libc::kill(pid, libc::SIGKILL) };
+            }
+        }
         Ok(())
     }
     pub fn populated(&mut self) -> Result<bool> {

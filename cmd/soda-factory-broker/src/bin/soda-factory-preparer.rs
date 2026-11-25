@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 //! Unprivileged, fixed-path reviewer checkout preparation. The privileged
 //! broker must select both mounts and the exact run/candidate/digest arguments.
 use sha2::{Digest, Sha256};
@@ -15,10 +15,22 @@ mod prepared_context;
 #[path = "../prepared_setup.rs"]
 mod prepared_setup;
 
-const SOURCE: &str = "/run/factory-source";
-const BUNDLE: &str = "/run/factory-source/bundle";
-const OUTPUT: &str = "/run/factory-output";
-const CHECKOUT: &str = "/run/factory-output/repo";
+#[allow(non_snake_case)]
+fn SOURCE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-source")
+}
+#[allow(non_snake_case)]
+fn BUNDLE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-source/bundle")
+}
+#[allow(non_snake_case)]
+fn OUTPUT() -> &'static str {
+    soda_execution_protocol::host::unit("factory-output")
+}
+#[allow(non_snake_case)]
+fn CHECKOUT() -> &'static str {
+    soda_execution_protocol::host::unit("factory-output/repo")
+}
 const MAX_BUNDLE: u64 = soda_execution_protocol::MAX_STAGE_BUNDLE as u64;
 const MAX_CHECKOUT_BYTES: u64 = soda_execution_protocol::MAX_PREPARED_TREE_BYTES;
 const MAX_TREE_LIST_BYTES: u64 = 8 * 1024 * 1024;
@@ -41,7 +53,7 @@ fn private_process() -> io::Result<()> {
     let uid = unsafe { libc::geteuid() };
     if uid == 0
         || unsafe { libc::getuid() } != uid
-        || unsafe { libc::prctl(libc::PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) } != 1
+        || !soda_execution_protocol::host::unit_confined()
         || std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some()
         || std::env::var_os("XDG_RUNTIME_DIR").is_some()
     {
@@ -59,11 +71,11 @@ fn directory(path: &Path, owner: u32, mode: u32) -> io::Result<()> {
 }
 
 fn bundle(expected: &str) -> io::Result<()> {
-    directory(Path::new(SOURCE), 0, 0o555)?;
+    directory(Path::new(SOURCE()), 0, 0o555)?;
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(BUNDLE)?;
+        .open(BUNDLE())?;
     let metadata = file.metadata()?;
     if !metadata.is_file()
         || metadata.uid() != 0
@@ -85,7 +97,7 @@ fn bundle(expected: &str) -> io::Result<()> {
 }
 
 fn git(args: &[&str]) -> Command {
-    let mut command = Command::new("/usr/bin/timeout");
+    let mut command = Command::new(soda_execution_protocol::host::TIMEOUT);
     command
         .env_clear()
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -93,7 +105,7 @@ fn git(args: &[&str]) -> Command {
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
         .env("GIT_ATTR_NOSYSTEM", "1")
-        .args(["-k", "1s", "20s", "/usr/bin/git"])
+        .args(["-k", "1s", "20s", soda_execution_protocol::host::git()])
         .args([
             "-c",
             "core.autocrlf=false",
@@ -116,7 +128,7 @@ struct TreeEntry {
 }
 
 fn attribute_bound(entries: &mut BTreeMap<Vec<u8>, TreeEntry>) -> io::Result<()> {
-    let input_path = Path::new(CHECKOUT).join(".git/factory-attribute-paths");
+    let input_path = Path::new(CHECKOUT()).join(".git/factory-attribute-paths");
     let result = (|| {
         let mut input = OpenOptions::new()
             .write(true)
@@ -132,7 +144,7 @@ fn attribute_bound(entries: &mut BTreeMap<Vec<u8>, TreeEntry>) -> io::Result<()>
         let input = File::open(&input_path)?;
         let mut query = git(&[
             "-C",
-            CHECKOUT,
+            CHECKOUT(),
             "check-attr",
             "--source=HEAD",
             "-z",
@@ -248,7 +260,7 @@ fn attribute_bound(entries: &mut BTreeMap<Vec<u8>, TreeEntry>) -> io::Result<()>
 }
 
 fn preflight_tree() -> io::Result<()> {
-    let mut listing = git(&["-C", CHECKOUT, "ls-tree", "-r", "-l", "-z", "HEAD"])
+    let mut listing = git(&["-C", CHECKOUT(), "ls-tree", "-r", "-l", "-z", "HEAD"])
         .stdout(Stdio::piped())
         .spawn()?;
     let mut output = Vec::new();
@@ -439,24 +451,21 @@ fn prepare() -> io::Result<()> {
     }
     private_process()?;
     bundle(&args[3])?;
-    directory(Path::new(OUTPUT), 0, 0o777)?;
-    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
-    if unsafe { libc::statfs(c"/run/factory-output".as_ptr(), filesystem.as_mut_ptr()) } != 0
-        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
-    {
+    directory(Path::new(OUTPUT()), 0, 0o777)?;
+    if !soda_execution_protocol::host::runtime_filesystem(Path::new(OUTPUT())) {
         return Err(refused("preparer output filesystem is not tmpfs"));
     }
-    if fs::read_dir(OUTPUT)?.next().is_some() {
+    if fs::read_dir(OUTPUT())?.next().is_some() {
         return Err(refused("preparer output is not empty"));
     }
     let captured = prepared_setup::captured(&args[2])?;
     if captured.is_some() {
         for directory in ["repo", "home"] {
-            let target = Path::new(OUTPUT).join(directory);
+            let target = Path::new(OUTPUT()).join(directory);
             fs::create_dir(&target)?;
             fs::set_permissions(&target, fs::Permissions::from_mode(0o700))?;
             soda_native_process::copy_snapshot(
-                &Path::new("/run/factory-prepared").join(directory),
+                &Path::new(soda_execution_protocol::host::unit("factory-prepared")).join(directory),
                 &target,
                 soda_execution_protocol::MAX_PREPARED_TREE_BYTES,
                 soda_execution_protocol::MAX_PREPARED_TREE_ENTRIES,
@@ -469,8 +478,8 @@ fn prepare() -> io::Result<()> {
             "--no-local",
             "--no-checkout",
             "--",
-            BUNDLE,
-            CHECKOUT,
+            BUNDLE(),
+            CHECKOUT(),
         ])
         .stdout(Stdio::null())
         .status()?;
@@ -478,7 +487,7 @@ fn prepare() -> io::Result<()> {
             return Err(refused("reviewer bundle clone failed"));
         }
     }
-    let mut head = git(&["-C", CHECKOUT, "rev-parse", "--verify", "HEAD^{commit}"])
+    let mut head = git(&["-C", CHECKOUT(), "rev-parse", "--verify", "HEAD^{commit}"])
         .stdout(Stdio::piped())
         .spawn()?;
     let mut output = Vec::with_capacity(42);
@@ -499,22 +508,22 @@ fn prepare() -> io::Result<()> {
     }
     if captured.is_none() {
         preflight_tree()?;
-        let checkout = git(&["-C", CHECKOUT, "reset", "--hard", "--quiet", "HEAD"])
+        let checkout = git(&["-C", CHECKOUT(), "reset", "--hard", "--quiet", "HEAD"])
             .stdout(Stdio::null())
             .status()?;
         if !checkout.success() {
             return Err(refused("reviewer tree checkout failed"));
         }
-        let clean = git(&["-C", CHECKOUT, "diff", "--quiet", "HEAD", "--"])
+        let clean = git(&["-C", CHECKOUT(), "diff", "--quiet", "HEAD", "--"])
             .stdout(Stdio::null())
             .status()?;
         if !clean.success() {
             return Err(refused("reviewer checkout is dirty"));
         }
     }
-    check_tree(Path::new(CHECKOUT))?;
+    check_tree(Path::new(CHECKOUT()))?;
     prepared_setup::run(&args[2], captured.as_ref())?;
-    check_tree(Path::new(CHECKOUT))?;
+    check_tree(Path::new(CHECKOUT()))?;
     println!("reviewer checkout prepared for run {}", args[1]);
     Ok(())
 }

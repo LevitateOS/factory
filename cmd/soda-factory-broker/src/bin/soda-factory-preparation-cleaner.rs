@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 //! Fixed, retryable cleanup of one stopped preparer's private checkout.
 //! The privileged broker must stop and reconcile the preparer and reviewer
 //! instances before asking the manager to start this service. The broker owns
@@ -8,8 +8,7 @@ use std::io;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-const STATE: &str = "/run/soda-factory-broker";
-const PREPARATIONS: &str = "/run/soda-factory-broker/preparations";
+use soda_execution_protocol::host::{BROKER_STATE as STATE, TRAVERSE_MODE as TRAVERSE};
 
 fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
@@ -59,18 +58,19 @@ fn clean() -> io::Result<()> {
     }
     if unsafe { libc::geteuid() } != 0
         || unsafe { libc::getuid() } != 0
-        || unsafe { libc::prctl(libc::PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) } != 1
+        || !soda_execution_protocol::host::unit_confined()
     {
         return Err(refused("preparation cleaner service identity invalid"));
     }
-    if !root_directory(Path::new(STATE), &[0o700])?
-        || !root_directory(Path::new(PREPARATIONS), &[0o700])?
+    let preparations = Path::new(STATE).join("preparations");
+    if !root_directory(Path::new(STATE), &[TRAVERSE])?
+        || !root_directory(&preparations, &[TRAVERSE])?
     {
         println!("preparation {} already absent", args[1]);
         return Ok(());
     }
-    let run = Path::new(PREPARATIONS).join(&args[1]);
-    if !root_directory(&run, &[0o700])? {
+    let run = preparations.join(&args[1]);
+    if !root_directory(&run, &[TRAVERSE])? {
         println!("preparation {} already absent", args[1]);
         return Ok(());
     }

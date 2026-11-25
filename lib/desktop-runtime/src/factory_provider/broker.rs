@@ -24,7 +24,6 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant};
 
-const SOCKET: &str = "/run/soda-factory/broker.sock";
 const MAX_FRAME: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
@@ -51,14 +50,13 @@ fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::R
     if uid == 0 || unsafe { libc::getuid() } != uid {
         return Err(refused("broker desktop identity invalid"));
     }
-    let parent = Path::new(SOCKET)
-        .parent()
-        .expect("fixed broker socket path");
+    let path = soda_execution_protocol::host::broker_socket();
+    let parent = path.parent().expect("fixed broker socket path");
     let directory = parent.symlink_metadata()?;
     if !directory.is_dir() || directory.uid() != 0 || directory.mode() & 0o7777 != 0o755 {
         return Err(refused("broker socket directory invalid"));
     }
-    let socket = Path::new(SOCKET).symlink_metadata()?;
+    let socket = path.symlink_metadata()?;
     if !socket.file_type().is_socket() || socket.uid() != uid || socket.mode() & 0o7777 != 0o600 {
         return Err(refused("broker socket identity invalid"));
     }
@@ -79,10 +77,10 @@ fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::R
         let fd = stream.as_raw_fd();
         let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
         address.sun_family = libc::AF_UNIX as libc::sa_family_t;
-        for (target, byte) in address.sun_path.iter_mut().zip(SOCKET.bytes()) {
+        for (target, byte) in address.sun_path.iter_mut().zip(path.as_os_str().as_encoded_bytes().iter().copied()) {
             *target = byte as libc::c_char;
         }
-        let length = (std::mem::offset_of!(libc::sockaddr_un, sun_path) + SOCKET.len() + 1)
+        let length = (std::mem::offset_of!(libc::sockaddr_un, sun_path) + path.as_os_str().len() + 1)
             as libc::socklen_t;
         let result =
             unsafe { libc::connect(fd, (&address as *const libc::sockaddr_un).cast(), length) };
@@ -132,7 +130,7 @@ fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::R
     if !peer_is_root(&stream) {
         return Err(refused("broker peer identity invalid"));
     }
-    let connected = Path::new(SOCKET).symlink_metadata()?;
+    let connected = path.symlink_metadata()?;
     if !connected.file_type().is_socket()
         || connected.uid() != uid
         || connected.dev() != socket.dev()

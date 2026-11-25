@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 //! One socket activation is one isolated worker lifetime. No execution request
 //! is admitted until the coordinator, worktree and credential broker are wired.
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ fn private_runtime(uid: u32) -> io::Result<()> {
     let path = std::env::var_os("RUNTIME_DIRECTORY")
         .ok_or_else(|| io::Error::new(io::ErrorKind::PermissionDenied, "worker runtime missing"))?;
     let path = Path::new(&path);
-    if path.parent() != Some(Path::new("/run/soda-factory-worker")) {
+    if path.parent() != Some(Path::new(soda_execution_protocol::host::WORKER_RUNTIME)) {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "worker runtime path invalid",
@@ -51,15 +51,19 @@ fn private_runtime(uid: u32) -> io::Result<()> {
     Ok(())
 }
 
-fn socket(fd: RawFd) -> io::Result<libc::ucred> {
+struct Peer {
+    pid: i32,
+    uid: u32,
+}
+
+fn socket(fd: RawFd) -> io::Result<Peer> {
     let mut kind = 0;
     let mut kind_len = std::mem::size_of_val(&kind) as libc::socklen_t;
-    let mut peer = libc::ucred {
-        pid: 0,
-        uid: 0,
-        gid: 0,
+    let credentials = soda_execution_protocol::host::peer_credentials(fd);
+    let peer = Peer {
+        pid: credentials.map_or(0, |(pid, _)| pid),
+        uid: credentials.map_or(0, |(_, uid)| uid),
     };
-    let mut peer_len = std::mem::size_of_val(&peer) as libc::socklen_t;
     let timeout = libc::timeval {
         tv_sec: DEADLINE_SECONDS,
         tv_usec: 0,
@@ -73,13 +77,6 @@ fn socket(fd: RawFd) -> io::Result<libc::ucred> {
             (&mut kind as *mut i32).cast(),
             &mut kind_len,
         ) == 0
-            && libc::getsockopt(
-                fd,
-                libc::SOL_SOCKET,
-                libc::SO_PEERCRED,
-                (&mut peer as *mut libc::ucred).cast(),
-                &mut peer_len,
-            ) == 0
             && libc::setsockopt(
                 fd,
                 libc::SOL_SOCKET,
@@ -97,7 +94,6 @@ fn socket(fd: RawFd) -> io::Result<libc::ucred> {
     };
     if !valid
         || kind_len as usize != std::mem::size_of_val(&kind)
-        || peer_len as usize != std::mem::size_of_val(&peer)
         || kind != libc::SOCK_STREAM
         || peer.pid <= 0
     {
@@ -120,7 +116,7 @@ fn serve() -> io::Result<()> {
         (uid == peer.uid, "worker shares desktop peer identity"),
         (unsafe { libc::getuid() } != uid, "worker real UID differs"),
         (
-            unsafe { libc::prctl(libc::PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) } != 1,
+            !soda_execution_protocol::host::unit_confined(),
             "worker can gain privileges",
         ),
         (

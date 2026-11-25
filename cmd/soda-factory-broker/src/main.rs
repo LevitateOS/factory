@@ -14,13 +14,17 @@ use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+#[cfg(target_os = "linux")]
+use std::process::Command;
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 mod agent_observation;
 mod preparation_quota;
 mod source_binding;
 mod task_receipts;
 mod task_workspace;
+#[cfg(target_os = "macos")]
+mod units;
 
 use soda_execution_protocol::host::BROKER_STATE as STATE;
 fn broker_socket() -> PathBuf {
@@ -465,39 +469,8 @@ fn socket(fd: RawFd) -> io::Result<u32> {
     Ok(peer.map(|(_, uid)| uid).unwrap_or_default())
 }
 
-/// Kernel-attested peer process and user of a connected Unix stream.
-#[cfg(target_os = "linux")]
 fn peer(fd: RawFd) -> Option<(i32, u32)> {
-    let mut peer = libc::ucred { pid: 0, uid: 0, gid: 0 };
-    let mut length = std::mem::size_of_val(&peer) as libc::socklen_t;
-    let read = unsafe {
-        libc::getsockopt(
-            fd,
-            libc::SOL_SOCKET,
-            libc::SO_PEERCRED,
-            (&mut peer as *mut libc::ucred).cast(),
-            &mut length,
-        )
-    };
-    (read == 0 && length as usize == std::mem::size_of_val(&peer)).then_some((peer.pid, peer.uid))
-}
-#[cfg(target_os = "macos")]
-fn peer(fd: RawFd) -> Option<(i32, u32)> {
-    let mut uid = 0;
-    let mut gid = 0;
-    let mut pid: libc::pid_t = 0;
-    let mut length = std::mem::size_of_val(&pid) as libc::socklen_t;
-    let read = unsafe {
-        libc::getpeereid(fd, &mut uid, &mut gid) == 0
-            && libc::getsockopt(
-                fd,
-                libc::SOL_LOCAL,
-                libc::LOCAL_PEERPID,
-                (&mut pid as *mut libc::pid_t).cast(),
-                &mut length,
-            ) == 0
-    };
-    (read && length as usize == std::mem::size_of_val(&pid)).then_some((pid, uid))
+    soda_execution_protocol::host::peer_credentials(fd)
 }
 
 fn state() -> io::Result<PathBuf> {
@@ -755,6 +728,31 @@ fn manifest_identity(value: &str) -> Option<(&str, &str)> {
     (id(candidate, 40) && id(digest, 64)).then_some((candidate, digest))
 }
 
+#[cfg(target_os = "macos")]
+fn manager_unit(action: &str, unit: &str) -> io::Result<()> {
+    match action {
+        "stop" => units::stop(unit),
+        "is-active" => units::is_active(unit),
+        "start" => {
+            if units::start_command(unit)?
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .status()?
+                .success()
+            {
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    format!("fixed preparation service failed: {action} {unit}"),
+                ))
+            }
+        }
+        _ => Err(denied("unit action unavailable")),
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn manager_unit(action: &str, unit: &str) -> io::Result<()> {
     let status = Command::new("/usr/bin/systemctl")
         .env_clear()
@@ -827,9 +825,15 @@ fn preparation_client() -> io::Result<()> {
 
 fn start_preparation(unit: &str, seconds: u64) -> io::Result<()> {
     preparation_client()?;
-    let mut child = Command::new("/usr/bin/systemctl")
+    #[cfg(target_os = "linux")]
+    let mut command = Command::new("/usr/bin/systemctl");
+    #[cfg(target_os = "linux")]
+    command
         .env_clear()
-        .args(["--system", "--no-ask-password", "start", unit])
+        .args(["--system", "--no-ask-password", "start", unit]);
+    #[cfg(target_os = "macos")]
+    let mut command = units::start_command(unit)?;
+    let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -3162,6 +3166,18 @@ fn serve() -> io::Result<()> {
 }
 
 fn main() {
+    #[cfg(target_os = "macos")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if let [_, mode, unit] = args.as_slice() {
+            if mode == "unit-start" {
+                units::start_main(unit);
+            }
+            if mode == "prepare-host" {
+                units::prepare_host_main(unit);
+            }
+        }
+    }
     if let Err(error) = serve() {
         eprintln!("Factory broker refused request: {error}");
         std::process::exit(1);

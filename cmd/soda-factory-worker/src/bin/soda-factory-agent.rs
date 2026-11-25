@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 //! One exact-run isolated service boundary for attestation and a broker-consumed
 //! agent process. Product admission and credential custody remain separate.
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 #[path = "../agent_candidate.rs"]
 mod agent_candidate;
@@ -27,18 +27,43 @@ mod agent_observation;
 mod agent_workspace;
 use agent_candidate::{repository_identity, Candidate, RepositoryIdentity};
 
-const SOURCE: &str = "/run/factory-source";
-const WORKSPACE: &str = "/run/factory-agent-private/run/workspace";
-const ROLE: &str = "/run/factory-role";
-const PRIVATE: &str = "/run/factory-agent-private/run";
-const PRIVATE_MOUNT: &str = "/run/factory-agent-private";
+#[allow(non_snake_case)]
+fn SOURCE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-source")
+}
+#[allow(non_snake_case)]
+fn WORKSPACE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-agent-private/run/workspace")
+}
+#[allow(non_snake_case)]
+fn ROLE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-role")
+}
+#[allow(non_snake_case)]
+fn PRIVATE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-agent-private/run")
+}
+#[allow(non_snake_case)]
+fn PRIVATE_MOUNT() -> &'static str {
+    soda_execution_protocol::host::unit("factory-agent-private")
+}
 const PRIVATE_MAX_BYTES: u64 = 3 * 1024 * 1024 * 1024;
-const PRIVATE_TMP: &str = "/run/factory-agent-private/run/tmp";
-const PRIVATE_HOME: &str = "/run/factory-agent-private/run/home";
+#[allow(non_snake_case)]
+fn PRIVATE_TMP() -> &'static str {
+    soda_execution_protocol::host::unit("factory-agent-private/run/tmp")
+}
+#[allow(non_snake_case)]
+fn PRIVATE_HOME() -> &'static str {
+    soda_execution_protocol::host::unit("factory-agent-private/run/home")
+}
+#[cfg(target_os = "linux")]
 const CGROUP: &str = "/sys/fs/cgroup/factory";
 const MAX_REQUEST: usize = soda_execution_protocol::MAX_AGENT_REQUEST;
 const MAX_EXECUTION: Duration = Duration::from_secs(4 * 60 * 60);
-const PROMPT: &str = "/run/factory-agent-private/run/agent.prompt";
+#[allow(non_snake_case)]
+fn PROMPT() -> &'static str {
+    soda_execution_protocol::host::unit("factory-agent-private/run/agent.prompt")
+}
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -100,13 +125,7 @@ fn id(value: &str, length: usize) -> bool {
 }
 
 fn readonly(path: &Path) -> io::Result<bool> {
-    let path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
-        .map_err(|_| refused("agent mount path invalid"))?;
-    let mut stat = std::mem::MaybeUninit::<libc::statvfs>::uninit();
-    if unsafe { libc::statvfs(path.as_ptr(), stat.as_mut_ptr()) } != 0 {
-        return Err(io::Error::last_os_error());
-    }
-    Ok(unsafe { stat.assume_init() }.f_flag & libc::ST_RDONLY as u64 != 0)
+    Ok(soda_execution_protocol::host::read_only(path))
 }
 
 fn close_on_exec(fd: RawFd) -> io::Result<()> {
@@ -125,28 +144,25 @@ fn bounded_tmpfs(path: &str, max_bytes: u64) -> io::Result<()> {
         .ok_or_else(|| refused("agent storage mount path invalid"))?
         .symlink_metadata()?;
     let path = std::ffi::CString::new(path).map_err(|_| refused("agent storage path invalid"))?;
-    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
     let mut capacity = std::mem::MaybeUninit::<libc::statvfs>::uninit();
     if !metadata.is_dir()
         || metadata.uid() != 0
         || metadata.mode() & 0o7777 != 0o1777
         || metadata.dev() == parent.dev()
-        || unsafe { libc::statfs(path.as_ptr(), filesystem.as_mut_ptr()) } != 0
-        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
+        || !soda_execution_protocol::host::runtime_filesystem(mount)
         || unsafe { libc::statvfs(path.as_ptr(), capacity.as_mut_ptr()) } != 0
     {
         return Err(refused("agent storage mount invalid"));
     }
     let capacity = unsafe { capacity.assume_init() };
-    if capacity.f_blocks.saturating_mul(capacity.f_frsize) > max_bytes {
+    if (capacity.f_blocks as u64).saturating_mul(capacity.f_frsize as u64) > max_bytes {
         return Err(refused("agent storage mount capacity invalid"));
     }
     Ok(())
 }
 
 fn inaccessible_storage(path: &str) -> io::Result<()> {
-    let metadata = Path::new(path).symlink_metadata()?;
-    if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0 {
+    if !soda_execution_protocol::host::inaccessible(Path::new(path)) {
         return Err(refused("agent scratch storage remains accessible"));
     }
     Ok(())
@@ -157,7 +173,7 @@ fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     if uid == 0
         || uid == desktop_uid
         || unsafe { libc::getuid() } != uid
-        || unsafe { libc::prctl(libc::PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) } != 1
+        || !soda_execution_protocol::host::unit_confined()
         || std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some()
         || std::env::var_os("XDG_RUNTIME_DIR").is_some()
     {
@@ -166,12 +182,12 @@ fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     let runtime = std::env::var_os("RUNTIME_DIRECTORY")
         .ok_or_else(|| refused("agent private runtime missing"))?;
     let runtime = Path::new(&runtime);
-    if runtime.parent() != Some(Path::new("/run/soda-factory-agent"))
+    if runtime.parent() != Some(Path::new(soda_execution_protocol::host::AGENT_RUNTIME))
         || runtime.file_name() != Some(std::ffi::OsStr::new(run))
     {
         return Err(refused("agent private runtime path invalid"));
     }
-    let hidden = Path::new("/run/soda-factory-agent");
+    let hidden = Path::new(soda_execution_protocol::host::AGENT_RUNTIME);
     let hidden_metadata = hidden.symlink_metadata()?;
     if !hidden_metadata.is_dir()
         || hidden_metadata.uid() != 0
@@ -183,20 +199,28 @@ fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     {
         return Err(refused("agent host runtime path visible"));
     }
-    bounded_tmpfs(PRIVATE_MOUNT, PRIVATE_MAX_BYTES)?;
-    for path in ["/tmp", "/var/tmp", "/dev/shm", "/run/lock"] {
+    bounded_tmpfs(PRIVATE_MOUNT(), PRIVATE_MAX_BYTES)?;
+    for path in soda_execution_protocol::host::SHARED_SCRATCH {
         inaccessible_storage(path)?;
     }
-    fs::create_dir(PRIVATE)?;
-    fs::create_dir(PRIVATE_TMP)?;
-    fs::create_dir(PRIVATE_HOME)?;
-    let metadata = Path::new(PRIVATE).symlink_metadata()?;
+    fs::create_dir(PRIVATE())?;
+    fs::create_dir(PRIVATE_TMP())?;
+    fs::create_dir(PRIVATE_HOME())?;
+    let metadata = Path::new(PRIVATE()).symlink_metadata()?;
     if !metadata.is_dir() || metadata.uid() != uid || metadata.mode() & 0o7777 != 0o700 {
         return Err(refused("agent private runtime identity invalid"));
     }
     Ok(uid)
 }
 
+/// macOS has no delegated cgroup: the agent owns its launched trees directly
+/// while the unit host bounds every process of this pool user.
+#[cfg(target_os = "macos")]
+fn process_owner(run: &str, _worker_uid: u32) -> io::Result<Processes> {
+    Processes::open(Path::new(PRIVATE()), run).map_err(|_| refused("agent process scope unavailable"))
+}
+
+#[cfg(target_os = "linux")]
 fn process_owner(run: &str, worker_uid: u32) -> io::Result<Processes> {
     let value = fs::read_to_string("/proc/self/cgroup")?;
     let path = value
@@ -248,12 +272,12 @@ fn process_owner(run: &str, worker_uid: u32) -> io::Result<Processes> {
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(delegated.join("cgroup.subtree_control"))?
         .write_all(b"+cpu +memory +pids")?;
-    Processes::open(Path::new(PRIVATE), delegated, run)
+    Processes::open(Path::new(PRIVATE()), delegated, run)
         .map_err(|_| refused("agent process scope unavailable"))
 }
 
 fn manifest(run: &str) -> io::Result<(Role, String, String, String, String)> {
-    let path = Path::new(ROLE);
+    let path = Path::new(ROLE());
     let metadata = path.symlink_metadata()?;
     if !metadata.is_file()
         || metadata.uid() != 0
@@ -316,10 +340,10 @@ fn manifest(run: &str) -> io::Result<(Role, String, String, String, String)> {
 }
 
 fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io::Result<Vec<u8>> {
-    let executable = Executable::capture(Path::new("/usr/bin/git"))
+    let executable = Executable::capture(Path::new(soda_execution_protocol::host::git()))
         .map_err(|_| refused("agent Git executable unavailable"))?;
     let environment = BTreeMap::from([
-        (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
+        (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP())),
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
         (
             OsString::from("GIT_CONFIG_GLOBAL"),
@@ -349,7 +373,7 @@ fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io:
     let process = processes
         .launch(Invocation {
             executable: &executable,
-            directory: Path::new(PRIVATE),
+            directory: Path::new(PRIVATE()),
             arguments,
             environment,
             limits: Limits {
@@ -393,7 +417,7 @@ fn head(path: &str, candidate: &str, processes: &mut Processes) -> io::Result<()
 }
 
 fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
-    let path = Path::new(SOURCE);
+    let path = Path::new(SOURCE());
     let metadata = path.symlink_metadata()?;
     if !metadata.is_dir()
         || metadata.uid() == 0
@@ -402,7 +426,7 @@ fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
     {
         return Err(refused("agent source mount invalid"));
     }
-    head(SOURCE, candidate, processes)?;
+    head(SOURCE(), candidate, processes)?;
     Ok(())
 }
 
@@ -412,50 +436,56 @@ fn coder_workspace(
     processes: &mut Processes,
     prepared: bool,
 ) -> io::Result<()> {
-    match Path::new(WORKSPACE).symlink_metadata() {
+    match Path::new(WORKSPACE()).symlink_metadata() {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
         Ok(_) => return Err(refused("agent coder workspace already exists")),
     }
     if prepared {
-        fs::create_dir(WORKSPACE)?;
-        agent_environment::copy(Path::new(SOURCE), Path::new(WORKSPACE))?;
+        fs::create_dir(WORKSPACE())?;
+        agent_environment::copy(Path::new(SOURCE()), Path::new(WORKSPACE()))?;
     } else {
+        let safe = format!("safe.directory={}", SOURCE());
+        let upload = format!(
+            "--upload-pack={} -c safe.directory={}/.git upload-pack",
+            soda_execution_protocol::host::git(),
+            SOURCE()
+        );
         git(
             processes,
             &[
                 "-c",
-                "safe.directory=/run/factory-source",
+                &safe,
                 "clone",
-                "--upload-pack=/usr/bin/git -c safe.directory=/run/factory-source/.git upload-pack",
+                &upload,
                 "--quiet",
                 "--no-local",
                 "--no-checkout",
                 "--",
-                SOURCE,
-                WORKSPACE,
+                SOURCE(),
+                WORKSPACE(),
             ],
             Duration::from_secs(15),
         )?;
     }
-    let metadata = Path::new(WORKSPACE).symlink_metadata()?;
+    let metadata = Path::new(WORKSPACE()).symlink_metadata()?;
     if !metadata.is_dir()
         || metadata.uid() != worker_uid
         || metadata.mode() & 0o7777 != 0o700
-        || readonly(Path::new(WORKSPACE))?
+        || readonly(Path::new(WORKSPACE()))?
     {
         return Err(refused("agent coder workspace invalid"));
     }
-    head(WORKSPACE, candidate, processes)?;
+    head(WORKSPACE(), candidate, processes)?;
     git(
         processes,
-        &["-C", WORKSPACE, "reset", "--hard", "--quiet", "HEAD"],
+        &["-C", WORKSPACE(), "reset", "--hard", "--quiet", "HEAD"],
         Duration::from_secs(15),
     )?;
     if !prepared
         && !git(
             processes,
-            &["-C", WORKSPACE, "status", "--porcelain", "-z"],
+            &["-C", WORKSPACE(), "status", "--porcelain", "-z"],
             Duration::from_secs(3),
         )?
         .is_empty()
@@ -468,15 +498,16 @@ fn coder_workspace(
 fn listener(run: &str) -> io::Result<UnixListener> {
     // PrivatePIDs translates getpid(), while systemd set LISTEN_PID before
     // entering that namespace. The inherited FD itself is checked below.
+    // The macOS unit host hands over exactly fd 3 and sets no LISTEN_PID.
     let listen_pid = std::env::var("LISTEN_PID")
         .ok()
         .and_then(|value| value.parse::<u32>().ok());
-    if listen_pid.is_none_or(|pid| pid == 0)
+    if (cfg!(target_os = "linux") && listen_pid.is_none_or(|pid| pid == 0))
         || std::env::var("LISTEN_FDS").ok().as_deref() != Some("1")
     {
         return Err(refused("agent socket activation missing"));
     }
-    let path = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
+    let path = soda_execution_protocol::host::agent_socket(run);
     let parent = path.parent().expect("fixed agent socket parent");
     let directory = parent.symlink_metadata()?;
     let socket = path.symlink_metadata()?;
@@ -528,23 +559,8 @@ fn listener(run: &str) -> io::Result<UnixListener> {
 }
 
 fn peer(stream: &UnixStream) -> bool {
-    let mut peer = libc::ucred {
-        pid: 0,
-        uid: 0,
-        gid: 0,
-    };
-    let mut length = std::mem::size_of_val(&peer) as libc::socklen_t;
-    let valid = unsafe {
-        libc::getsockopt(
-            stream.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_PEERCRED,
-            (&mut peer as *mut libc::ucred).cast(),
-            &mut length,
-        ) == 0
-    };
     // The broker PID is outside the private PID namespace and may map to 0.
-    valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == 0
+    soda_execution_protocol::host::peer_credentials(stream.as_raw_fd()).is_some_and(|(_, uid)| uid == 0)
 }
 
 fn sha256(bytes: &[u8]) -> String {
@@ -557,7 +573,7 @@ fn sha256(bytes: &[u8]) -> String {
 struct PromptFile;
 impl Drop for PromptFile {
     fn drop(&mut self) {
-        let _ = fs::remove_file(PROMPT);
+        let _ = fs::remove_file(PROMPT());
     }
 }
 
@@ -567,14 +583,14 @@ fn private_prompt(bytes: &[u8]) -> io::Result<PromptFile> {
         .create_new(true)
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(PROMPT)?;
+        .open(PROMPT())?;
     let result = (|| {
         file.write_all(bytes)?;
         file.sync_all()?;
         file.set_permissions(fs::Permissions::from_mode(0o400))
     })();
     if result.is_err() {
-        let _ = fs::remove_file(PROMPT);
+        let _ = fs::remove_file(PROMPT());
     }
     result.map(|()| PromptFile)
 }
@@ -669,10 +685,11 @@ fn execute_agent(
         return Err(refused("agent request contains extra bytes or closed peer"));
     }
     let workspace = if role == Role::Coder {
-        WORKSPACE
+        WORKSPACE()
     } else {
-        SOURCE
+        SOURCE()
     };
+    let relay = soda_execution_protocol::host::relay_origin();
     let mut arguments = [
         "exec",
         "--json",
@@ -690,13 +707,13 @@ fn execute_agent(
             "off"
         },
         "--base-url",
-        "http://127.0.0.1:37377",
+        relay.as_str(),
         "--workspace",
         workspace,
         "--worktree",
         "off",
         "--prompt-file",
-        PROMPT,
+        PROMPT(),
         "--max-model-steps",
         "16",
         "--max-tool-output-bytes",
@@ -718,7 +735,7 @@ fn execute_agent(
     }
     arguments.extend([
         OsString::from("--config"),
-        OsString::from(r#"mcpServers.factory={"enabled":true,"transport":"streamable_http","url":"http://127.0.0.1:37377/mcp","headers":{"Authorization":"${SODA_FACTORY_RUN_AUTH}"}}"#),
+        OsString::from(format!(r#"mcpServers.factory={{"enabled":true,"transport":"streamable_http","url":"{relay}/mcp","headers":{{"Authorization":"${{SODA_FACTORY_RUN_AUTH}}"}}}}"#)),
     ]);
     let environment = BTreeMap::from([
         (
@@ -727,21 +744,21 @@ fn execute_agent(
         ),
         (
             OsString::from("PATH"),
-            OsString::from(soda_execution_protocol::setup_path(PRIVATE_HOME)),
+            OsString::from(soda_execution_protocol::setup_path(PRIVATE_HOME())),
         ),
-        (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
-        (OsString::from("HOME"), OsString::from(PRIVATE_HOME)),
+        (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP())),
+        (OsString::from("HOME"), OsString::from(PRIVATE_HOME())),
         (
             OsString::from("XDG_CONFIG_HOME"),
-            OsString::from(format!("{PRIVATE_HOME}/.config")),
+            OsString::from(format!("{}/.config", PRIVATE_HOME())),
         ),
         (
             OsString::from("XDG_CACHE_HOME"),
-            OsString::from(format!("{PRIVATE_HOME}/.cache")),
+            OsString::from(format!("{}/.cache", PRIVATE_HOME())),
         ),
         (
             OsString::from("XDG_STATE_HOME"),
-            OsString::from(format!("{PRIVATE_HOME}/.local/state")),
+            OsString::from(format!("{}/.local/state", PRIVATE_HOME())),
         ),
     ]);
     let process = processes
@@ -749,9 +766,9 @@ fn execute_agent(
             Invocation {
                 executable: &executable,
                 directory: Path::new(if role == Role::Coder {
-                    WORKSPACE
+                    WORKSPACE()
                 } else {
-                    PRIVATE
+                    PRIVATE()
                 }),
                 arguments,
                 environment,
@@ -823,9 +840,9 @@ fn execute_agent(
     }
     let captured = match repository_identity {
         Some(identity) => agent_candidate::capture(
-            Path::new(WORKSPACE),
+            Path::new(WORKSPACE()),
             candidate,
-            Path::new(PRIVATE).join("candidate.bundle").as_path(),
+            Path::new(PRIVATE()).join("candidate.bundle").as_path(),
             identity,
             |arguments, duration| git(processes, arguments, duration),
         ),
@@ -930,9 +947,9 @@ fn serve() -> io::Result<()> {
     }
     if let Some(approved) = &approved {
         let workspace = if role == Role::Coder {
-            WORKSPACE
+            WORKSPACE()
         } else {
-            SOURCE
+            SOURCE()
         };
         agent_environment::check(&mut processes, Path::new(workspace), approved)?;
         head(workspace, &candidate, &mut processes)?;
@@ -959,7 +976,7 @@ fn serve() -> io::Result<()> {
         )?;
     }
     let candidate_identity = if role == Role::Coder {
-        Some(repository_identity(Path::new(WORKSPACE))?)
+        Some(repository_identity(Path::new(WORKSPACE()))?)
     } else {
         None
     };

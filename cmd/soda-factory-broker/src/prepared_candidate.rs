@@ -6,10 +6,22 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 
-const PRIVATE: &str = "/run/factory-context-private";
-const REPO: &str = "/run/factory-context-private/repo";
-const DELTA: &str = "/run/factory-context-candidate.bundle";
-const BUNDLE: &str = "/run/factory-context-private/source.bundle";
+#[allow(non_snake_case)]
+fn PRIVATE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-context-private")
+}
+#[allow(non_snake_case)]
+fn REPO() -> &'static str {
+    soda_execution_protocol::host::unit("factory-context-private/repo")
+}
+#[allow(non_snake_case)]
+fn DELTA() -> &'static str {
+    soda_execution_protocol::host::unit("factory-context-candidate.bundle")
+}
+#[allow(non_snake_case)]
+fn BUNDLE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-context-private/source.bundle")
+}
 
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -25,7 +37,7 @@ pub(super) fn source(base: &str) -> io::Result<&'static str> {
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open("/run/factory-context-base.bundle")?;
+        .open(soda_execution_protocol::host::unit("factory-context-base.bundle"))?;
     let meta = file.metadata()?;
     if !meta.is_file()
         || meta.uid() != 0
@@ -34,37 +46,30 @@ pub(super) fn source(base: &str) -> io::Result<&'static str> {
     {
         return Err(refused("context source metadata invalid"));
     }
-    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
-    if unsafe {
-        libc::statfs(
-            c"/run/factory-context-private".as_ptr(),
-            filesystem.as_mut_ptr(),
-        )
-    } != 0
-        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
-        || fs::read_dir(PRIVATE)?.next().is_some()
+    if !soda_execution_protocol::host::runtime_filesystem(std::path::Path::new(PRIVATE()))
+        || fs::read_dir(PRIVATE())?.next().is_some()
     {
         return Err(refused("candidate import private filesystem invalid"));
     }
     query_at(
-        PRIVATE,
+        PRIVATE(),
         &[
             "clone",
             "--quiet",
             "--no-local",
             "--no-checkout",
             "--",
-            "/run/factory-context-base.bundle",
-            REPO,
+            soda_execution_protocol::host::unit("factory-context-base.bundle"),
+            REPO(),
         ],
         0,
     )?;
-    if query_at(REPO, &["rev-parse", "--verify", "HEAD^{commit}"], 41)?
+    if query_at(REPO(), &["rev-parse", "--verify", "HEAD^{commit}"], 41)?
         != format!("{base}\n").as_bytes()
     {
         return Err(refused("candidate base differs"));
     }
-    Ok(REPO)
+    Ok(REPO())
 }
 
 pub(super) fn import(
@@ -83,7 +88,7 @@ pub(super) fn import(
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(DELTA)?;
+        .open(DELTA())?;
     let meta = file.metadata()?;
     if !meta.is_file()
         || meta.uid() != 0
@@ -107,7 +112,7 @@ pub(super) fn import(
             "--quiet",
             "--no-tags",
             "--no-write-fetch-head",
-            DELTA,
+            DELTA(),
             "HEAD:refs/heads/factory-candidate",
         ],
         0,
@@ -144,11 +149,11 @@ pub(super) fn run(
     delta_sha256: &str,
 ) -> io::Result<PreparedSourceResult> {
     let repository = import(base, candidate, delta_length, delta_sha256)?;
-    query_at(repository, &["bundle", "create", BUNDLE, "HEAD"], 0)?;
+    query_at(repository, &["bundle", "create", BUNDLE(), "HEAD"], 0)?;
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(BUNDLE)?;
+        .open(BUNDLE())?;
     let meta = file.metadata()?;
     if !meta.is_file()
         || meta.uid() != unsafe { libc::geteuid() }

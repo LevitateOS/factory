@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(unix)]
 //! Credential-free, run-specific reviewer attestation. The root broker owns
 //! socket activation and the exact read-only checkout bind. No agent launch.
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,10 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-const WORKTREE: &str = "/run/factory-worktree";
+#[allow(non_snake_case)]
+fn WORKTREE() -> &'static str {
+    soda_execution_protocol::host::unit("factory-worktree")
+}
 const MAX_REQUEST: usize = 256;
 
 #[derive(Deserialize)]
@@ -50,7 +53,7 @@ fn identity(run: &str) -> io::Result<u32> {
     let uid = unsafe { libc::geteuid() };
     if uid == 0
         || unsafe { libc::getuid() } != uid
-        || unsafe { libc::prctl(libc::PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) } != 1
+        || !soda_execution_protocol::host::unit_confined()
         || std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some()
         || std::env::var_os("XDG_RUNTIME_DIR").is_some()
     {
@@ -59,7 +62,7 @@ fn identity(run: &str) -> io::Result<u32> {
     let path =
         std::env::var_os("RUNTIME_DIRECTORY").ok_or_else(|| refused("reviewer runtime missing"))?;
     let path = Path::new(&path);
-    if path.parent() != Some(Path::new("/run/soda-factory-reviewer"))
+    if path.parent() != Some(Path::new(soda_execution_protocol::host::REVIEWER_RUNTIME))
         || path.file_name() != Some(std::ffi::OsStr::new(run))
     {
         return Err(refused("reviewer runtime path invalid"));
@@ -72,12 +75,18 @@ fn identity(run: &str) -> io::Result<u32> {
 }
 
 fn listener(run: &str) -> io::Result<UnixListener> {
-    if std::env::var("LISTEN_PID").ok().as_deref() != Some(&std::process::id().to_string())
+    // The macOS unit host cannot know the PID before exec; it hands over
+    // exactly fd 3, whose bound path is checked below.
+    if (cfg!(target_os = "linux")
+        && std::env::var("LISTEN_PID").ok().as_deref() != Some(&std::process::id().to_string()))
         || std::env::var("LISTEN_FDS").ok().as_deref() != Some("1")
     {
         return Err(refused("reviewer socket activation invalid"));
     }
-    let expected = format!("/run/soda-factory-broker/preparations/{run}/reviewer.sock");
+    let expected = format!(
+        "{}/preparations/{run}/reviewer.sock",
+        soda_execution_protocol::host::BROKER_STATE
+    );
     // SAFETY: systemd's validated LISTEN_PID and LISTEN_FDS grant fd 3 to this
     // process. UnixListener takes ownership exactly once.
     let listener = unsafe { UnixListener::from_raw_fd(3) };
@@ -103,43 +112,23 @@ fn listener(run: &str) -> io::Result<UnixListener> {
     Ok(listener)
 }
 
-fn peer(fd: i32) -> io::Result<libc::ucred> {
-    let mut peer = libc::ucred {
-        pid: 0,
-        uid: 0,
-        gid: 0,
-    };
-    let mut length = std::mem::size_of_val(&peer) as libc::socklen_t;
-    if unsafe {
-        libc::getsockopt(
-            fd,
-            libc::SOL_SOCKET,
-            libc::SO_PEERCRED,
-            (&mut peer as *mut libc::ucred).cast(),
-            &mut length,
-        )
-    } != 0
-        || length as usize != std::mem::size_of_val(&peer)
-        || peer.uid != 0
-        || peer.pid <= 0
-    {
-        return Err(refused("reviewer peer is not the root broker"));
+fn peer(fd: i32) -> io::Result<(i32, u32)> {
+    match soda_execution_protocol::host::peer_credentials(fd) {
+        Some((pid, 0)) if pid > 0 => Ok((pid, 0)),
+        _ => Err(refused("reviewer peer is not the root broker")),
     }
-    Ok(peer)
 }
 
 fn checkout(candidate: &str) -> io::Result<()> {
-    let metadata = Path::new(WORKTREE).symlink_metadata()?;
+    let metadata = Path::new(WORKTREE()).symlink_metadata()?;
     if !metadata.is_dir() || metadata.mode() & 0o7777 != 0o755 {
         return Err(refused("reviewer checkout mount invalid"));
     }
-    let path = std::ffi::CString::new(WORKTREE).expect("fixed worktree path");
-    let mut stat = unsafe { std::mem::zeroed::<libc::statvfs>() };
-    if unsafe { libc::statvfs(path.as_ptr(), &mut stat) } != 0 || stat.f_flag & libc::ST_RDONLY == 0
-    {
+    if !soda_execution_protocol::host::read_only(Path::new(WORKTREE())) {
         return Err(refused("reviewer checkout is writable"));
     }
-    let mut child = Command::new("/usr/bin/timeout")
+    let safe = format!("safe.directory={}", WORKTREE());
+    let mut child = Command::new(soda_execution_protocol::host::TIMEOUT)
         .env_clear()
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
@@ -147,11 +136,11 @@ fn checkout(candidate: &str) -> io::Result<()> {
             "-k",
             "1s",
             "3s",
-            "/usr/bin/git",
+            soda_execution_protocol::host::git(),
             "-c",
-            "safe.directory=/run/factory-worktree",
+            &safe,
             "-C",
-            WORKTREE,
+            WORKTREE(),
             "rev-parse",
             "--verify",
             "HEAD^{commit}",
@@ -220,7 +209,7 @@ fn serve() -> io::Result<()> {
         run: &run,
         candidate: &candidate,
         worker_uid: uid,
-        peer_uid: broker.uid,
+        peer_uid: broker.1,
         readonly_worktree: true,
         execution_available: false,
     })?;

@@ -137,7 +137,7 @@ pub(super) fn run() -> io::Result<()> {
     let input = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open("/run/factory-context-request")?;
+        .open(soda_execution_protocol::host::unit("factory-context-request"))?;
     let meta = input.metadata()?;
     if !meta.is_file()
         || meta.uid() != 0
@@ -192,10 +192,10 @@ pub(super) fn run() -> io::Result<()> {
         .create_new(true)
         .mode(0o644)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open("/run/factory-context-output/result.json")?;
+        .open(soda_execution_protocol::host::unit("factory-context-output/result.json"))?;
     output.write_all(&serde_json::to_vec(&result).map_err(io::Error::other)?)?;
     output.sync_all()?;
-    File::open("/run/factory-context-output")?.sync_all()
+    File::open(soda_execution_protocol::host::unit("factory-context-output"))?.sync_all()
 }
 fn read(repository: &str, request: ContextSelection) -> io::Result<SourceContext> {
     if !request.valid() {

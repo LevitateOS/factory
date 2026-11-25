@@ -426,7 +426,7 @@ fn git(alive: &AtomicBool, scratch: &Path, directory: &Path, args: &[&str]) -> i
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(scratch.join("git-output"))?;
-    let mut command = Command::new("/usr/bin/timeout");
+    let mut command = Command::new(soda_execution_protocol::host::TIMEOUT);
     command
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
@@ -444,7 +444,7 @@ fn git(alive: &AtomicBool, scratch: &Path, directory: &Path, args: &[&str]) -> i
             "-k",
             "1s",
             "20s",
-            "/usr/bin/git",
+            soda_execution_protocol::host::git(),
             "-c",
             "core.hooksPath=/dev/null",
             "-c",

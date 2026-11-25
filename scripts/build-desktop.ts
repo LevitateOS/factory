@@ -141,17 +141,21 @@ if (status !== 0) throw Error('Native desktop build failed');
 await writeFile(resolve(out, 'build-inputs.json'), JSON.stringify({...buildInputs, rust_packages: [...packages].sort()}, null, 2) + '\n');
 const execution = resolve(out, 'factory-runtime/execution');
 await mkdir(resolve(execution, 'libexec'), {recursive: true});
-await mkdir(resolve(execution, 'systemd'), {recursive: true});
+// Linux installs systemd units; macOS installs launchd jobs and runs the bundled
+// timeout helper, since it ships no GNU timeout.
+const macos = process.platform === 'darwin';
+if (!macos) await mkdir(resolve(execution, 'systemd'), {recursive: true});
 const executionFiles: string[] = [];
 for (const name of ['soda-desktop', 'factory-dev', 'soda-factory-muse', 'soda-factory-broker', 'soda-factory-preparer',
-  'soda-factory-preparation-cleaner', 'soda-factory-agent', 'soda-factory-provider-relay', 'soda-factory-reviewer', 'soda-factory-worker']) {
+  'soda-factory-preparation-cleaner', 'soda-factory-agent', 'soda-factory-provider-relay', 'soda-factory-reviewer',
+  ...(macos ? ['soda-factory-timeout'] : ['soda-factory-worker'])]) {
   const executable = executables.get(name);
   if (!executable) throw Error('Native desktop build did not produce ' + name);
   const appAsset = ['soda-desktop', 'factory-dev', 'soda-factory-muse'].includes(name);
   if (!appAsset) executionFiles.push('libexec\t' + name);
   await copyFile(executable, resolve(appAsset ? out : resolve(execution, 'libexec'), name));
 }
-for (const owner of ['soda-factory-broker', 'soda-factory-worker']) {
+for (const owner of macos ? [] : ['soda-factory-broker', 'soda-factory-worker']) {
   const directory = resolve(root, 'cmd', owner, 'systemd');
   for (const name of (await readdir(directory)).sort()) {
     if (!/\.(service|socket)(\.in)?$/.test(name)) throw Error('Unknown execution service asset: ' + name);
@@ -160,7 +164,7 @@ for (const owner of ['soda-factory-broker', 'soda-factory-worker']) {
   }
 }
 await writeFile(resolve(execution, 'files.list'), executionFiles.join('\n') + '\n');
-await copyFile(resolve(root, 'scripts/install-native-execution.sh'), resolve(execution, 'install.sh'));
+await copyFile(resolve(root, macos ? 'scripts/install-native-execution-macos.sh' : 'scripts/install-native-execution.sh'), resolve(execution, 'install.sh'));
 await chmod(resolve(execution, 'install.sh'), 0o755);
 await cp(payload, resolve(out, 'factory-runtime/postgresql'), {recursive: true, verbatimSymlinks: true});
 if (!values.check) await stageDesktopInstaller(out);

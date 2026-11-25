@@ -36,7 +36,7 @@ fn root_file(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 pub(super) fn approved() -> io::Result<Option<ApprovedFiles>> {
-    let root = Path::new("/run/factory-captured-inputs");
+    let root = Path::new(soda_execution_protocol::host::unit("factory-captured-inputs"));
     if !root.join("owner.setup_sha256").try_exists()? {
         return Ok(None);
     }
@@ -70,23 +70,23 @@ pub(super) fn check(
     approved: &ApprovedFiles,
 ) -> io::Result<()> {
     copy(
-        Path::new("/run/factory-prepared/home"),
-        Path::new(PRIVATE_HOME),
+        Path::new(soda_execution_protocol::host::unit("factory-prepared/home")),
+        Path::new(PRIVATE_HOME()),
     )?;
-    let executable = Executable::capture(Path::new("/usr/bin/bash"))
+    let executable = Executable::capture(Path::new(soda_execution_protocol::host::BASH))
         .map_err(|_| refused("worker check interpreter unavailable"))?;
-    let tool_path = soda_execution_protocol::setup_path(PRIVATE_HOME);
+    let tool_path = soda_execution_protocol::setup_path(PRIVATE_HOME());
     let environment = BTreeMap::from([
         ("PATH", tool_path.as_str()),
         ("LANG", "C.UTF-8"),
-        ("HOME", PRIVATE_HOME),
-        ("TMPDIR", PRIVATE_TMP),
+        ("HOME", PRIVATE_HOME()),
+        ("TMPDIR", PRIVATE_TMP()),
         ("GIT_CONFIG_NOSYSTEM", "1"),
         ("GIT_CONFIG_GLOBAL", "/dev/null"),
         ("GIT_TERMINAL_PROMPT", "0"),
         ("GIT_CONFIG_COUNT", "1"),
         ("GIT_CONFIG_KEY_0", "safe.directory"),
-        ("GIT_CONFIG_VALUE_0", SOURCE),
+        ("GIT_CONFIG_VALUE_0", SOURCE()),
     ])
     .into_iter()
     .map(|(key, value)| (OsString::from(key), OsString::from(value)))
@@ -100,15 +100,19 @@ pub(super) fn check(
     let process = processes
         .launch(Invocation {
             executable: &executable,
-            directory: Path::new(PRIVATE),
+            directory: Path::new(PRIVATE()),
             arguments: [
-                "--noprofile",
-                "--norc",
-                "-e",
-                "-u",
-                "-c",
-                "cd -- \"$1\"; exec /usr/bin/bash --noprofile --norc -e -u /run/factory-captured-inputs/approved/check.sh",
-                "factory-environment-check",
+                "--noprofile".into(),
+                "--norc".into(),
+                "-e".into(),
+                "-u".into(),
+                "-c".into(),
+                format!(
+                    "cd -- \"$1\"; exec {} --noprofile --norc -e -u {}/approved/check.sh",
+                    soda_execution_protocol::host::BASH,
+                    soda_execution_protocol::host::unit("factory-captured-inputs")
+                ),
+                "factory-environment-check".into(),
             ]
             .map(OsString::from)
             .into_iter().chain([workspace.as_os_str().to_owned()]).collect(),

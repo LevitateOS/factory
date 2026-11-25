@@ -240,6 +240,33 @@ struct Worker {
     process: Process,
     thread: JoinHandle<()>,
 }
+/// macOS unit ceilings for a dedicated pool user: every process running with
+/// that UID counts, and exceeding memory or process count kills all of them.
+#[cfg(target_os = "macos")]
+pub struct UserScope(scope::Scope);
+#[cfg(target_os = "macos")]
+impl UserScope {
+    pub fn new(uid: u32, limits: Limits) -> Result<Self> {
+        limits.validate()?;
+        if uid == 0 {
+            return Err(Error::Invalid);
+        }
+        Ok(Self(scope::Scope::user(uid, limits)))
+    }
+    pub fn enforce(&mut self) -> Result<()> {
+        self.0.enforce()
+    }
+    pub fn kill(&mut self) {
+        let _ = self.0.kill();
+    }
+    pub fn populated(&mut self) -> Result<bool> {
+        self.0.populated()
+    }
+    pub fn remove(mut self) -> Result<()> {
+        self.0.remove()
+    }
+}
+
 pub struct Processes {
     root: PathBuf,
     scopes: scope::Root,

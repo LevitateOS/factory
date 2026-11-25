@@ -135,7 +135,7 @@ impl<'a> Workspace<'a> {
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open("/run/factory-captured-inputs/task.manifest")?;
+            .open(soda_execution_protocol::host::unit("factory-captured-inputs/task.manifest"))?;
         let meta = file.metadata()?;
         if !meta.is_file()
             || meta.uid() != 0
@@ -241,13 +241,13 @@ impl<'a> Workspace<'a> {
         if Instant::now() >= self.deadline {
             return Err(refused("workspace deadline expired"));
         }
-        if &agent_candidate::repository_identity(Path::new(WORKSPACE))? != self.identity {
+        if &agent_candidate::repository_identity(Path::new(WORKSPACE()))? != self.identity {
             return Err(refused("workspace repository identity changed"));
         }
-        let safe = format!("safe.directory={WORKSPACE}");
+        let safe = format!("safe.directory={}", WORKSPACE());
         let mut all = vec![
             "-C",
-            WORKSPACE,
+            WORKSPACE(),
             "-c",
             safe.as_str(),
             "-c",
@@ -286,7 +286,7 @@ impl<'a> Workspace<'a> {
             .create(true)
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(Path::new(PRIVATE).join("task.events"))?;
+            .open(Path::new(PRIVATE()).join("task.events"))?;
         file.write_all(&serde_json::to_vec(&event)?)?;
         file.write_all(b"\n")?;
         file.sync_all()?;
@@ -297,7 +297,7 @@ impl<'a> Workspace<'a> {
         if !relative(relative_path) {
             return Err(refused("workspace relative path invalid"));
         }
-        let mut path = PathBuf::from(WORKSPACE);
+        let mut path = PathBuf::from(WORKSPACE());
         let parts: Vec<_> = relative_path.split('/').collect();
         for (i, part) in parts.iter().enumerate() {
             path.push(part);
@@ -347,7 +347,7 @@ impl<'a> Workspace<'a> {
             })
     }
     fn tree(&mut self) -> io::Result<String> {
-        if &agent_candidate::repository_identity(Path::new(WORKSPACE))? != self.identity
+        if &agent_candidate::repository_identity(Path::new(WORKSPACE()))? != self.identity
             || oid(self.git(&["rev-parse", "HEAD"])?)? != self.head
         {
             return Err(refused("workspace repository identity changed"));
@@ -383,11 +383,11 @@ impl<'a> Workspace<'a> {
                 .find(|c| &c.id == id)
                 .ok_or_else(|| refused("workspace unknown check"))?;
             let directory = if check.cwd == "." {
-                PathBuf::from(WORKSPACE)
+                PathBuf::from(WORKSPACE())
             } else {
                 self.path(check.cwd.trim_end_matches('/'))?
             };
-            let tool_path = soda_execution_protocol::setup_path(PRIVATE_HOME);
+            let tool_path = soda_execution_protocol::setup_path(PRIVATE_HOME());
             let tool = if check.argv[0].contains('/') {
                 if Path::new(&check.argv[0]).is_absolute() {
                     PathBuf::from(&check.argv[0])
@@ -405,8 +405,8 @@ impl<'a> Workspace<'a> {
                 .map_err(|_| refused("workspace check executable invalid"))?;
             let environment = [
                 ("PATH", tool_path.as_str()),
-                ("HOME", PRIVATE_HOME),
-                ("TMPDIR", PRIVATE_TMP),
+                ("HOME", PRIVATE_HOME()),
+                ("TMPDIR", PRIVATE_TMP()),
                 ("LANG", "C.UTF-8"),
                 ("GIT_CONFIG_NOSYSTEM", "1"),
                 ("GIT_CONFIG_GLOBAL", "/dev/null"),
@@ -848,9 +848,9 @@ impl<'a> Workspace<'a> {
                 let base = self.plan.source_commit.clone();
                 let identity = self.identity;
                 let candidate = agent_candidate::capture(
-                    Path::new(WORKSPACE),
+                    Path::new(WORKSPACE()),
                     &base,
-                    &Path::new(PRIVATE).join("task-candidate.bundle"),
+                    &Path::new(PRIVATE()).join("task-candidate.bundle"),
                     identity,
                     |args, duration| git(self.processes, args, duration),
                 )?;

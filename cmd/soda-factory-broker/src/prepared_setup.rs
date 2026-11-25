@@ -37,30 +37,30 @@ fn root_file(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
 fn entry(name: &str, seconds: u32, output: &File, network: bool) -> io::Result<(i32, bool)> {
     let (mut reader, writer) = UnixStream::pair()?;
     let mut retained = output.try_clone()?;
-    let mut command = Command::new("/usr/bin/timeout");
+    let mut command = Command::new(soda_execution_protocol::host::TIMEOUT);
     command
         .env_clear()
         .env(
             "PATH",
-            soda_execution_protocol::setup_path(&format!("{OUTPUT}/home")),
+            soda_execution_protocol::setup_path(&format!("{}/home", OUTPUT())),
         )
         .env("LANG", "C.UTF-8")
-        .env("HOME", format!("{OUTPUT}/home"))
-        .env("TMPDIR", format!("{OUTPUT}/tmp"))
+        .env("HOME", format!("{}/home", OUTPUT()))
+        .env("TMPDIR", format!("{}/tmp", OUTPUT()))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_TERMINAL_PROMPT", "0")
-        .current_dir(CHECKOUT)
+        .current_dir(CHECKOUT())
         .args(["-k", "1s"])
         .arg(format!("{seconds}s"))
-        .args(["/usr/bin/bash", "--noprofile", "--norc", "-e", "-u"])
-        .arg(format!("{SOURCE}/approved/{name}"))
+        .args([soda_execution_protocol::host::BASH, "--noprofile", "--norc", "-e", "-u"])
+        .arg(format!("{}/approved/{name}", SOURCE()))
         .stdin(Stdio::null())
         .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
         .stderr(Stdio::from(OwnedFd::from(writer)));
     if network {
         for name in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-            command.env(name, "http://127.0.0.1:37377");
+            command.env(name, soda_execution_protocol::host::relay_origin());
         }
         command.env("NO_PROXY", "").env("no_proxy", "");
     }
@@ -121,7 +121,7 @@ fn entry(name: &str, seconds: u32, output: &File, network: bool) -> io::Result<(
     ))
 }
 fn resolve_tools(approved: &ApprovedFiles) -> (BTreeMap<String, String>, Vec<String>) {
-    let home = Path::new(OUTPUT).join("home");
+    let home = Path::new(OUTPUT()).join("home");
     let search = soda_execution_protocol::setup_path(&home.to_string_lossy());
     let mut tools = BTreeMap::new();
     let mut missing = Vec::new();
@@ -145,14 +145,14 @@ fn resolve_tools(approved: &ApprovedFiles) -> (BTreeMap<String, String>, Vec<Str
 }
 
 pub(super) fn captured(candidate: &str) -> io::Result<Option<CapturedSetup>> {
-    let path = Path::new(SOURCE).join("owner.prepared.json");
+    let path = Path::new(SOURCE()).join("owner.prepared.json");
     if !path.try_exists()? {
         return Ok(None);
     }
     let value: CapturedSetup = serde_json::from_slice(&root_file(&path, 2 * 1024 * 1024)?)
         .map_err(|_| refused("captured setup descriptor invalid"))?;
     let approved: ApprovedFiles = serde_json::from_slice(&root_file(
-        &Path::new(SOURCE).join("approved.json"),
+        &Path::new(SOURCE()).join("approved.json"),
         MAX_SETUP_FRAME,
     )?)
     .map_err(|_| refused("captured approved inputs invalid"))?;
@@ -171,7 +171,7 @@ pub(super) fn captured(candidate: &str) -> io::Result<Option<CapturedSetup>> {
     Ok(Some(value))
 }
 pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Result<()> {
-    let input = Path::new(SOURCE).join("approved.json");
+    let input = Path::new(SOURCE()).join("approved.json");
     match input.symlink_metadata() {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
@@ -181,19 +181,23 @@ pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Resu
     let approved: ApprovedFiles =
         serde_json::from_slice(&bytes).map_err(|_| refused("approved setup shape invalid"))?;
     if !approved.valid()
-        || root_file(&Path::new(SOURCE).join("owner.setup_sha256"), 65)?
+        || root_file(&Path::new(SOURCE()).join("owner.setup_sha256"), 65)?
             != format!("{}\n", approved.digest()).as_bytes()
     {
         return Err(refused("approved setup digest differs"));
     }
     for (name, expected) in &approved.files {
-        if root_file(&Path::new(SOURCE).join("approved").join(name), 32768)? != *expected {
+        if root_file(&Path::new(SOURCE()).join("approved").join(name), 32768)? != *expected {
             return Err(refused("approved entrypoint differs"));
         }
     }
     let limits = approved
         .limits()
         .ok_or_else(|| refused("approved setup time limits invalid"))?;
+    // Setup scripts run as this UID. Linux must clear dumpability so they
+    // cannot read this process; macOS refuses task ports for processes
+    // without the get-task-allow entitlement to non-root callers.
+    #[cfg(target_os = "linux")]
     if unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) } != 0 {
         return Err(io::Error::last_os_error());
     }
@@ -201,11 +205,11 @@ pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Resu
         if directory == "home" && captured.is_some() {
             continue;
         }
-        let path = Path::new(OUTPUT).join(directory);
+        let path = Path::new(OUTPUT()).join(directory);
         fs::create_dir(&path)?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
     }
-    let output_path = Path::new(OUTPUT).join("setup-output");
+    let output_path = Path::new(OUTPUT()).join("setup-output");
     let mut output = OpenOptions::new()
         .read(true)
         .write(true)
@@ -253,9 +257,9 @@ pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Resu
     // The broker has no DAC override capability. Publish completed helper
     // directories for its metadata walk inside the root-private staging area.
     let mut pending = vec![
-        (Path::new(CHECKOUT).to_path_buf(), 0usize),
-        (Path::new(OUTPUT).join("home"), 0usize),
-        (Path::new(OUTPUT).join("tmp"), 0usize),
+        (Path::new(CHECKOUT()).to_path_buf(), 0usize),
+        (Path::new(OUTPUT()).join("home"), 0usize),
+        (Path::new(OUTPUT()).join("tmp"), 0usize),
     ];
     let mut entries = 0;
     while let Some((path, depth)) = pending.pop() {
@@ -285,7 +289,7 @@ pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Resu
             if link.is_absolute() {
                 // Package managers may write absolute cache links within HOME.
                 // Make those portable before the snapshot changes mount path.
-                let home = Path::new(OUTPUT).join("home");
+                let home = Path::new(OUTPUT()).join("home");
                 let parent = path
                     .parent()
                     .and_then(|parent| parent.strip_prefix(&home).ok())
@@ -308,7 +312,7 @@ pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Resu
     }
     if !git(&[
         "-C",
-        CHECKOUT,
+        CHECKOUT(),
         "-c",
         "core.fsmonitor=false",
         "-c",
@@ -331,8 +335,8 @@ pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Resu
         .create_new(true)
         .mode(0o644)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(Path::new(OUTPUT).join("setup-receipt.json"))?;
+        .open(Path::new(OUTPUT()).join("setup-receipt.json"))?;
     proof.write_all(&serde_json::to_vec(&receipt)?)?;
     proof.sync_all()?;
-    File::open(OUTPUT)?.sync_all()
+    File::open(OUTPUT())?.sync_all()
 }
