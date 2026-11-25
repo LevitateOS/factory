@@ -461,47 +461,57 @@ export function reviewIntent(view: IntentView) {
   const settled = explorationSettled(view);
   const referenced = new Set(revision.tasks.flatMap((task) => task.idea_ids));
   return html`<section class="intent-review">
-    <h2 tabindex="-1">Review your product direction</h2>
-    ${copyOf(view).chip ? html`<p class="state-chip">${copyOf(view).chip}</p>` : ''} ${blockedCheckSummary(view)}
-    <label
-      >Desired outcome<textarea
-        rows="3"
-        maxlength="16000"
-        .value=${view.objective}
-        ?disabled=${view.busy || view.blocked}
-        @input=${(event: Event) => view.set('objective', input(event))}
-      ></textarea>
-    </label>
-    ${reviewLead(view)} ${revision.state === 'draft' ? bounds(view) : ''} ${authorizationSection(view)}
-    ${planSection(view)} ${view.generationNotice ? html`<p role="status">${view.generationNotice}</p>` : ''}
-    <p>Only asked questions and work-linked choices are required. Changes update the proposal before you continue.</p>
-    ${deliveryApproach(view, revision)}
-    ${!revision.tasks.length ? html`<p>More product direction is needed before work can be proposed. Edit the desired outcome or change an idea to explain the missing behavior, then update the proposal.</p>` : ''}
-    ${revision.ideas.filter((idea) => !ideaSettled(idea, settled)).map((idea) => productIdea(view, idea, challenged, referenced, settled))}
-    <details class="recorded-choices">
-      <summary>Recorded choices (${revision.ideas.filter((idea) => ideaSettled(idea, settled)).length})</summary>
-      ${revision.ideas.filter((idea) => ideaSettled(idea, settled)).map((idea) => productIdea(view, idea, challenged, referenced, settled))}
-    </details>
-    ${
-      revision.state === 'accepted' && view.dirty
-        ? html`<p class="next-step" aria-live="polite">${copyOf(view).next}</p>
-            <button class="primary" ?disabled=${view.busy || view.blocked} @click=${view.revise}>
-              Update proposal
-            </button>`
-        : ''
-    }
-    <details>
-      <summary>Proposed work (${revision.tasks.length})</summary>
-      ${revision.tasks.map(
-        (task) =>
-          html`<article>
-            <h3>${task.objective}</h3>
-            <ul>
-              ${task.outcomes.map((outcome) => html`<li>${outcome}</li>`)}
-            </ul>
-          </article>`
-      )}
-    </details>
+    <div class="request-main">
+      <div class="step">
+        <h2 tabindex="-1">Review your product direction</h2>
+        ${copyOf(view).chip ? html`<p class="state-chip">${copyOf(view).chip}</p>` : ''} ${blockedCheckSummary(view)}
+        <label
+          >Desired outcome<textarea
+            rows="3"
+            maxlength="16000"
+            .value=${view.objective}
+            ?disabled=${view.busy || view.blocked}
+            @input=${(event: Event) => view.set('objective', input(event))}
+          ></textarea>
+        </label>
+        ${revision.state === 'draft' ? bounds(view) : ''}
+      </div>
+      <div class="step">
+        <h3 class="step-title">Candidate issue graphs</h3>
+        ${reviewLead(view)}
+        ${!revision.tasks.length ? html`<p>More product direction is needed before work can be proposed. Edit the desired outcome or change an idea to explain the missing behavior, then update the proposal.</p>` : ''}
+        ${revision.ideas.filter((idea) => !ideaSettled(idea, settled)).map((idea) => productIdea(view, idea, challenged, referenced, settled))}
+        <details class="recorded-choices">
+          <summary>Recorded choices (${revision.ideas.filter((idea) => ideaSettled(idea, settled)).length})</summary>
+          ${revision.ideas.filter((idea) => ideaSettled(idea, settled)).map((idea) => productIdea(view, idea, challenged, referenced, settled))}
+        </details>
+        <details>
+          <summary>Proposed work (${revision.tasks.length})</summary>
+          ${revision.tasks.map(
+            (task) =>
+              html`<article>
+                <h3>${task.objective}</h3>
+                <ul>
+                  ${task.outcomes.map((outcome) => html`<li>${outcome}</li>`)}
+                </ul>
+              </article>`
+          )}
+        </details>
+        <p class="step-note">Only asked questions and work-linked choices are required. Changes update the proposal before you continue.</p>
+      </div>
+      <div class="step delivery">${deliveryApproach(view, revision)}</div>
+    </div>
+    <aside class="request-aside">
+      ${authorizationSection(view)} ${planSection(view)}
+      ${view.generationNotice ? html`<p role="status">${view.generationNotice}</p>` : ''}
+      ${
+        revision.state === 'accepted' && view.dirty
+          ? html`<p class="next-step" aria-live="polite">${copyOf(view).next}</p>
+              <button class="primary" ?disabled=${view.busy || view.blocked} @click=${view.revise}>
+                Update proposal
+              </button>`
+          : ''
+      }
     ${(() => {
       if (revision.state === 'accepted') return '';
       // planSection already renders the primary action for a repository-bound
@@ -518,6 +528,7 @@ export function reviewIntent(view: IntentView) {
           >${primaryDirectionButton(view)}
         </div>`;
     })()}
+    </aside>
   </section>`;
 }
 export function departmentDialog(view: IntentView) {

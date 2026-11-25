@@ -120,6 +120,88 @@ export class SodaIntent extends LitElement {
     .intent-entry {
       text-align: left;
     }
+    .intent-review {
+      max-width: 1040px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 2rem;
+      counter-reset: step;
+    }
+    .request-main {
+      flex: 999 1 460px;
+      min-width: 0;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+    .request-aside {
+      flex: 1 1 280px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .request-aside > section {
+      margin: 0;
+      max-width: none;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 1rem;
+      border: 1px solid var(--soda-page-edge);
+    }
+    .request-aside > section:first-child {
+      border-color: var(--soda-page-text);
+    }
+    .request-aside h3 {
+      margin: 0 0 0.5rem;
+    }
+    .request-aside p {
+      margin-block: 0.5rem;
+    }
+    .step {
+      counter-increment: step;
+    }
+    .step > h2,
+    .step > .step-title,
+    .step.delivery > details > summary {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+    .step > .step-title {
+      margin: 0 0 0.75rem;
+      font: var(--soda-font-heading, 20px sans-serif);
+    }
+    .step > h2::before,
+    .step > .step-title::before,
+    .step.delivery > details > summary::before {
+      content: counter(step);
+      font: 500 13px/20px var(--soda-font-mono, monospace);
+      color: var(--soda-page-muted);
+    }
+    .step.delivery > details > summary {
+      font: var(--soda-font-heading, 20px sans-serif);
+      cursor: pointer;
+    }
+    .step.delivery > details > summary::marker {
+      content: '';
+    }
+    .step.delivery > details fieldset {
+      margin: 0.75rem 0 0;
+      padding: 1rem;
+      border: 1px solid var(--soda-page-edge);
+      border-radius: 0;
+    }
+    .step-note {
+      color: var(--soda-page-muted);
+      font-size: 0.875rem;
+    }
+    .intent-entry h2,
+    .step > h2 {
+      margin-bottom: 0.75rem;
+    }
     .intent-entry {
       padding-block: clamp(0.5rem, 3vh, 2rem);
     }
@@ -197,8 +279,12 @@ export class SodaIntent extends LitElement {
       margin-block: 1rem;
     }
     article {
-      border-block-end: 1px solid var(--soda-page-edge);
-      padding-block: 1rem;
+      border: 1px solid var(--soda-page-edge);
+      padding: 1rem;
+      margin-block: 0.75rem;
+    }
+    article h3 {
+      margin: 0 0 0.5rem;
     }
     .consequence {
       color: var(--soda-page-muted);
