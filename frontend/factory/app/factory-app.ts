@@ -408,7 +408,7 @@ export class SodaFactoryApp extends LitElement {
         view.actor = context.actor;
         view.draftScope = context.scope;
         view.planningRepository = context.selectedRepository ?? '0';
-        view.request = route.intent ?? '';
+        view.request = route.intent;
         view.blocked = ports.blocked;
         view.api = async (path, body, childSignal) => {
           check(this.live(context, signal));
@@ -633,7 +633,6 @@ export class SodaFactoryApp extends LitElement {
     const repository = context?.selectedRepository ?? (context && 'repository' in context.route ? context.route.repository : undefined);
     const links: {label: string; route: FactoryRoute}[] = [
       {label: 'Feed', route: {kind: 'feed', ...(repository ? {repository} : {})}},
-      {label: 'New request', route: {kind: 'request'}},
       ...(repository
         ? [
             {label: 'Work', route: {kind: 'work' as const, repository}},

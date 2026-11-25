@@ -171,7 +171,7 @@ if (macos) {
   const identity = process.env.FACTORY_CODESIGN_IDENTITY;
   if (!identity) throw Error('macOS stages require FACTORY_CODESIGN_IDENTITY (security find-identity -v -p codesigning)');
   for (const [directory, names] of [[out, ['soda-desktop', 'factory-dev', 'soda-factory-muse']],
-    [resolve(execution, 'libexec'), executionFiles.map(entry => entry.split('\t')[1])]] as const) {
+    [resolve(execution, 'libexec'), executionFiles.map(entry => entry.slice('libexec\t'.length))]] as const) {
     for (const name of names) {
       const signer = Bun.spawn(['/usr/bin/codesign', '--force', '--sign', identity, '--identifier', 'dev.soda.factory.' + name,
         resolve(directory, name)], {stdout: 'inherit', stderr: 'inherit'});

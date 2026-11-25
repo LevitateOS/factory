@@ -273,7 +273,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
           ? route
           : remote
             ? {kind: 'feed', repository: value.repository!.id}
-            : {kind: 'request'}
+            : {kind: 'projects'}
       );
       message = value.repository
         ? `Connected to ${value.repository.name}.`
