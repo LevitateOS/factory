@@ -3,7 +3,6 @@ import {repeat} from 'lit/directives/repeat.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryFeedHost, FactoryRepositoryCatalog, FactoryRepositoryLinks} from '../app/navigation.js';
 import {readStored, writeStored} from '../shared/drafts.js';
-import {allowanceHolds, allowanceHoldText, type AllowanceHold} from './allowance.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {activityTimestamp} from '../shared/format.js';
 import type {FeedCardLinks} from './feed-communication.js';
@@ -107,8 +106,6 @@ export class SodaFactoryFeed extends LitElement {
     pagedBack: boolean;
     confirmedUnix: number;
     postBusy: string[];
-    allowance: AllowanceHold[];
-    allowanceUnavailable: string[];
   };
   private current: FactoryFeedContext | undefined;
   private lifetime = new AbortController();
@@ -166,8 +163,6 @@ export class SodaFactoryFeed extends LitElement {
       truncated: false,
       pagedBack: false,
       confirmedUnix: 0,
-      allowance: [],
-      allowanceUnavailable: [],
       postBusy: [],
     };
   }
@@ -467,7 +462,6 @@ export class SodaFactoryFeed extends LitElement {
         truncated: this.view.pagedBack ? this.view.truncated : page.truncated,
         confirmedUnix: Math.floor(Date.now() / 1000),
         message,
-        ...(page.allowanceHolds === undefined ? {} : {allowance: page.allowanceHolds}),
       };
       if (anchor && anchorTop !== undefined) {
         await this.updateComplete;
@@ -478,9 +472,6 @@ export class SodaFactoryFeed extends LitElement {
           else window.scrollBy({top: delta});
         }
       }
-      // New hosts return the local advisory inside this already-authorized
-      // page. An explicit empty list also avoids a separate full status read.
-      if (page.allowanceHolds === undefined) void this.readAllowance(serial);
       for (const key of this.openDrawers) {
         const entry = this.entryForKey(key);
         if (entry && !this.threads.get(key)?.pagedOlder) void this.loadReplies(entry);
@@ -526,26 +517,6 @@ export class SodaFactoryFeed extends LitElement {
           message: error instanceof Error ? error.message : 'Older feed entries are unavailable.',
         };
     }
-  }
-
-  // readAllowance names a coder-time allowance hold on the followed
-  // repositories above the posts. The status read is owner/admin only.
-  private async readAllowance(serial: number) {
-    const context = this.current;
-    if (!context) return;
-    const settled = await Promise.allSettled(
-      this.scopeRepositories()
-        .slice(0, 8)
-        .map(async (repository) =>
-          allowanceHolds(await this.readJSON(context, `repositories/${repository}/factory`), String(repository))
-        )
-    );
-    if (!this.live(serial)) return;
-    this.view = {
-      ...this.view,
-      allowance: settled.flatMap((result) => (result.status === 'fulfilled' ? result.value : [])),
-      allowanceUnavailable: settled.flatMap((result, index) => result.status === 'rejected' ? [String(this.scopeRepositories().slice(0, 8)[index])] : []),
-    };
   }
 
   private changeFilters(next: Partial<typeof this.filters>) {
@@ -1406,16 +1377,6 @@ export class SodaFactoryFeed extends LitElement {
           : ''
       }
       <p data-feed-message aria-live="polite">${this.view.message}</p>
-      ${
-        this.view.allowanceUnavailable.length > 0 ? html`<p role="status">Allowance status is unavailable for ${this.view.allowanceUnavailable.length} selected repositories.</p>` : ''
-      }
-      ${
-        this.view.allowance.length > 0
-          ? html`<p class="soda-feed-brief soda-feed-alert" role="alert" data-feed-allowance>
-              ${allowanceHoldText(this.view.allowance)}
-            </p>`
-          : ''
-      }
       ${this.view.readFailed && this.view.entries.length ? html`<p class="soda-feed-updated">Showing the last loaded activity. Refresh to check for updates.</p>` : ''}
       ${this.renderRevision()}
       ${

@@ -737,21 +737,6 @@ export const problems: FeedPostSpecimen[] = [
     )
   ),
   specimen(
-    'Factory · blocker (Waiting on allowance, F12)',
-    'Verification limits are used up for #13',
-    record(
-      'Factory',
-      communication({
-        kind: 'system',
-        component_id: 'F12',
-        title: 'Verification limits are used up for #13',
-        summary: 'Both corrections allowed for this attempt were used. No further review can start.',
-        resolution: 'An owner increases the verification limits.',
-      }),
-      'needs_you'
-    )
-  ),
-  specimen(
     'flag · finding',
     'Removed items stay in search results',
     record(

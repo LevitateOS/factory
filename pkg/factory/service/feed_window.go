@@ -21,17 +21,9 @@ type FeedReader interface {
 // cut can short a page; the resume cursor still advances past filtered
 // entries, so resuming loses nothing and reveals nothing.
 type FeedPage struct {
-	Entries        []factory.FeedEntry  `json:"entries"`
-	Next           string               `json:"next,omitempty"`
-	Truncated      bool                 `json:"truncated"`
-	AllowanceHolds *[]FeedAllowanceHold `json:"allowance_holds,omitempty"`
-}
-
-// FeedAllowanceHold is an advisory local wait, without private dispatch/source
-// observations. Nil FeedPage.AllowanceHolds means the host does not project it.
-type FeedAllowanceHold struct {
-	Repository string `json:"repository"`
-	Issue      string `json:"issue,omitempty"`
+	Entries   []factory.FeedEntry `json:"entries"`
+	Next      string              `json:"next,omitempty"`
+	Truncated bool                `json:"truncated"`
 }
 
 // serveSubscribedFeed serves one authorized combined feed window: the

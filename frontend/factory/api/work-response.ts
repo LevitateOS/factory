@@ -1,6 +1,5 @@
 import {check, flag, list, member, num, object, record, text, texts} from './models.js';
 import {nativePath} from '../shared/format.js';
-import {allowanceHolds, type AllowanceHold} from '../feed/allowance.js';
 
 // Lenient readers for the Factory work-progress reads V01/V03/V04 consume:
 // one issue's acceptance/readiness/check/merge facts, one repository's
@@ -567,7 +566,6 @@ export interface FactoryRepositorySummary {
   queue: FactoryQueueSummary;
   effective: FactoryEffectiveSummary;
   preparation?: FactoryPreparationSummary;
-  allowance?: AllowanceHold[];
   dispatch?: {stage: string; observedAt: string; reasons: string[]};
 }
 function effectiveSummary(value: unknown): FactoryEffectiveSummary {
@@ -579,7 +577,6 @@ function effectiveSummary(value: unknown): FactoryEffectiveSummary {
 export function factoryRepositorySummary(value: unknown, repository: string): FactoryRepositorySummary {
   const data = object(value);
   const queue = record(data.queue);
-  const allowance = allowanceHolds(data, repository);
   const preparation = present(data.preparation) ? record(data.preparation) : undefined;
   const dispatch = present(data.dispatch_observation) ? record(data.dispatch_observation) : undefined;
   return {
@@ -589,7 +586,6 @@ export function factoryRepositorySummary(value: unknown, repository: string): Fa
     ...(preparation === undefined
       ? {}
       : {preparation: {project: text(preparation.project), ready: flag(preparation.ready)}}),
-    ...(allowance.length > 0 ? {allowance} : {}),
     ...(dispatch === undefined ? {} : {dispatch: {
       stage: text(dispatch.stage),
       observedAt: text(dispatch.dispatch_at),

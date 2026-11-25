@@ -179,9 +179,6 @@ type DispatchObservationReason struct {
 	Issue      int64  `json:"issue,string,omitempty"`
 	Reason     string `json:"reason"`
 	Stage      string `json:"stage"`
-	// CoderTime marks a wait the coder-time allowance causes, which the
-	// owner fixes by raising it, apart from attempt limits that need Retry.
-	CoderTime bool `json:"coder_time,omitempty"`
 }
 
 // LatestDispatchObservation projects only the requested repository and global
@@ -264,13 +261,6 @@ func (c *Coordinator) observeDispatch(ctx context.Context, report DispatchReport
 	}
 }
 
-// coderTimeWait reports whether a wait is a coder-time sponsorship
-// exhaustion: the owner fixes it by raising the allowance, apart from
-// attempt limits that need Retry.
-func coderTimeWait(reason, detail string) bool {
-	return reason == WaitAllowance && detail == "sponsorship allowance is exhausted"
-}
-
 func dispatchObservationReason(repository, issue int64, reason, detail string) DispatchObservationReason {
 	// Reason is whitelisted too: an unexpected producer string must not turn
 	// this diagnostic into an indirect error/provider text channel.
@@ -331,9 +321,7 @@ func dispatchObservationReason(repository, issue int64, reason, detail string) D
 	} else if issue < 0 {
 		issue = 0
 	}
-	out := DispatchObservationReason{Repository: repository, Issue: issue, Reason: reason, Stage: stage}
-	out.CoderTime = coderTimeWait(reason, detail)
-	return out
+	return DispatchObservationReason{Repository: repository, Issue: issue, Reason: reason, Stage: stage}
 }
 
 func newDispatchReport() DispatchReport {
@@ -513,23 +501,6 @@ func (c *Coordinator) dispatchDeps() DispatchDeps {
 	})
 }
 
-// noteAllowanceWaits leaves one durable Feed card per issue waiting on
-// coder-time sponsorship. The transient dispatch observation is
-// owner/admin-only until restart; the card is visible to every authorized
-// reader. Best-effort by design: Dispatch never fails, and the observation
-// still carries the wait when the store write cannot land.
-func (c *Coordinator) noteAllowanceWaits(ctx context.Context, report DispatchReport) {
-	if c.Store == nil {
-		return
-	}
-	for _, wait := range report.Waits {
-		if !coderTimeWait(wait.Reason, wait.Detail) || wait.Repository <= 0 || wait.Issue <= 0 {
-			continue
-		}
-		_ = c.Store.NoteAllowanceExhausted(ctx, wait.Repository, wait.Issue, 0)
-	}
-}
-
 // activeDispatchKey marks the Coordinator whose Dispatch owns a context.
 type activeDispatchKey struct{}
 
@@ -556,7 +527,6 @@ func (c *Coordinator) Dispatch(ctx context.Context) DispatchReport {
 		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrHost, Detail: "retry preparation retirement is unconfirmed"})
 	}
 	c.observeDispatch(ctx, report)
-	c.noteAllowanceWaits(ctx, report)
 	c.observeProgressStage("publication")
 	c.publishAfterDispatch(ctx, report)
 	if ownsPass {

@@ -5,7 +5,6 @@ import type {GenerationState} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import type {IntentRevision} from '../api/request-response.js';
 import {activityTimestamp} from '../shared/format.js';
-import {allowanceHoldText} from '../feed/allowance.js';
 import type {FactoryIssueDetail, FactoryRepositorySummary, WorkCapabilities} from '../api/work-response.js';
 import {workIssueLink} from './work-view.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
@@ -64,7 +63,6 @@ export interface WorkOverviewModel {
   readonly countsText: string;
   readonly dependencies: readonly DependencyRow[];
   readonly setupText: string;
-  readonly allowanceText: string;
   readonly outcomeNote: string;
   readonly availabilityNote: string;
   readonly dispatch?: FactoryRepositorySummary['dispatch'];
@@ -133,7 +131,6 @@ export function describeWorkOverview(input: WorkOverviewInput): WorkOverviewMode
       : 'No counted work.',
     dependencies: dependencyRows(input),
     setupText: setupText(input),
-    allowanceText: allowanceHoldText(input.summary?.allowance ?? []),
     outcomeNote: outcomeNote(input),
     availabilityNote: availabilityNote(input),
     ...(input.summary?.dispatch ? {dispatch: input.summary.dispatch} : {}),
@@ -145,7 +142,6 @@ export function renderWorkOverview(model: WorkOverviewModel): TemplateResult {
     <section aria-label="Work overview">
       <p>${model.direction}</p>
       <p role="status">${model.countsText}</p>
-      ${model.allowanceText ? html`<p role="alert">${model.allowanceText}</p>` : ''}
       ${model.availabilityNote ? html`<p>${model.availabilityNote}</p>` : ''}
       <p>${model.setupText}</p>
       ${model.dispatch ? html`<details>

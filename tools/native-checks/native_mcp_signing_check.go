@@ -6216,69 +6216,7 @@ func initialIntakeFixture() error {
 		}
 		complete = page
 	}
-	encoded, err := json.Marshal(complete)
-	if err != nil || strings.Contains(string(encoded), `"allowance_holds"`) {
-		return errors.New("host without Feed allowance callback advertised support")
-	}
-	diagnostics, visibility := make(map[collaboration.RepositoryID]int), make(map[collaboration.RepositoryID]int)
-	feed.AllowanceHolds = func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.FeedAllowanceHold, error) {
-		if actor != 7 {
-			return nil, errors.New("Feed allowance diagnostic escaped admitted actor")
-		}
-		diagnostics[repository]++
-		return []factoryservice.FeedAllowanceHold{{Repository: strconv.FormatInt(int64(repository), 10), Issue: "1"}}, ctx.Err()
-	}
-	configuredVisible := func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
-		visibility[repository]++
-		return "Declared visible repository", ctx.Err()
-	}
-	configured, err := feed.Page(ctx, 7, query, false, configuredVisible, posts)
-	if err != nil || configured.AllowanceHolds == nil || len(*configured.AllowanceHolds) != 2 || diagnostics[42] != 1 || diagnostics[43] != 1 || visibility[42] != 2 || visibility[43] != 2 {
-		return fmt.Errorf("Feed local allowance projection added visibility reads: diagnostics=%v visibility=%v err=%v", diagnostics, visibility, err)
-	}
-	if err := feed.SaveSubscription(ctx, 7, 1, factory.FeedSubscription{Repositories: []int64{42}}); err != nil {
-		return err
-	}
-	diagnostics, visibility = make(map[collaboration.RepositoryID]int), make(map[collaboration.RepositoryID]int)
-	subscribed, err := feed.Page(ctx, 7, query, false, configuredVisible, posts)
-	if err != nil || subscribed.AllowanceHolds == nil || len(*subscribed.AllowanceHolds) != 1 || diagnostics[42] != 1 || diagnostics[43] != 0 || visibility[42] != 2 || visibility[43] != 0 {
-		return fmt.Errorf("Feed diagnostic exceeded effective subscription: diagnostics=%v visibility=%v err=%v", diagnostics, visibility, err)
-	}
-	if err := feed.SaveSubscription(ctx, 7, 2, factory.FeedSubscription{Repositories: []int64{42, 43}}); err != nil {
-		return err
-	}
 	unknownVisibility := errors.New("declared current provider authority unavailable")
-	for _, unknown := range []bool{false, true} {
-		reads, projected := 0, false
-		feed.AllowanceHolds = func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.FeedAllowanceHold, error) {
-			projected = true // Declared withdrawal during local diagnostic assembly.
-			return []factoryservice.FeedAllowanceHold{{Repository: "44", Issue: "1"}}, ctx.Err()
-		}
-		page, err := feed.Page(ctx, 7, factory.FeedQuery{Repositories: []int64{44}, Limit: 20}, true, func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {
-			reads++
-			if projected {
-				if unknown {
-					return "", unknownVisibility
-				}
-				return "", factoryservice.ErrRepositoryHidden
-			}
-			return "Declared visible empty repository", ctx.Err()
-		}, posts)
-		if reads != 2 || !projected || len(page.Entries) != 0 {
-			return errors.New("empty Feed skipped the fresh final diagnostic visibility bracket")
-		}
-		if unknown {
-			if !errors.Is(err, unknownVisibility) || page.AllowanceHolds != nil {
-				return errors.New("unknown empty-Feed final authority exposed allowance diagnostics")
-			}
-		} else {
-			encoded, encodeErr := json.Marshal(page)
-			if err != nil || encodeErr != nil || page.AllowanceHolds == nil || len(*page.AllowanceHolds) != 0 || !strings.Contains(string(encoded), `"allowance_holds":[]`) {
-				return errors.New("withdrawn empty Feed did not emit supported-empty allowance holds")
-			}
-		}
-	}
-	feed.AllowanceHolds = nil
 	for _, unknown := range []bool{false, true} {
 		reads := make(map[collaboration.RepositoryID]int)
 		page, err := feed.Page(ctx, 7, query, false, func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (string, error) {

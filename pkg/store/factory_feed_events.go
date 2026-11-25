@@ -60,31 +60,7 @@ var factoryFeedEvents = []string{
 	"F09", // reconciliation problem or unavailable effect
 	"F10", // application outcomes verified
 	"F11", // design decision recorded
-	"F12", // coder-time allowance exhausted
 	"F13", // assumption challenge waiting for the person
-}
-
-// NoteAllowanceExhausted records one durable allowance-exhausted notice for
-// an issue waiting on coder-time sponsorship. Identity is per issue, so
-// repeated dispatch passes replay it without duplicating the card; a later
-// launch's assignment event marks resumption. Unlike the transient dispatch
-// observation (owner/admin-only until restart), the Feed card is visible to
-// every authorized reader until the wait clears.
-func (s *Store) NoteAllowanceExhausted(ctx context.Context, repository, issue int64, at int64) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	err = recordFactoryFeedEventTx(ctx, tx, repository, issue, "", fmt.Sprintf("%d:allowance-exhausted", issue), "allowance:exhausted", factory.FeedCommunication{
-		ComponentID: "F12",
-		Title:       fmt.Sprintf("Issue #%d is waiting on allowance", issue),
-		Summary:     "The coder-time sponsorship allowance is used up. Raise Allowance minutes in Settings → Factory authority → Provider allowance and sponsorship to continue.",
-	}, at)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 
 // recordFactoryFeedEventTx is private to the canonical store writers. A worker

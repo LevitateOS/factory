@@ -156,7 +156,7 @@ func (c *Coordinator) planExternalPull(ctx context.Context, cmd factory.Command,
 		// provider error text or the captured adoption payload.
 		reason = reason[:min(len(reason), 128)]
 		observation := dispatchObservationReason(request.Repository, request.Issue, reason, detail)
-		log.Printf("external pull planning refused command=%q stage=%q reason=%q substage=%q coder_time=%t", cmd.ID, stage, observation.Reason, observation.Stage, observation.CoderTime)
+		log.Printf("external pull planning refused command=%q stage=%q reason=%q substage=%q", cmd.ID, stage, observation.Reason, observation.Stage)
 		return empty, errors.Join(cause, &factory.PublicationRefusal{Reason: reason})
 	}
 	deps := c.dispatchDeps()
