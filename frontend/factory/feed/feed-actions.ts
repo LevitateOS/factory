@@ -252,17 +252,18 @@ function questionStatus(c: FilledCommunication): TemplateResult | string {
     : '';
 }
 
-const dispositionLabels: Record<string, string> = {
-  applied: '✓ Applied',
-  refused: '✕ Refused',
-  incorporated: '✓ Incorporated',
+const dispositionWords: Record<string, string> = {
+  applied: 'Applied',
+  refused: 'Refused',
+  incorporated: 'Incorporated',
 };
+const dispositionWord = (disposition: string) => dispositionWords[disposition] ?? disposition;
 
 // The recorded outcome of a suggestion or answer, with the reason given for it.
 export function dispositionOutcome(c: FilledCommunication): TemplateResult | string {
   if (!c.disposition && !c.dispositionReason) return '';
   return html`<div class="soda-feed-disposition" data-post-resolution=${c.disposition ?? ''}>
-    ${c.disposition ? html`<p class="soda-feed-disposition-label">${dispositionLabels[c.disposition] ?? c.disposition}</p>` : ''}
+    ${c.disposition ? html`<p class="soda-feed-disposition-label">${c.disposition === 'refused' ? '✕' : '✓'} ${dispositionWord(c.disposition)}</p>` : ''}
     ${c.dispositionReason ? html`<p class="soda-feed-disposition-reason">${c.dispositionReason}</p>` : ''}
   </div>`;
 }
@@ -433,7 +434,7 @@ export function renderFeedAction(c: FilledCommunication, presentation: string, e
         <header>
           ${actionIcon('decision')}
           <h4>Proposed change</h4>
-          <span>${c.disposition ? (dispositionLabels[c.disposition] ?? c.disposition).slice(2) : 'Awaiting a decision'}</span>
+          <span>${c.disposition ? dispositionWord(c.disposition) : 'Awaiting a decision'}</span>
         </header>
         ${actionComparison(c.before, c.after, ['Current approach', 'Suggested approach'])}${reason(c, 'Why this would help')}${actionItems(c.items, 'options')}${actionList('Alternatives', c.alternatives)}${nextStep(c)}${dispositionOutcome(c)}
       </section>`;
