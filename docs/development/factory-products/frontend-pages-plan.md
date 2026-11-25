@@ -14,7 +14,8 @@ It turns the reviewed designs into dependency-ordered slices and names the
 cheapest model that should be able to finish each one.
 
 Designs: <https://claude.ai/artifact/PqHcR4ENgouTMcfES9bDsC> (private to the
-owner until shared). Each slice below names its artboard. An implementing agent
+owner until shared). A copy anyone with the repository can view, exported on
+2026-11-25, is in [designs/](designs/README.md). Each slice below names its artboard. An implementing agent
 can read an artboard's exact markup and inline styles with the Artifact tool
 (`read`, path `project/<Name>.dc.html`); the artboards are mock-ups in a
 different component format, so they are a visual reference, not code to copy.

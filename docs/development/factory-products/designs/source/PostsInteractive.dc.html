@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interactive HTML posts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,h4,p,ul,ol,blockquote,pre{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 32px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font: 800 40px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Interactive HTML posts</h1>
+<p style="max-width: 820px; font: 400 17px/1.5 Barlow, Arial, sans-serif; color: #555555">New. The agent writes a small piece of HTML and it runs inside the post. Questions come in fixed shapes, so every answer is posted back as a reply the agent can read exactly.</p>
+</header>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 28px; align-items: start">
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Any role</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">the frame and its states</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<div style="border: 1px solid #101010">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #101010; font: 500 12px/18px 'IBM Plex Mono', monospace"><span>Interactive post · made by Builder</span><a href="#frame" style="color: #101010">Open full size</a></div>
+<p style="padding: 14px 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Ready. The agent's HTML shows here, in the app's type and colours.</p>
+</div>
+<div style="border: 1px solid #858585">
+<div style="padding: 6px 12px; border-bottom: 1px solid #858585; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Interactive post · made by Builder</div>
+<p role="status" style="padding: 14px 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Loading the interactive post…</p>
+</div>
+<div style="border: 1px dashed #555555; background: #f3f3f3">
+<div style="padding: 6px 12px; border-bottom: 1px dashed #555555; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #3a3a3a">Interactive post · could not be shown</div>
+<p style="padding: 14px 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif">This post has interactive content this app could not show. Its written summary is above, and you can still reply.</p>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The frame is always labelled with who made it. It cannot reach the network or the rest of the app; it can only hand your answer back as a reply. Every interactive post also carries a written summary, so nothing is lost when the frame fails.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/architect.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Architect</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">question · pick one</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #8054e8; background: #ffffff">
+<h3 style="font: 600 17px/1.4 Barlow, Arial, sans-serif">How should a result open?</h3>
+<div role="group" aria-label="How a result opens" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<button type="button" aria-pressed="{{aOn}}" onClick="{{pickA}}" style="display: flex; flex-direction: column; gap: 8px; padding: 10px; text-align: left; border: 2px solid {{aEdge}}; background: #ffffff; color: #101010">
+<span aria-hidden="true" style="display: flex; flex-direction: column; gap: 4px; height: 72px; padding: 6px; background: #f3f3f3"><span style="display: block; height: 8px; background: #b8b8b8"></span><span style="display: block; flex: 1 1 auto; border: 2px solid #8054e8; background: #ffffff"></span><span style="display: block; height: 8px; background: #b8b8b8"></span></span>
+<span style="display: flex; justify-content: space-between; gap: 8px; font: 600 14px/1.4 Barlow, Arial, sans-serif">Open in place<span style="font: 500 12px/18px 'IBM Plex Mono', monospace">{{aMark}}</span></span>
+</button>
+<button type="button" aria-pressed="{{bOn}}" onClick="{{pickB}}" style="display: flex; flex-direction: column; gap: 8px; padding: 10px; text-align: left; border: 2px solid {{bEdge}}; background: #ffffff; color: #101010">
+<span aria-hidden="true" style="display: flex; gap: 6px; height: 72px; padding: 6px; background: #f3f3f3"><span style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 0"><span style="display: block; height: 8px; background: #b8b8b8"></span><span style="display: block; height: 8px; background: #8054e8"></span><span style="display: block; height: 8px; background: #b8b8b8"></span></span><span style="display: block; flex: 1.4 1 0; border: 2px solid #8054e8; background: #ffffff"></span></span>
+<span style="display: flex; justify-content: space-between; gap: 8px; font: 600 14px/1.4 Barlow, Arial, sans-serif">Open beside the list<span style="font: 500 12px/18px 'IBM Plex Mono', monospace">{{bMark}}</span></span>
+</button>
+</div>
+<p style="padding: 8px 12px; background: #f3f3f3; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Posted as your reply</span><br>{{oneReply}}</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">For a choice between things that are easier to see than to describe. Two to four options.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/inspector.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Inspector</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">question · yes or no</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #2da44e; background: #ffffff">
+<h3 id="yn-q" style="font: 600 17px/1.4 Barlow, Arial, sans-serif">Merge #15 before the removed-items fix?</h3>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><p><strong style="font-weight: 600; color: #101010">Yes means</strong> search ships now and the fix follows in #16.</p><p><strong style="font-weight: 600; color: #101010">No means</strong> #15 waits for the fix.</p></div>
+<div role="group" aria-labelledby="yn-q" style="display: flex">
+<button type="button" aria-pressed="{{yesOn}}" onClick="{{pickYes}}" style="flex: 1 1 0; height: 44px; border: 1px solid #101010; background: {{yesBg}}; color: {{yesFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">Yes</button>
+<button type="button" aria-pressed="{{noOn}}" onClick="{{pickNo}}" style="flex: 1 1 0; height: 44px; border: 1px solid #101010; border-left: 0; background: {{noBg}}; color: {{noFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">No</button>
+</div>
+<p style="padding: 8px 12px; background: #f3f3f3; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Posted as your reply</span><br>{{ynReply}}</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">For a go or no-go. Each side says what it leads to, the way JEV's yes/no answers do.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/test-pilot.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Test Pilot</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">question · score</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #20bdd0; background: #ffffff">
+<h3 id="sc-q" style="font: 600 17px/1.4 Barlow, Arial, sans-serif">How does finding an item feel?</h3>
+<div role="group" aria-labelledby="sc-q" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr))">
+<sc-for list="{{levels}}" as="lv" hint-placeholder-count="5">
+<button type="button" aria-pressed="{{lv.on}}" onClick="{{lv.pick}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; padding: 6px 4px; margin-left: -1px; border: 1px solid #101010; background: {{lv.bg}}; color: {{lv.fg}}"><span style="font: 500 15px/20px 'IBM Plex Mono', monospace">{{lv.n}}</span><span style="font: 400 13px/16px Barlow, Arial, sans-serif">{{lv.label}}</span></button>
+</sc-for>
+</div>
+<p style="padding: 8px 12px; background: #f3f3f3; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Posted as your reply</span><br>{{scoreReply}}</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">For a judgement on a scale. Every level has a name, never a bare number.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/strategist.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Strategist</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">question · pick several</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #3567d6; background: #ffffff">
+<h3 style="font: 600 17px/1.4 Barlow, Arial, sans-serif">Which plan changes do you accept?</h3>
+<div style="display: flex; flex-direction: column; border-top: 1px solid #d6d6d6">
+<sc-for list="{{changes}}" as="c" hint-placeholder-count="3">
+<label style="display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 0; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><input type="checkbox" checked="{{c.on}}" onChange="{{c.toggle}}" style="width: 18px; height: 18px; margin-top: 3px; accent-color: #101010"><span>{{c.label}}</span></label>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px"><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">{{acceptLabel}}</button><span style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The rest stay as the plan has them.</span></div>
+<p style="padding: 8px 12px; background: #f3f3f3; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Posted as your reply</span><br>{{multiReply}}</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">For approving part of a proposal instead of all or nothing.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/builder.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">question · set a value</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20; background: #ffffff">
+<label for="size-q" style="font: 600 17px/1.4 Barlow, Arial, sans-serif">How many results before “load more”?</label>
+<div style="display: flex; align-items: center; gap: 14px">
+<input id="size-q" type="range" min="10" max="50" step="10" value="{{size}}" onChange="{{onSize}}" style="flex: 1 1 auto; min-width: 0; height: 44px; accent-color: #101010">
+<output for="size-q" style="flex: 0 0 64px; text-align: right; font: 500 24px/1 'IBM Plex Mono', monospace">{{size}}</output>
+</div>
+<div aria-hidden="true" style="display: flex; flex-direction: column; gap: 3px; height: 84px; overflow: hidden; padding: 8px; background: #f3f3f3">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><span style="display: block; flex: 0 0 {{r.h}}; background: #b8b8b8"></span></sc-for>
+</div>
+<p style="padding: 8px 12px; background: #f3f3f3; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Posted as your reply</span><br>{{sizeReply}}</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">For a number inside limits the agent sets. The preview shows what the number does.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/fixer.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Fixer</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">show · before and after</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #e94e9c; background: #ffffff">
+<h3 style="font: 600 17px/1.4 Barlow, Arial, sans-serif">Removing an item, before and after the fix</h3>
+<div role="group" aria-label="Which version to show" style="display: flex">
+<button type="button" aria-pressed="{{beforeOn}}" onClick="{{showBefore}}" style="height: 36px; padding: 0 16px; border: 1px solid #101010; background: {{beforeBg}}; color: {{beforeFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">Before</button>
+<button type="button" aria-pressed="{{afterOn}}" onClick="{{showAfter}}" style="height: 36px; padding: 0 16px; border: 1px solid #101010; border-left: 0; background: {{afterBg}}; color: {{afterFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">After</button>
+</div>
+<ul style="list-style: none; padding: 0; border: 1px solid #858585">
+<li style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #d6d6d6; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span>Search is taking shape</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Knowledge</span></li>
+<sc-if value="{{beforeOn}}" hint-placeholder-val="{{ false }}"><li style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #d6d6d6; background: #fbe5e3; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span>Earlier library work</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #b3261e">removed, still listed</span></li></sc-if>
+<li style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span>Earlier reviewed choice</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Decision</span></li>
+</ul>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">{{cmpLine}}</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Shows a change instead of describing it. Nothing to answer; reply if it looks wrong.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/architect.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Architect</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">show · explorable map</span><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #8054e8; background: #ffffff">
+<h3 style="font: 600 17px/1.4 Barlow, Arial, sans-serif">The plan, step by step</h3>
+<div role="group" aria-label="Work items" style="display: flex; align-items: stretch; gap: 0; overflow-x: auto">
+<sc-for list="{{nodes}}" as="n" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{n.on}}" onClick="{{n.pick}}" style="flex: 1 1 0; min-width: 120px; min-height: 56px; padding: 8px 10px; margin-left: -1px; text-align: left; border: 1px solid #101010; background: {{n.bg}}; color: {{n.fg}}; font: 600 14px/1.4 Barlow, Arial, sans-serif">{{n.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid #101010">
+<p style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px"><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">{{nodeTitle}}</strong><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">{{nodeState}}</span></p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">{{nodeDetail}}</p>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">{{nodeAfter}}</p>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The same plan as the static work map, but each step opens. A live prototype, as on the Feed page, is the third “show” type.</p>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2300}}'>
+class Component extends DCLogic {
+state = { one: 'beside', yn: '', score: -1, multi: [true, true, false], size: 20, cmp: 'after', node: 1 };
+
+renderVals() {
+var s = this.state;
+var self = this;
+var on = '#101010', off = '#ffffff';
+function bg(active) { return active ? on : off; }
+function fg(active) { return active ? '#ffffff' : '#101010'; }
+
+var levelNames = ['Unusable', 'Rough', 'Works', 'Good', 'Great'];
+var levels = levelNames.map(function (label, n) {
+return { n: n, label: label, on: s.score === n, bg: bg(s.score === n), fg: fg(s.score === n), pick: function () { self.setState({ score: n }); } };
+});
+
+var changeNames = ['Add: keep list position on return', 'Move filters after paging', 'Drop the source-post filter'];
+var changes = changeNames.map(function (label, i) {
+return { label: label, on: s.multi[i], toggle: function () { var next = s.multi.slice(); next[i] = !next[i]; self.setState({ multi: next }); } };
+});
+var accepted = changeNames.filter(function (label, i) { return s.multi[i]; });
+
+var rows = [];
+for (var i = 0; i < s.size / 10; i++) rows.push({ h: Math.max(4, Math.floor(60 / (s.size / 10))) + 'px' });
+
+var nodeDefs = [
+{ label: 'Index library items', state: 'Delivered', detail: 'Builds the search index from library items as they are recorded.', after: 'Starts independently' },
+{ label: 'Query box and result list', state: 'Building', detail: 'A query box and a list of matching items with title, type and source post.', after: 'After: Index library items' },
+{ label: 'Filters', state: 'Waiting', detail: 'Narrow the list by item type and by the post an item came from.', after: 'After: Query box and result list' }
+];
+var nodes = nodeDefs.map(function (n, i) {
+return { label: n.label, on: s.node === i, bg: bg(s.node === i), fg: fg(s.node === i), pick: function () { self.setState({ node: i }); } };
+});
+var node = nodeDefs[s.node];
+
+return {
+aOn: s.one === 'inplace',
+bOn: s.one === 'beside',
+aEdge: s.one === 'inplace' ? on : '#b8b8b8',
+bEdge: s.one === 'beside' ? on : '#b8b8b8',
+aMark: s.one === 'inplace' ? '✓ Picked' : '',
+bMark: s.one === 'beside' ? '✓ Picked' : '',
+pickA: function () { self.setState({ one: 'inplace' }); },
+pickB: function () { self.setState({ one: 'beside' }); },
+oneReply: s.one === 'beside' ? '“Open beside the list.”' : '“Open in place.”',
+
+yesOn: s.yn === 'yes',
+noOn: s.yn === 'no',
+yesBg: bg(s.yn === 'yes'),
+yesFg: fg(s.yn === 'yes'),
+noBg: bg(s.yn === 'no'),
+noFg: fg(s.yn === 'no'),
+pickYes: function () { self.setState({ yn: 'yes' }); },
+pickNo: function () { self.setState({ yn: 'no' }); },
+ynReply: s.yn === '' ? 'Nothing yet. Pick Yes or No.' : s.yn === 'yes' ? '“Yes. Merge #15 now.”' : '“No. Wait for the fix.”',
+
+levels: levels,
+scoreReply: s.score < 0 ? 'Nothing yet. Pick a level.' : '“' + s.score + ' of 4, ' + levelNames[s.score] + '.”',
+
+changes: changes,
+acceptLabel: 'Accept ' + accepted.length + ' of ' + changeNames.length,
+multiReply: accepted.length === 0 ? '“Accept none of these.”' : '“Accept: ' + accepted.join('; ') + '.”',
+
+size: s.size,
+onSize: function (e) { self.setState({ size: Number(e.target.value) }); },
+rows: rows,
+sizeReply: '“' + s.size + ' results, then load more.”',
+
+beforeOn: s.cmp === 'before',
+afterOn: s.cmp === 'after',
+beforeBg: bg(s.cmp === 'before'),
+beforeFg: fg(s.cmp === 'before'),
+afterBg: bg(s.cmp === 'after'),
+afterFg: fg(s.cmp === 'after'),
+showBefore: function () { self.setState({ cmp: 'before' }); },
+showAfter: function () { self.setState({ cmp: 'after' }); },
+cmpLine: s.cmp === 'before' ? 'Before: the removed item stays in results until the next index pass.' : 'After: the removed item is gone from results straight away.',
+
+nodes: nodes,
+nodeTitle: node.label,
+nodeState: node.state,
+nodeDetail: node.detail,
+nodeAfter: node.after
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pull request</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="pulls" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 32px 0; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Pulls.dc.html">Pull requests</a> <span style="color: #555555">/ #15</span></p>
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Index library items for search</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Open</span>
+<span style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #101010">library-search-index → main</span>
+<span>opened by alex · closes #12</span>
+</div>
+<nav aria-label="Pull request sections" style="display: flex; flex-wrap: wrap; gap: 0; margin-top: 8px">
+<a href="#conversation" aria-current="page" style="padding: 8px 14px; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Conversation</a>
+<a href="#commits" style="padding: 8px 14px; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Commits</a>
+<a href="#reviews" style="padding: 8px 14px; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Reviews</a>
+<a href="#threads" style="padding: 8px 14px; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Inline discussions</a>
+<a href="#files" style="padding: 8px 14px; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Files</a>
+<a href="#checks" style="padding: 8px 14px; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Checks</a>
+</nav>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh pull request</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<div id="conversation" style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<section aria-label="Pull request description" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font: 600 15px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span>
+<span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">2 days ago</span>
+</div>
+<p>Builds the search index from library items when they are recorded, and keeps it in step when an item is removed.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Adding search to the project library.</p>
+</section>
+
+<section aria-label="Conversation" style="display: flex; flex-direction: column; gap: 12px">
+<article style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font: 600 15px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 10px; height: 10px; background: #2da44e"></span>Inspector</span>
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Approved</span>
+</div>
+<p>Review and required checks passed.</p>
+</article>
+<article style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<span style="font: 600 15px/20px Barlow, Arial, sans-serif">Alex</span>
+<span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">Yesterday, 16:12</span>
+</div>
+<p>Removed items should drop out of results straight away. Does the index cover that?</p>
+</article>
+<button type="button" style="align-self: flex-start; height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Load more comments</button>
+</section>
+
+<form style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #101010">
+<label for="pull-comment" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Add a comment</label>
+<textarea id="pull-comment" rows="3" placeholder="Write a reply…" style="box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #858585; font: 400 16px/1.5 Barlow, Arial, sans-serif; color: #101010; resize: vertical"></textarea>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="submit" style="height: 44px; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Comment</button>
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Start a review</button>
+</div>
+</form>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section aria-label="Merge" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Merge</h2>
+<span style="align-self: flex-start; padding: 1px 8px; background: #fff0df; color: #9a3b08; font: 500 12px/18px 'IBM Plex Mono', monospace">Waiting on checks</span>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Awaiting required checks on the exact reviewed candidate.</p>
+<label for="merge-method" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Merge method</label>
+<select id="merge-method" style="height: 44px; padding: 0 10px; border: 1px solid #858585; background: #ffffff; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>Merge commit</option><option>Rebase and merge</option></select>
+<button type="button" disabled style="height: 44px; padding: 0 16px; border: 1px solid #b8b8b8; background: #f3f3f3; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Merge pull request</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Repository permissions, required reviews and CI are checked again before remote actions.</p>
+</section>
+<section aria-label="Checks" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Required checks</h2>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Required checks evaluated on <span style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #101010">4c1e9ab</span></p>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>build</span><span style="color: #13613d; font-weight: 600">Passed</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>integration</span><span style="color: #9a3b08; font-weight: 600">Running</span></div>
+</section>
+<section aria-label="Reviewers" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Reviewers</h2>
+<div style="display: flex; justify-content: space-between; gap: 12px; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 10px; height: 10px; background: #2da44e"></span>Inspector</span><span style="color: #13613d; font-weight: 600">Approved</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>alex</span><span style="color: #555555">Review requested</span></div>
+</section>
+<section aria-label="Factory facts" style="display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Factory</h2>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Published by Factory for work item #12.</p>
+<a href="WorkDetail.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Work detail</a>
+</section>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

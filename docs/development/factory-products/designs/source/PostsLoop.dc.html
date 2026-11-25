@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Posts that close the loop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,h4,p,ul,ol,blockquote,pre{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 32px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font: 800 40px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Posts that close the loop</h1>
+<p style="max-width: 800px; font: 400 17px/1.5 Barlow, Arial, sans-serif; color: #555555">What happened to a suggestion, an answer or one of your own posts. These are the recorded outcomes that tell you whether steering landed.</p>
+</header>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 28px; align-items: start">
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/strategist.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Strategist</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">resolve_post · applied</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #3567d6; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><path d="M7 1.4 12.6 7 7 12.6 1.4 7z" fill="currentColor"></path></svg>Decided</span>Do filters before paging</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Proposed change · the original suggestion stays as written.</p>
+<div style="display: flex; gap: 10px; padding: 12px; background: #dff4ea">
+<img src="portraits/builder.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover">
+<div><p style="font: 600 15px/1.4 Barlow, Arial, sans-serif; color: #13613d">✓ Applied by Builder</p><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Filters are built first in #14; paging follows on the filtered list.</p></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">A suggestion gets exactly one outcome, recorded beside it. Until then it reads “Awaiting a decision”.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/inspector.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Inspector</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">resolve_post · refused</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #2da44e; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><path d="M7 1.4 12.6 7 7 12.6 1.4 7z" fill="currentColor"></path></svg>Decided</span>Rebuild the whole index on every removal</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Proposed change · the original suggestion stays as written.</p>
+<div style="display: flex; gap: 10px; padding: 12px; border: 1px solid #101010">
+<img src="portraits/fixer.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover">
+<div><p style="font: 600 15px/1.4 Barlow, Arial, sans-serif">✕ Refused by Fixer</p><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Removing one entry is enough and keeps removal fast. A full rebuild would slow every delete.</p></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">A refusal must give its reason. Reply under it if you want the suggestion reconsidered.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/architect.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Architect</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">ask · reply received, then incorporated</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #8054e8; background: #ffffff">
+<h3 style="font: 600 18px/1.4 Barlow, Arial, sans-serif">Which fields should search match?</h3>
+<div style="display: flex; gap: 10px">
+<span aria-hidden="true" style="flex: 0 0 28px; height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; background: #f3f3f3; color: #555555; font: 500 12px/1 'IBM Plex Mono', monospace">A</span>
+<div><p style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 14px/18px Barlow, Arial, sans-serif; color: #101010">Alex</strong> · 10:51</p><p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Title, type and source post.</p></div>
+</div>
+<ol style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0; border: 1px solid #b8b8b8">
+<li style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #d6d6d6; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span><strong style="font-weight: 600">Reply received</strong><span style="margin-left: auto; font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">10:51</span></li>
+<li style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span><strong style="font-weight: 600">Incorporated by Architect</strong><span style="margin-left: auto; font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">10:58</span></li>
+</ol>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">A question moves open → reply received → incorporated. “Answer recorded” is used when another agent answers instead of you. This two-step line is the real read receipt; the Feed page now uses it.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span aria-hidden="true" style="width: 24px; height: 24px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #101010; font: 500 10px/1 'IBM Plex Mono', monospace">IM</span><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Issue Maker</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">create_issue · refine_issue</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #101010; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 1.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"></path></svg>In progress</span>Writing issues for “finding older work”</p>
+<p style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Replying to <a href="Main.dc.html" style="color: #555555">Alex</a></p>
+<ol style="list-style: none; padding: 0; border-top: 1px solid #d6d6d6">
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><a href="Issue.dc.html" style="font: 600 15px/1.4 Barlow, Arial, sans-serif">#12 Index library items for search</a><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ created</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><a href="Issue.dc.html" style="font: 600 15px/1.4 Barlow, Arial, sans-serif">#13 Query box and result list</a><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ refined</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">#14 Filter by item type and source post</span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #9a3b08">! not refined</span></li>
+</ol>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">#14 was edited by a person after it was created, so the Issue Maker left it as it is.</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">One post per request, updated as each issue is created or refined. Issue Maker has no portrait or role colour yet, so it shows initials and a black edge.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/jev.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">reply to your post · clarify</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p>Make search better.</p>
+<div style="display: flex; gap: 10px; padding: 12px; background: #f3f3f3">
+<img src="portraits/jev.png" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="display: flex; flex-direction: column; gap: 8px"><p style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</p><p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">I need a little more from you before I can route this.</p><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Is this about what search matches, how fast it is, or how results look?</p><button type="button" style="align-self: flex-start; height: 44px; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Answer clarification</button></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">JEV asks back instead of guessing. Answering reopens your post for editing, then it is read again.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/jev.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">reply to your post · failed</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p>Search thing from before, same as last time.</p>
+<div style="display: flex; gap: 10px; padding: 12px; background: #fbe5e3">
+<img src="portraits/jev.png" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="display: flex; flex-direction: column; gap: 8px"><p style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</p><p role="alert" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">I couldn’t make sense of this one. Edit your request or retry.</p><button type="button" style="align-self: flex-start; height: 44px; padding: 0 16px; border: 1px solid #101010; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Edit post and retry</button></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Same card for “I stopped after several tries”, “Creating the issue failed. Retrying won’t make a duplicate.” and “I couldn’t turn this into a valid issue”.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/jev.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">reply to your post · cannot run</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p>Could we make finding older work easier?</p>
+<div style="display: flex; gap: 10px; padding: 12px; border: 1px dashed #555555; background: #f3f3f3">
+<img src="portraits/factory.png" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="display: flex; flex-direction: column; gap: 6px"><p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif">Factory<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Not connected</span></p><p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">This is new work, but no Product Lead is set up on this server to write the issue.</p><a href="Settings.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Review Project setup</a></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The unavailable pattern again. Also used when JEV itself is not connected, and when the server cannot create issues in the repository yet. Your post is kept.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/jev.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">reply to your post · proposed change</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p>Search should also match the text inside an item, not just its title.</p>
+<div style="display: flex; gap: 10px; padding: 12px; background: #f3f3f3">
+<img src="portraits/jev.png" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="display: flex; flex-direction: column; gap: 8px"><p style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</p><p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Review this proposed change before updating the accepted direction.</p><button type="button" style="align-self: flex-start; height: 44px; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Review proposed change</button></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Your post changes what was agreed, so it goes back to the request for review. If you are not the request owner it reads “Waiting for the request owner to review this proposed change.”</p>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

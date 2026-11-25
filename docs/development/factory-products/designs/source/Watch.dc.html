@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Watch</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="work" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Work.dc.html">Work</a> <span style="color: #555555">/</span> <a href="WorkDetail.dc.html">#13</a> <span style="color: #555555">/ Watch</span></p>
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Watch the Builder run</h1>
+</div>
+<div aria-label="Factory view actions" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<a href="WorkDetail.dc.html" style="display: inline-flex; align-items: center; height: 36px; box-sizing: border-box; padding: 0 14px; border: 1px solid #858585; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Back to work detail</a>
+</div>
+</header>
+<main style="display: flex; flex-direction: column; gap: 20px; padding: 24px 32px 48px">
+<div style="display: flex; flex-wrap: wrap; gap: 0; border: 1px solid #858585">
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-right: 1px solid #d6d6d6"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Role</span><span style="display: inline-flex; align-items: center; gap: 6px; font: 600 15px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span></div>
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-right: 1px solid #d6d6d6"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Work item</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">#13 Query box and result list</span></div>
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-right: 1px solid #d6d6d6"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Attempt</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">1</span></div>
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Recorded status</span><span style="font: 500 14px/20px 'IBM Plex Mono', monospace">implement:running</span></div>
+</div>
+
+<sc-if value="{{unavail}}" hint-placeholder-val="{{ true }}">
+<section aria-label="Live output" style="display: flex; flex-direction: column; gap: 12px; padding: 32px; border: 1px dashed #555555; background: #f3f3f3">
+<span style="align-self: flex-start; padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Unavailable in this app</span>
+<h2 style="font: 700 26px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Live output is unavailable in this app.</h2>
+<p style="max-width: 640px">The desktop app cannot attach to a run's output yet. Not watching. The run continues without this view, and no input was sent.</p>
+<p style="max-width: 640px; font: 400 15px/1.6 Barlow, Arial, sans-serif; color: #555555">The recorded status above still updates when you refresh. When the run settles, its result, review and checks appear on work detail.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<a href="WorkDetail.dc.html" style="display: inline-flex; align-items: center; height: 44px; box-sizing: border-box; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open work detail</a>
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh recorded status</button>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{avail}}" hint-placeholder-val="{{ false }}">
+<section aria-label="Live output" style="display: flex; flex-direction: column; gap: 0; border: 1px solid #101010">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #101010">
+<span style="display: inline-flex; align-items: center; gap: 8px; font: 500 13px/20px 'IBM Plex Mono', monospace"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Watching. Read only.</span>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Stop watching</button>
+</div>
+<pre style="margin: 0; min-height: 420px; padding: 16px; overflow-x: auto; background: #000000; color: #ffffff; font: 400 14px/1.4 'IBM Plex Mono', monospace">Reading the recorded run…
+Attaching the recorded run…
+$ run checks: library search
+query box renders ...................... ok
+result list pages after 20 items ....... ok
+removed items leave the results ........ running</pre>
+<p style="padding: 8px 12px; border-top: 1px solid #101010; font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Stopping this view does not stop the run. The run continues without this view.</p>
+</section>
+</sc-if>
+
+<details style="border: 1px solid #b8b8b8; padding: 10px 14px">
+<summary style="font: 600 15px/1.5 Barlow, Arial, sans-serif; cursor: pointer">Technical details</summary>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 8px; font: 400 13px/20px 'IBM Plex Mono', monospace; color: #555555">
+<span>run: [RUN ID]</span>
+<span>role: soda-coder</span>
+<span>attempt: 1</span>
+</div>
+</details>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"liveOutput":{"editor":"boolean","default":false,"section":"Backend readiness"},"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+var on = this.props.liveOutput ?? false;
+return { avail: on === true, unavail: on !== true };
+}
+}
+</script>
+</body>
+</html>

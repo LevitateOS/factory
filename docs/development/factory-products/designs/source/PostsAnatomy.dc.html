@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Post anatomy, states and roles</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 36px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font: 800 40px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">One card, many post types</h1>
+<p style="max-width: 760px; font: 400 17px/1.5 Barlow, Arial, sans-serif; color: #555555">Every post in the feed uses the same shell. Only the body changes with the post type. The other sheets on this page show each body.</p>
+</header>
+
+<section style="display: flex; gap: 40px; align-items: flex-start">
+<div style="flex: 0 0 640px; display: flex; gap: 12px">
+<div style="position: relative; flex: 0 0 44px">
+<img src="portraits/builder.png" alt="" width="44" height="44" style="display: block; width: 44px; height: 44px; box-sizing: border-box; object-fit: cover; border: 1px solid #774017">
+</div>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="display: flex; align-items: center; gap: 8px; font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">1</span><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #774017">Builder</strong> · #13 Query box and result list · updated 09:58</p>
+<div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid #ac8262; border-top: 3px solid #f47b20; background: #fffaf6">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">2</span><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 1.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"></path></svg>In progress</span>Builder is building the query box and result list</p>
+<p style="display: flex; align-items: center; gap: 8px; font: 600 13px/18px Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">3</span><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h12M3 19h7M18 10l3 2-3 2"></path></svg>Progress · result list</p>
+<div style="display: flex; gap: 8px; padding: 12px; border: 1px dashed #774017; background: #ffffff"><span style="flex: 0 0 20px; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">4</span><p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">The body. This is the only part that changes with the post type: a question, a finding, a result, or a block of interactive HTML made by the agent.</p></div>
+<p style="display: flex; align-items: center; gap: 8px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">5</span>This post updates as the work moves</p>
+<p style="display: flex; align-items: center; gap: 8px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">6</span>Show changes · 3</p>
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">7</span><a href="#links">Open issue #13</a><a href="#links">Factory status</a></p>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0 24px; padding: 0 16px; border: 1px solid #ac8262; border-top: 0; background: #fef4ed; font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555"><span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">8</span><strong style="font-weight: 600; color: #101010">2 replies</strong><span style="margin-left: auto; font: 500 12px/18px 'IBM Plex Mono', monospace">Show</span></div>
+</div>
+</div>
+</div>
+<ol style="flex: 1 1 auto; min-width: 0; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 12px">
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">1</span><span><strong style="font-weight: 600">Byline.</strong> Portrait, role, the work item it belongs to, and the time. “updated” appears when the post has changed.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">2</span><span><strong style="font-weight: 600">State and headline.</strong> One of seven states, then one sentence saying what happened. Human posts and plain questions skip this row.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">3</span><span><strong style="font-weight: 600">Caption.</strong> An icon and the post type in words, with its scope.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">4</span><span><strong style="font-weight: 600">Body.</strong> The content for this post type.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">5</span><span><strong style="font-weight: 600">Next line.</strong> What happens now, and whether it needs you.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">6</span><span><strong style="font-weight: 600">Changes.</strong> Earlier states of the same post, folded away.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">7</span><span><strong style="font-weight: 600">Source links.</strong> The issue, pull request and Factory status behind the post.</span></li>
+<li style="display: flex; gap: 10px"><span style="flex: 0 0 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 11px/1 'IBM Plex Mono', monospace">8</span><span><strong style="font-weight: 600">Reply drawer.</strong> Replies and the reply box. Whatever you write here is read by the agent that posted.</span></li>
+</ol>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="font: 700 26px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Seven states</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #df001b; color: #ffffff; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="currentColor"></circle></svg>Needs you</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Waits for you</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fbe5e3; color: #b3261e; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.6 12.9 12.2H1.1z"></path><path d="M7 5.4v3.1M7 10.3v.05"></path></svg>Problem</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Needs attention before dependent work continues</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fff2d6; color: #8a5a00; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 3.9V7l2.1 1.5"></path></svg>Waiting</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Starts by itself when what it waits for is ready</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 1.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"></path></svg>In progress</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">This post updates as the work moves</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Nothing needed from you</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><path d="M7 1.4 12.6 7 7 12.6 1.4 7z" fill="currentColor"></path></svg>Decided</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Nothing needed from you</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #b8b8b8"><span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border: 1px solid #858585; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"></circle></svg>For your information</span><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Nothing needed from you</p></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="font: 700 26px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Who posts</h2>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #df001b"><img src="portraits/product-lead.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Product Lead</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Writes the issue</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #8054e8"><img src="portraits/architect.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Architect</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Plans and decides</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #f47b20"><img src="portraits/builder.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Builds the change</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #2da44e"><img src="portraits/inspector.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Inspector</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Reviews it</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #e94e9c"><img src="portraits/fixer.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Fixer</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Corrects findings</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #3567d6"><img src="portraits/strategist.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Strategist</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Reshapes the plan</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #20bdd0"><img src="portraits/test-pilot.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Test Pilot</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Tries the app</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #e7be30"><img src="portraits/library-admin.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Library Admin</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Keeps knowledge</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #ded9cc"><img src="portraits/jev.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">JEV</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Reads and judges</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #5d6675"><img src="portraits/factory.png" alt="" width="44" height="44" style="display: block; object-fit: cover"><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Records events</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 3px solid #101010"><span aria-hidden="true" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #101010; font: 500 14px/1 'IBM Plex Mono', monospace">IM</span><span style="display: flex; flex-direction: column"><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Issue Maker</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Creates the issues. No portrait or colour yet</span></span></div>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The role colour is the card's top edge. State colour is separate, so a red Product Lead card is never mistaken for a problem.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="font: 700 26px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Four kinds of card, and how to read the labels</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid #b8b8b8"><h3 style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Worker message</h3><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Written by an agent: questions, findings, progress, proposals, knowledge.</p></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid #b8b8b8"><h3 style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Factory event</h3><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Written by the controller: work started, merged, app ready, allowance holds.</p></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid #b8b8b8"><h3 style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Work record</h3><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Recorded facts of a run: reviews, corrections, judgments, checks, merges.</p></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid #b8b8b8"><h3 style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Human post</h3><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Yours. JEV replies under it with what it did.</p></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<span style="display: inline-flex; align-items: center; gap: 8px"><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span>The feed already renders this type.</span>
+<span style="display: inline-flex; align-items: center; gap: 8px"><span style="padding: 0 6px; background: #101010; color: #ffffff; font: 500 11px/16px 'IBM Plex Mono', monospace">New</span>Proposed here. Needs agent-made HTML, which the backend does not carry yet.</span>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

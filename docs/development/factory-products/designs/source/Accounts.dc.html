@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Accounts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="accounts" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Accounts</h1>
+<p role="status" style="display: inline-flex; align-items: center; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #13613d"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Factory ready</p>
+</div>
+<nav aria-label="Application" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Close window</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Quit Factory</button>
+</nav>
+</header>
+<main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px 48px; max-width: 960px">
+
+<section aria-label="Projects" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #101010">
+<div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">This page is for sign-ins only</h2>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Adding, opening, reconnecting and disconnecting a project all happen in Projects. Each account below lists the projects that use it.</p>
+</div>
+<a href="Projects.dc.html" style="display: inline-flex; align-items: center; height: 44px; box-sizing: border-box; padding: 0 18px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open Projects</a>
+</section>
+
+<section aria-labelledby="muse-heading" style="display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<h2 id="muse-heading" style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Muse</h2>
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Signed in</span>
+</div>
+<p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Muse is verified for new work. Muse keeps its own saved login. Sign in here when needed.</p>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Check Muse update</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Sign in to Muse</button>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Muse is the only provider offered in this release.</p>
+</section>
+
+<section aria-labelledby="github-heading" style="display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<h2 id="github-heading" style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">GitHub</h2>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Add GitHub account</button>
+</div>
+<p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Your saved GitHub accounts.</p>
+<ul aria-label="Saved GitHub accounts" style="list-style: none; padding: 0; border: 1px solid #b8b8b8">
+<li style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #d6d6d6">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font: 600 16px/1.4 Barlow, Arial, sans-serif">alex</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Workflow edits allowed by saved grant</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Used by <a href="Projects.dc.html">team/project, team/website, alex/notes, team/docs</a></span>
+</div>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #b42318; background: #ffffff; color: #b42318; font: 500 13px/20px 'IBM Plex Mono', monospace">Remove from Factory</button>
+</li>
+<li style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font: 600 16px/1.4 Barlow, Arial, sans-serif">alex-work</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #9a3b08">Sign-in expired. Saved drafts are kept.</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Used by <a href="Projects.dc.html">team/billing</a>, which is not connected until you sign in again</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Sign in again</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #b42318; background: #ffffff; color: #b42318; font: 500 13px/20px 'IBM Plex Mono', monospace">Remove from Factory</button>
+</div>
+</li>
+</ul>
+</section>
+
+<section aria-labelledby="fountain-heading" style="display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px dashed #555555; background: #f3f3f3">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h2 id="fountain-heading" style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Fountain</h2>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Not qualified yet</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Fountain sign-in, repository enrollment and the execution controller are not offered in this release. Most Fountain journeys have not been qualified.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end">
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 320px">
+<label for="fountain-origin" style="font: 600 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Fountain address</label>
+<input id="fountain-origin" type="url" placeholder="https://fountain.example" disabled style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #b8b8b8; background: #ffffff; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #555555">
+</div>
+<button type="button" disabled style="height: 44px; padding: 0 16px; border: 1px solid #b8b8b8; background: #ffffff; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Sign in to Fountain</button>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">No saved Fountain account is used while this is off.</p>
+</section>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

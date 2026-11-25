@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issues</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="issues" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Issues</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">team/project</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<a href="#new-issue" style="display: inline-flex; align-items: center; height: 36px; box-sizing: border-box; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">New issue</a>
+</div>
+</header>
+<main style="display: flex; flex-direction: column; gap: 16px; padding: 24px 32px 48px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<div role="group" aria-label="Issue state" style="display: flex">
+<button type="button" aria-pressed="true" style="height: 36px; padding: 0 16px; border: 1px solid #101010; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Open</button>
+<button type="button" aria-pressed="false" style="height: 36px; padding: 0 16px; border: 1px solid #858585; border-left: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Closed</button>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Page 1 · 4 open issues on this page</p>
+</div>
+
+<ul aria-label="Issues" style="list-style: none; padding: 0; border: 1px solid #858585">
+<li style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #d6d6d6">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<a href="Issue.dc.html"style="font: 600 17px/1.4 Barlow, Arial, sans-serif; color: #101010; text-decoration: none">Filter by item type and source post</a>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><span style="font: 400 13px/18px 'IBM Plex Mono', monospace">#14</span> · opened by alex · 0 comments</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<span style="padding: 1px 8px; border: 1px solid #858585; font: 500 12px/18px 'IBM Plex Mono', monospace">design</span>
+<a href="WorkDetail.dc.html" style="padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace; text-decoration: none">Factory: waiting</a>
+</div>
+</li>
+<li style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #d6d6d6">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<a href="Issue.dc.html"style="font: 600 17px/1.4 Barlow, Arial, sans-serif; color: #101010; text-decoration: none">Query box and result list</a>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><span style="font: 400 13px/18px 'IBM Plex Mono', monospace">#13</span> · opened by alex · 2 comments</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<a href="WorkDetail.dc.html" style="padding: 1px 8px; background: #fff0df; color: #9a3b08; font: 500 12px/18px 'IBM Plex Mono', monospace; text-decoration: none">Factory: building</a>
+</div>
+</li>
+<li style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #d6d6d6">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<a href="Issue.dc.html"style="font: 600 17px/1.4 Barlow, Arial, sans-serif; color: #101010; text-decoration: none">Show which release tasks still need review</a>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><span style="font: 400 13px/18px 'IBM Plex Mono', monospace">#11</span> · opened by alex · 1 comment</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">No Factory work</span>
+</div>
+</li>
+<li style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<a href="Issue.dc.html"style="font: 600 17px/1.4 Barlow, Arial, sans-serif; color: #101010; text-decoration: none">Keep work and its recorded evidence together</a>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><span style="font: 400 13px/18px 'IBM Plex Mono', monospace">#9</span> · Unknown author · Labels unavailable</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">No Factory work</span>
+</div>
+</li>
+</ul>
+
+<nav aria-label="Issue pages" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<button type="button" disabled style="height: 36px; padding: 0 14px; border: 1px solid #b8b8b8; background: #f3f3f3; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Previous page</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Next page</button>
+</nav>
+
+<section id="new-issue" aria-label="New issue" style="display: flex; flex-direction: column; gap: 10px; max-width: 720px; margin-top: 16px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">New issue</h2>
+<label for="issue-title" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Title</label>
+<input id="issue-title" type="text" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 16px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<label for="issue-body" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Description</label>
+<textarea id="issue-body" rows="4" style="box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #858585; font: 400 16px/1.5 Barlow, Arial, sans-serif; color: #101010; resize: vertical"></textarea>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Create issue</button>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Your draft is kept on this computer until the issue is created.</p>
+</div>
+</section>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

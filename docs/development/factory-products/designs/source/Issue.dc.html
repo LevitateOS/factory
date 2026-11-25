@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="issues" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Issues.dc.html">Issues</a> <span style="color: #555555">/ #13</span></p>
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Query box and result list</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Open</span>
+<span>opened by alex · 2 comments</span>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Edit issue</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<div style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<section aria-label="Issue description" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font: 600 15px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 10px; height: 10px; background: #df001b"></span>Product Lead</span>
+<span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">3 days ago</span>
+</div>
+<p>People on the project can type a query and see matching library items in a list.</p>
+<ul style="padding-left: 20px; font: 400 16px/1.6 Barlow, Arial, sans-serif">
+<li>The result list shows title, type and source post.</li>
+<li>Older items page in after the first 20.</li>
+<li>Removed items do not appear.</li>
+</ul>
+</section>
+
+<section aria-label="Conversation" style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Conversation</h2>
+<article style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<span style="font: 600 15px/20px Barlow, Arial, sans-serif">Alex</span>
+<span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">Yesterday, 17:24</span>
+</div>
+<p>The result list should keep its place when I go back to it.</p>
+</article>
+<article style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font: 600 15px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span>
+<span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">Today, 09:58</span>
+</div>
+<p>The query and result list are connected.</p>
+</article>
+<nav aria-label="Conversation pages" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<button type="button" disabled style="height: 36px; padding: 0 14px; border: 1px solid #b8b8b8; background: #f3f3f3; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Previous page</button>
+<button type="button" disabled style="height: 36px; padding: 0 14px; border: 1px solid #b8b8b8; background: #f3f3f3; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Next page</button>
+</nav>
+</section>
+
+<form style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #101010">
+<label for="issue-comment" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Add a comment</label>
+<textarea id="issue-comment" rows="3" placeholder="Write a reply…" style="box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #858585; font: 400 16px/1.5 Barlow, Arial, sans-serif; color: #101010; resize: vertical"></textarea>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="submit" style="height: 44px; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Comment</button>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Your draft is kept on this computer until the comment is posted.</p>
+</div>
+</form>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section aria-label="Factory facts" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Factory</h2>
+<span style="align-self: flex-start; padding: 1px 8px; background: #fff0df; color: #9a3b08; font: 500 12px/18px 'IBM Plex Mono', monospace">Building</span>
+<div style="display: flex; justify-content: space-between; gap: 12px; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Role</span><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Pull request</span><span style="color: #555555">Nothing published yet.</span></div>
+<a href="WorkDetail.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Work detail</a>
+</section>
+<section aria-label="Issue facts" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Details</h2>
+<div style="display: flex; justify-content: space-between; gap: 12px; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Labels</span><span style="padding: 1px 8px; border: 1px solid #858585; font: 500 12px/18px 'IBM Plex Mono', monospace">design</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Assignees</span><span style="color: #555555">Assignees unavailable</span></div>
+</section>
+<section aria-label="Issue state" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">State</h2>
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Close issue</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Closing the issue does not stop Factory work on it. Use Work detail for that.</p>
+</section>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

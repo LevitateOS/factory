@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Set up Factory</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="width: 14px; height: 14px; background: #df001b"></span>
+<span style="font: 800 24px/1 'Barlow Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; text-transform: uppercase">Factory</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<p role="status" style="display: inline-flex; align-items: center; gap: 6px; font: 400 14px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Factory ready</p>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Quit Factory</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; justify-content: center; gap: 48px; padding: 48px 32px 64px; align-items: flex-start">
+<div style="flex: 999 1 480px; min-width: 0; max-width: 720px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="font: 800 42px/1.12 'Barlow Condensed', 'Arial Narrow', sans-serif">Set up Factory</h1>
+<p style="color: #555555">Four steps to your first project. You can stop after any step and pick it up again from Accounts.</p>
+</div>
+
+<ol style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0; border: 1px solid #858585">
+<li style="display: flex; gap: 16px; padding: 16px 20px; border-bottom: 1px solid #858585">
+<span style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #dff4ea; color: #13613d; font: 500 13px/20px 'IBM Plex Mono', monospace">1</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<h2 style="font: 600 18px/1.4 Barlow, Arial, sans-serif">Start Factory on this computer</h2>
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Done</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Factory is ready and your desktop keyring is unlocked.</p>
+</div>
+</li>
+
+<li style="display: flex; gap: 16px; padding: 20px; border-bottom: 1px solid #858585; outline: 2px solid #101010; outline-offset: -2px">
+<span style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">2</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<h2 style="font: 600 18px/1.4 Barlow, Arial, sans-serif">Sign in to Muse</h2>
+<span style="padding: 1px 8px; background: #fff0df; color: #9a3b08; font: 500 12px/18px 'IBM Plex Mono', monospace">Waiting for you</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Muse runs the agents. It keeps its own saved login, and its current release is verified for new work.</p>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 16px; background: #f3f3f3">
+<p style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Confirm this code on Meta:</p>
+<code tabindex="0" aria-label="Muse verification code" style="align-self: flex-start; padding: 12px 16px; border: 1px solid #858585; background: #ffffff; font: 500 28px/1.2 'IBM Plex Mono', monospace; letter-spacing: 0.15em; user-select: all">QK7P-4MTD</code>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Open Meta</button>
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Cancel sign-in</button>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Confirm the matching code on Meta to sign in. This step finishes on its own once you do.</p>
+</div>
+</div>
+</li>
+
+<li style="display: flex; gap: 16px; padding: 16px 20px; border-bottom: 1px solid #858585">
+<span style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; box-sizing: border-box; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">3</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<h2 style="font: 600 18px/1.4 Barlow, Arial, sans-serif">Add a GitHub account</h2>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Sign in to access your GitHub repositories. GitHub will ask for repository and profile access.</p>
+</div>
+</li>
+
+<li style="display: flex; gap: 16px; padding: 16px 20px">
+<span style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; box-sizing: border-box; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">4</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<h2 style="font: 600 18px/1.4 Barlow, Arial, sans-serif">Add your first project</h2>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Pick a repository from your account, or open it by owner/name or repository URL. You can add more from Projects at any time.</p>
+</div>
+</li>
+</ol>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid #101010">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<h2 style="font: 600 18px/1.4 Barlow, Arial, sans-serif">Then you land on Projects</h2>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Your first project is listed there, with its feed one click away. Setup closes and does not come back unless you sign out of everything.</p>
+</div>
+<a href="Projects.dc.html" style="display: inline-flex; align-items: center; height: 44px; box-sizing: border-box; padding: 0 16px; border: 1px solid #858585; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">See the Projects page</a>
+</div>
+
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Letting this computer run agents is a separate choice. You make it later in Settings, under Execution controller.</p>
+</div>
+
+<aside style="flex: 1 1 260px; min-width: 0; max-width: 340px; display: flex; flex-direction: column; gap: 16px">
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">What this release offers</h2>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Muse</span><span style="color: #13613d; font-weight: 600">Offered</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Other providers</span><span style="color: #555555">None offered</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>GitHub repositories</span><span style="color: #13613d; font-weight: 600">Offered</span></div>
+</section>
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px dashed #555555; background: #f3f3f3">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Fountain</h2>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Not qualified yet</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Fountain sign-in and repositories are not part of setup in this release. Most Fountain journeys have not been qualified.</p>
+</section>
+</aside>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

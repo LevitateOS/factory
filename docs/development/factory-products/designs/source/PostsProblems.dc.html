@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Posts about problems</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,h4,p,ul,ol,blockquote,pre{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 32px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font: 800 40px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Posts about problems</h1>
+<p style="max-width: 760px; font: 400 17px/1.5 Barlow, Arial, sans-serif; color: #555555">Work is stopped, something was found, or a check failed. Each says what would let it continue.</p>
+</header>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 28px; align-items: start">
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/builder.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">blocked · blocker</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fff2d6; color: #8a5a00; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 3.9V7l2.1 1.5"></path></svg>Waiting</span>Filters cannot start until the result list is merged</p>
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #101010; color: #ffffff"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11V7a7 7 0 0 1 14 0v4M3 11h18v11H3zm9 4v3"></path></svg><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Work is waiting</strong></div>
+<ol style="list-style: none; padding: 0; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">01</span><span><strong style="font-weight: 600">#13 is still in review</strong><br>Filters read the result list that #13 adds.</span></li></ol>
+<div style="display: flex; gap: 8px; padding: 10px 12px; background: #f3f3f3"><span aria-hidden="true">↳</span><div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Can continue when</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">#13 is merged.</p></div></div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Starts by itself when what it waits for is ready</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Also shown this way: Run problem, with the state Problem and a retry on work detail.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Waiting on allowance · blocker</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #df001b; color: #ffffff; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="currentColor"></circle></svg>Needs you</span>Verification limits are used up for #13</p>
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #101010; color: #ffffff"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11V7a7 7 0 0 1 14 0v4M3 11h18v11H3zm9 4v3"></path></svg><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Work is waiting</strong></div>
+<p>Both corrections allowed for this attempt were used. No further review can start.</p>
+<div style="display: flex; gap: 8px; padding: 10px 12px; background: #f3f3f3"><span aria-hidden="true">↳</span><div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Can continue when</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">An owner increases the verification limits.</p></div></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px"><a href="WorkDetail.dc.html" style="display: inline-flex; align-items: center; height: 44px; box-sizing: border-box; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Increase verification limits</a><span style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Previous usage is retained.</span></div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The button is my addition: today the card has no action and you find the control on work detail.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/inspector.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Inspector</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">flag · finding</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #2da44e; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fbe5e3; color: #b3261e; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.6 12.9 12.2H1.1z"></path><path d="M7 5.4v3.1M7 10.3v.05"></path></svg>Problem</span>Removed items stay in search results</p>
+<div style="border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #858585; font: 500 13px/20px 'IBM Plex Mono', monospace"><strong style="font-weight: 500">library/search-index.ts</strong><code style="color: #555555">4c1e9ab2a07d</code></div>
+<pre tabindex="0" aria-label="Source excerpt" style="overflow-x: auto; padding: 8px 0; font: 400 13px/20px 'IBM Plex Mono', monospace"><span style="display: block; padding: 0 10px"><span aria-hidden="true" style="color: #555555">41  </span>export function removeItem(id) {</span><span style="display: block; padding: 0 10px; background: #fbe5e3"><span aria-hidden="true" style="color: #555555">42  </span>  store.delete(id);</span><span style="display: block; padding: 0 10px"><span aria-hidden="true" style="color: #555555">43  </span>}</span></pre>
+<p style="padding: 4px 10px; border-top: 1px solid #d6d6d6; font: 400 12px/18px Barlow, Arial, sans-serif; color: #555555">Source supplied with this report</p>
+</div>
+<div style="display: flex; gap: 12px">
+<span aria-hidden="true" style="flex: 0 0 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: #b3261e; color: #ffffff; font: 500 15px/1 'IBM Plex Mono', monospace">!</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<h4 style="font: 600 14px/20px Barlow, Arial, sans-serif">Finding</h4>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch">
+<div style="padding: 8px 10px; border: 1px solid #b8b8b8"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Expected</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Removing an item removes it from results.</p></div>
+<span aria-hidden="true" style="align-self: center; font: 500 18px/1 'IBM Plex Mono', monospace">→</span>
+<div style="padding: 8px 10px; border: 1px solid #b3261e"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #b3261e">Observed</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">It stays until the next index pass.</p></div>
+</div>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Why it matters</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">People open items that no longer exist.</p></div>
+</div>
+</div>
+<div style="display: flex; gap: 8px; padding: 10px 12px; background: #f3f3f3"><span aria-hidden="true">↳</span><div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Suggested correction</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Update the index in the same step as the removal.</p></div></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/inspector.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Inspector</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">review record · findings</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #2da44e; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 1.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"></path></svg>In progress</span>Inspector asked for changes on pull request #15</p>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Review coverage</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">3 of 3 changed files read · 1 finding</p></div>
+<div style="border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #858585; font: 500 13px/20px 'IBM Plex Mono', monospace"><span>library/search-index.ts:42</span><span style="color: #b3261e">major · removed-items</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px">
+<p><strong style="font-weight: 600">Removal does not update the index.</strong></p>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Required behavior</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">A removed item is absent from the next search.</p></div>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Evidence</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Search for a removed title still returns it.</p></div>
+</div>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">This post updates as the work moves</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The recorded review of a run. An approval uses the same card with the state Done and no findings.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/fixer.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Fixer</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">stuck · record_diagnosis · diagnosis</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #e94e9c; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fbe5e3; color: #b3261e; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.6 12.9 12.2H1.1z"></path><path d="M7 5.4v3.1M7 10.3v.05"></path></svg>Problem</span>Fixer is stuck on the removed-items check</p>
+<h4 style="display: flex; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h6v5H3zM15 15h6v5h-6zM6 9v8h5m-2-3 3 3-3 3M15 4h6M18 1v6"></path></svg>What the agent investigated</h4>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Already tried <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">2</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>Updating the index inside removeItem</li><li>Running the index pass after every removal</li></ul></div>
+<ol style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">01</span><span><strong style="font-weight: 600">The check reads a cached result</strong> <span style="color: #555555">○ Reported: unverified</span></span></li>
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">02</span><span><strong style="font-weight: 600">Two index copies exist</strong> <span style="color: #b3261e">! Reported: not confirmed</span></span></li>
+</ol>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Current explanation</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">The fix works, but the check may be reading an older result.</p></div>
+<div style="display: flex; gap: 8px; padding: 10px 12px; background: #f3f3f3"><span aria-hidden="true">↳</span><div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">What to investigate next</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Where the check gets its result list.</p></div></div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Any role can post “stuck”. The Strategist's recorded diagnosis uses the same card.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/test-pilot.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Test Pilot</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">check record · application checks</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #20bdd0; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fbe5e3; color: #b3261e; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.6 12.9 12.2H1.1z"></path><path d="M7 5.4v3.1M7 10.3v.05"></path></svg>Problem</span>Test Pilot hit a problem verifying issue #13</p>
+<h4 style="font: 600 14px/20px Barlow, Arial, sans-serif">Application checks</h4>
+<ol style="list-style: none; padding: 0; border-top: 1px solid #d6d6d6">
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><span><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Query returns matching items</strong></span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ passed</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><span><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">List keeps its place after going back</strong><br><span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The list returned to the top.</span></span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #b3261e">! failed</span></li>
+</ol>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Needs attention before dependent work continues</p>
+<p style="display: flex; flex-wrap: wrap; gap: 16px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Issue.dc.html">Open issue #13</a><a href="WorkDetail.dc.html">Factory status</a></p>
+</div>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

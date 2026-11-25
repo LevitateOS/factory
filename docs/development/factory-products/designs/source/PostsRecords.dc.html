@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Run and plan records</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,h4,p,ul,ol,blockquote,pre{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 32px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font: 800 40px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Run and plan records</h1>
+<p style="max-width: 800px; font: 400 17px/1.5 Barlow, Arial, sans-serif; color: #555555">What each role posts when it finishes its turn, and what Factory posts as runs start, stop and fail. These were missing or only footnoted on the first sheets.</p>
+</header>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 28px; align-items: start">
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/product-lead.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Product Lead</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">finish_product_plan · candidate plans</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #df001b; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #df001b; color: #ffffff; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="currentColor"></circle></svg>Needs you</span>Two ways to plan “Search the project library”</p>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #101010">
+<h4 style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Search first, filters after</h4>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">A working search ships before any filtering.</p>
+<div aria-label="Proposed issue dependencies" style="display: flex; align-items: center; gap: 6px; overflow-x: auto; font: 600 13px/1.4 Barlow, Arial, sans-serif"><span style="padding: 6px 8px; border: 1px solid #101010">Index</span><span aria-hidden="true">→</span><span style="padding: 6px 8px; border: 1px solid #101010">Query and results</span><span aria-hidden="true">→</span><span style="padding: 6px 8px; border: 1px solid #101010">Filters</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #b8b8b8">
+<h4 style="font: 600 15px/1.4 Barlow, Arial, sans-serif">One combined search screen</h4>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Query, filters and results arrive together, later.</p>
+<div aria-label="Proposed issue dependencies" style="display: flex; align-items: center; gap: 6px; overflow-x: auto; font: 600 13px/1.4 Barlow, Arial, sans-serif"><span style="padding: 6px 8px; border: 1px solid #101010">Index</span><span aria-hidden="true">→</span><span style="padding: 6px 8px; border: 1px solid #101010">Search screen</span></div>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Request.dc.html">View request</a> <span style="color: #555555">to accept one.</span></p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Shows at most two candidates. Also posted by Issue Maker. A plan it could not finish shows an attention note above the candidates.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/architect.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Architect</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">finish_issue_plan · issue plan</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #8054e8; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span>Architect planned issue #13</p>
+<p>Read the index from #12, then build the query box and the list as two tasks.</p>
+<div aria-label="Work dependencies" style="display: flex; align-items: center; gap: 6px; overflow-x: auto; font: 600 13px/1.4 Barlow, Arial, sans-serif"><span style="padding: 6px 8px; border: 1px solid #101010">query-box</span><span aria-hidden="true">→</span><span style="padding: 6px 8px; border: 1px solid #101010">result-list</span><span aria-hidden="true">→</span><span style="padding: 6px 8px; border: 1px solid #101010">paging</span></div>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Source and evidence</h4><p style="font: 500 13px/20px 'IBM Plex Mono', monospace">library/search-index.ts</p><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The index exposes a query function that returns item ids.</p></div>
+<div style="padding: 10px 12px; border: 1px solid #101010"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">What was learned <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">1</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>Items carry their source post, so results can show it.</li></ul></div>
+<div style="padding: 10px 12px; background: #fff0df"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #9a3b08">Still needs an answer <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">1</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>How a result opens: in place, or beside the list.</li></ul></div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">“Still needs an answer” is where an Architect question comes from.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/builder.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">finish_implementation · start_task · submit_task_output</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span>Builder finished building issue #13</p>
+<div style="display: flex; gap: 12px">
+<span aria-hidden="true" style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid #13613d; color: #13613d"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v15H3zm5 5 4 3 4-3m-4 3v9"></path></svg></span>
+<div><h4 style="font: 600 14px/20px Barlow, Arial, sans-serif">Implementation checkpoint</h4><p style="font: 400 13px/20px 'IBM Plex Mono', monospace">b83f20c9d1e4</p><p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Candidate recorded for the next review.</p></div>
+</div>
+<ol style="list-style: none; padding: 0; border-top: 1px solid #d6d6d6">
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><span style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">01</span><strong style="font: 500 14px/20px 'IBM Plex Mono', monospace">query-box</strong></span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ complete</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><span style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">02</span><strong style="font: 500 14px/20px 'IBM Plex Mono', monospace">result-list</strong></span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ complete</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><span style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">03</span><strong style="font: 500 14px/20px 'IBM Plex Mono', monospace">paging</strong></span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ complete</span></li>
+</ol>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">While the run is going the same list shows each task as it starts and is submitted, without the checkpoint.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/inspector.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Inspector</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">finish_review · approval</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #2da44e; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span>Inspector approved pull request #15</p>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Review coverage</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">3 of 3 changed files read · no findings</p></div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Nothing needed from you</p>
+<p style="display: flex; flex-wrap: wrap; gap: 16px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Pull.dc.html">Open pull request #15</a><a href="WorkDetail.dc.html">Factory status</a></p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The review card with nothing to fix. With findings it becomes the card on the problems sheet.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Work started · run lifecycle</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 0; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-bottom: 1px solid #d6d6d6"><p style="display: flex; justify-content: space-between; gap: 8px"><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Builder assigned</strong><span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">09:02</span></p><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The worker assignment and its run are recorded. Startup is next.</p></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 16px"><p style="display: flex; justify-content: space-between; gap: 8px"><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Worker run finished</strong><span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">10:14</span></p><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The run has stopped and its recorded resources have settled.</p></div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Small updates. They fold into the work post's “Show changes” list instead of taking a card each.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Pause, stop and takeover</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fff2d6; color: #8a5a00; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 3.9V7l2.1 1.5"></path></svg>Waiting</span>Factory paused</p>
+<p>An owner paused Factory work for this repository.</p>
+<p style="display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #d6d6d6; border-bottom: 1px solid #d6d6d6; font: 400 14px/1.5 Barlow, Arial, sans-serif"><strong style="font-weight: 600">Worker dispatch</strong><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #9a3b08">! closed</span></p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Work.dc.html">Open work</a> <span style="color: #555555">to resume.</span></p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The same card carries “Worker run stopped” and “Work copied for human takeover”. A takeover reads Done and names where the copy went.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Run problem</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fbe5e3; color: #b3261e; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.6 12.9 12.2H1.1z"></path><path d="M7 5.4v3.1M7 10.3v.05"></path></svg>Problem</span>Worker run failed</p>
+<p style="align-self: flex-start; padding: 1px 8px; background: #fff0df; color: #9a3b08; font: 600 13px/20px Barlow, Arial, sans-serif">Attention needed</p>
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #101010; color: #ffffff"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11V7a7 7 0 0 1 14 0v4M3 11h18v11H3zm9 4v3"></path></svg><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Work is waiting</strong></div>
+<details style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><summary style="cursor: pointer">Technical details</summary><p style="padding-top: 6px; font: 400 13px/20px 'IBM Plex Mono', monospace">start-unconfirmed</p></details>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Needs attention before dependent work continues</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="WorkDetail.dc.html">Factory status</a> <span style="color: #555555">to queue one retry.</span></p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Also carries “Application verification needs evidence” and publication problems. A cause that is only a code stays folded under Technical details.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">completed</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span>SodaOS completed issue #11</p>
+<p style="padding: 8px 12px; border: 1px dashed #555555; background: #f3f3f3; font: 400 14px/1.5 Barlow, Arial, sans-serif">Recorded complete without merge evidence.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Nothing needed from you</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Finished without a merge. The dashed note keeps it from reading like the Merged card.</p>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2500}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

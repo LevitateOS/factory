@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jump to</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="feed" hint-size="240px,1010px"></dc-import>
+</div>
+<div style="position: relative; flex: 999 1 560px; min-width: 0; min-height: 860px; display: flex; flex-direction: column">
+<div aria-hidden="true" style="display: flex; flex-direction: column">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 16px 32px; border-bottom: 1px solid #858585"><span style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Feed</span><span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">team/project</span></div>
+<div style="display: flex; flex-direction: column; gap: 24px; max-width: 700px; padding: 24px 32px">
+<div style="height: 150px; border: 1px solid #101010"></div>
+<div style="height: 260px; border: 1px solid #b8b8b8; border-top: 3px solid #8054e8"></div>
+<div style="height: 220px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20"></div>
+</div>
+</div>
+<div style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; justify-content: center; align-items: flex-start; padding: 72px 16px 32px; background: rgba(16, 16, 16, 0.55)">
+<div role="dialog" aria-modal="true" aria-label="Jump to" style="width: 100%; max-width: 640px; display: flex; flex-direction: column; border: 2px solid #101010; background: #ffffff">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid #101010">
+<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+<input type="text" aria-label="Jump to a project, page or post" placeholder="Jump to a project, page or post…" autocomplete="off" onChange="{{onQuery}}" style="flex: 1 1 auto; min-width: 0; box-sizing: border-box; height: 52px; padding: 0; border: 0; outline-offset: 4px; font: 400 18px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<a href="Main.dc.html" style="padding: 0 6px; border: 1px solid #858585; color: #3a3a3a; font: 500 11px/20px 'IBM Plex Mono', monospace; text-decoration: none">Esc</a>
+</div>
+<div style="display: flex; flex-direction: column; max-height: 560px; overflow-y: auto; padding: 6px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+<sc-if value="{{r.head}}" hint-placeholder-val="{{ false }}"><p style="padding: 10px 10px 4px; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #555555; text-transform: uppercase; letter-spacing: 0.06em">{{r.label}}</p></sc-if>
+<sc-if value="{{r.item}}" hint-placeholder-val="{{ true }}"><a href="{{r.href}}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 6px 10px; background: {{r.bg}}; color: {{r.fg}}; text-decoration: none"><span style="min-width: 0; font: 600 15px/20px Barlow, Arial, sans-serif">{{r.label}}</span><span style="flex: 0 0 auto; font: 400 12px/18px 'IBM Plex Mono', monospace; color: {{r.metaFg}}">{{r.meta}}</span></a></sc-if>
+</sc-for>
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}"><p style="padding: 20px 10px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Nothing matches. Try a project name, a page, or a word from a post.</p></sc-if>
+</div>
+<p style="display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 14px; border-top: 1px solid #d6d6d6; font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555"><span>↑ ↓ move</span><span>Enter open</span><span>Ctrl Enter open in a new window</span><span style="margin-left: auto">{{countLine}}</span></p>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+state = { q: '' };
+
+renderVals() {
+var s = this.state;
+var self = this;
+var groups = [
+{ label: 'Projects', items: [
+{ label: 'team/project', meta: '2 need you', href: 'Main.dc.html' },
+{ label: 'team/website', meta: '1 needs you', href: 'Main.dc.html' },
+{ label: 'alex/notes', meta: 'Paused', href: 'Main.dc.html' },
+{ label: 'team/docs', meta: 'Not set up', href: 'Main.dc.html' },
+{ label: 'team/billing', meta: 'Sign in again', href: 'Accounts.dc.html' }
+] },
+{ label: 'Needs me', items: [
+{ label: 'How should a result open?', meta: 'team/project · Architect', href: 'Main.dc.html' },
+{ label: 'How does finding an item feel?', meta: 'team/project · Test Pilot', href: 'Main.dc.html' },
+{ label: 'Verification limits are used up for #4', meta: 'team/website · Factory', href: 'Main.dc.html' }
+] },
+{ label: 'In team/project', items: [
+{ label: 'Feed', meta: 'page', href: 'Main.dc.html' },
+{ label: 'Request', meta: 'page', href: 'Request.dc.html' },
+{ label: 'Work', meta: 'page', href: 'Work.dc.html' },
+{ label: 'Issues', meta: 'page', href: 'Issues.dc.html' },
+{ label: 'Pull requests', meta: 'page', href: 'Pulls.dc.html' },
+{ label: 'Knowledge', meta: 'page', href: 'Knowledge.dc.html' }
+] },
+{ label: 'Actions', items: [
+{ label: 'Add a project', meta: 'action', href: 'Projects.dc.html' },
+{ label: 'Post to the feed', meta: 'action', href: 'Main.dc.html' },
+{ label: 'Open Settings', meta: 'action', href: 'Settings.dc.html' },
+{ label: 'Open Accounts', meta: 'action', href: 'Accounts.dc.html' }
+] }
+];
+var q = s.q.trim().toLowerCase();
+var rows = [];
+var count = 0;
+groups.forEach(function (g) {
+var hits = g.items.filter(function (it) { return q === '' || (it.label + ' ' + it.meta + ' ' + g.label).toLowerCase().indexOf(q) !== -1; });
+if (hits.length === 0) return;
+rows.push({ head: true, item: false, label: g.label });
+hits.forEach(function (it) {
+var first = count === 0;
+count += 1;
+rows.push({ head: false, item: true, label: it.label, meta: it.meta, href: it.href, bg: first ? '#101010' : '#ffffff', fg: first ? '#ffffff' : '#101010', metaFg: first ? '#ffffff' : '#555555' });
+});
+});
+return {
+onQuery: function (e) { self.setState({ q: e.target.value }); },
+rows: rows,
+empty: count === 0,
+countLine: count === 1 ? '1 result' : count + ' results'
+};
+}
+}
+</script>
+</body>
+</html>

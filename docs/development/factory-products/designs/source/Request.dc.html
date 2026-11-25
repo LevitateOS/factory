@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Request</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="request" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Request</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">team/project · draft saved on this computer</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<div style="flex: 999 1 480px; min-width: 0; max-width: 720px; display: flex; flex-direction: column; gap: 28px">
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 12px">
+<span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">1</span>
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Describe what you want to build</h2>
+</div>
+<label for="req-outcome" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Desired outcome</label>
+<textarea id="req-outcome" rows="5" style="box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #858585; font: 400 16px/1.5 Barlow, Arial, sans-serif; color: #101010; resize: vertical">People on the project can search the library and find older work by title, type or the post it came from.</textarea>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Describe who will use it, what they need to do, and what a successful result looks like.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end">
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px">
+<label for="req-dept" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Department</label>
+<select id="req-dept" style="height: 44px; padding: 0 10px; border: 1px solid #858585; background: #ffffff; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>No department</option><option>New department</option></select>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 160px">
+<label for="req-max" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Maximum work items</label>
+<input id="req-max" type="number" value="8" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Explore ideas</button>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Explore ideas uses the planning limits below.</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 12px">
+<span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">2</span>
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Candidate issue graphs</h2>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Authored for this request by the planning agent.</p>
+<article style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #101010">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<h3 style="font: 600 17px/1.4 Barlow, Arial, sans-serif">Search first, filters after</h3>
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">3 work items</span>
+</div>
+<ol style="padding-left: 20px; font: 400 15px/1.6 Barlow, Arial, sans-serif">
+<li>Index library items for search</li>
+<li>Query box and result list</li>
+<li>Filter by item type and source post</li>
+</ol>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Accept</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Decline proposal</button>
+</div>
+</article>
+<article style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+<h3 style="font: 600 17px/1.4 Barlow, Arial, sans-serif">One combined search screen</h3>
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">2 work items</span>
+</div>
+<ol style="padding-left: 20px; font: 400 15px/1.6 Barlow, Arial, sans-serif">
+<li>Index library items for search</li>
+<li>Search screen with query, filters and results together</li>
+</ol>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Accept</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Decline proposal</button>
+</div>
+</article>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 12px">
+<span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">3</span>
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Delivery approach</h2>
+</div>
+<fieldset style="margin: 0; padding: 16px; border: 1px solid #b8b8b8; display: flex; flex-direction: column; gap: 12px">
+<legend style="padding: 0 6px; font: 600 15px/1.5 Barlow, Arial, sans-serif">Choose how to deliver the accepted workflow</legend>
+<label style="display: flex; gap: 10px; align-items: flex-start; font: 400 15px/1.5 Barlow, Arial, sans-serif"><input type="radio" name="delivery" checked style="margin-top: 4px; accent-color: #df001b"><span><span style="font-weight: 600">Complete first workflow</span><br>Implement and verify the complete accepted workflow before first delivery.</span></label>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Decided automatically. <a href="#delivery">Correct this automatic choice</a></p>
+</fieldset>
+</section>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section aria-label="Authorization and Factory work" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Authorization and Factory work</h2>
+<span style="align-self: flex-start; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Not requested</span>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Factory has not been asked to create work yet.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Building is approved and budgeted separately.</p>
+<button type="button" disabled style="height: 44px; padding: 0 16px; border: 1px solid #b8b8b8; background: #f3f3f3; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Create Factory work</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Accept a candidate graph first.</p>
+</section>
+<section aria-label="Planning details" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Planning details</h2>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Planning uses this project's configured judgment source and available allowance.</p>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Judgment source</span><span style="font-weight: 600">This Muse login</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Other providers</span><span>None offered</span></div>
+<a href="Settings.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Change planning limits</a>
+</section>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

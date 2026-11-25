@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Projects</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="projects" hint-size="240px,960px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Projects</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">5 projects · 3 posts need you · 2 agents working</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<a href="#add-project" style="display: inline-flex; align-items: center; height: 36px; box-sizing: border-box; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Add project</a>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 40px; padding: 24px 32px 64px; align-items: flex-start">
+<div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px">
+<nav aria-label="Filter projects" style="display: flex; flex-wrap: wrap">
+<button type="button" aria-pressed="true" style="height: 36px; padding: 0 14px; border: 1px solid #101010; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">All · 5</button>
+<button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border: 1px solid #858585; border-left: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Need me · 2</button>
+<button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border: 1px solid #858585; border-left: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Working · 1</button>
+<button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border: 1px solid #858585; border-left: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Quiet · 3</button>
+</nav>
+<input type="search" aria-label="Search projects" placeholder="Search projects" style="flex: 0 1 220px; min-width: 0; box-sizing: border-box; height: 36px; padding: 0 10px; border: 1px solid #858585; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010">
+</div>
+
+<article style="display: flex; flex-wrap: wrap; gap: 16px; padding: 18px; border: 2px solid #101010">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="font: 700 26px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif"><a href="Main.dc.html" style="color: #101010; text-decoration: none">team/project</a></h2>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #df001b; color: #ffffff; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="currentColor"></circle></svg>Needs you · 2</span>
+<span style="padding: 1px 8px; border: 1px solid #101010; font: 500 12px/18px 'IBM Plex Mono', monospace">Open in this window</span>
+</div>
+<p style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #555555">GitHub · alex · connected · dispatch open</p>
+<div style="display: flex; align-items: center; gap: 12px">
+<span aria-hidden="true" style="display: inline-flex"><img src="portraits/builder.png" alt="" width="32" height="32" style="display: block; object-fit: cover; border: 1px solid #ffffff"><img src="portraits/architect.png" alt="" width="32" height="32" style="display: block; margin-left: -6px; object-fit: cover; border: 1px solid #ffffff"></span>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Builder is building #13. Architect is waiting on your answer.</p>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Latest post: “Search is taking shape” · Builder · 09:58</p>
+</div>
+<div style="flex: 0 1 180px; display: flex; flex-direction: column; gap: 8px">
+<a href="Main.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open feed</a>
+<button type="button" style="height: 36px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+<div style="display: flex; gap: 8px">
+<button type="button" style="flex: 1 1 0; height: 36px; padding: 0 4px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 12px/20px 'IBM Plex Mono', monospace">Reconnect</button>
+<button type="button" style="flex: 1 1 0; height: 36px; padding: 0 4px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 12px/20px 'IBM Plex Mono', monospace">Disconnect</button>
+</div>
+<p style="font: 400 12px/16px Barlow, Arial, sans-serif; color: #555555">Disconnecting keeps your saved drafts.</p>
+</div>
+</article>
+
+<article style="display: flex; flex-wrap: wrap; gap: 16px; padding: 18px; border: 1px solid #858585">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="font: 700 26px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif"><a href="Main.dc.html" style="color: #101010; text-decoration: none">team/website</a></h2>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #df001b; color: #ffffff; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="currentColor"></circle></svg>Needs you · 1</span>
+</div>
+<p style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #555555">GitHub · alex · connected · dispatch open</p>
+<div style="display: flex; align-items: center; gap: 12px">
+<img src="portraits/factory.png" alt="" width="32" height="32" style="display: block; object-fit: cover">
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Work is waiting. Verification limits are used up for #4.</p>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Latest post: “Waiting on allowance” · Factory · Yesterday, 18:12</p>
+</div>
+<div style="flex: 0 1 180px; display: flex; flex-direction: column; gap: 8px">
+<a href="Main.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border: 1px solid #101010; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open feed</a>
+<button type="button" style="height: 36px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+</div>
+</article>
+
+<article style="display: flex; flex-wrap: wrap; gap: 16px; padding: 18px; border: 1px solid #858585">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="font: 700 26px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif"><a href="Main.dc.html" style="color: #101010; text-decoration: none">alex/notes</a></h2>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fff2d6; color: #8a5a00; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 3.9V7l2.1 1.5"></path></svg>Paused</span>
+</div>
+<p style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #555555">GitHub · alex · connected · dispatch closed</p>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Factory paused. No agents are running. Retained work and terminals stay.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Latest post: “Factory paused” · Factory · Monday</p>
+</div>
+<div style="flex: 0 1 180px; display: flex; flex-direction: column; gap: 8px">
+<a href="Main.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border: 1px solid #101010; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open feed</a>
+<a href="Work.dc.html" style="display: flex; align-items: center; justify-content: center; height: 36px; border: 1px solid #858585; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Resume in Work</a>
+</div>
+</article>
+
+<article style="display: flex; flex-wrap: wrap; gap: 16px; padding: 18px; border: 1px solid #858585">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="font: 700 26px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif"><a href="Main.dc.html" style="color: #101010; text-decoration: none">team/docs</a></h2>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border: 1px solid #858585; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"></circle></svg>Not set up</span>
+</div>
+<p style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #555555">GitHub · alex · connected</p>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">No Factory setup recorded for this repository. You can still post and read issues and pull requests.</p>
+</div>
+<div style="flex: 0 1 180px; display: flex; flex-direction: column; gap: 8px">
+<a href="Settings.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border: 1px solid #101010; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Review Project setup</a>
+<a href="Main.dc.html" style="display: flex; align-items: center; justify-content: center; height: 36px; border: 1px solid #858585; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open feed</a>
+</div>
+</article>
+
+<article style="display: flex; flex-wrap: wrap; gap: 16px; padding: 18px; border: 1px dashed #555555; background: #f3f3f3">
+<div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="font: 700 26px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">team/billing</h2>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Not connected</span>
+</div>
+<p style="font: 400 13px/18px 'IBM Plex Mono', monospace; color: #555555">GitHub · alex-work · sign-in expired</p>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Your saved account has expired. Refresh it or sign in again before reconnecting. Saved drafts are kept.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Status as of the last connection, Friday. It may have changed since.</p>
+</div>
+<div style="flex: 0 1 180px; display: flex; flex-direction: column; gap: 8px">
+<a href="Accounts.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border: 1px solid #101010; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Sign in again</a>
+<button type="button" style="height: 36px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Remove from list</button>
+</div>
+</article>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 0; max-width: 340px; display: flex; flex-direction: column; gap: 20px">
+<section aria-label="Needs me across projects" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Needs me · 3</h2>
+<a href="Main.dc.html" style="display: flex; gap: 10px; color: #101010; text-decoration: none"><img src="portraits/architect.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">How should a result open?</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">team/project · Architect · 12 min</span></span></a>
+<a href="Main.dc.html" style="display: flex; gap: 10px; color: #101010; text-decoration: none"><img src="portraits/test-pilot.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">How does finding an item feel?</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">team/project · Test Pilot · since yesterday</span></span></a>
+<a href="Main.dc.html" style="display: flex; gap: 10px; color: #101010; text-decoration: none"><img src="portraits/factory.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Verification limits are used up for #4</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">team/website · Factory · since yesterday</span></span></a>
+</section>
+
+<section id="add-project" aria-label="Add a project" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Add a project</h2>
+<label for="add-account" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Account</label>
+<select id="add-account" style="height: 44px; padding: 0 10px; border: 1px solid #858585; background: #ffffff; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>alex · GitHub</option><option>alex-work · GitHub (sign-in expired)</option></select>
+<label for="add-repo" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Repository</label>
+<input id="add-repo" type="text" placeholder="owner/name or repository URL" autocomplete="off" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #101010; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Open repository</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Adding a project gives Factory nothing new. Running agents on it is set up separately in Settings.</p>
+<p style="padding-top: 10px; border-top: 1px solid #d6d6d6; font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Fountain projects are not offered in this release.</p>
+</section>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

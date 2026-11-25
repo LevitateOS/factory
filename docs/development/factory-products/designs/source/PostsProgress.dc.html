@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Posts that show progress</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,h4,p,ul,ol,blockquote{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 32px; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font: 800 40px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Posts that show progress</h1>
+<p style="max-width: 760px; font: 400 17px/1.5 Barlow, Arial, sans-serif; color: #555555">Nothing is needed from you. These say where the work is, what is done and what comes next.</p>
+</header>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 28px; align-items: start">
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/builder.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">partial · progress</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 1.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"></path></svg>In progress</span>Search is taking shape</p>
+<p style="display: flex; align-items: center; gap: 8px; font: 600 13px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h12M3 19h7M18 10l3 2-3 2"></path></svg>Progress · #13</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div style="padding: 10px 12px; background: #dff4ea"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #13613d">Completed <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">2</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>Query box reads the index</li><li>Result list shows title, type and source</li></ul></div>
+<div style="padding: 10px 12px; background: #f3f3f3"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Still needed <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">1</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>Paging after the first 20 items</li></ul></div>
+</div>
+<div style="display: flex; gap: 8px; padding: 10px 12px; background: #f3f3f3"><span aria-hidden="true">↳</span><div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Next step</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Paging, then hand over for review.</p></div></div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">This post updates as the work moves</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Also shown this way: Work started, and Pause, stop and takeover.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Preparation · checks</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px"><span style="display: inline-flex; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 2 2 4-4m3 2h9M3 15l2 2 4-4m3 2h9"></path></svg>Recorded checks</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">3 listed</span></div>
+<ol style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0; border-top: 1px solid #d6d6d6">
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Workspace setup</strong><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ passed</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Dependency download</strong><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #13613d">✓ passed</span></li>
+<li style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #d6d6d6"><strong style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Required tools</strong><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">○ pending</span></li>
+</ol>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">A small step, shown as a one-line reply under the work it belongs to. Also used for application checks.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/factory.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Factory</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Ready · unlock</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #5d6675; background: #ffffff">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid #b8b8b8">
+<span style="display: inline-flex; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6v5H9zM2 17h6v5H2zM16 17h6v5h-6zM12 7v5H5v5m7-5h7v5"></path></svg>Prerequisites resolved</span>
+<p style="display: flex; gap: 10px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">01</span>#12 Index library items for search <span style="color: #13613d">✓ merged</span></p>
+</div>
+<span aria-hidden="true" style="align-self: center; font: 500 18px/1 'IBM Plex Mono', monospace">↓</span>
+<div style="padding: 10px 12px; border: 1px solid #101010"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Ready for selection</h4><p style="font: 600 15px/1.5 Barlow, Arial, sans-serif">#13 Query box and result list</p></div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Says which finished work unblocked which next work.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/builder.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">finish_incomplete · incomplete</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #fbe5e3; color: #b3261e; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.6 12.9 12.2H1.1z"></path><path d="M7 5.4v3.1M7 10.3v.05"></path></svg>Problem</span>Builder stopped before paging was finished</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div style="padding: 10px 12px; background: #dff4ea"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #13613d">Completed <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">2</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>Query box</li><li>Result list</li></ul></div>
+<div style="padding: 10px 12px; background: #fff0df"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #9a3b08">Handing over <span style="font: 500 12px/18px 'IBM Plex Mono', monospace">1</span></h4><ul style="padding-left: 18px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><li>Paging after 20 items</li></ul></div>
+</div>
+<div style="display: flex; gap: 8px; padding: 10px 12px; background: #f3f3f3"><span aria-hidden="true">↳</span><div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Continue from here</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">The page size is set; the “load more” control is not wired yet.</p></div></div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">A run that ended early. The next run picks up from “Continue from here”.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/product-lead.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Product Lead</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">system · brief</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #df001b; background: #ffffff">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border: 1px solid #858585; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"></circle></svg>For your information</span>Brief: search the project library</p>
+<p>People on the project can search the library and find older work by title, type or the post it came from.</p>
+<p style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Scope: project library</p>
+<div><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Approach</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Search first, filters after.</p></div>
+<ol style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">01</span>Index library items for search</li>
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">02</span>Query box and result list</li>
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">03</span>Filter by item type and source post</li>
+</ol>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The plain form. Any post type the feed does not recognise falls back to this.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/test-pilot.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Test Pilot</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">journey</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #20bdd0; background: #ffffff">
+<h4 style="display: flex; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 14h6v6h-6zM10 7h7v7m-3-3 3 3 3-3"></path></svg>Following the experience</h4>
+<ol style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">01</span><span>Open the library <span style="color: #13613d">✓ passed</span></span></li>
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">02</span><span>Type “search” in the query box <span style="color: #13613d">✓ passed</span></span></li>
+<li style="display: flex; gap: 10px"><span style="font: 500 13px/20px 'IBM Plex Mono', monospace; color: #555555">03</span><span>Open a result, then go back <span style="color: #b3261e">! failed</span></span></li>
+</ol>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch">
+<div style="padding: 10px 12px; border: 1px solid #b8b8b8"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #555555">Expected</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">The list returns to the same row.</p></div>
+<span aria-hidden="true" style="align-self: center; font: 500 18px/1 'IBM Plex Mono', monospace">→</span>
+<div style="padding: 10px 12px; border: 1px solid #b3261e"><h4 style="font: 600 13px/18px Barlow, Arial, sans-serif; color: #b3261e">Observed</h4><p style="font: 400 14px/1.5 Barlow, Arial, sans-serif">The list jumps back to the top.</p></div>
+</div>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The steps a person would take, in order, with what happened at each.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/product-lead.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Product Lead</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">finish_product_plan · work map</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #df001b; background: #ffffff">
+<h4 style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Proposed work plan</h4>
+<div aria-label="Proposed issue dependencies" style="display: flex; align-items: stretch; gap: 0; overflow-x: auto">
+<div style="flex: 1 1 0; min-width: 130px; display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid #101010"><strong style="font: 600 14px/1.4 Barlow, Arial, sans-serif">Index library items</strong><span style="font: 400 12px/16px Barlow, Arial, sans-serif; color: #555555">Starts independently</span></div>
+<span aria-hidden="true" style="align-self: center; padding: 0 6px; font: 500 16px/1 'IBM Plex Mono', monospace">→</span>
+<div style="flex: 1 1 0; min-width: 130px; display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid #101010"><strong style="font: 600 14px/1.4 Barlow, Arial, sans-serif">Query box and result list</strong><span style="font: 400 12px/16px Barlow, Arial, sans-serif; color: #555555">After: index</span></div>
+<span aria-hidden="true" style="align-self: center; padding: 0 6px; font: 500 16px/1 'IBM Plex Mono', monospace">→</span>
+<div style="flex: 1 1 0; min-width: 130px; display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid #101010"><strong style="font: 600 14px/1.4 Barlow, Arial, sans-serif">Filters</strong><span style="font: 400 12px/16px Barlow, Arial, sans-serif; color: #555555">After: query box</span></div>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Task details · 3</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Edges come only from recorded dependencies. A circular plan is drawn as a circle and flagged. The Architect's issue plan and the two-candidate form are on the “Run and plan records” sheet.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><img src="portraits/builder.png" alt="" width="24" height="24" style="display: block; object-fit: cover"><span style="font: 600 14px/20px Barlow, Arial, sans-serif">Builder</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">commits · saved changes</span><span style="padding: 0 6px; border: 1px solid #858585; font: 500 11px/16px 'IBM Plex Mono', monospace; color: #3a3a3a">In code</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8; border-top: 3px solid #f47b20; background: #ffffff">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px"><span style="display: inline-flex; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v20M6 6c12 0 12 4 12 8 0 4-6 4-12 4m8-3-4 3 4 3"></path></svg>Saved changes</span><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">2 commits</span></div>
+<ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<li style="display: flex; gap: 10px"><code style="font: 400 13px/20px 'IBM Plex Mono', monospace; color: #555555">4c1e9ab2</code>Connect the query box to the index</li>
+<li style="display: flex; gap: 10px"><code style="font: 400 13px/20px 'IBM Plex Mono', monospace; color: #555555">a07d51f3</code>Show title, type and source in results</li>
+</ul>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Recorded commits · review and checks remain separate.</p>
+</div>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">A block that can sit inside any post. Also shown as “Implementation checkpoint” when a candidate is recorded for review.</p>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

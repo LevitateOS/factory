@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Work</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="work" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Work</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">team/project · request “Search the project library”</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<div style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+
+<section aria-label="Request overview" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Request overview</h2>
+<p>People on the project can search the library and find older work by title, type or the post it came from.</p>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Native work generated</span>
+<span style="color: #555555">Accepted direction, revision 2</span>
+<a href="Request.dc.html">View request</a>
+</div>
+</section>
+
+<section aria-label="Planning and next work" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Work plan</h2>
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">3 work items · 1 delivered</span>
+</div>
+<div style="overflow-x: auto; border: 1px solid #858585">
+<table style="width: 100%; min-width: 620px; border-collapse: collapse; font: 400 15px/1.5 Barlow, Arial, sans-serif">
+<thead>
+<tr style="background: #f3f3f3; text-align: left">
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #858585">Work item</th>
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #858585">Role</th>
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #858585">State</th>
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #858585">Depends on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6"><a href="WorkDetail.dc.html" style="font-weight: 600">Index library items for search</a><br><span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">#12</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6"><span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 10px; height: 10px; background: #2da44e"></span>Inspector</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6"><span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Delivered</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6; color: #555555">None</td>
+</tr>
+<tr>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6"><a href="WorkDetail.dc.html" style="font-weight: 600">Query box and result list</a><br><span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">#13</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6"><span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6"><span style="padding: 1px 8px; background: #fff0df; color: #9a3b08; font: 500 12px/18px 'IBM Plex Mono', monospace">Building</span></td>
+<td style="padding: 12px; border-bottom: 1px solid #d6d6d6">#12</td>
+</tr>
+<tr>
+<td style="padding: 12px"><a href="WorkDetail.dc.html" style="font-weight: 600">Filter by item type and source post</a><br><span style="font: 400 12px/18px 'IBM Plex Mono', monospace; color: #555555">#14</span></td>
+<td style="padding: 12px; color: #555555">Not started</td>
+<td style="padding: 12px"><span style="padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Waiting</span></td>
+<td style="padding: 12px">#13</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">No work is currently eligible to start. #14 starts after #13 is delivered.</p>
+</section>
+
+<sc-if value="{{unavail}}" hint-placeholder-val="{{ true }}">
+<section aria-label="Factory activity" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px dashed #555555; background: #f3f3f3">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Factory activity</h2>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Unavailable in this app</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Factory activity is unavailable. The desktop app does not keep the repository activity record yet, so there is nothing to show or to set here.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The work plan above is unaffected. Issues and pull requests still list what was created.</p>
+</section>
+</sc-if>
+<sc-if value="{{avail}}" hint-placeholder-val="{{ false }}">
+<section aria-label="Factory activity" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #b8b8b8">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Factory activity</h2>
+<span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Last confirmed today, 10:42</span>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Issues created</span><span style="font: 500 14px/22px 'IBM Plex Mono', monospace">3</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Pull requests created</span><span style="font: 500 14px/22px 'IBM Plex Mono', monospace">2</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Verified merges and original issue closure</span><span style="font: 500 14px/22px 'IBM Plex Mono', monospace">1</span></div>
+<a href="Settings.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Activity visibility</a>
+</section>
+</sc-if>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section aria-label="Dispatch status" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Dispatch status</h2>
+<span style="align-self: flex-start; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Open</span>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Factory dispatch is effective and open.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Last dispatch pass: today, 10:40</p>
+</section>
+<section aria-label="Owner controls" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Owner controls</h2>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">These controls act on the repository or project.</p>
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #b42318; background: #ffffff; color: #b42318; font: 500 13px/20px 'IBM Plex Mono', monospace">Pause Factory work</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Closes dispatch and stops outstanding runs. Retained work and terminals stay.</p>
+</section>
+<sc-if value="{{unavail}}" hint-placeholder-val="{{ true }}">
+<section aria-label="Repository repair funding" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px dashed #555555; background: #f3f3f3">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Repository repair funding</h2>
+<span style="align-self: flex-start; padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Unavailable in this app</span>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Repair grants cannot be read or saved from the desktop app yet. No repair grant is assumed.</p>
+<button type="button" disabled style="height: 44px; padding: 0 16px; border: 1px solid #b8b8b8; background: #ffffff; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Save repair grant</button>
+</section>
+</sc-if>
+<sc-if value="{{avail}}" hint-placeholder-val="{{ false }}">
+<section aria-label="Repository repair funding" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Repository repair funding</h2>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">No repair grant has been authorized.</p>
+<label for="repair-runs" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Repair runs allowed</label>
+<input id="repair-runs" type="number" value="2" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Save repair grant</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">The current repository owner or administrator is required.</p>
+</section>
+</sc-if>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"nativeStores":{"editor":"boolean","default":false,"section":"Backend readiness"},"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+var on = this.props.nativeStores ?? false;
+return { avail: on === true, unavail: on !== true };
+}
+}
+</script>
+</body>
+</html>

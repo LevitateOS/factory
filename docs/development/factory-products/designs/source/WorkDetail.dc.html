@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Work detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="work" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Work.dc.html">Work</a> <span style="color: #555555">/ #13</span></p>
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Query box and result list</h1>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh detail</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<div style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+
+<section aria-label="Work journey" style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Journey</h2>
+<ol style="list-style: none; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border: 1px solid #858585">
+<li style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-right: 1px solid #858585; background: #dff4ea"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #13613d">Done</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Planned</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-right: 1px solid #858585; background: #101010; color: #ffffff"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace">Now</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Building</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-right: 1px solid #858585"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Next</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Review</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-right: 1px solid #858585"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Later</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Checks</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px"><span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Later</span><span style="font: 600 15px/20px Barlow, Arial, sans-serif">Merge</span></li>
+</ol>
+</section>
+
+<section aria-label="Current run" style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Current run</h2>
+<div style="border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Role</span><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Status</span><span style="font: 500 14px/22px 'IBM Plex Mono', monospace">implement:running</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Attempt</span><span>1 of 3 allowed</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Native issue</span><a href="Issues.dc.html">#13</a></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Native pull request</span><span style="color: #555555">Nothing published yet.</span></div>
+</div>
+</section>
+
+<section aria-label="Live output" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px dashed #555555; background: #f3f3f3">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Live output</h2>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Unavailable in this app</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Live output is unavailable in this app. The run continues, and its recorded result appears here when it settles.</p>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" disabled style="height: 36px; padding: 0 14px; border: 1px solid #b8b8b8; background: #ffffff; color: #555555; font: 500 13px/20px 'IBM Plex Mono', monospace">Watch run</button>
+<a href="Watch.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">What Watch shows</a>
+</div>
+</section>
+
+<section aria-label="Requirements acceptance" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Review and checks</h2>
+<div style="border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Independent review</span><span style="color: #555555">No independent review recorded.</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Required checks</span><span style="color: #555555">No check assessment recorded.</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 10px 12px; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span>Merge</span><span style="color: #555555">No merge recorded.</span></div>
+</div>
+</section>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section aria-label="Collaborator controls" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Collaborator controls</h2>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">These controls act on one run only.</p>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Queue one retry</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Queues one explicit retry after the prior run settles. No new attempt otherwise.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #b42318; background: #ffffff; color: #b42318; font: 500 13px/20px 'IBM Plex Mono', monospace">Stop this run</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Retires the run through the operator stop path. Other runs continue.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Copy retained work</button>
+<p style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Copies retained work into your own project checkout. Requires project membership.</p>
+</div>
+</section>
+<section aria-label="Verification allowance" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Verification limits</h2>
+<div style="display: flex; justify-content: space-between; gap: 12px; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Corrections per attempt</span><span>0 of 2 used</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Independent reviews per attempt</span><span>0 of 1 used</span></div>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Increase verification limits</button>
+</section>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

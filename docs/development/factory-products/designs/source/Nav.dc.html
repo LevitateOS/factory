@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Factory sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<nav aria-label="Factory" style="width: 100%; box-sizing: border-box; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px; font-family: Barlow, Arial, sans-serif; color: #101010; background: #f3f3f3">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 12px">
+<span aria-hidden="true" style="width: 14px; height: 14px; background: #df001b"></span>
+<span style="font: 800 24px/1 'Barlow Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; text-transform: uppercase">Factory</span>
+</div>
+
+<a href="Jump.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 36px; box-sizing: border-box; padding: 0 8px 0 12px; border: 1px solid #858585; background: #ffffff; color: #555555; font: 400 14px/20px Barlow, Arial, sans-serif; text-decoration: none">Jump to…<kbd style="padding: 0 6px; border: 1px solid #b8b8b8; font: 500 11px/18px 'IBM Plex Mono', monospace; color: #3a3a3a">Ctrl K</kbd></a>
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 2px 12px">
+<span style="font: 500 11px/16px 'IBM Plex Mono', monospace; color: #555555; text-transform: uppercase; letter-spacing: 0.06em">Projects</span>
+<a href="Projects.dc.html" aria-label="Add a project" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 16px/1 'IBM Plex Mono', monospace; text-decoration: none">+</a>
+</div>
+
+<sc-if value="{{allOn}}" hint-placeholder-val="{{ false }}"><a href="Projects.dc.html" aria-current="page" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: #101010; color: #ffffff; font: 600 15px/20px Barlow, Arial, sans-serif; text-decoration: none">All projects<span style="min-width: 20px; box-sizing: border-box; padding: 0 5px; background: #df001b; color: #ffffff; font: 500 11px/20px 'IBM Plex Mono', monospace; text-align: center">3</span></a></sc-if>
+<sc-if value="{{allOff}}" hint-placeholder-val="{{ true }}"><a href="Projects.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; color: #101010; font: 400 15px/20px Barlow, Arial, sans-serif; text-decoration: none">All projects<span style="min-width: 20px; box-sizing: border-box; padding: 0 5px; background: #df001b; color: #ffffff; font: 500 11px/20px 'IBM Plex Mono', monospace; text-align: center">3</span></a></sc-if>
+
+<div style="display: flex; flex-direction: column; border: 1px solid #101010; background: #ffffff">
+<a href="Main.dc.html" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 11px; border-bottom: 1px solid #d6d6d6; color: #101010; text-decoration: none">
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span style="display: inline-flex; align-items: center; gap: 6px; min-width: 0; font: 600 15px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>team/project</span><span aria-label="2 need you" style="min-width: 20px; box-sizing: border-box; padding: 0 5px; background: #df001b; color: #ffffff; font: 500 11px/20px 'IBM Plex Mono', monospace; text-align: center">2</span></span>
+<span style="display: flex; align-items: center; gap: 6px; padding-left: 18px; font: 400 12px/16px Barlow, Arial, sans-serif; color: #13613d"><span aria-hidden="true" style="width: 7px; height: 7px; background: #13613d"></span>Connected · 2 agents working</span>
+</a>
+<div style="display: flex; flex-direction: column; gap: 1px; padding: 4px">
+<sc-for list="{{items}}" as="item" hint-placeholder-count="6">
+<sc-if value="{{item.on}}" hint-placeholder-val="{{ false }}"><a href="{{item.href}}" aria-current="page" style="display: block; padding: 7px 10px 7px 22px; background: #101010; color: #ffffff; font: 600 15px/20px Barlow, Arial, sans-serif; text-decoration: none">{{item.label}}</a></sc-if>
+<sc-if value="{{item.off}}" hint-placeholder-val="{{ true }}"><a href="{{item.href}}" style="display: block; padding: 7px 10px 7px 22px; color: #101010; font: 400 15px/20px Barlow, Arial, sans-serif; text-decoration: none">{{item.label}}</a></sc-if>
+</sc-for>
+</div>
+</div>
+
+<a href="Projects.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; color: #101010; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 6px; min-width: 0; font: 400 15px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>team/website</span><span aria-label="1 needs you" style="min-width: 20px; box-sizing: border-box; padding: 0 5px; background: #df001b; color: #ffffff; font: 500 11px/20px 'IBM Plex Mono', monospace; text-align: center">1</span></a>
+<a href="Projects.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; color: #101010; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 6px; min-width: 0; font: 400 15px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>alex/notes</span><span style="font: 500 11px/20px 'IBM Plex Mono', monospace; color: #8a5a00">Paused</span></a>
+<a href="Projects.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; color: #555555; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 6px; min-width: 0; font: 400 15px/20px Barlow, Arial, sans-serif"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>team/billing</span><span style="padding: 0 5px; border: 1px dashed #555555; font: 500 11px/18px 'IBM Plex Mono', monospace; color: #3a3a3a">Sign in</span></a>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 14px; border-top: 1px solid #b8b8b8">
+<sc-for list="{{foot}}" as="item" hint-placeholder-count="2">
+<sc-if value="{{item.on}}" hint-placeholder-val="{{ false }}"><a href="{{item.href}}" aria-current="page" style="display: block; padding: 8px 12px; background: #101010; color: #ffffff; font: 600 15px/20px Barlow, Arial, sans-serif; text-decoration: none">{{item.label}}</a></sc-if>
+<sc-if value="{{item.off}}" hint-placeholder-val="{{ true }}"><a href="{{item.href}}" style="display: block; padding: 8px 12px; color: #101010; font: 400 15px/20px Barlow, Arial, sans-serif; text-decoration: none">{{item.label}}</a></sc-if>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid #b8b8b8; background: #ffffff">
+<span style="font: 500 11px/16px 'IBM Plex Mono', monospace; color: #555555; text-transform: uppercase; letter-spacing: 0.06em">This computer</span>
+<span style="display: flex; align-items: center; gap: 6px; font: 400 13px/18px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Factory ready</span>
+<span style="display: flex; align-items: center; gap: 6px; font: 400 13px/18px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Muse verified for new work</span>
+<span style="display: flex; align-items: center; gap: 6px; font: 400 13px/18px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>2 of 2 agent runs in use</span>
+</div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"current":{"editor":"enum","options":["projects","feed","request","work","issues","pulls","knowledge","accounts","settings"],"default":"feed"},"$preview":{"width":240,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+var cur = this.props.current ?? 'feed';
+function mk(id, label, href) { return { label: label, href: href, on: cur === id, off: cur !== id }; }
+return {
+allOn: cur === 'projects',
+allOff: cur !== 'projects',
+items: [
+mk('feed', 'Feed', 'Main.dc.html'),
+mk('request', 'Request', 'Request.dc.html'),
+mk('work', 'Work', 'Work.dc.html'),
+mk('issues', 'Issues', 'Issues.dc.html'),
+mk('pulls', 'Pull requests', 'Pulls.dc.html'),
+mk('knowledge', 'Knowledge', 'Knowledge.dc.html')
+],
+foot: [
+mk('accounts', 'Accounts', 'Accounts.dc.html'),
+mk('settings', 'Settings', 'Settings.dc.html')
+]
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="settings" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Settings</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">team/project · each section saves on its own</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh roles</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<nav aria-label="Settings sections" style="flex: 1 1 180px; min-width: 0; max-width: 220px; display: flex; flex-direction: column; gap: 2px; font: 400 15px/20px Barlow, Arial, sans-serif">
+<a href="#roles" style="padding: 8px 0; color: #101010; font-weight: 600; text-decoration: none">Agent roles and judgments</a>
+<a href="#automation" style="padding: 8px 0; color: #101010; text-decoration: none">Automation policy</a>
+<a href="#controller" style="padding: 8px 0; color: #101010; text-decoration: none">Execution controller</a>
+<a href="#workspace" style="padding: 8px 0; color: #101010; text-decoration: none">Workspace setup</a>
+<a href="#unavailable" style="padding: 8px 0; color: #555555; text-decoration: none">Unavailable in this app</a>
+</nav>
+
+<div style="flex: 999 1 480px; min-width: 0; max-width: 760px; display: flex; flex-direction: column; gap: 24px">
+
+<section id="roles" aria-label="Agent role settings" style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid #858585">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Agent roles and judgments</h2>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Each role spends from a saved source. Muse is the only provider offered in this release.</p>
+<div style="overflow-x: auto; border: 1px solid #b8b8b8">
+<table style="width: 100%; min-width: 520px; border-collapse: collapse; font: 400 15px/1.5 Barlow, Arial, sans-serif">
+<thead>
+<tr style="background: #f3f3f3; text-align: left">
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #b8b8b8">Role</th>
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #b8b8b8">Spending source</th>
+<th scope="col" style="padding: 8px 12px; font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; border-bottom: 1px solid #b8b8b8">Allowance (minutes)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 10px 12px; border-bottom: 1px solid #d6d6d6"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600"><span aria-hidden="true" style="width: 10px; height: 10px; background: #df001b"></span>Product Lead</span></td>
+<td style="padding: 10px 12px; border-bottom: 1px solid #d6d6d6"><select aria-label="Spending source for Product Lead" style="height: 36px; padding: 0 8px; border: 1px solid #858585; background: #ffffff; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>This Muse login</option></select></td>
+<td style="padding: 10px 12px; border-bottom: 1px solid #d6d6d6"><input aria-label="Source allowance in minutes for Product Lead" type="number" value="30" style="box-sizing: border-box; width: 96px; height: 36px; padding: 0 8px; border: 1px solid #858585; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"></td>
+</tr>
+<tr>
+<td style="padding: 10px 12px; border-bottom: 1px solid #d6d6d6"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600"><span aria-hidden="true" style="width: 10px; height: 10px; background: #f47b20"></span>Builder</span></td>
+<td style="padding: 10px 12px; border-bottom: 1px solid #d6d6d6"><select aria-label="Spending source for Builder" style="height: 36px; padding: 0 8px; border: 1px solid #858585; background: #ffffff; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>This Muse login</option></select></td>
+<td style="padding: 10px 12px; border-bottom: 1px solid #d6d6d6"><input aria-label="Source allowance in minutes for Builder" type="number" value="120" style="box-sizing: border-box; width: 96px; height: 36px; padding: 0 8px; border: 1px solid #858585; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"></td>
+</tr>
+<tr>
+<td style="padding: 10px 12px"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600"><span aria-hidden="true" style="width: 10px; height: 10px; background: #2da44e"></span>Inspector</span></td>
+<td style="padding: 10px 12px"><select aria-label="Spending source for Inspector" style="height: 36px; padding: 0 8px; border: 1px solid #858585; background: #ffffff; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>Choose a saved source</option><option>This Muse login</option></select></td>
+<td style="padding: 10px 12px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Choose a source first</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Execution limits</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px">
+<label for="max-corr" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Maximum corrections per attempt</label>
+<input id="max-corr" type="number" value="2" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px">
+<label for="max-rev" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Maximum independent reviews per attempt</label>
+<input id="max-rev" type="number" value="1" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Save role selections</button>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Last verified: today, 09:30</span>
+</div>
+</section>
+
+<section id="automation" aria-label="Automation policy" style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Automation policy</h2>
+<span style="padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Disabled</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Automation stays disabled until execution setup and funding are ready.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px">
+<label for="auto-branch" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Target branch</label>
+<input id="auto-branch" type="text" value="main" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 14px/1.4 'IBM Plex Mono', monospace; color: #101010">
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px">
+<label for="auto-merge" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Merge method</label>
+<select id="auto-merge" style="height: 44px; padding: 0 10px; border: 1px solid #858585; background: #ffffff; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>Merge commit</option><option>Rebase and merge</option></select>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<label for="auto-checks" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Required CI checks</label>
+<textarea id="auto-checks" rows="3" placeholder="One exact check name per line" style="box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #858585; font: 400 14px/1.4 'IBM Plex Mono', monospace; color: #101010; resize: vertical">build
+integration</textarea>
+</div>
+<label style="display: flex; gap: 10px; align-items: flex-start; font: 400 15px/1.5 Barlow, Arial, sans-serif"><input type="checkbox" style="margin-top: 4px; accent-color: #df001b"><span>Automatically adopt eligible same-repository pull requests.</span></label>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Enroll automation policy</button>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Repository permissions, required reviews and CI are checked again before remote actions.</p>
+</div>
+</section>
+
+<section id="controller" aria-label="Execution controller" style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid #858585">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Execution controller</h2>
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 0">
+<legend style="padding: 0 0 6px; font: 600 15px/1.5 Barlow, Arial, sans-serif">Where agents run</legend>
+<label style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border: 1px solid #101010; background: #101010; color: #ffffff; font: 400 15px/1.5 Barlow, Arial, sans-serif"><input type="radio" name="controller" checked style="accent-color: #df001b">This computer</label>
+<label style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border: 1px solid #b8b8b8; border-left: 0; color: #555555; font: 400 15px/1.5 Barlow, Arial, sans-serif"><input type="radio" name="controller" disabled>Another computer (not offered)</label>
+</fieldset>
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 0 1 260px">
+<label for="run-limit" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Maximum simultaneous agent runs</label>
+<input id="run-limit" type="number" value="2" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+</div>
+<button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Save run limit</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid #d6d6d6">
+<p style="flex: 1 1 320px; font: 400 15px/1.5 Barlow, Arial, sans-serif">This repository may use local run capacity. Policy, funding and admitted workers are still required.</p>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #b42318; background: #ffffff; color: #b42318; font: 500 13px/20px 'IBM Plex Mono', monospace">Withdraw repository run permission</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid #d6d6d6">
+<p style="flex: 1 1 320px; font: 400 15px/1.5 Barlow, Arial, sans-serif">Isolated workspaces are not enabled.</p>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Allow isolated workspaces</button>
+</div>
+</section>
+
+<section id="workspace" aria-label="Workspace setup" style="display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #858585">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Workspace setup</h2>
+<span style="padding: 1px 8px; background: #dff4ea; color: #13613d; font: 500 12px/18px 'IBM Plex Mono', monospace">Approved</span>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Saved source, scripts, tools, network access and limits</p>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Source</span><span style="font: 400 14px/22px 'IBM Plex Mono', monospace">refs/heads/main</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Dependency download access</span><span>Offline</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #d6d6d6; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="color: #555555">Setup deadline</span><span>[SECONDS]</span></div>
+<button type="button" style="align-self: flex-start; height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Review workspace setup</button>
+</section>
+
+<section id="unavailable" aria-label="Unavailable in this app" style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px dashed #555555; background: #f3f3f3">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h2 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Unavailable in this app</h2>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Not in the desktop app yet</span>
+</div>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">These settings exist in Factory but the desktop app cannot read or save them yet. Nothing here is assumed to be on.</p>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #b8b8b8; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="font-weight: 600">Repository repair funding</span><span style="color: #555555">No repair grant is assumed.</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #b8b8b8; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="font-weight: 600">Activity visibility</span><span style="color: #555555">Factory activity is unavailable.</span></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #b8b8b8; font: 400 15px/1.5 Barlow, Arial, sans-serif"><span style="font-weight: 600">Fountain operation grant</span><span style="color: #555555">Fountain is not qualified yet.</span></div>
+</section>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

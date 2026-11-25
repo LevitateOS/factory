@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Knowledge</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="knowledge" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Knowledge and decisions</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Shared knowledge and decisions for this project.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Refresh</button>
+<button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">New window</button>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 32px; padding: 24px 32px 48px; align-items: flex-start">
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+<form role="search" style="display: flex; flex-direction: column; gap: 8px">
+<label for="lib-search" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Search the library</label>
+<div style="display: flex; gap: 0">
+<input id="lib-search" type="search" style="flex: 1 1 auto; min-width: 0; box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; border-right: 0; font: 400 16px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<button type="submit" style="height: 44px; padding: 0 16px; border: 1px solid #101010; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Search</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<label for="lib-type" style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Show</label>
+<select id="lib-type" aria-label="Item type" style="height: 36px; padding: 0 8px; border: 1px solid #858585; background: #ffffff; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>Knowledge and decisions</option><option>Knowledge</option><option>Decisions</option></select>
+<label style="display: inline-flex; align-items: center; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><input type="checkbox" style="accent-color: #df001b">Include removed items</label>
+</div>
+</form>
+
+<ul aria-label="Project knowledge and decisions" style="list-style: none; padding: 0; border: 1px solid #858585">
+<li style="border-bottom: 1px solid #d6d6d6">
+<a href="#item" aria-current="true" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101010; color: #ffffff; text-decoration: none">
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace">Decision</span>
+<span style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Earlier reviewed choice</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Search first, filters after.</span>
+</a>
+</li>
+<li style="border-bottom: 1px solid #d6d6d6">
+<a href="#item" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; color: #101010; text-decoration: none">
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Knowledge</span>
+<span style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Search is taking shape</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The query and result list are connected.</span>
+</a>
+</li>
+<li>
+<a href="#item" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; color: #101010; text-decoration: none">
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Knowledge</span>
+<span style="font: 600 16px/1.4 Barlow, Arial, sans-serif">Earlier library work</span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">An older recorded observation.</span>
+</a>
+</li>
+</ul>
+<button type="button" style="align-self: flex-start; height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">More library items</button>
+</div>
+
+<article id="item" style="flex: 999 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 20px; border: 1px solid #101010">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<span style="padding: 1px 8px; border: 1px solid #101010; font: 500 12px/18px 'IBM Plex Mono', monospace">Decision</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; font: 400 14px/20px Barlow, Arial, sans-serif"><span aria-hidden="true" style="width: 10px; height: 10px; background: #8054e8"></span>Recorded by Architect</span>
+</div>
+<h2 style="font: 700 26px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Earlier reviewed choice</h2>
+<p>Search first, filters after. The query box and result list ship before any filtering.</p>
+</div>
+<section style="display: flex; flex-direction: column; gap: 4px">
+<h3 style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Reason</h3>
+<p style="font: 400 15px/1.6 Barlow, Arial, sans-serif">A working search answers the request on its own. Filters depend on the result list, so they come after it.</p>
+</section>
+<section style="display: flex; flex-direction: column; gap: 4px">
+<h3 style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Alternatives considered</h3>
+<ul style="padding-left: 20px; font: 400 15px/1.6 Barlow, Arial, sans-serif">
+<li>One combined search screen with query, filters and results together.</li>
+</ul>
+</section>
+<section style="display: flex; flex-direction: column; gap: 4px">
+<h3 style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Related items</h3>
+<ul style="list-style: none; padding: 0; font: 400 15px/1.6 Barlow, Arial, sans-serif">
+<li><a href="#item">Search is taking shape</a></li>
+<li><a href="#item">Earlier library work</a></li>
+</ul>
+</section>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 14px; border-top: 1px solid #d6d6d6">
+<a href="Main.dc.html" style="display: inline-flex; align-items: center; height: 36px; box-sizing: border-box; padding: 0 14px; border: 1px solid #858585; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open source post</a>
+<span style="font: 400 13px/1.5 Barlow, Arial, sans-serif; color: #555555">Source for recorded Knowledge</span>
+</div>
+</article>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

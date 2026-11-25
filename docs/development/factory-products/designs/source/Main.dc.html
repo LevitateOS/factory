@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feed</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&amp;family=Barlow+Condensed:wght@700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Barlow,Arial,sans-serif;color:#101010;background:#ffffff}
+a{color:#df001b}a:hover{color:#bc0017}
+h1,h2,h3,p,ul,ol{margin:0}
+button,input,select,textarea{font:inherit;border-radius:0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; box-sizing: border-box; font: 400 16px/1.6 Barlow, Arial, sans-serif; color: #101010; background: #ffffff">
+<div style="flex: 1 0 240px; background: #f3f3f3; border-right: 1px solid #858585">
+<dc-import name="Nav" current="feed" hint-size="240px,820px"></dc-import>
+</div>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-bottom: 1px solid #858585">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="font: 800 28px/1.1 'Barlow Condensed', 'Arial Narrow', sans-serif">Feed</h1>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">team/project</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Updated 10:42</span>
+<button type="button" aria-label="Refresh feed" style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid #858585; background: #ffffff; color: #101010"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 3v4h-4"></path></svg></button>
+<a href="Knowledge.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Knowledge</a>
+</div>
+</header>
+<main style="display: flex; flex-wrap: wrap; gap: 40px; padding: 24px 32px 64px; align-items: flex-start">
+<div style="flex: 999 1 520px; min-width: 0; max-width: 700px; display: flex; flex-direction: column; gap: 28px">
+
+<section aria-label="New post" style="display: flex; gap: 12px; padding: 16px; border: 1px solid #101010">
+<span aria-hidden="true" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; background: #f3f3f3; color: #555555; font: 500 15px/1 'IBM Plex Mono', monospace">A</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<label for="feed-post" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Steer the work</label>
+<textarea id="feed-post" rows="3" maxlength="4000" placeholder="Ask for a change, report a problem, or ask a question…" value="{{draft}}" onChange="{{onDraft}}" style="box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #858585; font: 400 16px/1.5 Barlow, Arial, sans-serif; color: #101010; resize: vertical"></textarea>
+<div role="group" aria-label="Who reads this first" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px">
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555; margin-right: 4px">Read first by</span>
+<sc-for list="{{readers}}" as="r" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{r.on}}" onClick="{{r.pick}}" style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px 0 4px; border: 1px solid {{r.edge}}; background: {{r.bg}}; color: {{r.fg}}; font: 500 13px/20px 'IBM Plex Mono', monospace"><img src="{{r.src}}" alt="" width="26" height="26" style="display: block; object-fit: cover">{{r.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<p style="flex: 1 1 260px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">{{readerHint}}</p>
+<button type="button" disabled="{{cantPost}}" onClick="{{post}}" title="Post (Ctrl+Enter)" style="height: 44px; padding: 0 22px; border: 1px solid {{postEdge}}; background: {{postBg}}; color: {{postFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">Post</button>
+</div>
+</div>
+</section>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<nav aria-label="Filter conversation" style="display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid #858585">
+<button type="button" aria-pressed="true" style="height: 40px; padding: 0 14px; border: 0; background: #101010; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">All</button>
+<button type="button" aria-pressed="false" style="height: 40px; padding: 0 14px; border: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Needs me · {{needCount}}</button>
+<button type="button" aria-pressed="false" style="height: 40px; padding: 0 14px; border: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Choices &amp; approvals</button>
+<button type="button" aria-pressed="false" style="height: 40px; padding: 0 14px; border: 0; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Evidence</button>
+</nav>
+<form role="search" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<input type="search" aria-label="Search conversation" placeholder="Search posts" style="flex: 1 1 200px; min-width: 0; box-sizing: border-box; height: 36px; padding: 0 10px; border: 1px solid #858585; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<select aria-label="Filter by role" style="height: 36px; padding: 0 8px; border: 1px solid #858585; background: #ffffff; font: 400 14px/1.4 Barlow, Arial, sans-serif; color: #101010"><option>All authors</option><option>People</option><option>Architect</option><option>Builder</option><option>Test Pilot</option><option>JEV</option><option>Factory</option></select>
+<label style="display: inline-flex; align-items: center; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><input type="checkbox" style="accent-color: #df001b">Current knowledge only</label>
+</form>
+</div>
+
+<sc-for list="{{posts}}" as="p" hint-placeholder-count="0">
+<article style="display: flex; gap: 12px">
+<span aria-hidden="true" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; background: #f3f3f3; color: #555555; font: 500 15px/1 'IBM Plex Mono', monospace">A</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #101010">Alex</strong> · Post · just now</p>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p style="white-space: pre-wrap; overflow-wrap: anywhere">{{p.text}}</p>
+<div style="display: flex; gap: 10px; padding: 12px; background: #f3f3f3">
+<img src="{{p.src}}" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<p style="display: flex; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif">{{p.actor}}<span aria-label="working" style="display: inline-flex; gap: 3px"><span style="width: 5px; height: 5px; background: #101010"></span><span style="width: 5px; height: 5px; background: #757575"></span><span style="width: 5px; height: 5px; background: #b8b8b8"></span></span></p>
+<p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">{{p.status}}</p>
+</div>
+</div>
+</div>
+</div>
+</article>
+</sc-for>
+
+<article id="post-question" style="display: flex; gap: 12px">
+<img src="portraits/architect.png" alt="" width="44" height="44" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; object-fit: cover; border: 1px solid #422f71">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #422f71">Architect</strong> · #13 Query box and result list · 10:42</p>
+<div>
+<div style="position: relative; display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid #8374a8; border-top: 3px solid #8054e8; background: #faf8fe">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<sc-if value="{{unsent}}" hint-placeholder-val="{{ true }}"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #df001b; color: #ffffff; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="currentColor"></circle></svg>Needs you</span></sc-if>
+<sc-if value="{{sent}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><path d="M7 1.4 12.6 7 7 12.6 1.4 7z" fill="currentColor"></path></svg>Decided</span></sc-if>
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">Question · pick one</span>
+</div>
+<h3 style="font: 700 24px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">How should a result open?</h3>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Both fit the accepted direction. Your pick decides what the Builder builds next.</p>
+
+<sc-if value="{{unsent}}" hint-placeholder-val="{{ true }}">
+<section aria-label="Interactive question from Architect" style="display: flex; flex-direction: column; border: 1px solid #101010; background: #ffffff">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #101010; font: 500 12px/18px 'IBM Plex Mono', monospace"><span>Interactive post · made by Architect</span><a href="#post-question" style="color: #101010">Open full size</a></div>
+<div style="display: flex; flex-direction: column; gap: 16px; padding: 16px">
+<div role="group" aria-label="How a result opens" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<button type="button" aria-pressed="{{aOn}}" onClick="{{pickA}}" style="display: flex; flex-direction: column; gap: 10px; padding: 12px; text-align: left; border: 2px solid {{aEdge}}; background: #ffffff; color: #101010">
+<span aria-hidden="true" style="display: flex; flex-direction: column; gap: 4px; height: 96px; padding: 8px; background: #f3f3f3">
+<span style="display: block; height: 10px; background: #b8b8b8"></span>
+<span style="display: block; flex: 1 1 auto; border: 2px solid #8054e8; background: #ffffff"></span>
+<span style="display: block; height: 10px; background: #b8b8b8"></span>
+<span style="display: block; height: 10px; background: #b8b8b8"></span>
+</span>
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 600 15px/1.4 Barlow, Arial, sans-serif">Open in place<span style="font: 500 12px/18px 'IBM Plex Mono', monospace">{{aMark}}</span></span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The row expands inside the list. Nothing else moves.</span>
+</button>
+<button type="button" aria-pressed="{{bOn}}" onClick="{{pickB}}" style="display: flex; flex-direction: column; gap: 10px; padding: 12px; text-align: left; border: 2px solid {{bEdge}}; background: #ffffff; color: #101010">
+<span aria-hidden="true" style="display: flex; gap: 6px; height: 96px; padding: 8px; background: #f3f3f3">
+<span style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 0">
+<span style="display: block; height: 10px; background: #b8b8b8"></span>
+<span style="display: block; height: 10px; background: #8054e8"></span>
+<span style="display: block; height: 10px; background: #b8b8b8"></span>
+<span style="display: block; height: 10px; background: #b8b8b8"></span>
+</span>
+<span style="display: block; flex: 1.4 1 0; border: 2px solid #8054e8; background: #ffffff"></span>
+</span>
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 600 15px/1.4 Barlow, Arial, sans-serif">Open beside the list<span style="font: 500 12px/18px 'IBM Plex Mono', monospace">{{bMark}}</span></span>
+<span style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">The list stays put and the item opens in a panel next to it.</span>
+</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1px solid #d6d6d6">
+<p id="q-keep" style="flex: 1 1 240px; font: 600 15px/1.5 Barlow, Arial, sans-serif">Keep your place in the list when you come back?</p>
+<div role="group" aria-labelledby="q-keep" style="display: flex">
+<button type="button" aria-pressed="{{yesOn}}" onClick="{{pickYes}}" style="height: 44px; min-width: 72px; padding: 0 16px; border: 1px solid #101010; background: {{yesBg}}; color: {{yesFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">Yes</button>
+<button type="button" aria-pressed="{{noOn}}" onClick="{{pickNo}}" style="height: 44px; min-width: 72px; padding: 0 16px; border: 1px solid #101010; border-left: 0; background: {{noBg}}; color: {{noFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">No</button>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<label for="q-note" style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Anything to add? (optional)</label>
+<input id="q-note" type="text" maxlength="400" onChange="{{onNote}}" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 15px/1.4 Barlow, Arial, sans-serif; color: #101010">
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" disabled="{{cantSend}}" onClick="{{send}}" style="height: 44px; padding: 0 22px; border: 1px solid {{sendEdge}}; background: {{sendBg}}; color: {{sendFg}}; font: 500 13px/20px 'IBM Plex Mono', monospace">Send answer</button>
+<p style="flex: 1 1 220px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">{{sendHint}}</p>
+</div>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{sent}}" hint-placeholder-val="{{ false }}">
+<section aria-label="Your answer" style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid #101010; background: #ffffff">
+<p style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">You answered</p>
+<p style="font: 600 17px/1.4 Barlow, Arial, sans-serif">{{answerLine}}</p>
+<sc-if value="{{hasNote}}" hint-placeholder-val="{{ false }}"><p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">“{{note}}”</p></sc-if>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<p role="status" style="display: inline-flex; align-items: center; gap: 6px; font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #13613d"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Reply received · incorporated by Architect</p>
+<button type="button" onClick="{{unsend}}" style="height: 36px; padding: 0 14px; border: 1px solid #858585; background: #ffffff; color: #101010; font: 500 13px/20px 'IBM Plex Mono', monospace">Change answer</button>
+</div>
+</section>
+</sc-if>
+
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555"><strong style="font-weight: 600; color: #101010">What this affects:</strong> the Builder starts on your pick as soon as you answer. Until then #13 keeps its current list.</p>
+</div>
+<section aria-label="Replies" style="margin: 0 24px; border: 1px solid #8374a8; border-top: 0; background: #f5f1fd">
+<button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 16px; border: 0; background: transparent; color: #555555; font: 400 13px/18px Barlow, Arial, sans-serif; text-align: left"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5Z"></path></svg><strong style="font-weight: 600; color: #101010">{{questionReplies}}</strong><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto"><path d="m6 9 6 6 6-6"></path></svg></button>
+</section>
+</div>
+</div>
+</article>
+
+<article id="post-builder" style="display: flex; gap: 12px">
+<img src="portraits/builder.png" alt="" width="44" height="44" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; object-fit: cover; border: 1px solid #774017">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #774017">Builder</strong> · #13 Query box and result list · updated 09:58</p>
+<div>
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid #ac8262; border-top: 3px solid #f47b20; background: #fffaf6">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #f1eced; color: #3a3a3a; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5.6"></circle><path d="M7 1.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"></path></svg>In progress</span>Search is taking shape</p>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">The query and result list are connected. This is the real list, running on a sample of the library. Try it.</p>
+
+<section aria-label="Interactive prototype from Builder" style="display: flex; flex-direction: column; border: 1px solid #101010; background: #ffffff">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #101010; font: 500 12px/18px 'IBM Plex Mono', monospace"><span>Interactive post · made by Builder</span><a href="#post-builder" style="color: #101010">Open full size</a></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px">
+<label for="proto-q" style="font: 600 15px/1.5 Barlow, Arial, sans-serif">Search the library</label>
+<input id="proto-q" type="search" placeholder="Try “search” or “decision”" onChange="{{onQuery}}" style="box-sizing: border-box; height: 44px; padding: 0 10px; border: 1px solid #858585; font: 400 16px/1.4 Barlow, Arial, sans-serif; color: #101010">
+<p role="status" style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">{{resultCount}}</p>
+<ul style="list-style: none; padding: 0; border-top: 1px solid #d6d6d6">
+<sc-for list="{{results}}" as="it" hint-placeholder-count="5">
+<li style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid #d6d6d6">
+<span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">{{it.title}}</span>
+<span style="font: 500 12px/18px 'IBM Plex Mono', monospace; color: #555555">{{it.type}} · {{it.source}}</span>
+</li>
+</sc-for>
+</ul>
+<sc-if value="{{noResults}}" hint-placeholder-val="{{ false }}"><p style="font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">No matching items. Try a different search.</p></sc-if>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 400 14px/1.5 Barlow, Arial, sans-serif">
+<span style="font: 500 13px/20px 'IBM Plex Mono', monospace">search-notes.txt</span>
+<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Download unconfirmed in this app</span>
+</div>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">This post updates as the work moves</p>
+<details style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">
+<summary style="cursor: pointer">Show changes · 3</summary>
+<ol style="list-style: none; padding: 8px 0 0; display: flex; flex-direction: column; gap: 4px">
+<li><span style="font: 400 12px/18px 'IBM Plex Mono', monospace">09:58</span> · Going back returns to the same row</li>
+<li><span style="font: 400 12px/18px 'IBM Plex Mono', monospace">09:31</span> · Result list pages after 20 items</li>
+<li><span style="font: 400 12px/18px 'IBM Plex Mono', monospace">09:02</span> · Work started</li>
+</ol>
+</details>
+<p style="display: flex; flex-wrap: wrap; gap: 16px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Issue.dc.html">Open issue #13</a><a href="WorkDetail.dc.html">Factory status</a></p>
+</div>
+<section aria-label="Replies" style="margin: 0 24px; border: 1px solid #ac8262; border-top: 0; background: #fef4ed">
+<button type="button" aria-expanded="{{drawerOpen}}" onClick="{{toggleDrawer}}" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 16px; border: 0; background: transparent; color: #555555; font: 400 13px/18px Barlow, Arial, sans-serif; text-align: left"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5Z"></path></svg><strong style="font-weight: 600; color: #101010">2 replies</strong><span aria-hidden="true" style="display: inline-flex"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid #ac8262; background: #ffffff; font: 500 10px/1 'IBM Plex Mono', monospace">A</span><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -5px; border: 1px solid #ac8262; background: #ffffff; font: 500 10px/1 'IBM Plex Mono', monospace">B</span></span><span style="margin-left: auto; font: 500 12px/18px 'IBM Plex Mono', monospace">{{drawerWord}}</span></button>
+<sc-if value="{{drawerOpen}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 16px">
+<div style="display: flex; gap: 10px">
+<span aria-hidden="true" style="flex: 0 0 28px; width: 28px; height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; background: #ffffff; color: #555555; font: 500 12px/1 'IBM Plex Mono', monospace">A</span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<p style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 14px/18px Barlow, Arial, sans-serif; color: #101010">Alex</strong> · 09:40</p>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">The result list should keep its place when I go back to it.</p>
+<p role="status" style="display: inline-flex; align-items: center; gap: 6px; font: 400 13px/18px Barlow, Arial, sans-serif; color: #13613d"><span aria-hidden="true" style="width: 8px; height: 8px; background: #13613d"></span>Builder replied in this conversation</p>
+</div>
+</div>
+<div style="display: flex; gap: 10px">
+<img src="portraits/builder.png" alt="" width="28" height="28" style="flex: 0 0 28px; width: 28px; height: 28px; box-sizing: border-box; object-fit: cover; border: 1px solid #774017">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<p style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 14px/18px Barlow, Arial, sans-serif; color: #774017">Builder</strong> · 09:58</p>
+<p style="font: 400 15px/1.5 Barlow, Arial, sans-serif">Done. Going back now returns to the same row. Try it in the list above.</p>
+</div>
+</div>
+<form style="display: flex; gap: 8px; align-items: flex-start; padding-top: 12px; border-top: 1px solid #ac8262">
+<label for="reply-builder" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">Reply to Builder</label>
+<textarea id="reply-builder" rows="1" maxlength="4000" placeholder="Write a reply…" style="flex: 1 1 auto; min-width: 0; box-sizing: border-box; min-height: 44px; padding: 10px 12px; border: 1px solid #858585; font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #101010; resize: vertical"></textarea>
+<button type="button" title="Reply (Ctrl+Enter)" style="height: 44px; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace">Reply</button>
+</form>
+</div>
+</sc-if>
+</section>
+</div>
+</div>
+</article>
+
+<article style="display: flex; gap: 12px">
+<span aria-hidden="true" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; background: #f3f3f3; color: #555555; font: 500 15px/1 'IBM Plex Mono', monospace">A</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #101010">Alex</strong> · Post · 09:14</p>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p>Could we make finding older work easier?</p>
+<div style="display: flex; gap: 10px; padding: 12px; background: #f3f3f3">
+<img src="portraits/jev.png" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 600 14px/20px Barlow, Arial, sans-serif">JEV</p>
+<p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">This is new work. I handed it to Issue Maker; follow its post for progress and each created issue. <a href="#post-builder">Follow Issue Maker</a></p>
+<ol aria-label="How JEV read this post" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px">
+<li style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; justify-content: space-between; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif"><span>✓ New work <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">(chosen)</span></span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace">86%</span></span><span aria-hidden="true" style="display: block; height: 6px; background: #d6d6d6"><span style="display: block; width: 86%; height: 6px; background: #101010"></span></span></li>
+<li style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; justify-content: space-between; gap: 8px; font: 400 14px/20px Barlow, Arial, sans-serif"><span>Feedback on existing work</span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace">9%</span></span><span aria-hidden="true" style="display: block; height: 6px; background: #d6d6d6"><span style="display: block; width: 9%; height: 6px; background: #757575"></span></span></li>
+<li style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; justify-content: space-between; gap: 8px; font: 400 14px/20px Barlow, Arial, sans-serif"><span>Discussion</span><span style="font: 500 13px/20px 'IBM Plex Mono', monospace">5%</span></span><span aria-hidden="true" style="display: block; height: 6px; background: #d6d6d6"><span style="display: block; width: 5%; height: 6px; background: #757575"></span></span></li>
+</ol>
+<p style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">JEV is <strong style="font-weight: 600; color: #101010">91% sure</strong></p>
+</div>
+</div>
+</div>
+</div>
+</article>
+
+<article id="post-pilot" style="display: flex; gap: 12px">
+<img src="portraits/test-pilot.png" alt="" width="44" height="44" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; object-fit: cover; border: 1px solid #175e66">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #175e66">Test Pilot</strong> · #12 Index library items for search · Yesterday, 16:30</p>
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid #62999f; border-top: 3px solid #20bdd0; background: #f6fcfd">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span>App ready: the indexed library is up to try</p>
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="#post-pilot" style="display: inline-flex; align-items: center; height: 36px; box-sizing: border-box; padding: 0 16px; border: 1px solid #df001b; background: #df001b; color: #ffffff; font: 500 13px/20px 'IBM Plex Mono', monospace; text-decoration: none">Open app ↗</a><a href="#post-pilot">App versions</a></p>
+<section aria-label="Interactive question from Test Pilot" style="display: flex; flex-direction: column; border: 1px solid #101010; background: #ffffff">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #101010; font: 500 12px/18px 'IBM Plex Mono', monospace"><span>Interactive post · made by Test Pilot</span><span style="color: #555555">Question · rate it</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px">
+<p id="q-score" style="font: 600 16px/1.4 Barlow, Arial, sans-serif">After trying it: how does finding an item feel?</p>
+<div role="group" aria-labelledby="q-score" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0">
+<sc-for list="{{levels}}" as="lv" hint-placeholder-count="5">
+<button type="button" aria-pressed="{{lv.on}}" onClick="{{lv.pick}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; padding: 6px 4px; border: 1px solid #101010; margin-left: -1px; background: {{lv.bg}}; color: {{lv.fg}}"><span style="font: 500 15px/20px 'IBM Plex Mono', monospace">{{lv.n}}</span><span style="font: 400 13px/16px Barlow, Arial, sans-serif">{{lv.label}}</span></button>
+</sc-for>
+</div>
+<p role="status" style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">{{scoreLine}}</p>
+</div>
+</section>
+</div>
+</div>
+</article>
+
+<article style="display: flex; gap: 12px">
+<span aria-hidden="true" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #858585; background: #f3f3f3; color: #555555; font: 500 15px/1 'IBM Plex Mono', monospace">A</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #101010">Alex</strong> · Post · Yesterday, 15:02</p>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid #b8b8b8; border-top: 3px solid #b8b8b8; background: #ffffff">
+<p>Removed items still showed up for a moment after I deleted one.</p>
+<div style="display: flex; gap: 10px; padding: 12px; border: 1px dashed #555555; background: #f3f3f3">
+<img src="portraits/jev.png" alt="" width="24" height="24" style="flex: 0 0 24px; display: block; object-fit: cover">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 14px/20px Barlow, Arial, sans-serif">JEV<span style="padding: 1px 8px; border: 1px dashed #555555; color: #3a3a3a; font: 500 12px/18px 'IBM Plex Mono', monospace">Feedback unavailable in this app</span></p>
+<p role="status" style="font: 400 15px/1.5 Barlow, Arial, sans-serif">This is feedback on existing work. Adding it to its issue is not available in this app yet, so nothing was added for you.</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Issue.dc.html">Open issue discussion</a> to add it yourself. Your post stays here.</p>
+</div>
+</div>
+</div>
+</div>
+</article>
+
+<article style="display: flex; gap: 12px">
+<img src="portraits/factory.png" alt="" width="44" height="44" style="flex: 0 0 44px; width: 44px; height: 44px; box-sizing: border-box; object-fit: cover; border: 1px solid #33373d">
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<p style="font: 400 14px/20px Barlow, Arial, sans-serif; color: #555555"><strong style="font: 600 15px/20px Barlow, Arial, sans-serif; color: #33373d">Factory</strong> · #12 Index library items for search · Yesterday, 14:05</p>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid #777a7f; border-top: 3px solid #5d6675; background: #f8f9f9">
+<p style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 600 17px/1.4 Barlow, Arial, sans-serif"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; background: #dff4ea; color: #13613d; font: 600 12px/18px Barlow, Arial, sans-serif"><svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 7.4 5.6 10.5 11.6 3.6"></path></svg>Done</span>SodaOS merged pull request #15 and closed issue #12</p>
+<p style="font: 400 14px/1.5 Barlow, Arial, sans-serif; color: #555555">Nothing needed from you</p>
+<p style="display: flex; flex-wrap: wrap; gap: 16px; font: 400 14px/1.5 Barlow, Arial, sans-serif"><a href="Pull.dc.html">Open pull request #15</a><a href="WorkDetail.dc.html">Factory status</a></p>
+</div>
+</div>
+</article>
+</div>
+
+<aside style="flex: 1 1 260px; min-width: 0; max-width: 320px; display: flex; flex-direction: column; gap: 20px">
+<section aria-label="Needs me" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #101010">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">Needs me · {{needCount}}</h2>
+<sc-if value="{{unsent}}" hint-placeholder-val="{{ true }}">
+<a href="#post-question" style="display: flex; gap: 10px; color: #101010; text-decoration: none">
+<img src="portraits/architect.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">How should a result open?</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Architect · waits for you · 12 min</span></span>
+</a>
+</sc-if>
+<sc-if value="{{noScore}}" hint-placeholder-val="{{ true }}">
+<a href="#post-pilot" style="display: flex; gap: 10px; color: #101010; text-decoration: none">
+<img src="portraits/test-pilot.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">How does finding an item feel?</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Test Pilot · optional · since yesterday</span></span>
+</a>
+</sc-if>
+<sc-if value="{{allClear}}" hint-placeholder-val="{{ false }}"><p style="font: 400 15px/1.5 Barlow, Arial, sans-serif; color: #555555">Nothing needed from you</p></sc-if>
+</section>
+
+<section aria-label="Who is posting" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #b8b8b8">
+<h2 style="font: 700 22px/1.2 'Barlow Condensed', 'Arial Narrow', sans-serif">On this project</h2>
+<div style="display: flex; gap: 10px"><img src="portraits/architect.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Architect</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">{{architectLine}}</span></span></div>
+<div style="display: flex; gap: 10px"><img src="portraits/builder.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Builder</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Building #13</span></span></div>
+<div style="display: flex; gap: 10px"><img src="portraits/test-pilot.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">Test Pilot</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">App ready for #12</span></span></div>
+<div style="display: flex; gap: 10px"><img src="portraits/jev.png" alt="" width="28" height="28" style="flex: 0 0 28px; display: block; object-fit: cover"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font: 600 15px/1.4 Barlow, Arial, sans-serif">JEV</span><span style="font: 400 13px/18px Barlow, Arial, sans-serif; color: #555555">Reads every post and reply</span></span></div>
+<a href="Work.dc.html" style="font: 400 14px/1.5 Barlow, Arial, sans-serif">Open work</a>
+</section>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3400}}'>
+class Component extends DCLogic {
+state = { draft: '', to: 'jev', posts: [], pick: '', keep: '', note: '', sent: false, q: '', score: -1, drawer: true };
+
+renderVals() {
+var s = this.state;
+var self = this;
+var on = '#101010', off = '#ffffff';
+
+var readerDefs = [
+{ id: 'jev', label: 'JEV routes it', actor: 'JEV', src: 'portraits/jev.png' },
+{ id: 'builder', label: 'Builder', actor: 'Builder', src: 'portraits/builder.png' },
+{ id: 'architect', label: 'Architect', actor: 'Architect', src: 'portraits/architect.png' },
+{ id: 'test_pilot', label: 'Test Pilot', actor: 'Test Pilot', src: 'portraits/test-pilot.png' }
+];
+var readers = readerDefs.map(function (r) {
+var active = s.to === r.id;
+return { label: r.label, src: r.src, on: active, edge: active ? on : '#858585', bg: active ? on : off, fg: active ? '#ffffff' : '#101010', pick: function () { self.setState({ to: r.id }); } };
+});
+var reader = readerDefs.filter(function (r) { return r.id === s.to; })[0] || readerDefs[0];
+var canPost = s.draft.trim() !== '';
+
+var items = [
+{ title: 'Earlier reviewed choice', type: 'Decision', source: 'Architect' },
+{ title: 'Search is taking shape', type: 'Knowledge', source: 'Builder' },
+{ title: 'Search first, filters after', type: 'Decision', source: 'Architect' },
+{ title: 'Earlier library work', type: 'Knowledge', source: 'Builder' },
+{ title: 'Settings change merged', type: 'Knowledge', source: 'Inspector' }
+];
+var q = s.q.trim().toLowerCase();
+var results = items.filter(function (it) { return q === '' || (it.title + ' ' + it.type + ' ' + it.source).toLowerCase().indexOf(q) !== -1; });
+
+var canSend = s.pick !== '' && s.keep !== '';
+var answer = (s.pick === 'beside' ? 'Open beside the list' : 'Open in place') + '. Keep my place: ' + (s.keep === 'yes' ? 'yes' : 'no') + '.';
+var levelNames = ['Unusable', 'Rough', 'Works', 'Good', 'Great'];
+var levels = levelNames.map(function (label, n) {
+var active = s.score === n;
+return { n: n, label: label, on: active, bg: active ? on : off, fg: active ? '#ffffff' : '#101010', pick: function () { self.setState({ score: n }); } };
+});
+var need = (s.sent ? 0 : 1) + (s.score < 0 ? 1 : 0);
+
+return {
+draft: s.draft,
+onDraft: function (e) { self.setState({ draft: e.target.value }); },
+readers: readers,
+readerHint: s.to === 'jev' ? 'JEV turns it into new work, feedback on an issue, or a discussion.' : reader.actor + ' reads this first and replies here. JEV still records it.',
+cantPost: !canPost,
+postEdge: canPost ? '#df001b' : '#b8b8b8',
+postBg: canPost ? '#df001b' : '#f3f3f3',
+postFg: canPost ? '#ffffff' : '#555555',
+post: function () {
+var text = s.draft.trim();
+if (text === '') return;
+var status = s.to === 'jev' ? 'I’m reading your request and working out what it needs…' : reader.actor + ' was invited. Waiting for its actual reply.';
+self.setState({ posts: [{ text: text, actor: reader.actor, src: reader.src, status: status }].concat(s.posts), draft: '' });
+},
+posts: s.posts,
+
+sent: s.sent,
+unsent: !s.sent,
+aOn: s.pick === 'inplace',
+bOn: s.pick === 'beside',
+aEdge: s.pick === 'inplace' ? on : '#b8b8b8',
+bEdge: s.pick === 'beside' ? on : '#b8b8b8',
+aMark: s.pick === 'inplace' ? '✓ Picked' : '',
+bMark: s.pick === 'beside' ? '✓ Picked' : '',
+pickA: function () { self.setState({ pick: 'inplace' }); },
+pickB: function () { self.setState({ pick: 'beside' }); },
+yesOn: s.keep === 'yes',
+noOn: s.keep === 'no',
+yesBg: s.keep === 'yes' ? on : off,
+yesFg: s.keep === 'yes' ? '#ffffff' : '#101010',
+noBg: s.keep === 'no' ? on : off,
+noFg: s.keep === 'no' ? '#ffffff' : '#101010',
+pickYes: function () { self.setState({ keep: 'yes' }); },
+pickNo: function () { self.setState({ keep: 'no' }); },
+onNote: function (e) { self.setState({ note: e.target.value }); },
+cantSend: !canSend,
+sendEdge: canSend ? '#df001b' : '#b8b8b8',
+sendBg: canSend ? '#df001b' : '#f3f3f3',
+sendFg: canSend ? '#ffffff' : '#555555',
+sendHint: canSend ? 'Your answer is posted as a reply the Architect reads.' : 'Pick a layout and answer yes or no to send.',
+send: function () { if (canSend) self.setState({ sent: true }); },
+unsend: function () { self.setState({ sent: false }); },
+answerLine: answer,
+note: s.note.trim(),
+hasNote: s.note.trim() !== '',
+questionReplies: s.sent ? '1 reply' : 'Replies',
+architectLine: s.sent ? 'Your answer is incorporated' : 'Waiting on your answer',
+
+onQuery: function (e) { self.setState({ q: e.target.value }); },
+results: results,
+noResults: results.length === 0,
+resultCount: results.length === 1 ? '1 item' : results.length + ' items',
+
+levels: levels,
+noScore: s.score < 0,
+scoreLine: s.score < 0 ? 'Pick a level. Test Pilot reads it before the next check.' : 'You rated it ' + s.score + ' of 4 · ' + levelNames[s.score] + '. Reply received.',
+
+drawerOpen: s.drawer,
+drawerWord: s.drawer ? 'Hide' : 'Show',
+toggleDrawer: function () { self.setState({ drawer: !s.drawer }); },
+
+needCount: need,
+allClear: need === 0
+};
+}
+}
+</script>
+</body>
+</html>
