@@ -7,6 +7,7 @@
 @import './settings.css';
 @import './projects.css';
 @import './jump.css';
+@import './work.css';
 
 /* The standalone product supplies its own envelope. Fountain keeps its native
    document/theme envelope and imports the same component CSS independently. */

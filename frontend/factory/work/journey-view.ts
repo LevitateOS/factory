@@ -246,9 +246,9 @@ function describeJourneyObserved(observedUnix: number): string {
 }
 
 export function renderWorkJourney(model: WorkJourneyModel): TemplateResult {
-  const section = (title: string, rows: readonly (string | TemplateResult)[]) =>
+  const section = (title: string, rows: readonly (string | TemplateResult)[], cls = '') =>
     rows.length
-      ? html`<section aria-label=${title}>
+      ? html`<section aria-label=${title} class=${cls}>
           <h3>${title}</h3>
           <ul>
             ${rows.map((row) => html`<li>${row}</li>`)}
@@ -258,7 +258,7 @@ export function renderWorkJourney(model: WorkJourneyModel): TemplateResult {
   return html`
     <section aria-label="Work journey">
       <p role="status">${model.headline}</p>
-      ${section('Recorded phases', model.phases)}
+      ${section('Recorded phases', model.phases, 'soda-journey-strip')}
       ${section(
         'Tasks',
         model.tasks.map((task) => html`${task.text} ${task.link ? html`<a href=${task.link}>Open issue</a>` : ''}`)

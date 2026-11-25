@@ -1,0 +1,205 @@
+/* Work detail page and the work journey strip. */
+.soda-work-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-wrap: anywhere;
+}
+.soda-work-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.soda-work-head > p {
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-work-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 32px;
+}
+.soda-work-main {
+  flex: 999 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.soda-work-side {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.soda-work-detail h2,
+.soda-work-detail h3 {
+  margin: 0;
+  font: var(--soda-font-heading);
+}
+.soda-work-detail h3 {
+  font-size: 20px;
+}
+.soda-work-detail p,
+.soda-work-detail ul {
+  margin: 0;
+}
+.soda-work-detail ul {
+  padding: 0;
+  list-style: none;
+}
+.soda-work-detail button {
+  min-height: var(--soda-workspace-control);
+  padding: 0 14px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 0;
+  color: var(--soda-page-text);
+  background: var(--soda-page-canvas);
+  font: var(--soda-font-button);
+}
+.soda-work-detail button:disabled {
+  color: var(--soda-page-muted);
+  background: var(--soda-page-selected);
+}
+
+/* Current run facts: label/value rows in one ruled box. */
+.soda-work-facts > section {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--soda-page-edge);
+}
+.soda-work-facts > section > :is(p, ul) {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--soda-page-edge);
+  font: var(--soda-font-body);
+}
+.soda-work-facts > section > :last-child {
+  border-bottom: 0;
+}
+.soda-work-facts > section > ul:not(:has(li)) {
+  display: none;
+}
+.soda-work-facts > section > p[role='status'] {
+  font: var(--soda-font-label);
+  background: var(--soda-page-selected);
+}
+
+/* Live output: a dashed panel, since the app does not stream it. */
+.soda-work-live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--soda-page-muted);
+  background: var(--soda-page-selected);
+}
+.soda-work-live h2 {
+  font-size: 22px;
+}
+.soda-work-live li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+/* Verification and run controls beside the page. */
+.soda-work-side section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--soda-page-edge);
+}
+.soda-work-side > section[aria-label='Factory interventions'] {
+  padding: 0;
+  border: 0;
+}
+.soda-work-side section > p {
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-work-side li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 0 0 10px;
+}
+.soda-work-side li > p {
+  color: var(--soda-page-muted);
+  font: var(--soda-font-caption);
+}
+.soda-work-side li > p[role='status']:empty {
+  display: none;
+}
+.soda-work-side li > button {
+  min-height: var(--soda-control-height);
+  padding: 0 16px;
+}
+
+/* Journey strip. */
+soda-factory-work-journey {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.soda-journey-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+soda-factory-work-journey > p {
+  margin: 0;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+soda-factory-work-journey > p:empty {
+  display: none;
+}
+soda-factory-work-journey section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+soda-factory-work-journey ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--soda-page-edge);
+}
+soda-factory-work-journey li {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--soda-page-edge);
+  font: var(--soda-font-meta);
+}
+soda-factory-work-journey li:last-child {
+  border-bottom: 0;
+}
+soda-factory-work-journey .soda-journey-strip ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+soda-factory-work-journey .soda-journey-strip li {
+  border-right: 1px solid var(--soda-page-edge);
+  border-bottom: 0;
+  font: var(--soda-font-label);
+}
+soda-factory-work-journey .soda-journey-strip li:last-child {
+  border-right: 0;
+}
+soda-factory-work-journey h3 {
+  margin: 0;
+  font: var(--soda-font-label);
+  color: var(--soda-page-muted);
+}

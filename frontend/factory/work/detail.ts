@@ -532,43 +532,55 @@ export class SodaFactoryWorkDetail extends LitElement {
     const context = this.bound.current;
     if (!context) return html``;
     const watchable = context.watchAvailable !== false && this.observation?.state === 'ready' && (this.detail?.capabilities.watch.available ?? false);
-    return html`<section aria-label="Factory work detail" @soda-factory-work-refresh=${() => this.load()}>
-      <p data-work-message aria-live="polite">${this.message}</p>
-      <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>Refresh detail</button>
-      ${this.detail ? renderWorkDetail(describeIssueDetail(this.detail, context.detailLinks ? context.detailLinks(this.detail) : context.links)) : this.busy ? html`<p>Loading work detail…</p>` : ''}
-      <soda-factory-retained-publication
-        .context=${{transport: context.transport, repository: context.repository, issue: context.issue, detail: this.detail, commandScope: context.commandScope}}
-      ></soda-factory-retained-publication>
-      <soda-factory-external-pull
-        .context=${{transport: context.transport, repository: context.repository, issue: context.issue, available: this.detail?.capabilities.adopt_external?.available === true, commandScope: context.commandScope}}
-      ></soda-factory-external-pull>
-      <soda-factory-work-journey
-        .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.links, issue: context.issue}}
-      ></soda-factory-work-journey>
-      <soda-factory-requirements-acceptance
-        .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.acceptanceLinks, issue: context.issue, commandScope: context.commandScope}}
-        @soda-factory-requirements-accepted=${() => this.load()}
-      ></soda-factory-requirements-acceptance>
-      <soda-factory-completion-retry
-        .context=${{observation: this.observation, transport: context.transport, repository: context.repository, issue: context.issue, commandScope: context.commandScope}}
-        @soda-completion-retry-queued=${() => this.load()}
-      ></soda-factory-completion-retry>
-      ${this.watchNote() ? html`<p>${this.watchNote()}</p>` : ''}
-      <ul>
-        ${this.runs.map(
-          (entry) => html`<li>
-            ${runRowText(entry)}
-            ${entry.detail ? html`<soda-factory-context-resolution .context=${{transport: context.transport, repository: context.repository, issue: context.issue, commandScope: context.commandScope, run: entry.detail}} @soda-context-resolved=${() => this.load()}></soda-factory-context-resolution>` : ''}
-            <button type="button" class="ui button" ?disabled=${!watchable} @click=${() => this.requestWatch(entry.id)}>
-              Watch output
-            </button>
-          </li>`
-        )}
-      </ul>
-      ${renderInterventions(
-        (Object.keys(this.marks) as InterventionKind[]).map((kind) => this.interventionMarks(kind)),
-        {act: this.act}
-      )}
+    const note = this.watchNote();
+    return html`<section class="soda-work-detail" aria-label="Factory work detail" @soda-factory-work-refresh=${() => this.load()}>
+      <header class="soda-work-head">
+        <p data-work-message aria-live="polite">${this.message}</p>
+        <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>Refresh detail</button>
+      </header>
+      <div class="soda-work-layout">
+        <div class="soda-work-main">
+          <soda-factory-work-journey
+            .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.links, issue: context.issue}}
+          ></soda-factory-work-journey>
+          ${this.detail ? html`<div class="soda-work-facts">${renderWorkDetail(describeIssueDetail(this.detail, context.detailLinks ? context.detailLinks(this.detail) : context.links))}</div>` : this.busy ? html`<p>Loading work detail…</p>` : ''}
+          <section class="soda-work-live" aria-label="Live output">
+            <h2>Live output</h2>
+            ${note ? html`<p>${note}</p>` : ''}
+            <ul>
+              ${this.runs.map(
+                (entry) => html`<li>
+                  <span>${runRowText(entry)}</span>
+                  ${entry.detail ? html`<soda-factory-context-resolution .context=${{transport: context.transport, repository: context.repository, issue: context.issue, commandScope: context.commandScope, run: entry.detail}} @soda-context-resolved=${() => this.load()}></soda-factory-context-resolution>` : ''}
+                  <button type="button" class="ui button" ?disabled=${!watchable} @click=${() => this.requestWatch(entry.id)}>
+                    Watch output
+                  </button>
+                </li>`
+              )}
+            </ul>
+          </section>
+          <soda-factory-requirements-acceptance
+            .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.acceptanceLinks, issue: context.issue, commandScope: context.commandScope}}
+            @soda-factory-requirements-accepted=${() => this.load()}
+          ></soda-factory-requirements-acceptance>
+        </div>
+        <aside class="soda-work-side">
+          ${renderInterventions(
+            (Object.keys(this.marks) as InterventionKind[]).map((kind) => this.interventionMarks(kind)),
+            {act: this.act}
+          )}
+          <soda-factory-retained-publication
+            .context=${{transport: context.transport, repository: context.repository, issue: context.issue, detail: this.detail, commandScope: context.commandScope}}
+          ></soda-factory-retained-publication>
+          <soda-factory-external-pull
+            .context=${{transport: context.transport, repository: context.repository, issue: context.issue, available: this.detail?.capabilities.adopt_external?.available === true, commandScope: context.commandScope}}
+          ></soda-factory-external-pull>
+          <soda-factory-completion-retry
+            .context=${{observation: this.observation, transport: context.transport, repository: context.repository, issue: context.issue, commandScope: context.commandScope}}
+            @soda-completion-retry-queued=${() => this.load()}
+          ></soda-factory-completion-retry>
+        </aside>
+      </div>
     </section>`;
   }
 }

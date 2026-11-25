@@ -32,15 +32,18 @@ export class SodaFactoryWorkJourney extends LitElement {
         : observation?.state === 'loading'
           ? 'Loading work history…'
           : 'Current work history is unavailable. Retained history is stale.';
-    return html`<p role="status">${message}</p>
-      <button
-        type="button"
-        class="ui button"
-        ?disabled=${observation?.state === 'loading'}
-        @click=${() => requestWorkRefresh(this)}
-      >
-        Refresh journey
-      </button>
+    return html`<header class="soda-journey-head">
+        <h2>Journey</h2>
+        <button
+          type="button"
+          class="ui button"
+          ?disabled=${observation?.state === 'loading'}
+          @click=${() => requestWorkRefresh(this)}
+        >
+          Refresh journey
+        </button>
+      </header>
+      <p role="status">${message}</p>
       ${journey ? renderWorkJourney(describeWorkJourney(journey, this.context.links)) : ''}`;
   }
 }
