@@ -31,7 +31,6 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   const accounts = panel.querySelector<HTMLSelectElement>('#factory-account')!;
   const suggestions = panel.querySelector<HTMLDataListElement>('#repository-options')!;
   const status = panel.querySelector<HTMLElement>('#connection-status')!;
-  const more = panel.querySelector<HTMLButtonElement>('#repository-more')!;
   const reconnect = panel.querySelector<HTMLButtonElement>('#connection-reconnect')!;
   const disconnect = panel.querySelector<HTMLButtonElement>('#connection-disconnect')!;
   const find = panel.querySelector<HTMLFormElement>('#repository-find')!;
@@ -45,7 +44,9 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   let selected: Binding | undefined, pending: string | undefined, product: DesktopProduct | undefined;
   let connection = '',
     wanted = '',
-    nextPage = 0;
+    nextPage = 0,
+    // The connection session whose repositories are read, or being read, for the picker.
+    listedFor = '';
   let fountainRepository = '';
   const fountain = () => known.find(account => account.connection === connection)?.provider === 'fountain';
   // Account/repository are user choices; selected is only the current binding.
@@ -183,8 +184,6 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       repositoryOptions = projects;
       suggestions.replaceChildren(...discovered.map((repo) => new Option(repo.private === true ? 'Private' : '', repo.name)));
     }
-    more.hidden = !nextPage;
-    more.disabled = busy || !selected;
     reconnect.disabled =
       !ready ||
       !accountsCurrent ||
@@ -263,7 +262,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     if (!live(captured) || session !== selected?.session) return;
     check(reply.status === 200);
     const body = object(reply.body);
-    check(Array.isArray(body.items) && body.items.length <= 20 && Number.isSafeInteger(body.next_page));
+    check(Array.isArray(body.items) && body.items.length <= 100 && Number.isSafeInteger(body.next_page));
     const next = Number(body.next_page);
     check(next === 0 || (next > page && next <= 1000000));
     const values = body.items.map(repository);
@@ -273,6 +272,21 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     check(unique.size <= 1000);
     discovered = [...unique.values()];
     nextPage = next;
+  }
+  /** Reads every repository the account can open, newest first, 100 per request
+   * and at most 1,000, so typing in the picker finds any of them. */
+  async function discoverAll(captured: number) {
+    let page = 1;
+    while (page) {
+      await discover(captured, page);
+      if (!live(captured) || nextPage <= page) return;
+      render();
+      if (discovered.length >= 1000) {
+        message = 'Your 1,000 most recently updated repositories are listed. Enter owner/name for any other.';
+        return;
+      }
+      page = nextPage;
+    }
   }
   async function choose(account: string, remote = '', enrolled = '') {
     resumeRequested = false;
@@ -321,7 +335,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       }
       pending = undefined;
       selected = value;
-      if (value.repository) name.value = value.repository.name;
+      // The field is for finding another repository; the open one is already in the header.
+      name.value = '';
       const metadata = discovered.find((repo) => repo.external_id === remote);
       product = new DesktopProduct(core, value, profile, navigate, signIn.sections, projects, metadata?.default_branch);
       projects.connected(product.transport);
@@ -374,12 +389,14 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     nextPage = 0;
     void choose(accounts.value);
   });
-  // With a project open the list is read only when the person reaches for it.
+  // The list is read once per connection, when the person first reaches for it.
   name.addEventListener('focus', () => {
-    if (discovered.length || busy || !selected) return;
+    if (busy || !selected || listedFor === selected.session) return;
     const captured = serial;
-    void discover(captured, 1)
+    listedFor = selected.session;
+    void discoverAll(captured)
       .catch(() => {
+        listedFor = '';
         if (live(captured)) message = 'Your repositories could not be listed. Enter owner/name instead.';
       })
       .finally(() => {
@@ -393,21 +410,6 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
   });
   reconnect.addEventListener('click', () => void reconnectHere());
   disconnect.addEventListener('click', () => void disconnectHere());
-  more.addEventListener('click', () => {
-    const captured = serial;
-    busy = true;
-    render();
-    void discover(captured, nextPage)
-      .catch(() => {
-        if (live(captured)) message = 'More repositories could not be loaded. Try again.';
-      })
-      .finally(() => {
-        if (serial === captured) {
-          busy = false;
-          render();
-        }
-      });
-  });
   find.addEventListener('submit', (event) => {
     event.preventDefault();
     const captured = serial,

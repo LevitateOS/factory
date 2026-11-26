@@ -677,6 +677,8 @@ impl Read {
             return Err(Failure::invalid());
         }
         let files = matches!(self, Self::PullFiles { .. });
+        // The repository picker reads the whole list once, so it takes GitHub's largest page.
+        let repositories = matches!(self, Self::Repositories { .. });
         if let Self::PullThreads {
             thread_id, limit, cursor, ..
         } = self
@@ -694,7 +696,7 @@ impl Read {
                 .is_none_or(|page| page == 0 || page > if files { 3000 } else { 1_000_000 })
                 || value["limit"]
                     .as_u64()
-                    .is_none_or(|limit| limit == 0 || limit > if files { 10 } else { 50 })
+                    .is_none_or(|limit| limit == 0 || limit > if files { 10 } else if repositories { 100 } else { 50 })
             {
                 return Err(Failure::invalid());
             }

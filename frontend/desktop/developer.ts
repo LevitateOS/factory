@@ -102,6 +102,9 @@ export async function mountDeveloper(core: Core) {
         return '';
     }
   };
+  // Roles named by their text, as in ARIA, plus status and alert so their messages are readable.
+  const nameFromContent = ['button', 'link', 'heading', 'alert', 'status', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option'];
+  const clickable = ['button', 'link', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab'];
   const secret = (element: HTMLElement) =>
     element instanceof HTMLInputElement && ['password', 'file', 'hidden'].includes(element.type);
   const name = (element: HTMLElement): string => {
@@ -135,9 +138,7 @@ export async function mountDeveloper(core: Core) {
         ? element.value
         : '';
     }
-    return ['button', 'link', 'heading', 'alert', 'status'].includes(role(element))
-      ? normalize(element.textContent ?? '')
-      : '';
+    return nameFromContent.includes(role(element)) ? normalize(element.textContent ?? '') : '';
   };
   const disabled = (element: HTMLElement) =>
     element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true' || !!element.closest('[inert]');
@@ -262,7 +263,7 @@ export async function mountDeveloper(core: Core) {
     if (found.matches('[readonly]') || secret(found)) return failed('unsupported_control');
     found.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'});
     if (request.op === 'click') {
-      if (!['button', 'link', 'checkbox', 'radio'].includes(role(found))) return failed('unsupported_control');
+      if (!clickable.includes(role(found))) return failed('unsupported_control');
       found.click();
     } else if (request.op === 'check') {
       if (!(found instanceof HTMLInputElement) || found.type !== 'checkbox') return failed('unsupported_control');

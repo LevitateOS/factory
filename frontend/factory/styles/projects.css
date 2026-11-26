@@ -46,9 +46,6 @@
   border: 1px solid var(--soda-page-edge);
   background: var(--soda-page-surface);
 }
-.soda-factory-project-card[data-connection="current"] {
-  border: 2px solid var(--soda-page-text);
-}
 .soda-factory-project-card-body {
   flex: 999 1 320px;
   min-width: 0;

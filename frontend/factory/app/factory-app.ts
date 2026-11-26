@@ -336,6 +336,14 @@ export class SodaFactoryApp extends LitElement {
     if (this.live(context, signal)) await this.readProjects(context);
     if (this.live(context, signal) && this.screen instanceof SodaFactoryProjects) this.screen.reload();
   }
+  /** Projects should focus its repository picker once it opens. */
+  private addRepository = false;
+  /** Open a GitHub repository: the Projects page, with its add-a-project picker focused. */
+  private openRepository() {
+    if (this.screen instanceof SodaFactoryProjects) return void this.screen.focusAdd();
+    this.addRepository = true;
+    this.navigate({kind: 'projects'});
+  }
   /** What a project's menu offers; none means right-click does nothing. */
   private projectActions(port: FactoryProjectsPort, row: FactoryProject) {
     return {window: row.connection !== 'sign_in', remove: !!port.remove && row.connection !== 'current'};
@@ -359,11 +367,12 @@ export class SodaFactoryApp extends LitElement {
     if (!menu.matches(':popover-open')) menu.showPopover();
     this.placeMenu(menu);
   }
-  /** Opens at the pointer and stays inside the window, flipping up near the bottom. */
   private placeMenu(menu: HTMLElement) {
-    if (!this.menuAt) return;
-    const {x, y} = this.menuAt,
-      box = menu.getBoundingClientRect(),
+    if (this.menuAt) this.placePopover(menu, this.menuAt.x, this.menuAt.y);
+  }
+  /** Opens a menu at (x, y) inside the window, flipping up near the bottom, and focuses its first item. */
+  private placePopover(menu: HTMLElement, x: number, y: number) {
+    const box = menu.getBoundingClientRect(),
       gap = 8;
     menu.style.left = Math.max(gap, Math.min(x, innerWidth - box.width - gap)) + 'px';
     menu.style.top = (y + box.height + gap > innerHeight ? Math.max(gap, y - box.height) : y) + 'px';
@@ -515,6 +524,8 @@ export class SodaFactoryApp extends LitElement {
       if (!this.live(context, signal)) return;
       check(ports.kind === context.route.kind);
       this.screen = this.mount(context, ports, signal);
+      if (this.addRepository && this.screen instanceof SodaFactoryProjects) void this.screen.focusAdd();
+      this.addRepository = false;
       this.lastRead = Date.now();
       this.message = '';
     } catch {
@@ -858,6 +869,7 @@ export class SodaFactoryApp extends LitElement {
     const pages = links.map((link) => ({group: project ? 'In ' + project : 'Pages', label: link.label, meta: 'page', run: () => this.navigate(link.route)}));
     const actions: JumpItem[] = [
       ...(port && context.destinations?.includes('projects') ? [{group: 'Actions', label: 'All projects', meta: 'action', run: () => this.navigate({kind: 'projects'})}] : []),
+      ...(port && context.destinations?.includes('projects') ? [{group: 'Actions', label: 'Open a GitHub repository', meta: 'action', run: () => this.openRepository()}] : []),
       ...(port?.create && context.destinations?.includes('project-new') ? [{group: 'Actions', label: 'New project', meta: 'action', run: () => this.navigate({kind: 'project-new'})}] : []),
       ...links.flatMap(({route}) => (route.kind === 'issues' ? [{group: 'Actions', label: 'New issue', meta: 'action', run: () => this.navigate({kind: 'issue-new', repository: route.repository})}] : [])),
       ...foot.map((link) => ({group: 'Actions', label: 'Open ' + link.label, meta: 'action', run: () => this.navigate(link.route)})),
@@ -930,18 +942,39 @@ export class SodaFactoryApp extends LitElement {
                 >
                   Projects
                 </button>
-                ${port.create && context.destinations.includes('project-new')
-                  ? html`<button
-                      type="button"
-                      class="soda-factory-projects-new"
-                      aria-label="New project"
-                      title="New project"
-                      aria-current=${context.route.kind === 'project-new' ? 'page' : 'false'}
-                      @click=${() => this.navigate({kind: 'project-new'})}
-                    >
-                      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-                    </button>`
-                  : ''}
+                <button
+                  type="button"
+                  class="soda-factory-projects-new"
+                  aria-label="Add a project"
+                  title="Add a project"
+                  aria-haspopup="menu"
+                  popovertarget="soda-factory-add-menu"
+                  aria-current=${context.route.kind === 'project-new' ? 'page' : 'false'}
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+                </button>
+                <div
+                  id="soda-factory-add-menu"
+                  class="soda-factory-context-menu"
+                  popover="auto"
+                  role="menu"
+                  aria-label="Add a project"
+                  @keydown=${this.menuKey}
+                  @toggle=${(event: ToggleEvent) => {
+                    if (event.newState !== 'open') return;
+                    const plus = this.querySelector<HTMLElement>('.soda-factory-projects-new')!.getBoundingClientRect();
+                    this.placePopover(event.currentTarget as HTMLElement, plus.left, plus.bottom + 4);
+                  }}
+                >
+                  <button type="button" role="menuitem" @click=${(event: Event) => { (event.currentTarget as HTMLElement).closest<HTMLElement>('[popover]')!.hidePopover(); this.openRepository(); }}>
+                    Open a GitHub repository
+                  </button>
+                  ${port.create && context.destinations.includes('project-new')
+                    ? html`<button type="button" role="menuitem" @click=${(event: Event) => { (event.currentTarget as HTMLElement).closest<HTMLElement>('[popover]')!.hidePopover(); this.navigate({kind: 'project-new'}); }}>
+                        Create a new repository
+                      </button>`
+                    : ''}
+                </div>
               </div>
               ${listed.length
                 ? html`<nav aria-label="Your projects">

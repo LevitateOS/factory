@@ -84,6 +84,14 @@ export class SodaFactoryProjects extends LitElement {
       else this.message = 'Could not update the list. Showing the last one read.';
     }
   }
+  /** Brings the host's add-a-project section into view and focuses its first control. */
+  async focusAdd() {
+    await this.updateComplete;
+    const aside = this.querySelector<HTMLElement>('.soda-factory-projects-aside');
+    aside?.scrollIntoView({block: 'nearest'});
+    // The repository field when it is ready; the account choice before it otherwise.
+    (aside?.querySelector<HTMLElement>('input:not(:disabled)') ?? aside?.querySelector<HTMLElement>('select:not(:disabled)'))?.focus();
+  }
   /** Re-reads the kept list after the frame changed it, such as a sidebar removal. */
   reload() {
     const context = this.current;
@@ -159,7 +167,7 @@ export class SodaFactoryProjects extends LitElement {
     const post = row.summary?.latestPost;
     const button = (action: Action, label: string, tone = '') =>
       html`<button type="button" data-tone=${tone} ?disabled=${busy} aria-busy=${this.pending === row.key + ':' + action ? 'true' : 'false'} @click=${() => void this.act(row, action)}>${label}</button>`;
-    return html`<article class="soda-factory-project-card" data-connection=${row.connection} aria-label=${row.name}>
+    return html`<article class="soda-factory-project-card" aria-label=${row.name}>
       <div class="soda-factory-project-card-body">
         <div class="soda-factory-project-card-title">
           <h3>${row.name}</h3>

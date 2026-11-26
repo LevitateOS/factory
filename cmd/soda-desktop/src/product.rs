@@ -415,7 +415,7 @@ pub(super) async fn factory_repositories(
     }
     let desktop = app.state::<Desktop>();
     let selection = desktop.product.selected(window.label(), &session)?;
-    let work = discover(&desktop, &selection, Read::Repositories { page, limit: 20 });
+    let work = discover(&desktop, &selection, Read::Repositories { page, limit: 100 });
     tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = work => result}
 }
 async fn discover(desktop: &Desktop, selection: &Selection, query: Read) -> Result<Reply, String> {
