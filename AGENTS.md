@@ -83,12 +83,20 @@
 - Use a user-started Daybreak session only when the work or a check looks like
   hacking. Daybreak has the anti-hacking audit for that work; it is not a general
   security gate. Routine product security engineering belongs in the normal
-  implementation queue. Normal coding agents may implement and verify D3 worker
-  isolation, credential custody, authentication and IPC admission, including
-  ordinary checks. Apply the same real evidence and completion rules to these
-  gates as to other slices.
+  implementation queue. Normal coding agents may implement and verify credential
+  custody, authentication and IPC admission, including ordinary checks. Apply the
+  same real evidence and completion rules to these gates as to other slices.
   Do not claim a gate complete from source checks or component probes alone, and
   do not infer Daybreak access from a model name.
+- Agents are not isolated (founder decision, 2026-11-26). Factory runs the user's
+  already-installed agent CLI (Muse, later Claude Code) as the user, with the
+  CLI's own login, in a visible per-task worktree. Never add a root broker,
+  hidden users, OS units, sudo installers, CLI downloads or a Factory-built
+  sandbox. Unattended runs keep the CLI's own sandbox on (never pass `--yolo`
+  or `--disable-sandbox`). Kept: the agent never holds the GitHub token (the
+  desktop pushes, opens PRs and merges), outside-contributor work is never
+  merged without a human, and outside-contributor PRs get review only.
+  The old D3 worker-isolation gate is retired; don't revive it.
 - Preserve existing work, retained profiles, credentials and historical evidence.
   All builds, caches, state and scratch belong under `/home`; set TMPDIR there.
 - No authored Python, new unit tests, Rust test modules in `src/`, or new unit-test

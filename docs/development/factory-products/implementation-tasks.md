@@ -19,6 +19,53 @@ security gate is closed by source checks. Use the
 below as the current scoped continuation; dated Q prompts remain requirements
 and historical evidence, not a competing current status list.
 
+## Agents without isolation (2026-11-26)
+
+Founder decision: Factory does not isolate agents on macOS or Linux. It runs the
+user's installed agent CLI as the user, with the CLI's own login, in a visible
+per-task worktree beside a per-project clone (`~/Factory/<owner>/<repo>`).
+Unattended runs keep the CLI's own sandbox on (Muse: on by default; never pass
+`--yolo`/`--disable-sandbox`). Kept: the desktop holds the GitHub token and does
+every push, PR and merge; outside-contributor work is review-only and never
+merged without a human; approved `setup.sh`/`check.sh` never run from an
+outside-contributor head. The clone has no network remote and an empty
+credential helper, so an agent shell can't reach the user's GitHub login through
+git. This retires security gate 7 (D3) and the isolated-worker parts of gates
+9–11; the root broker, isolated units, hidden users, sudo installers, CLI
+downloads, Factory-held Muse credential, per-project login authorization and
+the Execution controller all go.
+
+Today even the Muse path stages source, reads context and prepares setup through
+the root broker (`lib/desktop-runtime/src/factory_provider/broker.rs` is the one
+seam), and execution readiness requires the installed broker socket. Slices,
+each leaving the app working:
+
+1. **Runs without the broker (Rust).** A same-user clone/worktree owner replaces
+   `Staged::source`, `prepare_source`, `complete_candidate`, `read_source_context`
+   and `read_source_setup`; readiness and recovery stop requiring the broker;
+   Linux spawns Muse directly instead of `systemd-run --user`. Check: on this
+   Mac without relying on the installed broker, one investigation run completes
+   on the disposable repo and `git worktree list` shows its worktree.
+2. **Implement in the worktree, publish through the existing Go path.** Serve
+   the task protocol (Start/Checkpoint/Final) in-process against the worktree;
+   the coder drops `--disable-write`/`--disable-shell`. Check: one connected run
+   ends with a pushed branch and an open PR whose head equals worktree HEAD.
+3. **Delete the isolated-worker path.** `cmd/soda-factory-broker`, worker units
+   except the Muse helper, systemd units, `install-native-execution*.sh`, the
+   isolated Rust owners and Go `isolated_system_worker` branches. Check: full
+   build plus one slice-2 launch.
+4. **Remove the login and placement ceremony.** One implicit "this computer's
+   CLI" source; delete Muse sign-in/update, sponsorship authorization, role
+   login pickers, the Execution controller and environment grants; `tool.rs`
+   becomes discovery only. Check: fresh profile → GitHub sign-in → add project →
+   automation on → a run starts with no Muse or controller step.
+5. **Schema and docs.** Drop dead tables and fields; prune native checks;
+   rewrite install/settings docs. Check: a retained profile upgrades and opens.
+6. **Optional:** collapse the task protocol to "agent commits; desktop reads
+   HEAD".
+
+Open decision before slice 4: keep or delete Fountain `controller.rs`.
+
 ## GitHub/Muse consolidated todo (2026-11-12)
 
 Scope: finish the GitHub/Muse assembly line and its required installed recovery
