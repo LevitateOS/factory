@@ -261,10 +261,21 @@ function accountActors(bindings: readonly Record<string, unknown>[], actor: stri
 /** The only model Muse runs agents with. */
 const museModel = 'muse-spark-1.3-contributor';
 
+/** Where the person fixes a missing Muse login: App settings when there is no
+ * login, the project's Execution controller when Muse is signed in but the
+ * project may not run agents on this computer yet; '' when neither applies. */
+export type SetupFix = 'muse' | 'computer' | '';
+function setupFix(view: Settings): SetupFix {
+  if (!view.editable || view.sources.some((candidate) => candidate.authorizable)) return '';
+  return view.sources.length ? 'computer' : 'muse';
+}
+
 /** Why Factory can't give a project its first settings by itself, or '' when it can. */
 function setupBlock(view: Settings, actor: string | undefined) {
   if (!view.editable) return 'This account can’t change this project’s settings.';
-  if (!view.sources.some((candidate) => candidate.authorizable)) return 'Sign in to Muse on this computer first, in App settings. Agents run with your Muse login.';
+  const fix = setupFix(view);
+  if (fix === 'muse') return 'Sign in to Muse on this computer first, in App settings. Agents run with your Muse login.';
+  if (fix === 'computer') return 'Let this project run agents on this computer first, under Execution controller in its Settings.';
   if (!view.options?.mergeMethods.length) return 'This account can’t merge into this repository.';
   if (view.options.controllerGrantRequired) return 'Fountain projects are set up with the form below.';
   if (!accountActors(view.bindings, actor)) return 'This account can’t publish to this repository.';
@@ -376,6 +387,8 @@ export interface AutomationState {
   readonly needsSetup: boolean;
   /** Why Factory can't set it up by itself; empty when one click does it. */
   readonly setupBlocked: string;
+  /** Where to fix what blocks setup; empty when no page helps. */
+  readonly setupFix: SetupFix;
   readonly pickUpPulls: boolean;
   readonly editable: boolean;
   /** Why automation can't turn on; undefined when it can. */
@@ -437,6 +450,7 @@ export function automationState(view: Settings, actor?: string): AutomationState
     on: policy?.enabled === true && policy.paused !== true && !view.missing.includes('dispatch_closed'),
     needsSetup: !policy,
     setupBlocked: policy ? '' : setupBlock(view, actor),
+    setupFix: policy ? '' : setupFix(view),
     pickUpPulls: policy?.automatic_external_pulls === true,
     editable: view.editable,
     ...(blocked ? {blocked} : {}),
@@ -768,6 +782,10 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.busy = false;
     await this.refresh(note);
   }
+  /** The Execution controller beside these settings, when this host shows one. */
+  private controller() {
+    return this.closest('.soda-factory-settings')?.querySelector<HTMLElement>('[id$="-controller"]') ?? null;
+  }
   private automation(view: Settings) {
     const state = automationState(view, this.current?.actor);
     if (state.needsSetup)
@@ -778,7 +796,9 @@ export class SodaFactoryRoleSettings extends LitElement {
             <p>Factory uses your Muse login for coding and review and merges with squash into the default branch. You can change any of it after. Automation stays off until you turn it on.</p>
             ${state.setupBlocked ? html`<p role="note" data-tone="warning">${state.setupBlocked}</p>` : ''}
           </div>
-          ${state.setupBlocked ? '' : html`<button type="button" ?disabled=${this.busy} @click=${() => void this.setUp()}>Set up this project</button>`}
+          ${state.setupFix === 'computer' && this.controller()
+            ? html`<button type="button" @click=${() => this.controller()!.scrollIntoView({block: 'start'})}>Go to Execution controller</button>`
+            : state.setupBlocked ? '' : html`<button type="button" ?disabled=${this.busy} @click=${() => void this.setUp()}>Set up this project</button>`}
         </div>
       </section>`;
     const row = (label: string, detail: string, on: boolean, change: AutomationChange, block: AutomationBlock | undefined) =>

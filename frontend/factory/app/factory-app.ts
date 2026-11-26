@@ -28,7 +28,7 @@ import type {FactoryWatchContext, FactoryWatchRenderer} from '../watch/ports.js'
 import {SodaFactorySettings} from '../settings/settings.js';
 import type {FactorySettingsContext} from '../settings/settings.js';
 import {automationFailure, automationRoles, changeAutomation, readAutomation, setUpProject} from '../work/role-settings.js';
-import type {AutomationChange, AutomationRole, AutomationState, RoleContext} from '../work/role-settings.js';
+import type {AutomationChange, AutomationRole, AutomationState, RoleContext, SetupFix} from '../work/role-settings.js';
 import {SodaFactoryAccounts} from '../accounts/accounts.js';
 import type {FactoryHostSection} from './host-section.js';
 import type {FactoryAccountsContext} from '../accounts/accounts.js';
@@ -404,14 +404,13 @@ export class SodaFactoryApp extends LitElement {
     this.placeMenu(menu);
     if (target) await this.readMenuAutomation(target, this.menuReads.signal);
   }
-  /** A project's settings as this window's connection reaches them: the project
-   * open here, or another one on the same account. Another account's project
-   * has to open first. */
+  /** A project's settings as this window's connection reaches them. A window's
+   * connection serves only the project open in it, so any other project has to
+   * open first. */
   private automationTarget(row: FactoryProject) {
     const context = this.current;
-    if (!context) return undefined;
-    const repository = row.connection === 'current' ? context.selectedRepository : row.connection === 'connected' ? row.key : undefined;
-    return repository ? {transport: context.transport, repository, actor: context.actor} : undefined;
+    if (!context || row.connection !== 'current' || !context.selectedRepository) return undefined;
+    return {transport: context.transport, repository: context.selectedRepository, actor: context.actor};
   }
   private async readMenuAutomation(target: RoleContext, signal: AbortSignal) {
     try {
@@ -467,6 +466,25 @@ export class SodaFactoryApp extends LitElement {
     if (row.connection === 'current' && context.selectedRepository) return this.navigate({kind: 'settings', repository: context.selectedRepository});
     this.settingsAfterOpen = row.key;
     void this.openProject(context, row);
+  }
+  /** The page that fixes what blocks setup, or undefined when this host has none. */
+  private setupFixItem(context: FactoryAppContext, row: FactoryProject, fix: SetupFix) {
+    if (fix === 'muse' && hostResolves({kind: 'accounts'}, context.destinations))
+      return {label: 'Sign in to Muse…', go: async () => this.navigate({kind: 'accounts'})};
+    if (fix !== 'computer' || !hostResolves({kind: 'settings', repository: row.key}, context.destinations)) return undefined;
+    return {
+      label: 'Let it run on this computer…',
+      go: async () => {
+        this.allSettings(context, row);
+        if (row.connection !== 'current') return;
+        // The host draws Settings on its own schedule: wait briefly for the section.
+        for (let tries = 0; tries < 40; tries++) {
+          const section = this.querySelector<HTMLElement>('.soda-factory-settings [id$="-controller"]');
+          if (section) return section.scrollIntoView({block: 'start'});
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      },
+    };
   }
   private placeMenu(menu: HTMLElement) {
     if (this.menuAt) this.placePopover(menu, this.menuAt.x, this.menuAt.y);
@@ -563,7 +581,12 @@ export class SodaFactoryApp extends LitElement {
         <span class="soda-factory-menu-check" aria-hidden="true"></span>${label}<span class="soda-factory-menu-value">${value(text)} ›</span></button>`;
     const loginLabel = (role: AutomationRole) => ready?.loginChoices[role].find((login) => login.connection === ready.logins[role])?.label ?? ready?.logins[role] ?? '';
     const mergeLabel = ready?.mergeChoices.find((choice) => choice.value === ready.merge)?.label ?? ready?.merge ?? '';
-    return html`${ready?.needsSetup
+    // When setup is blocked by something a page fixes, the item goes there.
+    const fix = ready?.needsSetup ? this.setupFixItem(context, row, ready.setupFix) : undefined;
+    return html`${fix
+        ? html`<button type="button" role="menuitem" @click=${() => { menu().hidePopover(); void fix.go(); }}>
+            <span class="soda-factory-menu-check" aria-hidden="true"></span>${fix.label}</button>`
+        : ready?.needsSetup
         ? html`<button type="button" role="menuitem" ?disabled=${!!ready.setupBlocked || this.menuBusy}
             @click=${() => void this.changeFromMenu(menu(), 'setup')}><span class="soda-factory-menu-check" aria-hidden="true"></span>Set up this project</button>`
         : check('Automation', !!ready?.on, {on: !ready?.on})}
