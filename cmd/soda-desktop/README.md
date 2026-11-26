@@ -103,8 +103,9 @@ factory --developer-cli --profile /home/USER/PROFILE --window main ui wait \
 ```
 
 The scope binds the window/document, runtime generation and selected account/
-repository. Selection changes require a fresh tree. Click/fill/select/check
-require a caller-supplied action ID. Fills/selects require `--expected` with the
+repository. Selection changes require a fresh tree. Click/context-click/fill/
+select/check require a caller-supplied action ID. `ui context-click` right-clicks
+an element, such as a sidebar project, and refuses when it has no menu. Fills/selects require `--expected` with the
 current value; checkbox changes use `--value true/false --expected true/false`.
 Never replace human text without authorization. Every action passes through
 the normal UI handlers and product admission. A successful action reports

@@ -42,8 +42,8 @@ export class SodaFactoryAccounts extends LitElement {
     if (!this.current) return html``;
     return html`<section class="soda-factory-accounts" aria-labelledby="accounts-title">
       <header>
-        <h2 id="accounts-title">Accounts</h2>
-        <p>Each sign-in saves on its own.</p>
+        <h2 id="accounts-title">App settings</h2>
+        <p>Your sign-ins and how Factory looks on this computer. Each saves on its own.</p>
       </header>
       <div class="soda-factory-sections">${this.mounted.map((section) => renderHostSection(prefix, section))}</div>
     </section>`;

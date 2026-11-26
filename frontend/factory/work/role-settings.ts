@@ -261,6 +261,16 @@ function accountActors(bindings: readonly Record<string, unknown>[], actor: stri
 /** The only model Muse runs agents with. */
 const museModel = 'muse-spark-1.3-contributor';
 
+/** Why Factory can't give a project its first settings by itself, or '' when it can. */
+function setupBlock(view: Settings, actor: string | undefined) {
+  if (!view.editable) return 'This account can’t change this project’s settings.';
+  if (!view.sources.some((candidate) => candidate.authorizable)) return 'Sign in to Muse on this computer first, in App settings. Agents run with your Muse login.';
+  if (!view.options?.mergeMethods.length) return 'This account can’t merge into this repository.';
+  if (view.options.controllerGrantRequired) return 'Fountain projects are set up with the form below.';
+  if (!accountActors(view.bindings, actor)) return 'This account can’t publish to this repository.';
+  return '';
+}
+
 /** First settings for a project that has none, so its first Feed post is read
  * right away: every role uses this computer's Muse login, merges squash into
  * the default branch with no required checks, and automation stays off until
@@ -268,10 +278,9 @@ const museModel = 'muse-spark-1.3-contributor';
  * project already has settings or needs a choice only the person can make. */
 export async function setUpNewProject(context: RoleContext, signal: AbortSignal): Promise<boolean> {
   const view = await readSettings(context, signal);
-  const source = view.sources.find((candidate) => candidate.authorizable);
-  const options = view.options;
-  const actors = accountActors(view.bindings, context.actor);
-  if (view.policy !== null || !view.editable || !source || !options || options.controllerGrantRequired || !actors || !options.mergeMethods.length) return false;
+  if (view.policy !== null || setupBlock(view, context.actor)) return false;
+  const source = view.sources.find((candidate) => candidate.authorizable)!;
+  const options = view.options!;
   const selection = {account: source.connection, harness: 'muse', model: museModel, profile: {effort: 'low'}};
   const roles: Selections = {'soda-coder': selection, 'soda-reviewer': {...selection}};
   await authorizeLogins(context, signal, view.accounts, roles);
@@ -287,11 +296,22 @@ export async function setUpNewProject(context: RoleContext, signal: AbortSignal)
       target_branch: options.targetBranch,
       merge_method: options.mergeMethods.includes('squash') ? 'squash' : options.mergeMethods[0],
       required_checks: [],
-      ...actors,
+      ...accountActors(view.bindings, context.actor),
       automation_reviewer: null,
     }),
   });
   return response.ok;
+}
+
+/** "Set up this project": its first settings, or why they need the person.
+ * Resolves with the state that now shows. */
+export async function setUpProject(context: RoleContext, signal: AbortSignal): Promise<AutomationState> {
+  if (!(await setUpNewProject(context, signal))) {
+    const state = await readAutomation(context, signal);
+    if (state.needsSetup) throw new RoleSaveError(state.setupBlocked || 'This project could not be set up. Try again.', 400);
+    return state;
+  }
+  return readAutomation(context, signal);
 }
 
 // The existing policy command owns CAS, current permissions and actor bindings.
@@ -352,6 +372,10 @@ export interface AutomationBlock {
  * menu and the top of Settings show them. */
 export interface AutomationState {
   readonly on: boolean;
+  /** The project has no settings yet; "Set up this project" gives it its first ones. */
+  readonly needsSetup: boolean;
+  /** Why Factory can't set it up by itself; empty when one click does it. */
+  readonly setupBlocked: string;
   readonly pickUpPulls: boolean;
   readonly editable: boolean;
   /** Why automation can't turn on; undefined when it can. */
@@ -386,7 +410,7 @@ function loginChoices(view: Settings, role: Role) {
 
 function automationBlock(view: Settings, roles: Selections | undefined): AutomationBlock | undefined {
   const policy = view.policy;
-  if (!policy || !roles) return {text: 'Finish setting up this project first.'};
+  if (!policy || !roles) return {text: 'Set up this project first.'};
   if (!view.editable) return {text: 'You can’t change this project’s settings with this account.'};
   for (const role of Object.keys(roleNames) as Role[]) {
     const account = roles[role].account, name = roleNames[role];
@@ -399,7 +423,7 @@ function automationBlock(view: Settings, roles: Selections | undefined): Automat
   return undefined;
 }
 
-export function automationState(view: Settings): AutomationState {
+export function automationState(view: Settings, actor?: string): AutomationState {
   const policy = view.policy, roles = view.roles;
   const blocked = automationBlock(view, roles);
   const blockedPulls = blocked ?? (view.options?.controllerGrantRequired
@@ -411,6 +435,8 @@ export function automationState(view: Settings): AutomationState {
   return {
     // One switch: off when the settings say so or when someone paused the project.
     on: policy?.enabled === true && policy.paused !== true && !view.missing.includes('dispatch_closed'),
+    needsSetup: !policy,
+    setupBlocked: policy ? '' : setupBlock(view, actor),
     pickUpPulls: policy?.automatic_external_pulls === true,
     editable: view.editable,
     ...(blocked ? {blocked} : {}),
@@ -424,7 +450,7 @@ export function automationState(view: Settings): AutomationState {
 }
 
 export async function readAutomation(context: RoleContext, signal: AbortSignal) {
-  return automationState(await readSettings(context, signal));
+  return automationState(await readSettings(context, signal), context.actor);
 }
 
 /** Saves one automation choice on top of the latest saved settings and
@@ -433,7 +459,7 @@ export async function readAutomation(context: RoleContext, signal: AbortSignal) 
  * plain-language message when it can't. */
 export async function changeAutomation(context: RoleContext, signal: AbortSignal, change: AutomationChange): Promise<AutomationState> {
   const view = await readSettings(context, signal);
-  const before = automationState(view);
+  const before = automationState(view, context.actor);
   if (!view.policy || !view.roles || !view.editable) throw new RoleSaveError(before.blocked?.text ?? 'You can’t change these settings.', 403);
   if ('on' in change && change.on && before.blocked) throw new RoleSaveError(before.blocked.text, 400);
   if ('pickUpPulls' in change && change.pickUpPulls && before.blockedPulls) throw new RoleSaveError(before.blockedPulls.text, 400);
@@ -453,7 +479,7 @@ export async function changeAutomation(context: RoleContext, signal: AbortSignal
     if (!resumed.ok || confirmed.missing.includes('dispatch_closed'))
       throw new RoleSaveError('Automation is on, but new work stays paused until stopped runs finish. Check the Work page.', resumed.status);
   }
-  return automationState(confirmed);
+  return automationState(confirmed, context.actor);
 }
 
 /** The message to show for a failed automation change. */
@@ -725,8 +751,36 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.busy = false;
     await this.refresh(note);
   }
+  /** Gives the project its first settings, or says what Factory needs first. */
+  private async setUp() {
+    const context = this.current,
+      signal = this.lifetime.signal;
+    if (!context || this.busy || !this.live(context, signal)) return;
+    this.busy = true;
+    this.message = '';
+    let note = '';
+    try {
+      await setUpProject(context, signal);
+    } catch (error) {
+      note = automationFailure(error);
+    }
+    if (!this.live(context, signal)) return;
+    this.busy = false;
+    await this.refresh(note);
+  }
   private automation(view: Settings) {
-    const state = automationState(view);
+    const state = automationState(view, this.current?.actor);
+    if (state.needsSetup)
+      return html`<section class="soda-factory-automation" aria-label="Automation">
+        <div class="soda-factory-automation-row">
+          <div>
+            <h3>Set up this project</h3>
+            <p>Factory uses your Muse login for coding and review and merges with squash into the default branch. You can change any of it after. Automation stays off until you turn it on.</p>
+            ${state.setupBlocked ? html`<p data-tone="warning">${state.setupBlocked}</p>` : ''}
+          </div>
+          ${state.setupBlocked ? '' : html`<button type="button" ?disabled=${this.busy} @click=${() => void this.setUp()}>Set up this project</button>`}
+        </div>
+      </section>`;
     const row = (label: string, detail: string, on: boolean, change: AutomationChange, block: AutomationBlock | undefined) =>
       html`<div class="soda-factory-automation-row">
         <div>
@@ -758,8 +812,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       (!initial ||
         (!!this.initialActors() &&
           this.setup.useAccount &&
-          !!this.setup.targetBranch &&
-          this.checks().length > 0)) &&
+          !!this.setup.targetBranch)) &&
       this.checks().length <= 32 &&
       (!view.policy?.enabled || this.checks().length > 0) &&
       (initial ? !!view.options?.mergeMethods.includes(this.setup.method) : !!this.setup.method);
@@ -827,7 +880,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                   <textarea
                     aria-label="Required CI checks"
                     .value=${this.setup.checks}
-                    ?required=${initial || view.policy?.enabled === true}
+                    ?required=${view.policy?.enabled === true}
                     placeholder="One exact check name per line"
                     @input=${(event: Event) => {
                       this.setup = {...this.setup, checks: (event.target as HTMLTextAreaElement).value};

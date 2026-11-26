@@ -555,7 +555,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
             : account?.state === 'expired'
               ? 'Your saved sign-in has expired. Renew it or sign in again to reconnect. Saved drafts are kept.'
               : account?.state === 'refresh_pending'
-                ? 'Renewing your sign-in did not finish. Check Accounts before reconnecting. Saved drafts are kept.'
+                ? 'Renewing your sign-in did not finish. Check App settings before reconnecting. Saved drafts are kept.'
                 : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
       if (targetRead) launching = false;

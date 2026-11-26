@@ -37,7 +37,7 @@ fn run() -> Result<Value, &'static str> {
     while let Some(arg) = args.next() {
         if arg == "--help" {
             return Ok(
-                json!({"ok":true,"usage":"factory-dev --profile ABSOLUTE_PATH [--window LABEL] status | ui tree | ui click/fill/select/check/wait --scope S [--within REGION] --role ROLE --name NAME [--action ID] [--value VALUE --expected PRIOR] [--state enabled --timeout 30]","notes":"Actions require a unique caller-supplied --action and the original --scope. check uses --value true/false --expected true/false. --label is an alias for --name. --node selects a snapshot handle. Exit: 0 success, 2 refusal/unavailable, 3 deadline, 4 unknown dispatch. No automatic retries."}),
+                json!({"ok":true,"usage":"factory-dev --profile ABSOLUTE_PATH [--window LABEL] status | ui tree | ui click/context-click/fill/select/check/wait --scope S [--within REGION] --role ROLE --name NAME [--action ID] [--value VALUE --expected PRIOR] [--state enabled --timeout 30]","notes":"Actions require a unique caller-supplied --action and the original --scope. check uses --value true/false --expected true/false. --label is an alias for --name. --node selects a snapshot handle. Exit: 0 success, 2 refusal/unavailable, 3 deadline, 4 unknown dispatch. No automatic retries."}),
             );
         }
         if arg.starts_with("--") {
@@ -103,6 +103,7 @@ fn run() -> Result<Value, &'static str> {
         ["status"] => Operation::Status,
         ["ui", "tree"] => Operation::Tree,
         ["ui", "click"] => Operation::Click { target },
+        ["ui", "context-click"] => Operation::ContextClick { target },
         ["ui", "fill"] => Operation::Fill {
             target,
             value: take("--value")?,

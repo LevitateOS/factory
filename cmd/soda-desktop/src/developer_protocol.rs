@@ -31,6 +31,10 @@ pub enum Operation {
     Click {
         target: Target,
     },
+    /// Opens the element's context menu, as a right-click would.
+    ContextClick {
+        target: Target,
+    },
     Fill {
         target: Target,
         value: String,
@@ -98,6 +102,7 @@ impl Request {
         matches!(
             self.operation,
             Operation::Click { .. }
+                | Operation::ContextClick { .. }
                 | Operation::Fill { .. }
                 | Operation::Select { .. }
                 | Operation::Check { .. }
@@ -128,6 +133,7 @@ impl Request {
         let target = match &self.operation {
             Operation::Status | Operation::Tree => None,
             Operation::Click { target }
+            | Operation::ContextClick { target }
             | Operation::Fill { target, .. }
             | Operation::Select { target, .. }
             | Operation::Check { target, .. }

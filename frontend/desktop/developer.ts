@@ -265,6 +265,11 @@ export async function mountDeveloper(core: Core) {
     if (request.op === 'click') {
       if (!clickable.includes(role(found))) return failed('unsupported_control');
       found.click();
+    } else if (request.op === 'context_click') {
+      // Right-click at the element's middle; a page without a menu for it refuses.
+      const box = found.getBoundingClientRect();
+      const opened = !found.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, button: 2, clientX: box.left + box.width / 2, clientY: box.top + box.height / 2}));
+      if (!opened) return failed('no_context_menu');
     } else if (request.op === 'check') {
       if (!(found instanceof HTMLInputElement) || found.type !== 'checkbox') return failed('unsupported_control');
       if (found.checked !== request.expected) return failed('changed_value');

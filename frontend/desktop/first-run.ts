@@ -148,7 +148,7 @@ export class SodaDesktopFirstRun extends LitElement {
       <header>
         ${renderFactoryWordmark()}
         <h2>Set up Factory</h2>
-        <p>Five steps to your first project. You can stop after any step and pick it up again from Accounts.</p>
+        <p>Five steps to your first project. You can stop after any step and pick it up again from App settings.</p>
       </header>
       <ol class="first-run-steps">
         ${steps.map((step, index) => {

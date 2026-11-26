@@ -118,7 +118,7 @@ export function factoryRouteTitle(route: FactoryRoute): string {
     library: 'Knowledge',
     watch: 'Watch',
     settings: 'Settings',
-    accounts: 'Accounts',
+    accounts: 'App settings',
     projects: 'Projects',
     'project-new': 'New project',
   }[route.kind];

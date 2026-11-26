@@ -70,6 +70,8 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
   // Role settings with a saved policy, plus the desktop execution controller's
   // reads, for the Settings route.
   const settingsRoles = progressStoryPeer('ready', appRepository, true);
+  // acme/website (project 8) has no settings yet: its menu offers "Set up this project".
+  const unsetProject = progressStoryPeer('ready', '8', 'setup');
   const settingsRequest: FactoryTransport['request'] = async (path, init) => {
     if (path === 'repositories/' + appRepository + '/factory/placement')
       return Response.json({
@@ -129,6 +131,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
         if (factsMode === 'unavailable') return Response.json({error: {code: 'unavailable'}}, {status: 503});
         return Response.json(factsMode === 'empty' ? {repository: appRepository, issue: number} : value);
       }
+      if (path.startsWith('repositories/8/factory')) return unsetProject.overview.transport.request(path, {...init, method: init?.method ?? 'GET'});
       if (path.startsWith('factory/feed')) return feed.context.transport.request(path, init);
       if (path.startsWith('factory/library')) return library.context.transport.request(path, init);
       // The Feed's project menu reads the same saved settings as the Settings page.

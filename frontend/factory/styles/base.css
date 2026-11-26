@@ -405,19 +405,24 @@
 /* The open project's name, then its pages as a row of tabs. */
 .soda-factory-project {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 4px 16px;
   min-width: 0;
 }
+/* A long owner/name gives way, so every tab stays visible. */
 .soda-factory-project-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 240px;
   margin: 0;
   font: var(--soda-font-label);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .soda-factory-project nav {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
   gap: 2px;
 }
 .soda-factory-project nav button {

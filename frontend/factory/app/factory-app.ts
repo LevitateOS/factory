@@ -27,8 +27,8 @@ import {SodaFactoryWatch} from '../watch/watch.js';
 import type {FactoryWatchContext, FactoryWatchRenderer} from '../watch/ports.js';
 import {SodaFactorySettings} from '../settings/settings.js';
 import type {FactorySettingsContext} from '../settings/settings.js';
-import {automationFailure, automationRoles, changeAutomation, readAutomation} from '../work/role-settings.js';
-import type {AutomationChange, AutomationRole, AutomationState} from '../work/role-settings.js';
+import {automationFailure, automationRoles, changeAutomation, readAutomation, setUpProject} from '../work/role-settings.js';
+import type {AutomationChange, AutomationRole, AutomationState, RoleContext} from '../work/role-settings.js';
 import {SodaFactoryAccounts} from '../accounts/accounts.js';
 import type {FactoryHostSection} from './host-section.js';
 import type {FactoryAccountsContext} from '../accounts/accounts.js';
@@ -137,7 +137,7 @@ function parentTab(route: FactoryRoute): FactoryRoute['kind'] | undefined {
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
-  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, confirmRemove: {state: true}, menuAt: {state: true}, menuAutomation: {state: true}, menuNote: {state: true}, submenu: {state: true}, collapsed: {state: true}, narrow: {state: true}, overlay: {state: true}, scheme: {type: String}};
+  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, confirmRemove: {state: true}, menuAt: {state: true}, menuAutomation: {state: true}, menuBusy: {state: true}, menuNote: {state: true}, submenu: {state: true}, collapsed: {state: true}, narrow: {state: true}, overlay: {state: true}, scheme: {type: String}};
   declare scheme: 'light' | 'dark' | undefined;
   declare private message: string;
   declare private busy: boolean;
@@ -151,7 +151,11 @@ export class SodaFactoryApp extends LitElement {
   /** The row the menu came from; focus returns to it when the menu closes. */
   private menuFrom: HTMLElement | undefined;
   /** The open project's automation in its menu, while it is read or saved. */
-  declare private menuAutomation: AutomationState | 'loading' | 'saving' | 'failed' | undefined;
+  declare private menuAutomation: AutomationState | 'loading' | 'failed' | 'elsewhere' | undefined;
+  /** A menu choice is being saved; the items wait. */
+  declare private menuBusy: boolean;
+  /** Opening this project here should end on its Settings tab. */
+  private settingsAfterOpen = '';
   /** Why the last menu choice did not happen. */
   declare private menuNote: string;
   /** The side menu open inside the project menu. */
@@ -254,6 +258,10 @@ export class SodaFactoryApp extends LitElement {
         context = {...context, route: {...context.route, repository: context.selectedRepository}};
       this.current = context;
       this.generation = context.transport.generation;
+      // "All settings…" on another project: once it opens here, go to its Settings tab.
+      const settings = this.settingsAfterOpen && this.settingsAfterOpen === context.selectedRepository && context.route.kind !== 'settings';
+      if (settings) this.settingsAfterOpen = '';
+      if (settings) queueMicrotask(() => this.navigate({kind: 'settings', repository: context!.selectedRepository!}));
       void this.load(context);
       void this.readProjects(context);
     } catch {
@@ -327,6 +335,7 @@ export class SodaFactoryApp extends LitElement {
       if (row.connection === 'sign_in') await port.signIn?.(row.key);
       else await port.open(row.key, 'here');
     } catch {
+      this.settingsAfterOpen = '';
       if (this.live(context, signal)) this.message = 'This project could not be opened.';
     } finally {
       this.openingProject = false;
@@ -355,13 +364,13 @@ export class SodaFactoryApp extends LitElement {
     this.navigate({kind: 'projects'});
   }
   /** What a project's menu offers; nothing means right-click does nothing.
-   * Settings items are for the project open in this window: it has the connection to change them. */
+   * Every project that can open shows the same settings items. */
   private projectActions(port: FactoryProjectsPort, row: FactoryProject) {
     const here = row.connection === 'current';
     return {
       open: !here && row.connection !== 'sign_in',
       window: row.connection !== 'sign_in',
-      settings: here && !!this.current?.selectedRepository,
+      settings: row.connection !== 'sign_in',
       reconnect: here && !!port.reconnect,
       disconnect: here && !!port.disconnect,
       remove: !!port.remove && !here,
@@ -382,24 +391,29 @@ export class SodaFactoryApp extends LitElement {
     this.menuFrom = event.currentTarget as HTMLElement;
     this.confirmRemove = this.menuNote = '';
     this.submenu = undefined;
+    this.menuBusy = false;
     this.menuAt = {key: row.key, x, y};
     this.menuReads.abort();
     this.menuReads = new AbortController();
-    const automation = this.projectActions(port, row).settings ? this.automationTarget() : undefined;
-    this.menuAutomation = automation ? 'loading' : undefined;
+    const target = this.projectActions(port, row).settings ? this.automationTarget(row) : undefined;
+    this.menuAutomation = target ? 'loading' : this.projectActions(port, row).settings ? 'elsewhere' : undefined;
     await this.updateComplete;
     const menu = this.querySelector<HTMLElement>('#soda-factory-project-menu');
     if (!menu) return;
     if (!menu.matches(':popover-open')) menu.showPopover();
     this.placeMenu(menu);
-    if (automation) await this.readMenuAutomation(automation, this.menuReads.signal);
+    if (target) await this.readMenuAutomation(target, this.menuReads.signal);
   }
-  /** The project open in this window, as the automation settings address it. */
-  private automationTarget() {
+  /** A project's settings as this window's connection reaches them: the project
+   * open here, or another one on the same account. Another account's project
+   * has to open first. */
+  private automationTarget(row: FactoryProject) {
     const context = this.current;
-    return context?.selectedRepository ? {transport: context.transport, repository: context.selectedRepository} : undefined;
+    if (!context) return undefined;
+    const repository = row.connection === 'current' ? context.selectedRepository : row.connection === 'connected' ? row.key : undefined;
+    return repository ? {transport: context.transport, repository, actor: context.actor} : undefined;
   }
-  private async readMenuAutomation(target: {transport: FactoryTransport; repository: string}, signal: AbortSignal) {
+  private async readMenuAutomation(target: RoleContext, signal: AbortSignal) {
     try {
       const state = await readAutomation(target, signal);
       if (!signal.aborted) this.menuAutomation = state;
@@ -407,28 +421,35 @@ export class SodaFactoryApp extends LitElement {
       if (!signal.aborted) this.menuAutomation = 'failed';
     }
     await this.updateComplete;
-    // The menu grew: keep it inside the window without moving focus.
+    // A note may have changed the height: keep the menu inside the window without moving focus.
     const menu = this.querySelector<HTMLElement>('#soda-factory-project-menu');
     if (!signal.aborted && menu && this.menuAt) this.placePopover(menu, this.menuAt.x, this.menuAt.y, false);
   }
-  /** Saves one automation choice from the menu, then closes it and re-reads what shows it. */
-  private async changeFromMenu(menu: HTMLElement, change: AutomationChange) {
+  /** The project the open menu belongs to. */
+  private get menuRow() {
+    return this.menuAt && this.projectRows?.find((candidate) => candidate.key === this.menuAt!.key);
+  }
+  /** Saves one automation choice from the menu, or gives the project its first
+   * settings, then closes the menu and re-reads what shows it. */
+  private async changeFromMenu(menu: HTMLElement, change: AutomationChange | 'setup') {
     const context = this.current,
-      target = this.automationTarget(),
-      signal = this.menuReads.signal;
-    if (!context || !target || this.menuAutomation === 'saving') return;
-    const before = this.menuAutomation;
-    const block = typeof before === 'object'
-      ? 'on' in change && change.on ? before.blocked : 'pickUpPulls' in change && change.pickUpPulls ? before.blockedPulls : undefined
-      : undefined;
+      row = this.menuRow,
+      target = row && this.automationTarget(row),
+      signal = this.menuReads.signal,
+      before = this.menuAutomation;
+    if (!context || !target || this.menuBusy || typeof before !== 'object') return;
+    const block = change === 'setup' ? undefined
+      : 'on' in change && change.on ? before.blocked : 'pickUpPulls' in change && change.pickUpPulls ? before.blockedPulls : undefined;
     // Something must be chosen first: say what, and leave the menu open beside it.
     if (block) return void (this.menuNote = block.text);
-    this.menuAutomation = 'saving';
+    this.menuBusy = true;
     this.menuNote = '';
     try {
-      await changeAutomation(target, signal, change);
+      if (change === 'setup') this.menuAutomation = await setUpProject(target, signal);
+      else await changeAutomation(target, signal, change);
       if (signal.aborted) return;
-      menu.hidePopover();
+      // Setting up keeps the menu open: its choices are there now.
+      if (change !== 'setup') menu.hidePopover();
       if (this.live(context, this.lifetime.signal)) {
         void this.readProjects(context);
         void this.refresh();
@@ -437,7 +458,15 @@ export class SodaFactoryApp extends LitElement {
       if (signal.aborted) return;
       this.menuNote = automationFailure(error);
       await this.readMenuAutomation(target, signal);
+    } finally {
+      if (!signal.aborted) this.menuBusy = false;
     }
+  }
+  /** All settings: the project's Settings tab, opening the project here first when it is another one. */
+  private allSettings(context: FactoryAppContext, row: FactoryProject) {
+    if (row.connection === 'current' && context.selectedRepository) return this.navigate({kind: 'settings', repository: context.selectedRepository});
+    this.settingsAfterOpen = row.key;
+    void this.openProject(context, row);
   }
   private placeMenu(menu: HTMLElement) {
     if (this.menuAt) this.placePopover(menu, this.menuAt.x, this.menuAt.y);
@@ -512,38 +541,47 @@ export class SodaFactoryApp extends LitElement {
         : html`<p>${which === 'merge' ? 'No merge method is available.' : 'Sign in to Muse on this computer to choose a login.'}</p>`}
     </div>`;
   }
-  /** The project open in this window: automation, its quick choices and the way to all settings. */
-  private automationItems(context: FactoryAppContext, state: AutomationState | 'loading' | 'saving' | 'failed' | undefined) {
+  /** A project's settings items. Every project shows the same ones, at once:
+   * they fill in when its settings are read, and say why when they can't be used. */
+  private automationItems(context: FactoryAppContext, row: FactoryProject, state: SodaFactoryApp['menuAutomation'], more: boolean) {
     if (state === undefined) return '';
-    if (state === 'loading') return html`<p role="status">Reading settings…</p><div role="separator"></div>`;
-    if (state === 'failed') return html`<p>Settings are unavailable right now.</p><div role="separator"></div>`;
-    if (state === 'saving') return html`<p role="status">Saving…</p><div role="separator"></div>`;
+    const ready = typeof state === 'object' ? state : undefined;
+    const usable = !!ready && ready.editable && !ready.needsSetup && !this.menuBusy;
     const menu = () => this.querySelector<HTMLElement>('#soda-factory-project-menu')!;
+    const note = this.menuNote
+      || (state === 'elsewhere' ? 'Open this project to change its settings.'
+        : state === 'failed' ? 'Its settings can’t be read right now.'
+          : ready?.needsSetup ? ready.setupBlocked
+            : ready?.blocked && !ready.on ? ready.blocked.text : '');
     const check = (label: string, on: boolean, change: AutomationChange) =>
-      html`<button type="button" role="menuitemcheckbox" aria-checked=${on ? 'true' : 'false'} ?disabled=${!state.editable}
+      html`<button type="button" role="menuitemcheckbox" aria-checked=${on ? 'true' : 'false'} ?disabled=${!usable}
         @click=${() => void this.changeFromMenu(menu(), change)}><span class="soda-factory-menu-check" aria-hidden="true"></span>${label}</button>`;
-    const choice = (which: AutomationRole | 'merge', label: string, value: string) =>
+    const value = (text: string) => (state === 'loading' ? '…' : ready && !ready.needsSetup ? text || 'None' : '—');
+    const choice = (which: AutomationRole | 'merge', label: string, text: string) =>
       html`<button type="button" role="menuitem" aria-haspopup="menu" aria-expanded=${this.submenu === which ? 'true' : 'false'} data-submenu=${which}
-        ?disabled=${!state.editable} @click=${(event: Event) => void this.openSubmenu(event.currentTarget as HTMLElement, which)}>
-        <span class="soda-factory-menu-check" aria-hidden="true"></span>${label}<span class="soda-factory-menu-value">${value || 'None'} ›</span></button>`;
-    const loginLabel = (role: AutomationRole) => state.loginChoices[role].find((login) => login.connection === state.logins[role])?.label ?? state.logins[role];
-    const mergeLabel = state.mergeChoices.find((choice) => choice.value === state.merge)?.label ?? state.merge;
-    return html`${check('Automation', state.on, {on: !state.on})}
-      ${state.blocked && !state.on ? html`<p data-tone="warning">${state.blocked.text}</p>` : ''}
-      ${check('Pick up pull requests', state.pickUpPulls, {pickUpPulls: !state.pickUpPulls})}
-      ${this.menuNote ? html`<p role="alert" data-tone="warning">${this.menuNote}</p>` : ''}
+        ?disabled=${!usable} @click=${(event: Event) => void this.openSubmenu(event.currentTarget as HTMLElement, which)}>
+        <span class="soda-factory-menu-check" aria-hidden="true"></span>${label}<span class="soda-factory-menu-value">${value(text)} ›</span></button>`;
+    const loginLabel = (role: AutomationRole) => ready?.loginChoices[role].find((login) => login.connection === ready.logins[role])?.label ?? ready?.logins[role] ?? '';
+    const mergeLabel = ready?.mergeChoices.find((choice) => choice.value === ready.merge)?.label ?? ready?.merge ?? '';
+    return html`${ready?.needsSetup
+        ? html`<button type="button" role="menuitem" ?disabled=${!!ready.setupBlocked || this.menuBusy}
+            @click=${() => void this.changeFromMenu(menu(), 'setup')}><span class="soda-factory-menu-check" aria-hidden="true"></span>Set up this project</button>`
+        : check('Automation', !!ready?.on, {on: !ready?.on})}
+      ${note ? html`<p role=${this.menuNote ? 'alert' : 'note'} data-tone="warning">${note}</p>` : ''}
+      ${check('Pick up pull requests', !!ready?.pickUpPulls, {pickUpPulls: !ready?.pickUpPulls})}
       <div role="separator"></div>
       ${choice('soda-coder', 'Coding login', loginLabel('soda-coder'))}
       ${choice('soda-reviewer', 'Review login', loginLabel('soda-reviewer'))}
       ${choice('merge', 'Merge as', mergeLabel)}
-      ${this.submenuFor(menu, state)}
+      ${ready ? this.submenuFor(menu, ready) : ''}
       <div role="separator"></div>
-      ${hostResolves({kind: 'settings', repository: context.selectedRepository!}, context.destinations)
+      ${hostResolves({kind: 'settings', repository: row.key}, context.destinations)
         ? html`<button type="button" role="menuitem" @click=${(event: Event) => {
             (event.currentTarget as HTMLElement).closest<HTMLElement>('[popover]')!.hidePopover();
-            this.navigate({kind: 'settings', repository: context.selectedRepository!});
+            this.allSettings(context, row);
           }}><span class="soda-factory-menu-check" aria-hidden="true"></span>All settings…</button>`
-        : ''}`;
+        : ''}
+      ${more ? html`<div role="separator"></div>` : ''}`;
   }
   private projectMenu(context: FactoryAppContext) {
     const port = context.projects;
@@ -587,7 +625,7 @@ export class SodaFactoryApp extends LitElement {
         : html`${actions.open ? html`<button type="button" role="menuitem" @click=${(event: Event) => { close(event); void this.openProject(context, row); }}><span class="soda-factory-menu-check" aria-hidden="true"></span>Open feed</button>` : ''}
             ${actions.window ? item('Open in new window', () => port.open(row.key, 'window'), 'Could not open a new window.') : ''}
             ${actions.open || actions.window ? html`<div role="separator"></div>` : ''}
-            ${actions.settings ? this.automationItems(context, this.menuAutomation) : ''}
+            ${actions.settings ? this.automationItems(context, row, this.menuAutomation, actions.reconnect || actions.disconnect || actions.remove) : ''}
             ${actions.reconnect ? item('Reconnect', () => port.reconnect!(row.key), 'Could not reconnect this project.') : ''}
             ${actions.disconnect ? item('Disconnect', () => port.disconnect!(row.key), 'Could not disconnect this project.') : ''}
             ${actions.remove ? html`<button type="button" role="menuitem" data-tone="danger" @click=${confirm}><span class="soda-factory-menu-check" aria-hidden="true"></span>Remove from list…</button>` : ''}`}
@@ -1055,6 +1093,7 @@ export class SodaFactoryApp extends LitElement {
             {label: 'Issues', route: {kind: 'issues' as const, repository}},
             {label: 'Pull requests', route: {kind: 'pulls' as const, repository}},
             {label: 'Knowledge', route: {kind: 'library' as const, repository}},
+            ...(context?.destinations?.includes('settings') ? [{label: 'Settings', route: {kind: 'settings' as const, repository}}] : []),
           ]
         : []),
     ];
@@ -1064,13 +1103,8 @@ export class SodaFactoryApp extends LitElement {
     const project = context?.repositoryLabel?.trim();
     const port = context?.projects;
     const listed = port ? this.projectRows ?? [] : [];
-    // Host-declared destinations at the foot: project settings, then account sign-ins.
-    const foot: {label: string; route: FactoryRoute}[] = [
-      ...(repository && context?.destinations?.includes('settings')
-        ? [{label: 'Settings', route: {kind: 'settings' as const, repository}}]
-        : []),
-      ...(context?.destinations?.includes('accounts') ? [{label: 'Accounts', route: {kind: 'accounts' as const}}] : []),
-    ];
+    // The sidebar foot holds what belongs to the app, not to one project: sign-ins and appearance.
+    const foot: {label: string; route: FactoryRoute}[] = context?.destinations?.includes('accounts') ? [{label: 'App settings', route: {kind: 'accounts'}}] : [];
     const shown = this.sidebarShown;
     const toggle = html`<button
       type="button"
@@ -1220,7 +1254,7 @@ export class SodaFactoryApp extends LitElement {
         <header ?data-empty=${shown && !repository && !this.message.trim()}>
           ${shown ? '' : toggle}
           ${repository ? html`<div class="soda-factory-project">
-            ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
+            ${project ? html`<p class="soda-factory-project-name" title=${project}>${project}</p>` : ''}
             <nav aria-label="Factory">
               ${links.map(
                 (link) => html`<button

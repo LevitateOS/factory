@@ -270,15 +270,12 @@ export class DesktopProduct {
         return {kind: 'library', context: {transport, repository: route.repository}};
       case 'settings': {
         const placement = this.placement;
-        const appIcon = {id: 'app-icon', title: 'App icon', mount: () => new SodaDesktopAppIcon(this.core)};
         return {
           kind: 'settings',
           context: {
             transport,
             repository: route.repository,
-            sections: placement
-              ? [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}, appIcon]
-              : [appIcon],
+            ...(placement ? {sections: [{id: 'controller', title: 'Execution controller', mount: () => placementView(placement)}]} : {}),
             repairFundingAvailable: true,
             activityAvailable: true,
             commandScope,
@@ -293,7 +290,8 @@ export class DesktopProduct {
         };
       }
       case 'accounts':
-        return {kind: 'accounts', context: {transport, sections: this.sections.accounts}};
+        // App settings: sign-ins, then how the app looks on this computer.
+        return {kind: 'accounts', context: {transport, sections: [...this.sections.accounts, {id: 'app-icon', title: 'App icon', mount: () => new SodaDesktopAppIcon(this.core)}]}};
       case 'projects':
         return {kind: 'projects', context: {transport, sections: this.sections.projects}};
       case 'project-new':
