@@ -35,11 +35,16 @@ export function projectStoryPort(element: () => HTMLElement | undefined, rows: r
     calls.push(call);
     element()?.setAttribute('data-project-calls', JSON.stringify(calls));
   };
+  let kept = [...rows];
   const port: FactoryProjectsPort = {
     async list(signal, options) {
       signal.throwIfAborted();
       record(options?.refresh ? 'list:refresh' : 'list');
-      return options?.refresh ? rows.map((item) => ({...item, asOf: asOf + 600})) : rows;
+      return options?.refresh ? kept.map((item) => ({...item, asOf: asOf + 600})) : kept;
+    },
+    async remove(key) {
+      record('remove:' + key);
+      kept = kept.filter((item) => item.key !== key);
     },
     async open(key, where) {
       record('open:' + key + ':' + where);

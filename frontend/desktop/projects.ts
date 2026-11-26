@@ -198,6 +198,17 @@ export class DesktopProjects implements FactoryProjectsPort {
   create(project: FactoryNewProject) {
     return this.host.create(project);
   }
+  async remove(key: string) {
+    const {row, connection} = this.pick(key);
+    if (connection === 'current') throw Error('Disconnect this project before removing it.');
+    const transport = this.transport;
+    if (!transport) throw Error('Connect an account to manage projects.');
+    const response = await transport.request('/api/factory/projects/remove', {method: 'POST', body: JSON.stringify({repository: row.repository})});
+    check(response.ok);
+    // The kept list drops every row for this repository; reopening lists it again.
+    for (const kept of this.retained ?? []) if (kept.repository === row.repository) this.refusals.delete(kept.connection + '/' + kept.external);
+    if (this.retained) this.retained = this.retained.filter((kept) => kept.repository !== row.repository);
+  }
   async signIn(key: string) {
     if (this.pick(key).connection !== 'sign_in') throw Error('This account is already signed in.');
     this.host.signIn();

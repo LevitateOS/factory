@@ -97,13 +97,15 @@ export interface FactoryAppContext {
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
-  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, scheme: {type: String}};
+  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, confirmRemove: {state: true}, scheme: {type: String}};
   declare scheme: 'light' | 'dark' | undefined;
   declare private message: string;
   declare private busy: boolean;
   declare private screen: HTMLElement | undefined;
   /** The host's kept project list for the sidebar; undefined until read or without the port. */
   declare private projectRows: readonly FactoryProject[] | undefined;
+  /** The row whose removal the person is confirming in its menu. */
+  declare private confirmRemove: string;
   private projectsPort: FactoryProjectsPort | undefined;
   /** A project is opening; its buttons wait. Reactive, so they come back when it ends. */
   declare private openingProject: boolean;
@@ -116,6 +118,7 @@ export class SodaFactoryApp extends LitElement {
 
   constructor() {
     super();
+    this.confirmRemove = '';
     this.message = 'Choose an account to open Factory.';
     this.busy = false;
     this.screen = undefined;
@@ -231,6 +234,53 @@ export class SodaFactoryApp extends LitElement {
       this.openingProject = false;
     }
     if (this.live(context, signal)) await this.readProjects(context);
+  }
+  private async removeProject(context: FactoryAppContext, row: FactoryProject) {
+    const port = context.projects,
+      signal = this.lifetime.signal;
+    if (!port?.remove || this.openingProject) return;
+    this.confirmRemove = '';
+    try {
+      await port.remove(row.key);
+    } catch {
+      if (this.live(context, signal)) this.message = 'This project could not be removed.';
+    }
+    if (this.live(context, signal)) await this.readProjects(context);
+    if (this.live(context, signal) && this.screen instanceof SodaFactoryProjects) this.screen.reload();
+  }
+  /** Right-click on a row opens its menu, as the ⋯ button does. */
+  private openProjectMenu(event: MouseEvent) {
+    const menu = (event.currentTarget as HTMLElement).querySelector('details');
+    if (!menu) return;
+    event.preventDefault();
+    menu.open = true;
+    menu.querySelector<HTMLElement>('summary')?.focus();
+  }
+  private projectMenu(context: FactoryAppContext, row: FactoryProject) {
+    const port = context.projects!;
+    const here = row.connection === 'current';
+    const canWindow = row.connection !== 'sign_in';
+    const canRemove = !!port.remove && !here;
+    if (!canWindow && !canRemove) return '';
+    const close = (event: Event) => ((event.currentTarget as HTMLElement).closest('details')!.open = false);
+    const confirming = this.confirmRemove === row.key;
+    return html`<details class="soda-factory-project-menu" @toggle=${(event: Event) => {
+      if (!(event.currentTarget as HTMLDetailsElement).open && confirming) this.confirmRemove = '';
+    }}>
+      <summary aria-label=${'Actions for ' + row.name} title="Project actions">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.3" /><circle cx="8" cy="8" r="1.3" /><circle cx="13" cy="8" r="1.3" /></svg>
+      </summary>
+      <div role="menu" aria-label=${row.name}>
+        ${confirming
+          ? html`<p>Remove <strong>${row.name}</strong> from your projects? It stays on GitHub, and opening it again brings it back.</p>
+              <button type="button" role="menuitem" data-tone="danger" @click=${(event: Event) => { close(event); void this.removeProject(context, row); }}>Remove</button>
+              <button type="button" role="menuitem" @click=${() => (this.confirmRemove = '')}>Cancel</button>`
+          : html`${canWindow
+                ? html`<button type="button" role="menuitem" @click=${(event: Event) => { close(event); void port.open(row.key, 'window').catch(() => (this.message = 'Could not open a new window.')); }}>Open in new window</button>`
+                : ''}
+              ${canRemove ? html`<button type="button" role="menuitem" @click=${() => (this.confirmRemove = row.key)}>Remove from list…</button>` : ''}`}
+      </div>
+    </details>`;
   }
   private clearScreen() {
     const dispose = this.disposeScreen;
@@ -693,22 +743,25 @@ export class SodaFactoryApp extends LitElement {
                       const owner = slash > 0 ? row.name.slice(0, slash) : '';
                       const name = slash > 0 ? row.name.slice(slash + 1) : row.name;
                       const status = mark && mark.kind !== 'needs' ? mark : undefined;
-                      return html`<button
-                        type="button"
-                        class="soda-factory-project-row"
-                        aria-current=${here ? 'true' : 'false'}
-                        ?disabled=${(row.connection === 'sign_in' && !port.signIn) || this.openingProject}
-                        title=${row.name + (mark ? ' · ' + mark.detail : '')}
-                        @click=${() => (here ? this.navigate({kind: 'feed', ...(repository ? {repository} : {})}) : void this.openProject(context, row))}
-                      >
-                        <span class="soda-factory-project-row-name">${name}</span>
-                        <span class="soda-factory-project-row-meta"
-                          >${owner}${owner && status ? ' · ' : ''}${status
-                            ? html`<span data-mark=${status.kind}>${status.label}</span>`
-                            : ''}</span
+                      return html`<div class="soda-factory-project-item" @contextmenu=${(event: MouseEvent) => this.openProjectMenu(event)}>
+                        <button
+                          type="button"
+                          class="soda-factory-project-row"
+                          aria-current=${here ? 'true' : 'false'}
+                          ?disabled=${(row.connection === 'sign_in' && !port.signIn) || this.openingProject}
+                          title=${row.name + (mark ? ' · ' + mark.detail : '')}
+                          @click=${() => (here ? this.navigate({kind: 'feed', ...(repository ? {repository} : {})}) : void this.openProject(context, row))}
                         >
-                        ${mark?.kind === 'needs' ? html`<span class="soda-factory-project-row-count" aria-label=${mark.detail}>${mark.label}</span>` : ''}
-                      </button>`;
+                          <span class="soda-factory-project-row-name">${name}</span>
+                          <span class="soda-factory-project-row-meta"
+                            >${owner}${owner && status ? ' · ' : ''}${status
+                              ? html`<span data-mark=${status.kind}>${status.label}</span>`
+                              : ''}</span
+                          >
+                          ${mark?.kind === 'needs' ? html`<span class="soda-factory-project-row-count" aria-label=${mark.detail}>${mark.label}</span>` : ''}
+                        </button>
+                        ${this.projectMenu(context, row)}
+                      </div>`;
                     })}
                   </nav>`
                 : ''}

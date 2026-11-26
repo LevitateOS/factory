@@ -211,3 +211,25 @@
     margin-top: 24px;
   }
 }
+/* Removing a project takes a second click; it is a local list edit only. */
+.soda-factory-project-actions .soda-factory-project-remove {
+  min-height: 32px;
+  border-color: transparent;
+  color: var(--soda-page-muted);
+  background: transparent;
+}
+.soda-factory-project-actions .soda-factory-project-remove:hover:not(:disabled) {
+  color: var(--soda-page-text);
+  background: var(--soda-page-hover);
+}
+.soda-factory-project-confirm p {
+  margin: 0 0 8px;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-caption);
+}
+.soda-factory-project-actions button[data-tone="danger"],
+.soda-factory-project-menu button[data-tone="danger"] {
+  border-color: var(--soda-page-warning-edge);
+  color: var(--soda-page-warning);
+  background: var(--soda-page-warning-bg);
+}

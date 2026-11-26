@@ -127,3 +127,16 @@ FROM clock LEFT JOIN projects p ON true ORDER BY p.seq DESC NULLS LAST,p.name,p.
 	}
 	return summaries, asOf, nil
 }
+
+// RemoveProfileProject takes a repository out of one profile's project list:
+// it forgets which of the profile's connections opened it. Nothing at the
+// provider changes, and opening the repository again lists it again.
+func (s *Store) RemoveProfileProject(ctx context.Context, profile collaboration.ProfileID, repository collaboration.RepositoryID) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM collaboration_repository_connections rc USING collaboration_connections c
+ WHERE rc.connection=c.id AND rc.host=c.host AND c.profile=$1 AND rc.repository=$2`, profile, repository)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
+}

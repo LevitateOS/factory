@@ -41,3 +41,27 @@ func (s ProjectSummaries) List(ctx context.Context, actor collaboration.ActorID)
 	}
 	return ProjectList{Projects: rows, AsOf: asOf.Unix()}, ctx.Err()
 }
+
+// ErrProjectNotListed reports a removal for a repository the profile's list
+// does not hold.
+var ErrProjectNotListed = errors.New("project is not listed")
+
+// Remove takes a repository out of the actor's profile list. It is a local
+// list edit, not a provider action, and grants or withdraws nothing.
+func (s ProjectSummaries) Remove(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+	if actor < 1 || repository < 1 || s.Store == nil || s.Scope == nil {
+		return ErrProjectSummariesUnavailable
+	}
+	profile, err := s.Scope(ctx, actor)
+	if err != nil {
+		return err
+	}
+	removed, err := s.Store.RemoveProfileProject(ctx, profile, repository)
+	if err != nil {
+		return err
+	}
+	if !removed {
+		return ErrProjectNotListed
+	}
+	return ctx.Err()
+}

@@ -19,7 +19,7 @@ export interface FactoryProjectsContext {
   readonly sections?: readonly FactoryHostSection[];
 }
 
-type Action = 'here' | 'window' | 'reconnect' | 'disconnect' | 'sign-in';
+type Action = 'here' | 'window' | 'reconnect' | 'disconnect' | 'sign-in' | 'remove';
 
 /** Time a row was read, in the viewer's locale. */
 export const projectAsOf = (seconds: number) =>
@@ -28,11 +28,13 @@ export const projectAsOf = (seconds: number) =>
 /** The retained projects across the host's accounts, one row each. It reads the
  * kept list when it opens and asks for a new read only from Refresh. */
 export class SodaFactoryProjects extends LitElement {
-  static properties = {rows: {state: true}, state: {state: true}, message: {state: true}, pending: {state: true}};
+  static properties = {rows: {state: true}, state: {state: true}, message: {state: true}, pending: {state: true}, confirming: {state: true}};
   declare private rows: readonly FactoryProject[];
   declare private state: 'loading' | 'ready' | 'failed';
   declare private message: string;
   declare private pending: string;
+  /** The card whose removal is waiting for a second click. */
+  declare private confirming: string;
   private current: FactoryProjectsContext | undefined;
   private mounted: MountedHostSection[] = [];
   private lifetime = new AbortController();
@@ -42,6 +44,7 @@ export class SodaFactoryProjects extends LitElement {
     this.state = 'loading';
     this.message = '';
     this.pending = '';
+    this.confirming = '';
   }
   protected createRenderRoot() {
     return this;
@@ -81,6 +84,11 @@ export class SodaFactoryProjects extends LitElement {
       else this.message = 'Could not update the list. Showing the last one read.';
     }
   }
+  /** Re-reads the kept list after the frame changed it, such as a sidebar removal. */
+  reload() {
+    const context = this.current;
+    if (context && !this.pending) void this.read(context, false);
+  }
   private refresh = async () => {
     const context = this.current;
     if (!context || this.pending) return;
@@ -95,12 +103,13 @@ export class SodaFactoryProjects extends LitElement {
       port = context?.port;
     if (!context || !port || this.pending) return;
     this.pending = row.key + ':' + action;
-    this.message = '';
+    this.message = this.confirming = '';
     try {
       if (action === 'here') await port.open(row.key, 'here');
       else if (action === 'window') await port.open(row.key, 'window');
       else if (action === 'reconnect') await port.reconnect!(row.key);
       else if (action === 'disconnect') await port.disconnect!(row.key);
+      else if (action === 'remove') await port.remove!(row.key);
       else await port.signIn!(row.key);
     } catch {
       if (signal.aborted || this.current !== context) return;
@@ -173,6 +182,17 @@ export class SodaFactoryProjects extends LitElement {
           ? html`<div class="soda-factory-project-pair">
               ${port.reconnect ? button('reconnect', 'Reconnect') : ''}${port.disconnect ? button('disconnect', 'Disconnect') : ''}
             </div>`
+          : ''}
+        ${port.remove && !here
+          ? this.confirming === row.key
+            ? html`<div class="soda-factory-project-confirm" role="group" aria-label=${'Remove ' + row.name}>
+                <p>Remove from your projects? It stays on GitHub, and opening it again brings it back.</p>
+                <div class="soda-factory-project-pair">
+                  ${button('remove', 'Remove', 'danger')}
+                  <button type="button" ?disabled=${busy} @click=${() => (this.confirming = '')}>Cancel</button>
+                </div>
+              </div>`
+            : html`<button type="button" class="soda-factory-project-remove" ?disabled=${busy} @click=${() => (this.confirming = row.key)}>Remove from list…</button>`
           : ''}
       </div>
     </article>`;

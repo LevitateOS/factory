@@ -40,6 +40,9 @@ export interface FactoryProjectsPort {
   reconnect?(key: string): Promise<void>;
   disconnect?(key: string): Promise<void>;
   signIn?(key: string): Promise<void>;
+  /** Takes a project out of this list. Nothing at the provider changes, and
+   * opening the repository again lists it again. Never the current row. */
+  remove?(key: string): Promise<void>;
   /** New project: creates a repository with the window's account, then
    * connects this window to it and opens its Feed. Rejects with a short
    * plain-language message when it cannot. */
@@ -58,7 +61,7 @@ export interface FactoryNewProject {
 export function admitProjectsPort(port: FactoryProjectsPort | undefined) {
   if (port === undefined) return;
   check(typeof port.list === 'function' && typeof port.open === 'function');
-  for (const action of [port.reconnect, port.disconnect, port.signIn, port.create]) check(action === undefined || typeof action === 'function');
+  for (const action of [port.reconnect, port.disconnect, port.signIn, port.create, port.remove]) check(action === undefined || typeof action === 'function');
 }
 
 const plain = (value: unknown, limit: number): value is string =>

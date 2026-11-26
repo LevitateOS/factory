@@ -363,3 +363,77 @@
 :where(.soda-factory-root) :where(textarea) {
   padding: 8px 10px;
 }
+/* Sidebar project row with its ⋯ menu; right-click opens the same menu. */
+.soda-factory-project-item {
+  position: relative;
+}
+.soda-factory-sidebar .soda-factory-project-item .soda-factory-project-row {
+  width: 100%;
+  padding-right: 34px;
+}
+.soda-factory-project-menu {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+.soda-factory-project-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  list-style: none;
+  color: var(--soda-page-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.soda-factory-project-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.soda-factory-project-menu > summary svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.soda-factory-project-item:hover .soda-factory-project-menu > summary,
+.soda-factory-project-menu > summary:focus-visible,
+.soda-factory-project-menu[open] > summary {
+  opacity: 1;
+}
+.soda-factory-project-menu > summary:hover,
+.soda-factory-project-menu[open] > summary {
+  color: var(--soda-page-text);
+  background: var(--soda-page-hover);
+}
+.soda-factory-project-menu > div {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  /* Opens over the page: the sidebar is narrower than the menu. */
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 240px;
+  padding: 6px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+.soda-factory-project-menu > div > button {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  text-align: left;
+  background: transparent;
+}
+.soda-factory-project-menu > div > button:hover {
+  background: var(--soda-page-hover);
+}
+.soda-factory-project-menu > div > p {
+  margin: 2px 4px 6px;
+  font: var(--soda-font-caption);
+  color: var(--soda-page-muted);
+  overflow-wrap: anywhere;
+}
