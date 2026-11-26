@@ -348,7 +348,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
         message =
           typeof error === 'string'
             ? `Could not connect. ${error}`
-            : 'Could not connect. Refresh Factory status and try reconnecting.';
+            : 'Could not connect. Try reconnecting.';
         // A repository that will not open leaves the account itself usable.
         if (remote && !fountain()) {
           refused = typeof error === 'string' ? `Could not open that repository. ${error}` : message;
@@ -551,9 +551,9 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
           account?.state === 'locked'
             ? 'Your saved account is locked. Unlock the desktop keyring before reconnecting. Saved drafts are kept.'
             : account?.state === 'expired'
-              ? 'Your saved account has expired. Refresh it or sign in again before reconnecting. Saved drafts are kept.'
+              ? 'Your saved sign-in has expired. Renew it or sign in again to reconnect. Saved drafts are kept.'
               : account?.state === 'refresh_pending'
-                ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
+                ? 'Renewing your sign-in did not finish. Check Accounts before reconnecting. Saved drafts are kept.'
                 : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
       if (targetRead) launching = false;

@@ -132,7 +132,7 @@ export class JevAccount extends Observed {
     } catch (failure) {
       if (generation === this.epoch && captured === this.interaction) {
         this.set(undefined);
-        this.error = typeof failure === 'string' ? failure : 'JEV status is unavailable. Refresh Factory and try again.';
+        this.error = typeof failure === 'string' ? failure : 'JEV status is unavailable.';
         this.notify();
       }
     }

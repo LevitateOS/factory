@@ -403,7 +403,6 @@ export class SodaFactoryIssueCreate extends LitElement {
             </details>`
           : ''
       }
-      <button type="button" ?disabled=${this.busy} @click=${this.refresh}>Check issue access</button>
       ${
         blocked
           ? html`<button

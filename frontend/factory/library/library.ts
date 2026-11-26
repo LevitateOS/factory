@@ -303,7 +303,7 @@ export class SodaFactoryLibrary extends LitElement {
         this.view.message
           ? html`<p role="alert">${this.view.message}</p>
               <button type="button" ?disabled=${this.view.busy} @click=${() => this.refresh()}>
-                Retry library read
+                Try again
               </button>`
           : ''
       }

@@ -530,7 +530,6 @@ export class SodaFactoryIssueEditor extends LitElement {
             </details>`
           : ''
       }
-      <button type="button" ?disabled=${this.busy} @click=${this.refresh}>Check ${subject} edit access</button>
       ${
         !pending
           ? html`<button

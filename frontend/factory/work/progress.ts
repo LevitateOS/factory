@@ -103,6 +103,7 @@ export class SodaFactoryWorkOverview extends LitElement {
     super.disconnectedCallback();
   }
   refresh() {
+    void this.runs.refresh();
     return this.load();
   }
   private publishScope(scope: OverviewScope) {
@@ -144,7 +145,6 @@ export class SodaFactoryWorkOverview extends LitElement {
         <summary>Plan and progress</summary>
         <div class="soda-work-head">
           <p data-work-message aria-live="polite">${readReason(this.read.state)}</p>
-          <button type="button" ?disabled=${this.read.busy} @click=${() => this.load()}>Refresh overview</button>
         </div>
           ${
             value?.recorded
@@ -289,7 +289,6 @@ export class SodaFactoryWorkPlan extends LitElement {
     return html`<section aria-label="Factory work plan">
       <p data-work-message aria-live="polite">${readReason(this.read.state)}</p>
       ${unread.length > 0 ? html`<p>${unread.length} work item${unread.length === 1 ? '' : 's'} could not be read.</p>` : ''}
-      <button type="button" class="ui button" ?disabled=${this.read.busy} @click=${() => this.load()}>Refresh plan</button>
       ${recorded.map((entry) => renderRecordedChoice(describeRecordedChoice(entry.plan, context.links)))}
       ${
         !loaded && this.read.busy
@@ -403,9 +402,7 @@ export class SodaFactoryDirectionRevision extends LitElement {
       value = readValue(state);
     return html`<section aria-label="Factory direction revision">
       <p data-work-message aria-live="polite">${readReason(state)}</p>
-      <button type="button" class="ui button" ?disabled=${this.read.busy} @click=${() => this.load()}>
-        Refresh direction</button
-      >${
+      ${
         value
           ? html`${renderDirectionRevision(describeDirectionRevision(...viewPart(value.revision)))}
               ${renderRevisionHistory(describeRevisionHistory(...viewPart(value.history)))}`

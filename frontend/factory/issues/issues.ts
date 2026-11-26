@@ -106,7 +106,7 @@ export class SodaFactoryIssues extends LitElement {
       signal = AbortSignal.any([this.lifetime.signal, this.read.signal]);
     const state = this.filter,
       cursor = this.cursor;
-    this.view = {...empty(), busy: true};
+    this.view = {...this.view, busy: true, message: ''};
     const query = new URLSearchParams({state, limit: '20'});
     if (cursor) query.set('cursor', cursor);
     try {
@@ -126,7 +126,7 @@ export class SodaFactoryIssues extends LitElement {
         const detail = error.detail.message;
         message = detail && detail.length <= 256 && !/[\u0000-\u001f\u007f-\u009f]/.test(detail)
           ? detail
-          : 'The provider is rate limited. Wait before refreshing issues.';
+          : 'GitHub is busy right now. Issues load again shortly.';
       }
       this.view = {...empty(), message};
     }
@@ -179,14 +179,11 @@ export class SodaFactoryIssues extends LitElement {
             <option value="open">Open</option>
             <option value="closed">Closed</option>
             <option value="all">All</option>
-          </select></label
-        ><button type="button" @click=${this.refresh} ?disabled=${this.view.busy || !!this.view.opening}>
-          Refresh issues
-        </button>
+          </select></label>
         ${this.current.newIssue ? html`<button type="button" data-tone="primary" @click=${() => this.current?.newIssue?.()}>New issue</button>` : ''}
       </header>
       <p role="status">
-        ${this.view.busy ? 'Loading issues…' : this.view.message || (!this.view.items.length ? (this.view.next ? 'No issues on this page. More results are available on the next page.' : 'No issues in this view.') : '')}
+        ${this.view.busy && !this.view.items.length ? 'Loading issues…' : this.view.busy ? '' : this.view.message || (!this.view.items.length ? (this.view.next ? 'No issues on this page. More results are available on the next page.' : 'No issues in this view.') : '')}
       </p>
       <ul>
         ${this.view.items.map(

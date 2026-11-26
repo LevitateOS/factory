@@ -30,7 +30,7 @@ class ActivityRequestError extends Error {
   constructor(readonly status: number) {
     super(
       status === 409 || status === 412
-        ? 'Activity settings changed. Refresh before saving again.'
+        ? 'Activity settings changed somewhere else.'
         : status === 403
           ? 'Only the current repository owner or administrator can save activity settings.'
           : 'Factory activity is unavailable.'
@@ -56,7 +56,6 @@ export class SodaFactoryActivity extends LitElement {
       this.context = undefined;
     }
   );
-  private confirmedUnix = 0;
   private address: ActivityAddress | undefined;
   constructor() {
     super();
@@ -82,7 +81,6 @@ export class SodaFactoryActivity extends LitElement {
     this.activity = undefined;
     this.draft = undefined;
     this.address = undefined;
-    this.confirmedUnix = 0;
     this.busy = this.ready = false;
     this.message = '';
     if (context) void this.load();
@@ -110,7 +108,7 @@ export class SodaFactoryActivity extends LitElement {
       return true;
     } catch {
       if (this.bound.live(serial, context))
-        this.message = 'Activity account identity is unavailable. Refresh before saving preferences.';
+        this.message = 'Your account could not be checked, so saving is off for now.';
       return false;
     }
   }
@@ -145,7 +143,7 @@ export class SodaFactoryActivity extends LitElement {
         if (!admitted || !this.bound.current?.editable || !address) return;
         if (scope !== address.scope || !shown || !this.draft || !sameActivityDraft(shown, this.draft)) {
           this.ready = false;
-          this.message = 'Saved preferences or account changed. Refresh before saving.';
+          this.message = 'Your preferences or account changed in another window. Nothing was saved.';
           return;
         }
         issued = {...this.draft, submitted: true};
@@ -172,7 +170,6 @@ export class SodaFactoryActivity extends LitElement {
         this.draft = undefined;
       }
       this.activity = activity;
-      this.confirmedUnix = Math.floor(Date.now() / 1000);
       if (admitted)
         this.message = issued
           ? 'Activity display settings saved.'
@@ -184,10 +181,9 @@ export class SodaFactoryActivity extends LitElement {
       this.ready = false;
       if (error instanceof ActivityRequestError && [401, 403].includes(error.status)) {
         this.activity = undefined;
-        this.confirmedUnix = 0;
       }
       this.message = error instanceof ActivityRequestError ? error.message : 'Factory activity is unavailable.';
-      if (this.activity) this.message += ' Last confirmed activity is shown; refresh before saving.';
+      if (this.activity) this.message += ' The last activity read is shown.';
     } finally {
       if (this.bound.live(serial, context)) this.busy = false;
     }
@@ -218,7 +214,7 @@ export class SodaFactoryActivity extends LitElement {
         : 'Preferences are retained in this window. Storage is unavailable; no request was sent.';
     } catch {
       this.ready = false;
-      this.message = 'Saved preferences were replaced. Refresh before editing.';
+      this.message = 'Saved preferences were replaced in another window.';
     }
   }
   private save = (event: SubmitEvent) => {
@@ -244,20 +240,16 @@ export class SodaFactoryActivity extends LitElement {
       this.message = 'Current activity revision selected. Save to apply these preferences.';
     } catch {
       this.ready = false;
-      this.message = 'Saved preferences were replaced. Refresh before editing.';
+      this.message = 'Saved preferences were replaced in another window.';
     }
   };
   protected render() {
     if (!this.bound.current) return html``;
-    const activity = this.activity,
-      confirmed = activityTimestamp(this.confirmedUnix);
+    const activity = this.activity;
     return html`<section aria-label="Factory activity">
       <h3>Factory activity</h3>
       <p data-activity-message aria-live="polite">${this.message}</p>
-      ${activity && confirmed ? html`<p>Last confirmed <time datetime=${confirmed.iso}>${confirmed.text}</time>.</p>` : ''}
-      <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>
-        Refresh activity
-      </button>
+      ${!activity && this.message && !this.busy ? html`<button type="button" class="ui button" @click=${() => this.load()}>Try again</button>` : ''}
       ${activity ? this.renderFeed(activity) : ''}
     </section>`;
   }

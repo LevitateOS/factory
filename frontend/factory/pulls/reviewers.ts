@@ -92,7 +92,7 @@ export class SodaFactoryPullReviewers extends LitElement {
     try {
       if (this.journal.pending && !this.journal.blocked) { await this.journal.identity(context, signal); await this.deliver(context, signal, 'lookup'); }
       await this.read(context, signal);
-    } catch { if (this.journal.live(context, signal)) this.message = 'Review requests could not be refreshed. Saved commands were preserved.'; }
+    } catch { if (this.journal.live(context, signal)) this.message = 'Review requests could not be loaded. Saved changes were kept.'; }
     finally { if (this.journal.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   private async act(action: 'submit' | 'retry' | 'lookup' | 'cancel', target?: ReviewerTarget, requested?: boolean) {
@@ -191,7 +191,6 @@ export class SodaFactoryPullReviewers extends LitElement {
         <button type="button" ?disabled=${this.busy || this.journal.blocked || pending.cancel} @click=${() => this.act('cancel')}>Cancel saved reviewer change</button>`
         : this.targets().filter(target => !requested.has(targetKey(target)) && !(target.kind === 'user' && target.id === this.journal.context?.actor)).map(target => html`<button type="button"
           ?disabled=${unavailable || !this.requestSupported(target)} @click=${() => this.act('submit', target, true)}>Request review from ${target.label}</button>`)}
-      <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh reviewers</button>
     </section>`;
   }
 }

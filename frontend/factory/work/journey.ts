@@ -2,7 +2,7 @@ import {LitElement, html} from 'lit';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
 import {describeWorkJourney, renderWorkJourney} from './journey-view.js';
-import {currentWorkObservation, requestWorkRefresh} from './observation.js';
+import {currentWorkObservation} from './observation.js';
 import type {WorkObservation} from './observation.js';
 
 export interface JourneyContext {
@@ -13,7 +13,6 @@ export interface JourneyContext {
   readonly observation?: WorkObservation;
 }
 
-/** @fires soda-factory-work-refresh */
 export class SodaFactoryWorkJourney extends LitElement {
   static properties = {context: {attribute: false}};
   declare context: JourneyContext | undefined;
@@ -24,24 +23,16 @@ export class SodaFactoryWorkJourney extends LitElement {
     if (!this.context) return html``;
     const observation = currentWorkObservation(this.context);
     const journey = observation?.journey;
-    const message =
-      observation?.state === 'ready'
-        ? journey
-          ? ''
-          : 'No work journey has been recorded.'
+    // A shown journey stays put while it re-reads.
+    const message = journey
+      ? ''
+      : observation?.state === 'ready'
+        ? 'Nothing has happened here yet.'
         : observation?.state === 'loading'
           ? 'Loading work history…'
-          : 'Current work history is unavailable. Retained history is stale.';
+          : 'Work history is unavailable right now.';
     return html`<header class="soda-journey-head">
         <h2>Journey</h2>
-        <button
-          type="button"
-          class="ui button"
-          ?disabled=${observation?.state === 'loading'}
-          @click=${() => requestWorkRefresh(this)}
-        >
-          Refresh journey
-        </button>
       </header>
       <p role="status">${message}</p>
       ${journey ? renderWorkJourney(describeWorkJourney(journey, this.context.links)) : ''}`;

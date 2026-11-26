@@ -82,7 +82,7 @@ export class GitHubAccounts extends Observed {
     } catch (error) {
       if (captured === this.generation && capturedInteraction === this.interaction) {
         this.readError =
-          typeof error === 'string' ? error : 'Could not read saved account status. Refresh Factory status and try again.';
+          typeof error === 'string' ? error : 'Could not read saved account status.';
         this.accountsCurrent = false;
         this.changed(undefined);
         this.notify();
@@ -162,7 +162,7 @@ export class GitHubAccounts extends Observed {
 const accountState = {
   stored: 'Saved',
   expired: 'Expired',
-  refresh_pending: 'Refresh unconfirmed',
+  refresh_pending: 'Renewal unconfirmed',
   locked: 'Unlock your desktop keyring',
   withdrawn: 'Removed',
 } as const;
@@ -214,7 +214,7 @@ export class SodaDesktopGitHub extends ControllerView<GitHubAccounts> {
                 : 'Sign in again to allow workflow edits';
           // Row order (name, refresh, remove) is what the native sign-in check drives.
           const refreshable = !c.busy && c.ready && c.accountsCurrent && !active && ['stored', 'expired'].includes(account.state);
-          return html`<li data-connection=${account.connection}><span role="status"><strong>${account.label ?? account.account}</strong> · ${accountState[account.state]} · ${workflow}</span><button type="button" ?hidden=${!account.grant?.refresh_available} ?disabled=${!refreshable} @click=${() => c.refreshLogin(account.connection)}>Refresh login</button><button type="button" ?disabled=${c.busy || !c.ready || !c.accountsCurrent} @click=${() => c.remove(account.connection)}>Remove from Factory</button></li>`;
+          return html`<li data-connection=${account.connection}><span role="status"><strong>${account.label ?? account.account}</strong> · ${accountState[account.state]} · ${workflow}</span><button type="button" ?hidden=${!account.grant?.refresh_available} ?disabled=${!refreshable} @click=${() => c.refreshLogin(account.connection)}>Renew sign-in</button><button type="button" ?disabled=${c.busy || !c.ready || !c.accountsCurrent} @click=${() => c.remove(account.connection)}>Remove from Factory</button></li>`;
         }
       )}</ul>`;
   }

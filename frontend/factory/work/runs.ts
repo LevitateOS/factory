@@ -103,6 +103,10 @@ export class SodaFactoryWorkRuns extends LitElement {
     this.context = undefined;
     super.disconnectedCallback();
   }
+  /** The Work page calls this to keep the list current. */
+  refresh() {
+    return this.read();
+  }
   private async read() {
     const context = this.current,
       signal = this.lifetime.signal;
@@ -120,7 +124,7 @@ export class SodaFactoryWorkRuns extends LitElement {
       }
     } catch {
       if (signal.aborted || this.current !== context) return;
-      this.message = this.runs ? 'Could not update the run list. Showing the last one read.' : 'Runs are unavailable. Refresh to try again.';
+      this.message = this.runs ? 'Could not update the run list. Showing the last one read.' : 'Runs are unavailable right now.';
       this.runs ??= [];
     }
     if (this.runs?.some((run) => run.state === 'running'))
@@ -166,7 +170,6 @@ export class SodaFactoryWorkRuns extends LitElement {
       <div class="soda-work-runs-list">
         <div class="soda-work-runs-head">
           <h2>Runs</h2>
-          <button type="button" @click=${() => void this.read()}>Refresh</button>
         </div>
         ${this.message ? html`<p role="alert">${this.message}</p>` : ''}
         ${runs === undefined

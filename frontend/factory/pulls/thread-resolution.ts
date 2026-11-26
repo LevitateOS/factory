@@ -135,8 +135,8 @@ export class SodaFactoryThreadResolution extends LitElement {
     this.journal.settle(context, pending);
     this.selection = undefined;
     this.message = this.journal.finished(pending, outcome, {
-      committed: 'Thread resolution changed. Refresh to read its current state.',
-      tooLate: 'The thread change was already recorded; cancellation was too late. Refresh to read its current state.',
+      committed: 'Thread resolution changed.',
+      tooLate: 'The thread change was already recorded; cancellation was too late.',
       cancelled: 'Thread change cancelled.', none: 'No thread change was committed.',
     });
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-thread-saved', {detail: {repository: context.repository, pull: context.pull, thread: context.threadID}}));

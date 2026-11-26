@@ -118,12 +118,12 @@ export class PlacementController {
     this.environmentRevision = revision; this.environmentActive = active;
     this.capacityRevision = capacityRev; this.operatorRevision = operatorRev; this.operatorActive = permitted;
     this.runs = runs; this.reads++;
-    this.limitStatus = capacityRev ? `Run limit: ${runs}. This limit is shared by repositories in this Factory installation.` : 'No run limit is saved. Choose and save a limit before running agents.';
-    this.permissionStatus = permitted ? 'This repository may use local run capacity. Policy, funding and admitted workers are still required.' : 'This repository does not have local run permission.';
-    this.environmentStatus = active ? 'Isolated workspace permission is recorded. Execution still requires current policy, funding and worker admission.' : 'Isolated workspaces are not enabled.';
+    this.limitStatus = capacityRev ? `Up to ${runs} agents run at once on this computer, across all projects.` : 'Set how many agents may run at once before running any.';
+    this.permissionStatus = permitted ? 'This project may run agents on this computer.' : 'This project may not run agents on this computer.';
+    this.environmentStatus = active ? 'Each agent works in its own isolated workspace.' : 'Isolated workspaces are off.';
     this.status = !this.canSelect ? (this.canConfigure ? 'Controller selection belongs to Fountain. Local workspace and capacity permissions remain separate.' : 'Local execution settings are unavailable for this connection.') :
       !placement || placement.state === 'inactive' ? 'No active controller.' :
-      `${placement.runtime === this.runtime ? 'This computer' : 'Another computer'} · ${placement.state} · generation ${placement.generation}`;
+      `${placement.runtime === this.runtime ? 'This computer' : 'Another computer'} · ${placement.state}`;
   }
   /** `limit` is the run limit the acting view validated, used only for 'capacity'. */
   async run(change: Change, limit?: number) {
@@ -158,7 +158,9 @@ export class PlacementController {
     } catch {
       if (!this.retired) {
         this.known = false;
-        this.status = 'Execution settings could not be confirmed. Refresh before changing them. Existing work may still need retirement.';
+        // Show what is saved now instead of asking for a refresh.
+        await this.read().catch(() => {});
+        if (!this.retired) this.status = this.known ? 'This change could not be confirmed. The current settings are shown.' : 'Execution settings are unavailable.';
       }
     } finally {
       if (!this.retired) { this.busy = false; this.changed(); }
@@ -211,10 +213,9 @@ export class SodaDesktopPlacement extends LitElement {
     const placement = c.placement, ours = placement?.state === 'active' && placement.runtime === c.runtime;
     const configurable = !c.busy && c.known && c.canConfigure;
     return html`<p role="status">${c.status}</p>
-      <p>Select one computer for this repository. Other installations must be configured separately. Selecting a controller does not enable automation.</p>
+      <p>Choose the one computer that runs agents for this project.</p>
       <button type="button" ?disabled=${c.busy || !c.known || !c.canSelect || (!!placement && placement.state !== 'inactive' && placement.runtime !== c.runtime)}
         @click=${() => void c.run('controller')}>${placement?.state === 'active' ? 'Retire controller' : placement?.state === 'retiring' ? 'Finish retirement' : 'Use this computer'}</button>
-      <button type="button" ?disabled=${c.busy} @click=${() => void c.run(false)}>Refresh controller</button>
       <label>Maximum simultaneous agent runs <input type="number" min="1" max="64" step="1" required ?disabled=${!configurable} /></label>
       <button type="button" ?disabled=${!configurable} @click=${() => this.saveLimit()}>Save run limit</button>
       <p role="status">${c.limitStatus}</p>

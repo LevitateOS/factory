@@ -202,7 +202,7 @@ async function authorizeLogins(context: RoleContext, signal: AbortSignal, saved:
   const accounts = [...saved];
   for (const [connection, added] of needed) {
     const stored = accounts.find((account) => account.connection === connection);
-    if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) throw new RoleSaveError('Refresh before saving again.', 409);
+    if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) throw new RoleSaveError('This login changed somewhere else. The latest is shown; save again.', 409);
     const granted = [...new Set([...(stored?.active ? stored.roles : []), ...added])];
     const response = await context.transport.request(`repositories/${context.repository}/factory/sponsorships/${connection}`, {
       method: 'PUT',
@@ -212,8 +212,8 @@ async function authorizeLogins(context: RoleContext, signal: AbortSignal, saved:
     if (!response.ok)
       throw new RoleSaveError(
         response.status === 409 || response.status === 412
-          ? 'This login changed. Refresh before saving again.'
-          : 'This login cannot run work yet. Check the computer and workspace permission, then refresh roles.',
+          ? 'This login changed somewhere else. The latest is shown; save again.'
+          : 'This login cannot run work yet. Check its computer and workspace permission.',
         response.status
       );
     const receipt = object(await readSodaJSON(response));
@@ -395,12 +395,13 @@ export class SodaFactoryRoleSettings extends LitElement {
   private read(context: RoleContext, signal: AbortSignal) {
     return readSettings(context, signal);
   }
-  private async refresh() {
+  /** Reads the saved settings; `note` explains why, when a save just failed. */
+  private async refresh(note = '') {
     const context = this.current,
       signal = this.lifetime.signal;
     if (!context || this.busy || !this.live(context, signal)) return;
     this.busy = true;
-    this.message = '';
+    this.message = note;
     try {
       const view = await this.read(context, signal);
       if (this.live(context, signal)) {
@@ -423,7 +424,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     } catch {
       if (this.live(context, signal)) {
         this.view = undefined;
-        this.message = 'Role settings are unavailable. Refresh to try again.';
+        this.message = 'Role settings are unavailable.';
       }
     } finally {
       if (this.live(context, signal)) this.busy = false;
@@ -543,10 +544,10 @@ export class SodaFactoryRoleSettings extends LitElement {
           response.status === 400
             ? 'Policy settings were rejected. Check the branch, CI checks and role choices.'
             : response.status === 409 || response.status === 412
-              ? 'Policy changed. Refresh before saving again.'
+              ? 'These settings changed somewhere else. The latest is shown; save again.'
               : response.status === 403
-                ? 'Permission to change policy is unavailable. Refresh to check current access.'
-                : 'The save could not be confirmed. Refresh before changing roles again.',
+                ? 'You can’t change these settings.'
+                : 'The save could not be confirmed. The latest is shown.',
           response.status
         );
       }
@@ -589,11 +590,13 @@ export class SodaFactoryRoleSettings extends LitElement {
       }
     } catch (error) {
       if (this.live(context, signal)) {
-        if (!(error instanceof RoleSaveError && error.status === 400)) this.view = undefined;
-        this.message =
-          error instanceof RoleSaveError
-            ? error.message
-            : 'The save could not be confirmed. Refresh before changing roles again.';
+        const note = error instanceof RoleSaveError ? error.message : 'The save could not be confirmed. The latest is shown.';
+        this.message = note;
+        // Anything but a rejected form may have changed what is saved: show it.
+        if (!(error instanceof RoleSaveError && error.status === 400)) {
+          this.busy = false;
+          await this.refresh(note);
+        }
       }
     } finally {
       if (this.live(context, signal)) this.busy = false;
@@ -628,9 +631,8 @@ export class SodaFactoryRoleSettings extends LitElement {
         Choose the model and Muse login for each role. Saving lets that login run those roles. Factory does not
         switch logins automatically.
       </p>
-      <p>Routing, planning and delivery decisions come from JEV. JEV is not connected yet, so those steps wait.</p>
       <p role="status">${this.message}</p>
-      <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh roles</button>
+      ${!view && this.message && !this.busy ? html`<button type="button" @click=${() => this.refresh()}>Try again</button>` : ''}
       ${view?.sources.map((source) => source.tool
         ? html`<div role="status">
             <p>${toolStatusLabels[source.tool.state]}</p>
@@ -700,7 +702,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                         />Use ${this.current.accountLabel ?? 'the connected account'} for repository automation.</label
                       >
                       <p>Repository permissions, required reviews and CI are checked again before remote actions.</p>
-                      ${!view.options || !view.options.mergeMethods.length || !this.initialActors() ? html`<p>Setup options are unavailable for this connection. Refresh before saving.</p>` : ''}
+                      ${!view.options || !view.options.mergeMethods.length || !this.initialActors() ? html`<p>Setup options are unavailable for this connection.</p>` : ''}
                     </fieldset>`
                   : ''
               }

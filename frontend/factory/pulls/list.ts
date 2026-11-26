@@ -85,7 +85,7 @@ export class SodaFactoryPulls extends LitElement {
     const serial = ++this.serial;
     const signal = AbortSignal.any([this.lifetime.signal, this.read.signal]);
     const cursor = this.cursor, state = this.filter;
-    this.view = {...empty(), busy: true};
+    this.view = {...this.view, busy: true, message: ''};
     const query = new URLSearchParams({state, limit: '20'});
     if (cursor) query.set('cursor', cursor);
     try {
@@ -136,9 +136,8 @@ export class SodaFactoryPulls extends LitElement {
         <label>State <select aria-label="Pull request state" .value=${this.filter} @change=${this.changeFilter} ?disabled=${!!this.view.opening}>
           <option value="open">Open</option><option value="closed">Closed</option><option value="all">All</option>
         </select></label>
-        <button type="button" @click=${this.refresh} ?disabled=${this.view.busy || !!this.view.opening}>Refresh pull requests</button>
       </header>
-      <p role="status">${this.view.busy ? 'Loading pull requests…' : this.view.message || (!this.view.items.length ? (this.view.next ? 'No pull requests on this page. More results are available.' : 'No pull requests in this view.') : '')}</p>
+      <p role="status">${this.view.busy && !this.view.items.length ? 'Loading pull requests…' : this.view.busy ? '' : this.view.message || (!this.view.items.length ? (this.view.next ? 'No pull requests on this page. More results are available.' : 'No pull requests in this view.') : '')}</p>
       <ul>${this.view.items.map(item => html`<li>
         <span class="soda-pull-state">${item.state === 'unknown' ? 'State unavailable' : item.state}${item.draft ? ' draft' : ''}</span>
         <button type="button" class="soda-pull-title" @click=${() => this.open(item)} ?disabled=${!!this.view.opening}>${item.title || 'Untitled pull request'}</button>

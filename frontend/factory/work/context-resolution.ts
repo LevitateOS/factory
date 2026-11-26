@@ -185,7 +185,7 @@ export class SodaFactoryContextResolution extends LitElement {
       this.ready = this.syncSaved();
     } catch {
       if (live())
-        this.identityMessage = 'Could not verify the current account. Refresh current context before choosing.';
+        this.identityMessage = 'Could not verify the current account.';
     } finally {
       if (this.identityRequest === request) this.identityRequest = undefined;
     }
@@ -245,7 +245,7 @@ export class SodaFactoryContextResolution extends LitElement {
     } catch {
       if (live()) {
         this.clearSelection();
-        this.message = 'Could not load current context. Refresh the work detail.';
+        this.message = 'Could not load current context.';
       }
     } finally {
       if (live()) this.loading = false;
@@ -347,14 +347,14 @@ export class SodaFactoryContextResolution extends LitElement {
       if (currentScope !== address.scope) {
         this.ready = false;
         this.message = '';
-        this.identityMessage = 'The current account changed. Refresh current context before choosing.';
+        this.identityMessage = 'The current account changed.';
         return;
       }
       const current = readContextChoices(address);
       if (current.blocked || (replay && !current.choices.some((row) => sameContextChoice(row, choice)))) {
         this.syncSaved();
         this.ready = false;
-        this.message = 'The saved context choice changed. Refresh current context before retrying.';
+        this.message = 'The saved context choice changed.';
         return;
       }
       const retained = retainContextChoice(address, choice);
@@ -365,7 +365,7 @@ export class SodaFactoryContextResolution extends LitElement {
             ? 'The context choice could not be saved. No request was sent. Retry when storage is available.'
             : retained === 'full'
               ? 'Saved context choices need to be checked before another choice can be saved. No request was sent.'
-              : 'The saved context choices changed. Refresh current context before retrying.';
+              : 'The saved context choices changed.';
         return;
       }
       signal.throwIfAborted();
@@ -389,7 +389,7 @@ export class SodaFactoryContextResolution extends LitElement {
       if (!live()) return;
       if (!response.ok) {
         this.message =
-          'This context choice is no longer available. Its exact request remains saved. Refresh the work detail.';
+          'This context choice is no longer available. Its exact request remains saved.';
         return;
       }
       this.verify(body, choice.run, choice);
@@ -397,7 +397,7 @@ export class SodaFactoryContextResolution extends LitElement {
       if (settled === 'conflict') {
         this.syncSaved();
         this.ready = false;
-        this.message = 'The saved context choices changed. No saved choice was cleared. Refresh current context.';
+        this.message = 'The saved context choices changed. No saved choice was cleared.';
         return;
       }
       this.syncSaved();
@@ -416,8 +416,8 @@ export class SodaFactoryContextResolution extends LitElement {
         if (!dispatched) {
           this.ready = false;
           this.message = '';
-          this.identityMessage = 'This context choice could not be verified. Refresh current context before choosing.';
-        } else this.message = 'No result was confirmed. Retry this same choice or refresh the work detail.';
+          this.identityMessage = 'This context choice could not be verified.';
+        } else this.message = 'No result was confirmed. Retry this same choice.';
       }
     } finally {
       if (live()) this.busy = false;
@@ -476,13 +476,6 @@ export class SodaFactoryContextResolution extends LitElement {
           : ''
       }
       <p role="status">${message}</p>
-      ${
-        !this.busy && !this.loading && (!this.ready || this.pending.length || !selection)
-          ? html`<button type="button" class="ui button" @click=${() => this.refresh()}>
-              Refresh current context
-            </button>`
-          : ''
-      }
     </section>`;
   }
 }

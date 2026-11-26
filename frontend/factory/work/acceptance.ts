@@ -4,7 +4,7 @@ import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryAcceptanceLinks} from '../app/navigation.js';
 import {decisionID, newDecisionID} from '../api/request-response.js';
-import {currentWorkObservation, requestWorkRefresh} from './observation.js';
+import {currentWorkObservation} from './observation.js';
 import type {WorkObservation} from './observation.js';
 import {factoryIssueDetail, sodaErrorDetail} from '../api/work-response.js';
 import {acceptanceCommentIDs, acceptanceErrorMessage, acceptancePreview} from '../api/acceptance-response.js';
@@ -62,7 +62,6 @@ async function read(context: RequirementsAcceptanceContext, path: string, signal
 
 // Native text stays in the native issue. Only the exact reviewed selections
 // from acceptance-preview enter this existing maintainer decision contract.
-/** @fires soda-factory-work-refresh */
 export class SodaFactoryRequirementsAcceptance extends LitElement {
   static properties = {
     allowed: {state: true},
@@ -161,7 +160,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       !!observation.access.viewer.session_current;
     if (!this.allowed) {
       this.message =
-        'Accepting requirements needs current repository code-write authority and a current session. Refresh the work detail.';
+        'Accepting requirements needs current repository code-write authority and a current session.';
     } else if (!this.busy) void this.resolveIdentity(context, this.bound.serial);
   }
   private async resolveIdentity(context: RequirementsAcceptanceContext, serial: number): Promise<boolean> {
@@ -195,7 +194,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     } catch {
       if (this.bound.live(serial, context)) {
         this.cmd.unresolve();
-        this.message = 'Acceptance identity could not be read. Refresh acceptance authority before accepting.';
+        this.message = 'Acceptance identity could not be read.';
       }
       return false;
     }
@@ -344,11 +343,11 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         this.message =
           outcome.result === 'unavailable'
             ? 'Acceptance could not be saved. No decision was sent. Retry the same acceptance when storage is available.'
-            : 'The saved acceptance changed. Refresh acceptance authority before retrying.';
+            : 'The saved acceptance changed.';
         return;
       }
       if (outcome.kind === 'record-changed') {
-        this.message = 'The saved acceptance changed. Refresh acceptance authority to read its current state.';
+        this.message = 'The saved acceptance changed.';
         return;
       }
       if (outcome.kind === 'refused') {
@@ -359,7 +358,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         this.message = `${
           acceptanceErrorMessage(outcome.body) ??
           sodaErrorDetail(outcome.body).message ??
-          'Acceptance was not confirmed. Refresh the preview before accepting current requirements.'
+          'Acceptance was not confirmed.'
         }${retry()}`;
         return;
       }
@@ -460,9 +459,6 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         Acceptance uses its exact title and body, plus the comments you select.
       </p>
       <p role="status">${this.message}</p>
-      <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => requestWorkRefresh(this)}>
-        Refresh acceptance authority
-      </button>
       <fieldset ?disabled=${!this.allowed || !this.ready || this.busy || this.pending !== undefined}>
         <legend>Optional discussion to include</legend>
         <label

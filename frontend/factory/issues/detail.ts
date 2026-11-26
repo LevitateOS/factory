@@ -247,11 +247,8 @@ export class SodaFactoryIssue extends LitElement {
     >
       <header>
         <h2>${issue ? issue.title || 'Untitled issue' : 'Issue'}</h2>
-        <button type="button" @click=${this.refresh} ?disabled=${this.view.busy || this.view.opening}>
-          Refresh issue
-        </button>
       </header>
-      <p role="status">${this.view.busy ? 'Loading issue and conversation…' : this.view.message}</p>
+      <p role="status">${this.view.busy && !issue ? 'Loading issue and conversation…' : this.view.busy ? '' : this.view.message}</p>
       ${
         issue
           ? html`

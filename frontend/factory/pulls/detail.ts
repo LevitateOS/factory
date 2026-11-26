@@ -174,7 +174,7 @@ export class SodaFactoryPull extends LitElement {
       if (cursor) query.set('cursor', cursor);
       if (cursor && (tab === 'commits' || tab === 'files' || tab === 'checks') && priorHead !== selectedHead) {
         this.cursor = ''; this.previous = [];
-        this.view = {...baseView, message: 'The PR head changed. Refresh to read its current revision.'};
+        this.view = {...baseView, message: 'The PR head changed.'};
         return;
       }
       if (tab === 'commits') {
@@ -220,7 +220,7 @@ export class SodaFactoryPull extends LitElement {
       if (!this.live(context, serial)) return;
       if (document.hidden) { this.view = {...this.view, busy: false}; return; }
       const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
-      this.view = {...empty(), message: hidden ? 'This pull request is not available to this account.' : error instanceof FactoryReadError && error.status === 409 ? 'This pull request changed. Refresh to read the current revision.' : 'Pull request details could not be loaded. Try again.'};
+      this.view = {...empty(), message: hidden ? 'This pull request is not available to this account.' : error instanceof FactoryReadError && error.status === 409 ? 'This pull request changed.' : 'Pull request details could not be loaded. Try again.'};
     }
   }
   private async display(signal: AbortSignal, refresh = false): Promise<PullDisplay> {
@@ -301,7 +301,7 @@ export class SodaFactoryPull extends LitElement {
     const context = this.current, pull = this.view.pull, head = this.view.head;
     if (!context) return html``;
     return html`<section class="soda-pull-detail" aria-label="Pull request detail" aria-busy=${this.view.busy} @click=${this.open}>
-      <header><h2>${pull?.title || 'Pull request'}</h2><button type="button" @click=${this.refresh} ?disabled=${this.view.busy}>Refresh pull request</button></header>
+      <header><h2>${pull?.title || 'Pull request'}</h2></header>
       <p role="status">${this.view.busy ? 'Loading pull request…' : this.view.message}</p>
       ${pull ? html`
         <p class="soda-pull-meta">#${pull.ref.number} · ${pull.state}${pull.draft ? ' · Draft' : ''} · ${pull.author?.login || 'Unknown author'} · ${pull.head.name} → ${pull.base.name}</p>
@@ -330,7 +330,7 @@ export class SodaFactoryPull extends LitElement {
           <ol>${this.view.commits.map(row => html`<li><code title=${row.commit}>${row.commit.slice(0, 12)}</code> · ${row.summary}${row.author ? html` · ${row.author}` : ''} · <time datetime=${row.authoredAt}>${row.authoredAt.slice(0, 10)}</time></li>`)}</ol>
           ${!this.view.commits.length ? html`<p>No commits on this page.</p>` : ''}
         </section>` : this.tab === 'files' ? html`<section aria-label="Changed files" @factory-thread-more=${this.moreThread}>
-          ${this.view.diff && head && this.view.diff.head !== head ? html`<p role="status">This diff uses a different head from the current pull request. Refresh before reviewing.</p>` : ''}
+          ${this.view.diff && head && this.view.diff.head !== head ? html`<p role="status">This diff is from an older version of this pull request.</p>` : ''}
           ${context.commandScope && head && this.view.diff?.head === head ? html`<soda-factory-pull-inline
             .context=${{transport: context.transport, host: context.host, actor: context.actor,
               repository: context.repository, pull: context.pull, scope: context.scope,

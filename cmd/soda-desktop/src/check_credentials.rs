@@ -808,14 +808,14 @@ async fn issue_read_journey(app: &tauri::AppHandle, connection: &str) -> Result<
         nav('Work');await until(()=>app.querySelector('soda-factory-work-overview'),'Factory work view');
         history.back();await until(()=>detail()?.querySelector('#issuecomment-81'),'Back from Factory work');await scrollTarget(heading.id);
         await mode('issues-ui-denied');
-        [...detail().querySelectorAll('button')].find(b=>b.textContent.includes('Refresh issue')).click();
+        detail().refresh();
         await until(()=>detail()?.textContent.includes('This issue is not available to this account.'),'access refusal');
         assert(!detail().querySelector('article')&&!app.querySelector('soda-factory-work-journey button'),'access loss retained issue or Factory facts');
         await mode('issues-ui');
-        [...detail().querySelectorAll('button')].find(b=>b.textContent.includes('Refresh issue')).click();
+        detail().refresh();
         await until(()=>detail()?.querySelector('#issuecomment-81'),'restored read');
         await mode('issues-ui-pause');
-        [...detail().querySelectorAll('button')].find(b=>b.textContent.includes('Refresh issue')).click();
+        detail().refresh();
         await marker('signin-entered');document.querySelector('#connection-disconnect').click();
         await marker('signin-upstream-cancelled');
         await until(()=>app.textContent.includes('Choose an account to open Factory.'),'disconnected shared app');

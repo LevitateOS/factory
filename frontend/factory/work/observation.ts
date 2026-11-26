@@ -30,7 +30,3 @@ export function currentWorkObservation(context: {
     ? observation
     : undefined;
 }
-
-export function requestWorkRefresh(element: HTMLElement) {
-  element.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
-}

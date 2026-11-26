@@ -5,7 +5,7 @@ import {check, id, object} from '../api/models.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {PendingCommandController} from '../shared/pending-command.js';
 import type {ClassifyRefusal} from '../shared/pending-command.js';
-import {currentWorkObservation, requestWorkRefresh} from './observation.js';
+import {currentWorkObservation} from './observation.js';
 import type {WorkObservation} from './observation.js';
 import type {JourneyGate} from '../api/journey-response.js';
 import {
@@ -31,7 +31,6 @@ export interface RetryContext {
 const classifyRefusal: ClassifyRefusal = (status, code) =>
   status === 409 && (code === 'completion_retry_ineligible' || code === 'authority_ineffective') ? 'discard' : 'keep';
 
-/** @fires soda-factory-work-refresh */
 export class SodaFactoryCompletionRetry extends LitElement {
   static properties = {
     gates: {state: true},
@@ -93,7 +92,7 @@ export class SodaFactoryCompletionRetry extends LitElement {
       !!observation.access?.viewer.code_write &&
       !!observation.access.viewer.session_current;
     this.gates = observation?.journey?.gates.filter((gate) => gate.state === 'attention' && gate.retryable) ?? [];
-    if (!this.allowed) this.message = 'Current completion review authority is unavailable. Refresh the work detail.';
+    if (!this.allowed) this.message = 'Current completion review authority is unavailable.';
     else if (!this.busy) void this.resolveIdentity(context, this.bound.serial);
   }
   private async resolveIdentity(context: RetryContext, serial: number): Promise<boolean> {
@@ -116,7 +115,7 @@ export class SodaFactoryCompletionRetry extends LitElement {
     } catch {
       if (this.bound.live(serial, context)) {
         this.cmd.unresolve();
-        this.message = 'Completion retry identity could not be read. Refresh completion reviews before retrying.';
+        this.message = 'Completion retry identity could not be read.';
       }
       return false;
     }
@@ -198,15 +197,15 @@ export class SodaFactoryCompletionRetry extends LitElement {
         this.message =
           outcome.result === 'unavailable'
             ? 'Completion retry could not be saved. No request was sent. Retry the same request when storage is available.'
-            : 'The saved completion retry changed. Refresh completion reviews before retrying.';
+            : 'The saved completion retry changed.';
       else if (outcome.kind === 'record-changed')
-        this.message = 'The saved completion retry changed. Refresh completion reviews to read its current state.';
+        this.message = 'The saved completion retry changed.';
       else if (outcome.kind === 'confirmed') this.confirmed();
       else if (outcome.kind === 'refused' && outcome.discarded)
-        this.message = 'The completion review changed and can no longer be retried. Refresh completion reviews.';
+        this.message = 'The completion review changed and can no longer be retried.';
       else
         this.message =
-          'No retry was confirmed. The exact request remains saved. Retry this same request or refresh completion reviews.';
+          'No retry was confirmed. The exact request remains saved. Retry this same request.';
     } finally {
       if (this.bound.live(serial, context)) this.busy = false;
     }
@@ -245,18 +244,6 @@ export class SodaFactoryCompletionRetry extends LitElement {
           : ''
       }
       <p role="status">${this.message}</p>
-      ${
-        this.message && !this.busy
-          ? html`<button
-              type="button"
-              class="ui button"
-              ?disabled=${this.busy}
-              @click=${() => requestWorkRefresh(this)}
-            >
-              Refresh completion reviews
-            </button>`
-          : ''
-      }
     </section>`;
   }
 }

@@ -136,8 +136,8 @@ export class SodaFactoryIssueState extends LitElement {
     if (outcome.kind !== 'finished') return false;
     this.journal.settle(context, pending);
     this.message = this.journal.finished(pending, outcome, {
-      committed: 'Issue state recorded. Refresh to read the provider state.',
-      tooLate: 'The state change was already recorded; cancellation was too late. Refresh to read the provider state.',
+      committed: 'Issue state recorded.',
+      tooLate: 'The state change was already recorded; cancellation was too late.',
       cancelled: 'State change cancelled before it was committed.', none: 'No state change was committed.',
     });
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('issue-state-saved', {detail: {repository: context.repository, issue: context.issue, command: pending.command}}));

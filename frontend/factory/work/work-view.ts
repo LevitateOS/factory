@@ -507,7 +507,7 @@ function stopOutcomeText(receipt: StopReceipt): {result: InterventionResult; tex
       result: 'uncertain',
       text: 'Stop uncertain: the run effect is not confirmed. Inspect the run before retrying.',
     };
-  if (!receipt.confirmed) return {result: 'pending', text: 'Stop not confirmed. Refresh the run before acting again.'};
+  if (!receipt.confirmed) return {result: 'pending', text: 'Stop not confirmed.'};
   return {result: 'confirmed', text: `Stop confirmed${receipt.outcome ? `: ${receipt.outcome}` : ''}.`};
 }
 function projectStopOutcomeText(receipt: ProjectStopResult): {result: InterventionResult; text: string} {

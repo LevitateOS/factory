@@ -119,6 +119,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
   declare private message: string;
   declare private selectionCurrent: boolean;
   private current: Context | undefined;
+  private follow: ReturnType<typeof setTimeout> | undefined;
   private lifetime = new AbortController();
   private command: SetupCommand | undefined;
   private record: PendingRecord<SetupCommand> | undefined;
@@ -140,6 +141,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     )
       return;
     this.lifetime.abort();
+    clearTimeout(this.follow);
     this.lifetime = new AbortController();
     this.current = value;
     this.view = undefined;
@@ -162,14 +164,17 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
   }
   disconnectedCallback() {
     this.lifetime.abort();
+    clearTimeout(this.follow);
     super.disconnectedCallback();
   }
   private live(context: Context, signal: AbortSignal) {
     return this.current === context && !signal.aborted;
   }
-  private async refresh(paths?: string[]) {
+  /** Reads setup (or previews `paths`); `note` stays shown after the read. */
+  private async refresh(paths?: string[], note = '') {
     const context = this.current,
       signal = this.lifetime.signal;
+    clearTimeout(this.follow);
     if (!context || this.busy) return;
     this.selectionCurrent = false;
     this.busy = true;
@@ -179,12 +184,17 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         paths ? {signal, method: 'POST', body: JSON.stringify({paths})} : {signal}
       );
       if (!response.ok)
-        throw new Error('Workspace setup could not be read. Check the repository connection and refresh.');
+        throw new Error('Workspace setup could not be read. Check the repository connection.');
       const view = setupResponse(await readSodaJSON(response));
       if (this.live(context, signal)) {
         this.view = view;
         this.selectionCurrent = true;
-        this.message = '';
+        this.message = note;
+        // A preparation still on its way is followed until it settles.
+        const settling = view.preparations.some(
+          (entry) => entry.current === true && ['approved', 'waiting', 'running'].includes(String(object(entry.state).phase))
+        );
+        if (!paths && settling) this.follow = setTimeout(() => void this.refresh(), 5000);
       }
     } catch (error) {
       if (this.live(context, signal))
@@ -260,7 +270,8 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       return;
     }
     this.busy = true;
-    this.message = 'Preparing the approved source. Refresh to observe setup and check results.';
+    this.message = 'Preparing the approved source…';
+    let fixing = false;
     try {
       const response = await context.transport.request(`repositories/${context.repository}/factory/setup`, {
         method: 'PUT',
@@ -281,8 +292,8 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
           }
         }
         if (response.status === 409 || response.status === 412)
-          throw new Error('Source, permission or approval changed. Refresh and review the current setup.');
-        throw new Error('Setup was not confirmed. Refresh its recorded state before submitting another approval.');
+          throw new Error('Source, permission or approval changed. Review the current setup below.');
+        throw new Error('Setup was not confirmed. Its current state is shown below.');
       }
       const next = setupResponse(await readSodaJSON(response));
       if (this.live(context, signal)) {
@@ -294,14 +305,18 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         this.command = remaining.pending;
         this.recoveryBlocked = remaining.blocked;
         this.message = settled ? 'Approval recorded. Readiness requires passing setup and checks for both roles.' :
-          'Approval recorded. A different saved approval remains; refresh before continuing.';
+          'Approval recorded. A different saved approval is still waiting above.';
       }
     } catch (error) {
       if (this.live(context, signal))
         this.message = error instanceof Error ? error.message : 'Setup was not confirmed.';
+      fixing = error instanceof Error && error.message.startsWith('Review the scripts');
     } finally {
       if (this.live(context, signal)) this.busy = false;
     }
+    // Show what is now recorded and follow the preparation, unless the form
+    // itself was refused and the person is still fixing it.
+    if (this.live(context, signal) && !fixing) void this.refresh(undefined, this.message);
   }
   protected render() {
     const view = this.view,
@@ -325,7 +340,6 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         <label><input type="checkbox" required /> I reviewed this saved approval and want to retry it unchanged.</label>
         <button type="submit" ?disabled=${this.busy || this.recoveryBlocked}>Retry saved approval</button>
       </form>` : ''}
-      <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh workspace setup</button>
       ${view?.preparations.map((entry) => {
         const state = object(entry.state);
         return html`<div>

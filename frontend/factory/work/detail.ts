@@ -337,7 +337,7 @@ export class SodaFactoryWorkDetail extends LitElement {
         this.setMark(
           'retry',
           'failed',
-          'Retry identity or its saved run could not be read. Refresh detail before retrying. No new request was sent.'
+          'Retry identity or its saved run could not be read. No new request was sent.'
         );
       }
       return false;
@@ -425,7 +425,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       this.setMark(
         'retry',
         'uncertain',
-        'Saved retry changed while waiting. Its current record was preserved; refresh detail.'
+        'Saved retry changed while waiting. Its current record was preserved.'
       );
     else if (outcome.kind === 'refused') {
       const rendered = interventionResultText(
@@ -437,8 +437,8 @@ export class SodaFactoryWorkDetail extends LitElement {
         'retry',
         'uncertain',
         understood
-          ? 'No reply was confirmed. Retry the same request or refresh.'
-          : 'The reply could not be understood; refresh before acting again.'
+          ? 'No reply was confirmed. Retry the same request.'
+          : 'The reply could not be understood.'
       );
     else if (receipt) {
       const rendered = interventionResultText({kind: 'retry', receipt});
@@ -459,7 +459,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       void this.load();
     } catch {
       if (!this.bound.live(serial, context)) return;
-      this.setMark(kind, 'uncertain', 'No reply was confirmed. Refresh before acting again.');
+      this.setMark(kind, 'uncertain', 'No reply was confirmed.');
     }
   }
   private applyPosted(kind: InterventionKind, context: WorkDetailContext, posted: Posted, runID: string | undefined) {
@@ -468,7 +468,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       const rendered = interventionResultText(outcome);
       this.setMark(kind, rendered.result, rendered.text);
     } catch {
-      this.setMark(kind, 'uncertain', 'The reply could not be understood; refresh before acting again.');
+      this.setMark(kind, 'uncertain', 'The reply could not be understood.');
     }
   }
   private requestWatch(runID: string) {
@@ -537,7 +537,6 @@ export class SodaFactoryWorkDetail extends LitElement {
     return html`<section class="soda-work-detail" aria-label="Factory work detail" @soda-factory-work-refresh=${() => this.load()}>
       <header class="soda-work-head">
         <p data-work-message aria-live="polite">${this.message}</p>
-        <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>Refresh detail</button>
       </header>
       <div class="soda-work-layout">
         <div class="soda-work-main">

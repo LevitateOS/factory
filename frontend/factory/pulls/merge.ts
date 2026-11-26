@@ -158,8 +158,8 @@ export class SodaFactoryPullMerge extends LitElement {
     if (outcome.kind !== 'finished') return false;
     this.journal.settle(context, pending);
     this.status = this.journal.finished(pending, outcome, {
-      committed: 'Merge recorded. Refresh to read the provider state.',
-      tooLate: 'The merge was already recorded; cancellation was too late. Refresh to read the provider state.',
+      committed: 'Merge recorded.',
+      tooLate: 'The merge was already recorded; cancellation was too late.',
       cancelled: 'Merge cancelled before it was committed.', none: 'No merge was committed.',
     });
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-merge-saved', {detail: {repository: context.repository, pull: context.pull, command: pending.command}}));

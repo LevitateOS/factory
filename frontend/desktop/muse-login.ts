@@ -123,7 +123,7 @@ export class MuseLogin extends Observed {
     } catch {
       if (generation === this.epoch && captured === this.interaction) {
         this.view = undefined;
-        this.error = 'Muse sign-in status is unavailable. Refresh Factory and try again.';
+        this.error = 'Muse sign-in status is unavailable.';
         this.notify();
       }
     }
@@ -177,7 +177,7 @@ export class SodaDesktopMuse extends ControllerView<MuseLogin> {
                     : 'Muse keeps its own saved login. Sign in here when needed.',
               requesting: 'Requesting a Muse sign-in code…',
               waiting: 'Confirm the matching code on Meta to sign in.',
-              complete: 'Muse sign-in finished. Refresh agent roles to use this login.',
+              complete: 'Muse sign-in finished.',
               cancelled: 'Muse sign-in stopped.',
               failed: 'Muse sign-in could not finish. Try again.',
             }[view.phase]) ??

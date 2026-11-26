@@ -135,7 +135,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     } catch {
       if (this.bound.live(serial, context)) {
         this.cmd.unresolve();
-        this.recoveryMessage = 'Verification identity could not be read. Refresh verification before retrying.';
+        this.recoveryMessage = 'Verification identity could not be read.';
       }
       return false;
     }
@@ -225,7 +225,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
     for (const entry of entries) if (entry.delivery_repair?.progress) this.repairs.delete(entry.id);
     if (reads.some((read) => read.status === 'rejected')) {
       this.message =
-        'Could not read current verification or repair progress. Last confirmed states are shown; refresh verification to try again.';
+        'Could not read current verification or repair progress. Last confirmed states are shown.';
       this.notice = 'read-failed';
       return;
     }
@@ -271,7 +271,7 @@ export class SodaFactoryVerificationRetry extends LitElement {
       if (admitted === 'unresolved') return;
       if (admitted === 'changed') {
         this.recoveryMessage =
-          'The saved verification request or account changed. Refresh verification before retrying.';
+          'The saved verification request or account changed.';
         return;
       }
       const pending = this.pending ?? {run, command: action === 'retry' ? factoryCommandId() : '', action};
@@ -303,23 +303,23 @@ export class SodaFactoryVerificationRetry extends LitElement {
         this.recoveryMessage =
           outcome.result === 'unavailable'
             ? 'Verification request could not be saved. No request was sent. Retry the same request when storage is available.'
-            : 'The saved verification request changed. Refresh verification before retrying.';
+            : 'The saved verification request changed.';
       } else if (outcome.kind === 'record-changed') {
         this.recoveryMessage =
-          'The saved verification request changed. Refresh verification to read its current state.';
+          'The saved verification request changed.';
       } else if (outcome.kind === 'confirmed') {
         this.recoveryMessage = '';
         this.confirmed(run, action, repair);
       } else if (outcome.kind === 'refused' && outcome.discarded) {
         this.notice = undefined;
         this.message =
-          'The verification request is no longer available. Refresh verification before requesting again.';
+          'The verification request is no longer available.';
       } else {
         this.notice = undefined;
         this.message =
           action === 'retry'
-            ? 'No Retry was confirmed. Retry this same request or refresh the verification status.'
-            : 'No repair request was confirmed. Retry this same request or refresh the verification status.';
+            ? 'No Retry was confirmed. Retry this same request.'
+            : 'No repair request was confirmed. Retry this same request.';
       }
     } finally {
       if (this.bound.live(serial, context)) this.busy = false;
@@ -384,16 +384,6 @@ export class SodaFactoryVerificationRetry extends LitElement {
       )}
       <p role="status">${this.message}</p>
       <p role="status">${this.recoveryMessage}</p>
-      <button
-        type="button"
-        class="ui button"
-        ?disabled=${this.busy || this.reading}
-        @click=${() => {
-          if (this.bound.current) void this.load(this.bound.current, this.bound.serial);
-        }}
-      >
-        Refresh verification
-      </button>
     </section>`;
   }
 }

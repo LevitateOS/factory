@@ -215,7 +215,6 @@ export class SodaFactoryPullInline extends LitElement {
     const available = this.allowed && !this.busy && !pending && !this.saved.blocked && this.saved.durable;
     return html`<section class="soda-pull-inline" aria-label="Changed files and inline comments" aria-busy=${this.busy}>
       <p role="status">${this.message}</p>
-      <button type="button" @click=${this.refresh} ?disabled=${this.busy}>Refresh inline actions</button>
       ${this.saved.blocked ? html`<button type="button" @click=${this.reload}>Reload saved inline writing</button>` : ''}
       ${this.files.map(file => {
         const threads: DiffThread[] = this.threads.filter(thread => {

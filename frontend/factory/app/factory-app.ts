@@ -94,6 +94,9 @@ export interface FactoryAppContext {
   navigate(route: FactoryRoute): void;
 }
 
+/** How often the open page re-reads itself while the window is visible. */
+const keepCurrentEvery = 60_000;
+
 /** The header tab a page lives under, when the page is not a tab itself. */
 function parentTab(route: FactoryRoute): FactoryRoute['kind'] | undefined {
   switch (route.kind) {
@@ -130,7 +133,18 @@ export class SodaFactoryApp extends LitElement {
   private generation = '';
   private lifetime = new AbortController();
   private refreshScreen: (() => unknown) | undefined;
-  refresh() { return this.refreshScreen?.(); }
+  private lastRead = 0;
+  private keepCurrentTimer: ReturnType<typeof setInterval> | undefined;
+  /** Re-reads the open page in place. Hosts call it when the window comes back. */
+  refresh() {
+    this.lastRead = Date.now();
+    return this.refreshScreen?.();
+  }
+  // Pages have no Refresh buttons: the open page re-reads once a minute while
+  // the window is visible, and right after the person's own actions.
+  private keepCurrent = () => {
+    if (!document.hidden && !this.busy && Date.now() - this.lastRead >= keepCurrentEvery) void this.refresh();
+  };
   private disposeScreen: (() => void) | undefined;
 
   constructor() {
@@ -198,6 +212,7 @@ export class SodaFactoryApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('keydown', this.jumpKey);
+    this.keepCurrentTimer = setInterval(this.keepCurrent, keepCurrentEvery / 4);
   }
   // Ctrl/Cmd+K toggles the switcher from anywhere in the page except other text fields.
   private jumpKey = (event: KeyboardEvent) => {
@@ -211,6 +226,7 @@ export class SodaFactoryApp extends LitElement {
   };
   disconnectedCallback() {
     document.removeEventListener('keydown', this.jumpKey);
+    clearInterval(this.keepCurrentTimer);
     this.retire();
     super.disconnectedCallback();
   }
@@ -339,6 +355,7 @@ export class SodaFactoryApp extends LitElement {
       if (!this.live(context, signal)) return;
       check(ports.kind === context.route.kind);
       this.screen = this.mount(context, ports, signal);
+      this.lastRead = Date.now();
       this.message = '';
     } catch {
       if (this.live(context, signal)) {

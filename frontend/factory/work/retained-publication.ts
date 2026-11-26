@@ -293,7 +293,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
             : 'Fresh publication recorded. Review and correction require separate funding.';
         this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
       } else if (outcome.kind === 'refused' && outcome.discarded)
-        this.message = `${noun} was refused before it was recorded. Refresh the work detail to see the current options.`;
+        this.message = `${noun} was refused before it was recorded. The current options are shown.`;
       else {
         const refusal =
           outcome.kind === 'refused'

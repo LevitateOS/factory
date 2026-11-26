@@ -386,7 +386,6 @@ export class SodaFactoryIssueComment extends LitElement {
             </details>`
           : ''
       }
-      <button type="button" ?disabled=${this.busy} @click=${this.refresh}>Check comment access</button>
       ${
         blocked
           ? html`<button
