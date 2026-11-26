@@ -97,6 +97,24 @@ export interface FactoryAppContext {
 /** How often the open page re-reads itself while the window is visible. */
 const keepCurrentEvery = 60_000;
 
+/** Sidebar width in CSS pixels. Dragging the edge below `collapse` hides the sidebar. */
+const sidebarWidth = {min: 200, max: 420, initial: 260, collapse: 160};
+const sidebarKey = 'soda-factory.sidebar';
+/** Below this width the sidebar opens over the page instead of beside it. */
+const narrowWindow = '(max-width: 799px)';
+const clampSidebar = (width: number) => Math.round(Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, width)));
+/** The person's sidebar width and collapse choice on this device; defaults when storage is unavailable. */
+function readSidebar(): {width: number; collapsed: boolean} {
+  try {
+    const saved = JSON.parse(localStorage.getItem(sidebarKey) ?? 'null') as {width?: unknown; collapsed?: unknown} | null;
+    const width = Number(saved?.width);
+    return {width: Number.isFinite(width) ? clampSidebar(width) : sidebarWidth.initial, collapsed: saved?.collapsed === true};
+  } catch {
+    return {width: sidebarWidth.initial, collapsed: false};
+  }
+}
+const sidebarIcon = html`<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M6 2.5v11" /></svg>`;
+
 /** The header tab a page lives under, when the page is not a tab itself. */
 function parentTab(route: FactoryRoute): FactoryRoute['kind'] | undefined {
   switch (route.kind) {
@@ -117,7 +135,7 @@ function parentTab(route: FactoryRoute): FactoryRoute['kind'] | undefined {
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
-  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, confirmRemove: {state: true}, scheme: {type: String}};
+  static properties = {message: {state: true}, busy: {state: true}, screen: {state: true}, projectRows: {state: true}, openingProject: {state: true}, confirmRemove: {state: true}, menuAt: {state: true}, collapsed: {state: true}, narrow: {state: true}, overlay: {state: true}, scheme: {type: String}};
   declare scheme: 'light' | 'dark' | undefined;
   declare private message: string;
   declare private busy: boolean;
@@ -126,6 +144,22 @@ export class SodaFactoryApp extends LitElement {
   declare private projectRows: readonly FactoryProject[] | undefined;
   /** The row whose removal the person is confirming in its menu. */
   declare private confirmRemove: string;
+  /** The project whose right-click menu is open, and where it opened. */
+  declare private menuAt: {key: string; x: number; y: number} | undefined;
+  /** The row the menu came from; focus returns to it when the menu closes. */
+  private menuFrom: HTMLElement | undefined;
+  /** The person hid the sidebar in a wide window. */
+  declare private collapsed: boolean;
+  /** The window is narrow, so the sidebar opens over the page. */
+  declare private narrow: boolean;
+  /** In a narrow window, the sidebar is open over the page. */
+  declare private overlay: boolean;
+  private sidebarWidth = sidebarWidth.initial;
+  private narrowQuery = window.matchMedia(narrowWindow);
+  private narrowChange = (event: MediaQueryListEvent) => {
+    this.narrow = event.matches;
+    this.overlay = false;
+  };
   private projectsPort: FactoryProjectsPort | undefined;
   /** A project is opening; its buttons wait. Reactive, so they come back when it ends. */
   declare private openingProject: boolean;
@@ -150,6 +184,13 @@ export class SodaFactoryApp extends LitElement {
   constructor() {
     super();
     this.confirmRemove = '';
+    this.menuAt = undefined;
+    const saved = readSidebar();
+    this.sidebarWidth = saved.width;
+    this.collapsed = saved.collapsed;
+    this.narrow = this.narrowQuery.matches;
+    this.overlay = false;
+    this.style.setProperty('--soda-factory-sidebar-width', this.sidebarWidth + 'px');
     this.message = 'Choose an account to open Factory.';
     this.busy = false;
     this.screen = undefined;
@@ -211,12 +252,24 @@ export class SodaFactoryApp extends LitElement {
   }
   connectedCallback() {
     super.connectedCallback();
-    document.addEventListener('keydown', this.jumpKey);
+    document.addEventListener('keydown', this.shortcut);
+    this.narrowQuery.addEventListener('change', this.narrowChange);
     this.keepCurrentTimer = setInterval(this.keepCurrent, keepCurrentEvery / 4);
   }
-  // Ctrl/Cmd+K toggles the switcher from anywhere in the page except other text fields.
-  private jumpKey = (event: KeyboardEvent) => {
-    if (event.key.toLowerCase() !== 'k' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+  // Cmd/Ctrl+\ shows or hides the sidebar; Escape closes it over a narrow page.
+  // Cmd/Ctrl+K toggles the switcher from anywhere in the page except other text fields.
+  private shortcut = (event: KeyboardEvent) => {
+    const command = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+    if (command && event.code === 'Backslash') {
+      event.preventDefault();
+      this.toggleSidebar();
+      return;
+    }
+    if (event.key === 'Escape' && this.narrow && this.overlay && !event.defaultPrevented) {
+      this.toggleSidebar();
+      return;
+    }
+    if (event.key.toLowerCase() !== 'k' || !command) return;
     const jump = this.querySelector<SodaFactoryJump>('soda-factory-jump');
     const target = event.composedPath()[0];
     const typing = target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
@@ -225,7 +278,8 @@ export class SodaFactoryApp extends LitElement {
     jump.toggle();
   };
   disconnectedCallback() {
-    document.removeEventListener('keydown', this.jumpKey);
+    document.removeEventListener('keydown', this.shortcut);
+    this.narrowQuery.removeEventListener('change', this.narrowChange);
     clearInterval(this.keepCurrentTimer);
     this.retire();
     super.disconnectedCallback();
@@ -258,6 +312,7 @@ export class SodaFactoryApp extends LitElement {
       signal = this.lifetime.signal;
     if (!port || this.openingProject) return;
     this.openingProject = true;
+    this.overlay = false;
     try {
       if (row.connection === 'sign_in') await port.signIn?.(row.key);
       else await port.open(row.key, 'here');
@@ -281,40 +336,145 @@ export class SodaFactoryApp extends LitElement {
     if (this.live(context, signal)) await this.readProjects(context);
     if (this.live(context, signal) && this.screen instanceof SodaFactoryProjects) this.screen.reload();
   }
-  /** Right-click on a row opens its menu, as the ⋯ button does. */
-  private openProjectMenu(event: MouseEvent) {
-    const menu = (event.currentTarget as HTMLElement).querySelector('details');
-    if (!menu) return;
+  /** What a project's menu offers; none means right-click does nothing. */
+  private projectActions(port: FactoryProjectsPort, row: FactoryProject) {
+    return {window: row.connection !== 'sign_in', remove: !!port.remove && row.connection !== 'current'};
+  }
+  /** Right-click, the context-menu key or Shift+F10 on a project row opens its menu. */
+  private projectMenuKey(event: KeyboardEvent, port: FactoryProjectsPort, row: FactoryProject) {
+    if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return;
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.openProjectMenu(event, port, row, box.left + 16, box.bottom);
+  }
+  private async openProjectMenu(event: Event, port: FactoryProjectsPort, row: FactoryProject, x: number, y: number) {
+    const actions = this.projectActions(port, row);
+    if (!actions.window && !actions.remove) return;
     event.preventDefault();
-    menu.open = true;
-    menu.querySelector<HTMLElement>('summary')?.focus();
+    this.menuFrom = event.currentTarget as HTMLElement;
+    this.confirmRemove = '';
+    this.menuAt = {key: row.key, x, y};
+    await this.updateComplete;
+    const menu = this.querySelector<HTMLElement>('.soda-factory-context-menu');
+    if (!menu) return;
+    if (!menu.matches(':popover-open')) menu.showPopover();
+    this.placeMenu(menu);
   }
-  private projectMenu(context: FactoryAppContext, row: FactoryProject) {
-    const port = context.projects!;
-    const here = row.connection === 'current';
-    const canWindow = row.connection !== 'sign_in';
-    const canRemove = !!port.remove && !here;
-    if (!canWindow && !canRemove) return '';
-    const close = (event: Event) => ((event.currentTarget as HTMLElement).closest('details')!.open = false);
+  /** Opens at the pointer and stays inside the window, flipping up near the bottom. */
+  private placeMenu(menu: HTMLElement) {
+    if (!this.menuAt) return;
+    const {x, y} = this.menuAt,
+      box = menu.getBoundingClientRect(),
+      gap = 8;
+    menu.style.left = Math.max(gap, Math.min(x, innerWidth - box.width - gap)) + 'px';
+    menu.style.top = (y + box.height + gap > innerHeight ? Math.max(gap, y - box.height) : y) + 'px';
+    menu.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }
+  private menuKey = (event: KeyboardEvent) => {
+    const items = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const next = {ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1}[event.key];
+    if (next === undefined || !items.length) return;
+    event.preventDefault();
+    items[(next + items.length) % items.length]?.focus();
+  };
+  private projectMenu(context: FactoryAppContext) {
+    const port = context.projects;
+    const row = this.menuAt && this.projectRows?.find((candidate) => candidate.key === this.menuAt!.key);
+    if (!port || !row) return '';
+    const actions = this.projectActions(port, row);
     const confirming = this.confirmRemove === row.key;
-    return html`<details class="soda-factory-project-menu" @toggle=${(event: Event) => {
-      if (!(event.currentTarget as HTMLDetailsElement).open && confirming) this.confirmRemove = '';
-    }}>
-      <summary aria-label=${'Actions for ' + row.name} title="Project actions">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.3" /><circle cx="8" cy="8" r="1.3" /><circle cx="13" cy="8" r="1.3" /></svg>
-      </summary>
-      <div role="menu" aria-label=${row.name}>
-        ${confirming
-          ? html`<p>Remove <strong>${row.name}</strong> from your projects? It stays on GitHub, and opening it again brings it back.</p>
-              <button type="button" role="menuitem" data-tone="danger" @click=${(event: Event) => { close(event); void this.removeProject(context, row); }}>Remove</button>
-              <button type="button" role="menuitem" @click=${() => (this.confirmRemove = '')}>Cancel</button>`
-          : html`${canWindow
-                ? html`<button type="button" role="menuitem" @click=${(event: Event) => { close(event); void port.open(row.key, 'window').catch(() => (this.message = 'Could not open a new window.')); }}>Open in new window</button>`
-                : ''}
-              ${canRemove ? html`<button type="button" role="menuitem" @click=${() => (this.confirmRemove = row.key)}>Remove from list…</button>` : ''}`}
-      </div>
-    </details>`;
+    const close = (event: Event) => (event.currentTarget as HTMLElement).closest<HTMLElement>('[popover]')!.hidePopover();
+    const confirm = async (event: Event) => {
+      const menu = (event.currentTarget as HTMLElement).closest<HTMLElement>('[popover]')!;
+      this.confirmRemove = row.key;
+      await this.updateComplete;
+      this.placeMenu(menu);
+    };
+    return html`<div
+      class="soda-factory-context-menu"
+      popover="auto"
+      role="menu"
+      aria-label=${row.name}
+      @keydown=${this.menuKey}
+      @toggle=${(event: ToggleEvent) => {
+        const menu = event.currentTarget as HTMLElement;
+        if (event.newState !== 'closed' || menu.matches(':popover-open')) return;
+        const focus = document.activeElement;
+        this.menuAt = undefined;
+        this.confirmRemove = '';
+        if (!focus || focus === document.body || menu.contains(focus)) this.menuFrom?.focus();
+      }}
+    >
+      ${confirming
+        ? html`<p>Remove <strong>${row.name}</strong> from your projects? It stays on GitHub, and opening it again brings it back.</p>
+            <button type="button" role="menuitem" data-tone="danger" @click=${(event: Event) => { close(event); void this.removeProject(context, row); }}>Remove</button>
+            <button type="button" role="menuitem" @click=${close}>Cancel</button>`
+        : html`${actions.window
+              ? html`<button type="button" role="menuitem" @click=${(event: Event) => { close(event); void port.open(row.key, 'window').catch(() => (this.message = 'Could not open a new window.')); }}>Open in new window</button>`
+              : ''}
+            ${actions.window && actions.remove ? html`<div role="separator"></div>` : ''}
+            ${actions.remove ? html`<button type="button" role="menuitem" data-tone="danger" @click=${confirm}>Remove from list…</button>` : ''}`}
+    </div>`;
   }
+  /** Shows or hides the sidebar: beside the page in a wide window, over it in a narrow one. */
+  private async toggleSidebar() {
+    if (this.narrow) this.overlay = !this.overlay;
+    else {
+      this.collapsed = !this.collapsed;
+      this.saveSidebar();
+    }
+    await this.updateComplete;
+    this.querySelector<HTMLElement>(this.sidebarShown ? '.soda-factory-sidebar .soda-factory-sidebar-toggle' : '.soda-factory-content > header .soda-factory-sidebar-toggle')?.focus();
+  }
+  private get sidebarShown() {
+    return this.narrow ? this.overlay : !this.collapsed;
+  }
+  private saveSidebar() {
+    try {
+      localStorage.setItem(sidebarKey, JSON.stringify({width: this.sidebarWidth, collapsed: this.collapsed}));
+    } catch {
+      // The choice lasts for this window only.
+    }
+  }
+  private setSidebarWidth(width: number, edge: HTMLElement) {
+    this.sidebarWidth = clampSidebar(width);
+    this.style.setProperty('--soda-factory-sidebar-width', this.sidebarWidth + 'px');
+    edge.setAttribute('aria-valuenow', String(this.sidebarWidth));
+  }
+  /** Dragging the sidebar's edge resizes it; dragging it nearly shut hides it. */
+  private startResize = (event: PointerEvent) => {
+    if (event.button !== 0) return;
+    const edge = event.currentTarget as HTMLElement,
+      start = event.clientX,
+      from = this.sidebarWidth;
+    event.preventDefault();
+    edge.setPointerCapture(event.pointerId);
+    edge.dataset.dragging = '';
+    const move = (moved: PointerEvent) => {
+      const width = from + moved.clientX - start;
+      if (width >= sidebarWidth.collapse) return this.setSidebarWidth(width, edge);
+      end();
+      this.setSidebarWidth(from, edge);
+      void this.toggleSidebar();
+    };
+    const end = () => {
+      edge.removeEventListener('pointermove', move);
+      edge.removeEventListener('pointerup', end);
+      edge.removeEventListener('pointercancel', end);
+      delete edge.dataset.dragging;
+      this.saveSidebar();
+    };
+    edge.addEventListener('pointermove', move);
+    edge.addEventListener('pointerup', end);
+    edge.addEventListener('pointercancel', end);
+  };
+  private resizeKey = (event: KeyboardEvent) => {
+    const width = {ArrowLeft: this.sidebarWidth - 16, ArrowRight: this.sidebarWidth + 16, Home: sidebarWidth.min, End: sidebarWidth.max}[event.key];
+    if (width === undefined) return;
+    event.preventDefault();
+    this.setSidebarWidth(width, event.currentTarget as HTMLElement);
+    this.saveSidebar();
+  };
   private clearScreen() {
     const dispose = this.disposeScreen;
     this.disposeScreen = undefined;
@@ -644,6 +804,7 @@ export class SodaFactoryApp extends LitElement {
     const context = this.current,
       signal = this.lifetime.signal;
     if (!context || !this.live(context, signal)) return;
+    this.overlay = false;
     try {
       admitFactoryRoute(route);
       check(hostResolves(route, context.destinations));
@@ -730,9 +891,23 @@ export class SodaFactoryApp extends LitElement {
         : []),
       ...(context?.destinations?.includes('accounts') ? [{label: 'Accounts', route: {kind: 'accounts' as const}}] : []),
     ];
-    return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''}>
-      <aside class="soda-factory-sidebar">
-        ${renderFactoryWordmark()}
+    const shown = this.sidebarShown;
+    const toggle = html`<button
+      type="button"
+      class="soda-factory-sidebar-toggle"
+      aria-label=${shown ? 'Hide sidebar' : 'Show sidebar'}
+      title=${(shown ? 'Hide sidebar' : 'Show sidebar') + (/Mac|iPhone|iPad/.test(navigator.platform) ? ' (⌘\\)' : ' (Ctrl \\)')}
+      aria-expanded=${shown ? 'true' : 'false'}
+      aria-controls="soda-factory-sidebar"
+      aria-keyshortcuts="Meta+Backslash Control+Backslash"
+      @click=${() => void this.toggleSidebar()}
+    >
+      ${sidebarIcon}
+    </button>`;
+    return html`<div class="soda-factory-root soda-factory-app" data-factory-scheme=${this.scheme ?? ''} data-sidebar=${shown ? 'open' : 'closed'}>
+      ${this.narrow && shown ? html`<div class="soda-factory-scrim" @click=${() => void this.toggleSidebar()}></div>` : ''}
+      <aside class="soda-factory-sidebar" id="soda-factory-sidebar" ?hidden=${!shown}>
+        <div class="soda-factory-sidebar-top">${renderFactoryWordmark()}${toggle}</div>
         <button
           type="button"
           class="soda-factory-jump-open"
@@ -777,11 +952,14 @@ export class SodaFactoryApp extends LitElement {
                       const owner = slash > 0 ? row.name.slice(0, slash) : '';
                       const name = slash > 0 ? row.name.slice(slash + 1) : row.name;
                       const status = mark && mark.kind !== 'needs' ? mark : undefined;
-                      return html`<div class="soda-factory-project-item" @contextmenu=${(event: MouseEvent) => this.openProjectMenu(event)}>
-                        <button
+                      const actions = this.projectActions(port, row);
+                      return html`<button
                           type="button"
                           class="soda-factory-project-row"
                           aria-current=${here ? 'true' : 'false'}
+                          aria-haspopup=${actions.window || actions.remove ? 'menu' : 'false'}
+                          @contextmenu=${(event: MouseEvent) => void this.openProjectMenu(event, port, row, event.clientX, event.clientY)}
+                          @keydown=${(event: KeyboardEvent) => this.projectMenuKey(event, port, row)}
                           ?disabled=${(row.connection === 'sign_in' && !port.signIn) || this.openingProject}
                           title=${row.name + (mark ? ' · ' + mark.detail : '')}
                           @click=${() => (here ? this.navigate({kind: 'feed', ...(repository ? {repository} : {})}) : void this.openProject(context, row))}
@@ -793,12 +971,11 @@ export class SodaFactoryApp extends LitElement {
                               : ''}</span
                           >
                           ${mark?.kind === 'needs' ? html`<span class="soda-factory-project-row-count" aria-label=${mark.detail}>${mark.label}</span>` : ''}
-                        </button>
-                        ${this.projectMenu(context, row)}
-                      </div>`;
+                        </button>`;
                     })}
                   </nav>`
                 : ''}
+              ${this.projectMenu(context)}
             </section>`
           : ''}
         <div class="soda-factory-sidebar-foot">
@@ -817,10 +994,31 @@ export class SodaFactoryApp extends LitElement {
             : ''}
           ${context ? html`<p class="soda-factory-acting">Acting as ${context.accountLabel}</p>` : ''}
         </div>
+        ${this.narrow
+          ? ''
+          : html`<div
+              class="soda-factory-sidebar-edge"
+              role="separator"
+              tabindex="0"
+              aria-orientation="vertical"
+              aria-label="Resize sidebar"
+              aria-controls="soda-factory-sidebar"
+              aria-valuemin=${sidebarWidth.min}
+              aria-valuemax=${sidebarWidth.max}
+              aria-valuenow=${this.sidebarWidth}
+              title="Drag to resize. Double-click to reset."
+              @pointerdown=${this.startResize}
+              @keydown=${this.resizeKey}
+              @dblclick=${(event: Event) => {
+                this.setSidebarWidth(sidebarWidth.initial, event.currentTarget as HTMLElement);
+                this.saveSidebar();
+              }}
+            ></div>`}
       </aside>
       <div class="soda-factory-content">
         <!-- The open project's name and its pages run across the top; the status sits at the end. -->
-        <header ?data-empty=${!repository && !this.message.trim()}>
+        <header ?data-empty=${shown && !repository && !this.message.trim()}>
+          ${shown ? '' : toggle}
           ${repository ? html`<div class="soda-factory-project">
             ${project ? html`<p class="soda-factory-project-name">${project}</p>` : ''}
             <nav aria-label="Factory">

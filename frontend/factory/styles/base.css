@@ -53,20 +53,138 @@
    sidebar becomes a top block when the window is narrow. */
 .soda-factory-app.soda-factory-root {
   display: flex;
-  flex-wrap: wrap;
   align-items: stretch;
   min-height: 100vh;
   padding: 0;
 }
+/* The sidebar's width is the person's (dragged on its edge, kept per device). */
 .soda-factory-sidebar {
-  flex: 1 0 240px;
-  max-width: 100%;
+  position: relative;
+  box-sizing: border-box;
+  flex: 0 0 var(--soda-factory-sidebar-width, 260px);
+  width: var(--soda-factory-sidebar-width, 260px);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
   padding: 20px 12px;
   border-right: 1px solid var(--soda-page-edge);
   background: var(--soda-page-selected);
+}
+.soda-factory-sidebar[hidden] {
+  display: none;
+}
+.soda-factory-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 4px;
+}
+/* Hide/show sidebar: beside the wordmark when open, at the header's start when hidden. */
+.soda-factory-root .soda-factory-sidebar-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: var(--soda-page-muted);
+  background: transparent;
+}
+.soda-factory-root .soda-factory-sidebar-toggle:hover {
+  color: var(--soda-page-text);
+  background: var(--soda-page-hover);
+}
+.soda-factory-sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+}
+/* The draggable right edge: a thin accent line while hovered, focused or dragged. */
+.soda-factory-sidebar-edge {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.soda-factory-sidebar-edge::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+}
+.soda-factory-sidebar-edge:hover::after,
+.soda-factory-sidebar-edge:focus-visible::after,
+.soda-factory-sidebar-edge[data-dragging]::after {
+  background: var(--soda-page-action);
+}
+.soda-factory-sidebar-edge:focus-visible {
+  outline: none;
+}
+.soda-factory-app[data-sidebar="closed"] .soda-factory-content > header {
+  justify-content: flex-start;
+}
+.soda-factory-app[data-sidebar="closed"] .soda-factory-content > header > p[role="status"] {
+  margin-left: auto;
+}
+/* A project's right-click menu floats above the page, so no edge clips it. */
+.soda-factory-context-menu[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 240px;
+  padding: 6px;
+  border: 1px solid var(--soda-page-edge);
+  color: var(--soda-page-text);
+  background: var(--soda-page-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+.soda-factory-context-menu[popover]:popover-open {
+  display: flex;
+}
+.soda-factory-root .soda-factory-context-menu > button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 0;
+  padding: 6px 8px;
+  border: 0;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+}
+.soda-factory-root .soda-factory-context-menu > button:hover,
+.soda-factory-root .soda-factory-context-menu > button:focus-visible {
+  outline: none;
+  background: var(--soda-page-hover);
+}
+.soda-factory-root .soda-factory-context-menu > button[data-tone="danger"] {
+  color: var(--soda-page-warning);
+}
+.soda-factory-context-menu > [role="separator"] {
+  height: 1px;
+  margin: 3px 0;
+  background: var(--soda-page-edge);
+}
+.soda-factory-context-menu > p {
+  margin: 2px 4px 6px;
+  font: var(--soda-font-caption);
+  color: var(--soda-page-muted);
+  overflow-wrap: anywhere;
 }
 .soda-factory-wordmark {
   display: flex;
@@ -309,21 +427,21 @@
   color: var(--soda-page-text);
   text-decoration: underline;
 }
+/* A narrow window: the sidebar starts hidden and opens over the page. */
 @media (max-width: 799px) {
   .soda-factory-sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--soda-page-edge);
+    position: fixed;
+    z-index: 30;
+    inset: 0 auto 0 0;
+    width: min(var(--soda-factory-sidebar-width, 260px), 85vw);
+    overflow-y: auto;
+    box-shadow: 0 0 24px rgb(0 0 0 / 24%);
   }
-  .soda-factory-sidebar nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .soda-factory-sidebar nav button {
-    width: auto;
-    padding: 7px 12px;
-  }
-  .soda-factory-sidebar-foot {
-    margin-top: 0;
+  .soda-factory-scrim {
+    position: fixed;
+    z-index: 29;
+    inset: 0;
+    background: rgb(0 0 0 / 35%);
   }
   .soda-factory-content > header,
   .soda-factory-content > main {
@@ -379,80 +497,6 @@
 }
 :where(.soda-factory-root) :where(textarea) {
   padding: 8px 10px;
-}
-/* Sidebar project row with its ⋯ menu; right-click opens the same menu. */
-.soda-factory-project-item {
-  position: relative;
-}
-.soda-factory-sidebar .soda-factory-project-item .soda-factory-project-row {
-  width: 100%;
-  padding-right: 34px;
-}
-.soda-factory-project-menu {
-  position: absolute;
-  top: 50%;
-  right: 4px;
-  transform: translateY(-50%);
-}
-.soda-factory-project-menu > summary {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  list-style: none;
-  color: var(--soda-page-muted);
-  cursor: pointer;
-  opacity: 0;
-}
-.soda-factory-project-menu > summary::-webkit-details-marker {
-  display: none;
-}
-.soda-factory-project-menu > summary svg {
-  width: 16px;
-  height: 16px;
-  fill: currentColor;
-}
-.soda-factory-project-item:hover .soda-factory-project-menu > summary,
-.soda-factory-project-menu > summary:focus-visible,
-.soda-factory-project-menu[open] > summary {
-  opacity: 1;
-}
-.soda-factory-project-menu > summary:hover,
-.soda-factory-project-menu[open] > summary {
-  color: var(--soda-page-text);
-  background: var(--soda-page-hover);
-}
-.soda-factory-project-menu > div {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  /* Opens over the page: the sidebar is narrower than the menu. */
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 240px;
-  padding: 6px;
-  border: 1px solid var(--soda-page-edge);
-  background: var(--soda-page-surface);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
-}
-.soda-factory-project-menu > div > button {
-  justify-content: flex-start;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  text-align: left;
-  background: transparent;
-}
-.soda-factory-project-menu > div > button:hover {
-  background: var(--soda-page-hover);
-}
-.soda-factory-project-menu > div > p {
-  margin: 2px 4px 6px;
-  font: var(--soda-font-caption);
-  color: var(--soda-page-muted);
-  overflow-wrap: anywhere;
 }
 /* A ⋯ menu holding a card's secondary links (shared/more-menu.ts). */
 .soda-more-menu {

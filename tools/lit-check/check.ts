@@ -61,8 +61,8 @@ function analyze(files: string[]): LitDiagnostic[] {
       strict: true,
       cwd: root,
       rules: {'no-unknown-event': 'error'},
-      // The analyzer's built-in HTML data omits the native details toggle event.
-      customHtmlData: {version: 1.1, tags: [{name: 'details', attributes: [{name: 'ontoggle'}]}]},
+      // The analyzer's built-in HTML data omits the native details toggle event and the popover attribute.
+      customHtmlData: {version: 1.1, tags: [{name: 'details', attributes: [{name: 'ontoggle'}]}], globalAttributes: [{name: 'popover'}]},
     })
   );
   const analyzer = new LitAnalyzer(context),

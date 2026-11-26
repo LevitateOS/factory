@@ -227,8 +227,7 @@
   color: var(--soda-page-muted);
   font: var(--soda-font-caption);
 }
-.soda-factory-project-actions button[data-tone="danger"],
-.soda-factory-project-menu button[data-tone="danger"] {
+.soda-factory-project-actions button[data-tone="danger"] {
   border-color: var(--soda-page-warning-edge);
   color: var(--soda-page-warning);
   background: var(--soda-page-warning-bg);

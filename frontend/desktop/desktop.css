@@ -134,10 +134,13 @@ html[data-shell="mac"] .soda-factory-content > header p {
 html[data-shell="mac"] #sign-in {
   padding-top: 64px;
 }
+/* With the sidebar hidden, the header starts after the traffic lights. */
+html[data-shell="mac"] .soda-factory-app[data-sidebar="closed"] .soda-factory-content > header {
+  padding-left: 84px;
+}
 @media (max-width: 799px) {
   html[data-shell="mac"] .soda-factory-sidebar {
-    position: static;
-    height: auto;
+    position: fixed;
   }
 }
 .soda-desktop-app-icon {
