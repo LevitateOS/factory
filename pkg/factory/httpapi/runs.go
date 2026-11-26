@@ -55,6 +55,7 @@ func (s Runs) Handler() http.Handler {
 	}
 	register(http.MethodGet, "/api/factory/runs/{runID}", s.status)
 	register(http.MethodGet, "/api/factory/runs/{runID}/output", s.output)
+	register(http.MethodGet, "/api/repositories/{repositoryID}/factory/runs", s.list)
 	register(http.MethodPost, "/api/repositories/{repositoryID}/factory/actions", s.repositoryAction)
 	register(http.MethodPost, "/api/factory/runs/{runID}/actions", s.runAction)
 	register(http.MethodPost, "/api/factory/publications/{publicationID}/actions", s.publicationAction)
@@ -159,4 +160,26 @@ func (s Runs) visibilityError(w http.ResponseWriter, err error) {
 		return
 	}
 	writeError(w, 503, "authority_unavailable", "Current repository visibility is unavailable.")
+}
+
+func (s Runs) list(w http.ResponseWriter, r *http.Request) {
+	if r.URL.RawQuery != "" || r.URL.ForceQuery {
+		writeError(w, 400, "invalid_request", "No query parameters are accepted.")
+		return
+	}
+	id, valid := positiveID(r.PathValue("repositoryID"))
+	if !valid {
+		writeError(w, 404, "not_found", "Repository not found.")
+		return
+	}
+	runs, err := s.Status.List(r.Context(), s.Actor, collaboration.RepositoryID(id))
+	if err != nil {
+		s.statusError(w, err)
+		return
+	}
+	if s.current(w, r) {
+		writeJSON(w, 200, struct {
+			Runs []factoryservice.RunListItem `json:"runs"`
+		}{runs})
+	}
 }

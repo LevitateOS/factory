@@ -1,9 +1,6 @@
 import {LitElement, html} from 'lit';
-import {SodaFactoryRoleSettings} from './role-settings.js';
-import {SodaFactoryActivity} from './activity.js';
-import type {ActivityContext} from './activity.js';
-import {SodaFactoryRepair} from './repair-funding.js';
-import {renderUnavailable, unavailableFeatures} from '../shared/unavailable.js';
+import {SodaFactoryWorkRuns} from './runs.js';
+import type {WorkWatch} from './runs.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
 import {check, id, object} from '../api/models.js';
@@ -43,13 +40,8 @@ export interface WorkOverviewContext {
   repository: string;
   readonly links?: FactoryWorkLinks;
   intentID?: string;
-  /** A host that mounts these panels declares them here: true mounts, false shows
-   * "Unavailable in this app" and sends nothing. Absent leaves them to the host. */
-  readonly activityAvailable?: boolean;
-  readonly repairFundingAvailable?: boolean;
-  /** Fresh authenticated command scope for the activity and repair saves. */
-  readonly commandScope?: (signal: AbortSignal) => Promise<string>;
-  readonly presentItem?: ActivityContext['presentItem'];
+  /** Read-only live output for the run list; a host without it lists runs only. */
+  readonly watch?: WorkWatch;
 }
 
 function overviewSignature(context: WorkOverviewContext): string {
@@ -67,9 +59,7 @@ interface OverviewRead {
 }
 
 export class SodaFactoryWorkOverview extends LitElement {
-  private readonly roleSettings = new SodaFactoryRoleSettings();
-  private readonly activity = new SodaFactoryActivity();
-  private readonly repair = new SodaFactoryRepair();
+  private readonly runs = new SodaFactoryWorkRuns();
   private scope: OverviewScope;
   private read = new ScopedRead<WorkOverviewContext, OverviewRead>(
     sameOverview,
@@ -100,15 +90,7 @@ export class SodaFactoryWorkOverview extends LitElement {
           !!context.transport.generation &&
           (context.intentID === undefined || decisionID(context.intentID))
       );
-    this.roleSettings.context = context;
-    const {transport, repository, commandScope, presentItem} = context ?? {};
-    this.activity.context = context?.activityAvailable
-      ? {transport: transport!, repository: repository!, editable: true,
-        ...(commandScope ? {commandScope} : {}), ...(presentItem ? {presentItem} : {})}
-      : undefined;
-    this.repair.context = context?.repairFundingAvailable
-      ? {transport: transport!, repository: repository!, ...(commandScope ? {commandScope} : {})}
-      : undefined;
+    this.runs.context = context && {transport: context.transport, repository: context.repository, ...(context.watch ? {watch: context.watch} : {})};
     if (this.read.bind(context) === 'same') {
       this.requestUpdate();
       return;
@@ -155,15 +137,15 @@ export class SodaFactoryWorkOverview extends LitElement {
     const context = this.read.current;
     if (!context) return html``;
     const value = readValue(this.read.state);
-    const unavailable = unavailableFeatures(context);
-    const [noActivity, noRepair] = [unavailable.filter((key) => key === 'activityAvailable'), unavailable.filter((key) => key === 'repairFundingAvailable')];
+    // The runs and their output are the page; a request's plan opens on its own route.
     return html`<section class="soda-work-overview" aria-label="Factory work overview">
-      <div class="soda-work-head">
-        <p data-work-message aria-live="polite">${readReason(this.read.state)}</p>
-        <button type="button" ?disabled=${this.read.busy} @click=${() => this.load()}>Refresh overview</button>
-      </div>
-      <div class="soda-work-layout">
-        <div class="soda-work-main">
+      ${this.runs}
+      <details class="soda-work-status" ?open=${!!context.intentID}>
+        <summary>Plan and progress</summary>
+        <div class="soda-work-head">
+          <p data-work-message aria-live="polite">${readReason(this.read.state)}</p>
+          <button type="button" ?disabled=${this.read.busy} @click=${() => this.load()}>Refresh overview</button>
+        </div>
           ${
             value?.recorded
               ? renderRequestOverview(describeRequestOverview(value.recorded, context.links))
@@ -173,13 +155,7 @@ export class SodaFactoryWorkOverview extends LitElement {
                   ? html`<p>Loading work overview…</p>`
                   : ''
           }
-          ${context.activityAvailable ? this.activity : renderUnavailable('work-activity-unavailable', noActivity)}
-          ${this.roleSettings}
-        </div>
-        <div class="soda-work-side">
-          ${context.repairFundingAvailable ? this.repair : renderUnavailable('work-repair-unavailable', noRepair)}
-        </div>
-      </div>
+      </details>
     </section>`;
   }
 }

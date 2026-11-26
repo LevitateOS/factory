@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
+	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -159,4 +161,47 @@ func (s RunStatus) delivery(ctx context.Context, actor collaboration.ActorID, re
 		status.DeliveryRepair.Available = status.DeliveryRepair.Available && settled
 	}
 	return err
+}
+
+// RunListItem is one run in a repository's run list: enough to choose a run
+// and watch its output, never its credentials or process identity.
+type RunListItem struct {
+	ID         string          `json:"id"`
+	Role       string          `json:"role"`
+	Issue      string          `json:"issue,omitempty"`
+	Attempt    string          `json:"attempt,omitempty"`
+	Started    time.Time       `json:"started"`
+	Outcome    factory.Outcome `json:"outcome,omitempty"`
+	Reconciled bool            `json:"reconciled"`
+}
+
+// List returns a repository's recent runs, newest first, to an actor with the
+// same write access a single run's status requires.
+func (s RunStatus) List(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]RunListItem, error) {
+	if actor < 1 || repository < 1 {
+		return nil, factory.ErrNotFound
+	}
+	if s.Store == nil || s.WriteAccess == nil {
+		return nil, ErrRunStatusUnavailable
+	}
+	if err := s.WriteAccess(ctx, actor, repository); err != nil {
+		return nil, errors.Join(ErrRunStatusAccess, err)
+	}
+	runs, err := s.Store.FactoryRepositoryRuns(ctx, int64(repository), 50)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]RunListItem, 0, len(runs))
+	for _, entry := range runs {
+		item := RunListItem{ID: entry.Run.ID, Role: entry.Run.Role, Attempt: entry.View.Attempt,
+			Started: entry.Run.Started, Outcome: entry.Run.Outcome, Reconciled: entry.Run.Reconciled}
+		if entry.View.Issue > 0 {
+			item.Issue = strconv.FormatInt(entry.View.Issue, 10)
+		}
+		items = append(items, item)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

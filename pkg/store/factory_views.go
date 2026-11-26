@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -70,4 +71,36 @@ func (s *Store) FactoryRunViews(ctx context.Context, limit int) ([]factory.RunVi
 		views = append(views, v)
 	}
 	return views, rows.Err()
+}
+
+// RepositoryRun is one recorded run with its display binding.
+type RepositoryRun struct {
+	Run  factory.Run
+	View factory.RunView
+}
+
+// FactoryRepositoryRuns returns the runs bound to one repository, newest
+// first. Runs without a binding belong to no repository and are not listed.
+func (s *Store) FactoryRepositoryRuns(ctx context.Context, repository int64, limit int) ([]RepositoryRun, error) {
+	if repository < 1 || limit < 1 || limit > 200 {
+		return nil, errors.New("invalid repository run list bound")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT v.run,v.issue,v.attempt,r.data FROM factory_run_views v JOIN factory_runs r ON r.id=v.run WHERE v.repository=$1 ORDER BY v.seq DESC LIMIT $2`, repository, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var runs []RepositoryRun
+	for rows.Next() {
+		item := RepositoryRun{View: factory.RunView{Repository: repository}}
+		var data []byte
+		if err := rows.Scan(&item.View.RunID, &item.View.Issue, &item.View.Attempt, &data); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(data, &item.Run); err != nil {
+			return nil, err
+		}
+		runs = append(runs, item)
+	}
+	return runs, rows.Err()
 }

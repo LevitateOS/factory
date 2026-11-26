@@ -285,3 +285,133 @@ soda-factory-repair > section {
   color: var(--soda-page-muted);
   background: var(--soda-page-selected);
 }
+/* Work page: the project's agent runs beside the selected run's whole CLI output. */
+.soda-work-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+.soda-work-runs {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  height: calc(100vh - 150px);
+  min-height: 360px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+}
+.soda-work-runs-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--soda-page-edge);
+}
+.soda-work-runs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.soda-work-runs-head h2 {
+  margin: 0;
+  font: 600 15px/20px Barlow, Arial, sans-serif;
+}
+.soda-work-runs-list > p {
+  margin: 0;
+  padding: 12px;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-work-runs-list nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+.soda-work-run {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px 8px 10px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--soda-page-text);
+  text-align: left;
+  cursor: pointer;
+}
+.soda-work-run:hover {
+  background: var(--soda-page-hover);
+}
+.soda-work-run[aria-current="true"] {
+  border-left-color: var(--soda-page-action);
+  background: var(--soda-page-hover);
+}
+.soda-work-run-name,
+.soda-work-run-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.soda-work-run-name {
+  font: 500 15px/20px Barlow, Arial, sans-serif;
+}
+.soda-work-run-name span {
+  color: var(--soda-page-muted);
+  font-weight: 400;
+}
+.soda-work-run-meta {
+  color: var(--soda-page-muted);
+  font: var(--soda-font-caption);
+}
+.soda-work-run-meta [data-state="running"] {
+  color: var(--soda-page-success);
+  font-weight: 600;
+}
+.soda-work-run-meta [data-state="failed"],
+.soda-work-run-meta [data-state="needs-human"] {
+  color: var(--soda-page-warning);
+}
+.soda-work-runs-output {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.soda-work-runs-output > soda-factory-watch {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.soda-work-runs-empty {
+  margin: auto;
+  padding: 24px;
+  max-width: 36ch;
+  text-align: center;
+  color: var(--soda-page-muted);
+}
+.soda-work-status > summary {
+  cursor: pointer;
+  color: var(--soda-page-muted);
+  font: var(--soda-font-meta);
+}
+.soda-work-status[open] > summary {
+  margin-bottom: 12px;
+}
+@media (max-width: 720px) {
+  .soda-work-runs {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(320px, 1fr);
+    height: auto;
+  }
+  .soda-work-runs-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--soda-page-edge);
+    max-height: 220px;
+  }
+}

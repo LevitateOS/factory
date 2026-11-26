@@ -6,21 +6,19 @@ import {workPageStoryPeer} from '../../storybook/work-page-fixtures.js';
 import './progress.js';
 
 interface Args {
-  view: 'overview' | 'repository' | 'panels' | 'panels-unavailable' | 'plan' | 'direction' | 'roles' | 'setup';
+  view: 'overview' | 'repository' | 'runs' | 'no-runs' | 'plan' | 'direction' | 'roles' | 'setup';
   state: ProgressStoryState;
 }
 const meta = {
   title: 'Factory/Work progress',
   args: {view: 'overview', state: 'ready'},
   argTypes: {
-    view: {control: 'select', options: ['overview', 'repository', 'panels', 'panels-unavailable', 'plan', 'direction', 'roles', 'setup']},
+    view: {control: 'select', options: ['overview', 'repository', 'runs', 'no-runs', 'plan', 'direction', 'roles', 'setup']},
     state: {control: 'select', options: ['ready', 'loading', 'missing', 'denied', 'offline', 'partial']},
   },
   render: ({view, state}) => {
-    if (view === 'panels' || view === 'panels-unavailable') {
-      const page = workPageStoryPeer(view === 'panels' ? 'available' : 'unavailable');
-      // Lets a browser check count what each panel's fixture received.
-      Object.assign(globalThis, {sodaStoryCalls: page.calls});
+    if (view === 'runs' || view === 'no-runs') {
+      const page = workPageStoryPeer(view === 'runs' ? 'some' : 'none');
       return html`<soda-factory-work-overview .context=${page.context}></soda-factory-work-overview>`;
     }
     const peer = progressStoryPeer(state, undefined, view === 'setup' ? 'setup' : view === 'roles');
@@ -38,8 +36,8 @@ export default meta;
 type Story = StoryObj<Args>;
 export const RequestOverview: Story = {};
 export const RepositoryOverview: Story = {args: {view: 'repository'}};
-export const WithActivityAndRepair: Story = {args: {view: 'panels'}};
-export const PanelsUnavailable: Story = {args: {view: 'panels-unavailable'}};
+export const WithRuns: Story = {args: {view: 'runs'}};
+export const NoRuns: Story = {args: {view: 'no-runs'}};
 export const Plan: Story = {args: {view: 'plan'}};
 export const PartialPlan: Story = {args: {view: 'plan', state: 'partial'}};
 export const DirectionHistory: Story = {args: {view: 'direction'}};

@@ -68,7 +68,8 @@ export class WatchScreen {
     const terminal = new renderer.Terminal({
       allowProposedApi: true,
       disableStdin: true,
-      scrollback: 1000,
+      // A whole run stays scrollable; output is read from its first byte.
+      scrollback: 100_000,
       windowOptions: {},
       convertEol: false,
       cols: 80,
