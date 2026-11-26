@@ -454,3 +454,53 @@
   color: var(--soda-page-muted);
   overflow-wrap: anywhere;
 }
+/* A ⋯ menu holding a card's secondary links (shared/more-menu.ts). */
+.soda-more-menu {
+  position: relative;
+  flex: none;
+}
+.soda-more-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  list-style: none;
+  color: var(--soda-page-muted);
+  cursor: pointer;
+}
+.soda-more-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.soda-more-menu > summary svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.soda-more-menu > summary:hover,
+.soda-more-menu[open] > summary {
+  color: var(--soda-page-text);
+  background: var(--soda-page-hover);
+}
+.soda-more-menu > div {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+.soda-more-menu > div > a {
+  padding: 6px 8px;
+  color: var(--soda-page-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.soda-more-menu > div > a:hover,
+.soda-more-menu > div > a:focus-visible {
+  background: var(--soda-page-hover);
+}

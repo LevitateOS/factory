@@ -15,6 +15,8 @@ import {renderRecordAction} from './feed-record-actions.js';
 import {renderJevChoice, renderJevReceipt} from '../shared/jev-answer.js';
 import type {FeedArtifactContext} from './feed-artifact.js';
 import {renderWithdrawAction, renderWithdrawalRecord, renderWithdrawnMark, withdrawnCommunication} from './feed-withdraw.js';
+import {distinctLinks, renderMoreMenu} from '../shared/more-menu.js';
+import type {MoreLink} from '../shared/more-menu.js';
 
 // One render path for every Feed entry. Each entry becomes one card of one
 // of four types — a work record, a worker message, a Factory event or a
@@ -34,9 +36,6 @@ export interface FeedRepositoryRef {
 
 export type FeedCardType = 'work' | 'message' | 'event' | 'post';
 
-function shortFeedID(id: string): string {
-  return `${id.slice(0, 12)}${id.length > 12 ? '…' : ''}`;
-}
 
 function formatStamp(at: number | undefined): string {
   if (at === undefined || !Number.isSafeInteger(at) || at <= 0) return 'time unrecorded';
@@ -63,13 +62,14 @@ export type PostOutcomeTone = 'progress' | 'settled' | 'failed' | 'blocked';
 
 export interface PostOutcomeModel {
   readonly messageKind: 'post' | 'reply';
-  readonly issueMakerLink?: string | undefined;
   readonly postId: string;
   readonly text: string;
   readonly tone: PostOutcomeTone;
-  readonly issueLink: string | undefined;
   readonly issue: number;
-  readonly factoryStatusLink?: string | undefined;
+  /** The one thing to do next, shown inline. */
+  readonly primary?: MoreLink | undefined;
+  /** Other places this request reached; they go in the card's ⋯ menu. */
+  readonly links: readonly MoreLink[];
   // Still advancing on the server: the feed refresh picks up its next state.
   readonly pending: boolean;
   readonly phase?: PostPhase;
@@ -82,9 +82,6 @@ export interface PostOutcomeModel {
   readonly productRepository: string;
   readonly busy: boolean;
   readonly routing: PostPipelineState['routing'];
-  readonly authoring?: PostPipelineState['authoring'];
-  readonly requestLink?: string | undefined;
-  readonly setupLink?: string | undefined;
 }
 
 // JEV's reply is one explicit state machine: the stored pipeline states plus
@@ -339,15 +336,29 @@ export function describePostOutcome(
   const [text, tone] = state.productChange
     ? productChangeOutcome(state.productChange)
     : [postPhases[phase!].text(issue), postPhases[phase!].tone];
+  const places = repository.path === undefined ? undefined : repository.places;
+  const issueHref = issue > 0 ? places?.issue(issue) : undefined;
+  const progress = issue > 0 ? places?.progress(issue) : state.authoring?.intent ? places?.request(state.authoring.intent) : undefined;
+  const makerPost = state.issueMaker?.post ? repository.places?.feed(state.issueMaker.post) : undefined;
+  const setup =
+    state.authoring?.state === 'waiting' && state.authoring.reason === 'preparation_not_ready'
+      ? repository.places?.settings?.('factory')
+      : undefined;
   return {
     messageKind,
     postId: state.postId,
-    issueMakerLink: state.issueMaker?.post ? repository.places?.feed(state.issueMaker.post) : undefined,
     text,
     tone,
-    issueLink: issue > 0 && repository.path !== undefined ? repository.places?.issue(issue) : undefined,
     issue,
-    factoryStatusLink: issue > 0 && repository.path !== undefined ? repository.places?.factoryStatus(issue) : undefined,
+    primary: makerPost
+      ? {label: 'Follow Issue Maker', href: makerPost}
+      : setup
+        ? {label: 'Open settings', href: setup}
+        : undefined,
+    links: [
+      ...(issueHref ? [{label: `Open issue #${issue}`, href: issueHref}] : []),
+      ...(progress ? [{label: 'See progress', href: progress}] : []),
+    ],
     // Dots only while someone is actually working on it.
     pending: phase ? postPhases[phase].working : state.productChange?.state === 'unavailable',
     ...(phase ? {phase} : {}),
@@ -360,12 +371,6 @@ export function describePostOutcome(
     productRepository: repository.id,
     busy,
     routing: validRouting(state.routing),
-    authoring: state.authoring,
-    requestLink: state.authoring?.intent ? repository.places?.request(state.authoring.intent) : undefined,
-    setupLink:
-      state.authoring?.state === 'waiting' && state.authoring.reason === 'preparation_not_ready'
-        ? repository.places?.settings?.('factory')
-        : undefined,
   };
 }
 
@@ -385,8 +390,7 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
     stalled_product_lead: 'Not connected',
   };
   const status = outcome.phase ? labels[outcome.phase] : undefined;
-  const authoring = status !== undefined;
-  const actor = authoring ? 'Factory' : 'JEV';
+  const actor = status !== undefined ? 'Factory' : 'JEV';
   const portrait = feedRolePortraits[actor];
   return html`<div class="soda-feed-outcome" data-tone=${outcome.tone} data-phase=${outcome.phase ?? ''}>
     <span class="soda-feed-outcome-avatar" aria-hidden="true"
@@ -398,9 +402,7 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
         ${outcome.pending ? html`<span class="soda-feed-working" aria-label="working"><i></i><i></i><i></i></span>` : ''}
       </p>
       <p role=${outcome.tone === 'failed' ? 'alert' : 'status'}>
-        ${outcome.text} ${outcome.issueLink ? html`<a href=${outcome.issueLink}>Open issue #${outcome.issue}</a>` : ''}
-        ${outcome.issueMakerLink ? html`<a href=${outcome.issueMakerLink}>Follow Issue Maker</a>` : ''}
-        ${outcome.factoryStatusLink ? html`<a href=${outcome.factoryStatusLink}>Factory status</a>` : ''}
+        ${outcome.text} ${outcome.primary ? html`<a href=${outcome.primary.href}>${outcome.primary.label}</a>` : ''}
       </p>
       ${
         outcome.routing
@@ -438,25 +440,6 @@ export function renderOutcome(outcome: PostOutcomeModel, assetBase = ''): Templa
       }
       ${outcome.routing && outcome.canReroute ? renderReroute(outcome, outcome.routing) : ''}
       ${outcome.detail && !outcome.phase?.startsWith('stalled') ? html`<p>${outcome.detail}</p>` : ''}
-      ${
-        authoring && !outcome.phase?.startsWith('stalled') && outcome.authoring?.checkedUnix
-          ? html`<p class="soda-feed-authoring-meta">
-              ${outcome.authoring.sinceUnix ? html`In this state since <time datetime=${new Date(outcome.authoring.sinceUnix * 1000).toISOString()}>${formatStamp(outcome.authoring.sinceUnix)}</time>. ` : ''}
-              Last checked
-              <time datetime=${new Date(outcome.authoring.checkedUnix * 1000).toISOString()}
-                >${new Date(outcome.authoring.checkedUnix * 1000).toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})}</time
-              >.
-            </p>`
-          : ''
-      }
-      ${
-        outcome.requestLink || outcome.setupLink
-          ? html`<p class="soda-feed-authoring-links">
-              ${outcome.requestLink ? html`<a href=${outcome.requestLink}>View request progress</a>` : ''}
-              ${outcome.setupLink ? html`<a href=${outcome.setupLink}>Review Project setup</a>` : ''}
-            </p>`
-          : ''
-      }
       ${
         outcome.canRetry
           ? html`<button
@@ -513,8 +496,6 @@ export interface ComposerModel {
   readonly label?: string;
   readonly submitLabel?: string;
   readonly compact?: boolean;
-  readonly discussionLink?: string | undefined;
-  readonly discussionFactoryStatus?: string | undefined;
   /** One line until focused (the repository post box). */
   readonly collapsed?: boolean;
   /** The repository post box's chosen first reader ('' for none). */
@@ -613,8 +594,6 @@ export function renderComposer(model: ComposerModel): TemplateResult {
             >
               ${model.submitLabel ?? 'Reply'}
             </button>
-            ${model.discussionLink ? html`<a href=${model.discussionLink}>Open issue discussion</a>` : ''}
-            ${model.discussionFactoryStatus ? html`<a href=${model.discussionFactoryStatus}>Factory status</a>` : ''}
           </p>`
     }
   </section>`;
@@ -661,9 +640,8 @@ export interface FeedPostModel {
   readonly pill: string;
   readonly headline: string;
   readonly detail: string;
-  readonly next: string;
   readonly workItem: string | undefined;
-  readonly links: readonly {label: string; href: string}[];
+  readonly links: readonly MoreLink[];
   readonly post: FeedPostDetail | undefined;
   readonly outcome: PostOutcomeModel | undefined;
   /** An ordinary question: asked once, answered in the box under it. */
@@ -673,17 +651,14 @@ export interface FeedPostModel {
   readonly thread: Pick<FeedThreadItem, 'changes' | 'level'> | undefined;
 }
 
-function sourceLinks(entry: FeedEntry, repository: FeedRepositoryRef): {label: string; href: string}[] {
+// The card's ⋯ menu: where this entry's work lives. The parent post is
+// already linked from "Replying to" above the card.
+function sourceLinks(entry: FeedEntry, repository: FeedRepositoryRef): MoreLink[] {
   if (repository.path === undefined) return [];
-  const links = repository.current ? [] : [{label: `Open ${repository.label}`, href: repository.path}];
-  const parent = entry.post?.parentId;
-  if (parent && repository.places) links.push({label: 'Parent post', href: repository.places.feed(parent)});
+  const links: MoreLink[] = repository.current ? [] : [{label: `Open ${repository.label}`, href: repository.path}];
   const issue = entry.issue ? repository.places?.issue(entry.issue) : undefined;
-  if (issue) {
-    links.push({label: `Open issue #${entry.issue}`, href: issue});
-    if (repository.places && entry.issue)
-      links.push({label: 'Factory status', href: repository.places.factoryStatus(entry.issue)});
-  }
+  if (issue) links.push({label: `Open issue #${entry.issue}`, href: issue});
+  if (entry.issue && repository.places) links.push({label: 'See progress', href: repository.places.progress(entry.issue)});
   const pull = entry.pr ? repository.places?.pull(entry.pr) : undefined;
   if (pull) links.push({label: `Open pull request #${entry.pr}`, href: pull});
   return links;
@@ -732,29 +707,26 @@ export function renderNeedsMe(
   ageText: (at: number) => string,
   assetBase: string,
   older: boolean
-): TemplateResult {
+): TemplateResult | string {
+  if (!rows.length) return '';
   return html`<aside class="soda-feed-needs" aria-label="Needs me">
-    <h2>Needs me${rows.length ? html` <span>· ${rows.length}</span>` : ''}</h2>
-    ${
-      rows.length
-        ? html`<ul>
-            ${rows.map(
-              (row) => html`<li>
-                <a href=${row.href}>
-                  <span class="soda-feed-needs-face" aria-hidden="true"
-                    >${row.avatarFile ? html`<img src=${assetBase + row.avatarFile} alt="" width="28" height="28" loading="lazy" />` : row.name.slice(0, 1).toUpperCase()}</span
-                  >
-                  <span class="soda-feed-needs-text"
-                    ><span class="soda-feed-needs-hl">${row.headline}</span
-                    ><span class="soda-feed-needs-meta">${row.role}${row.addressedTo ? ` asks ${row.addressedTo}` : ''} · waits for you${row.at ? ' · ' + ageText(row.at) : ''}</span></span
-                  >
-                </a>
-              </li>`
-            )}
-          </ul>`
-        : html`<p>Nothing needed from you</p>`
-    }
-    ${older ? html`<p class="soda-feed-needs-older">Older entries are not loaded, so more may be waiting.</p>` : ''}
+    <h2>Needs me <span>· ${rows.length}</span></h2>
+    <ul>
+      ${rows.map(
+        (row) => html`<li>
+          <a href=${row.href}>
+            <span class="soda-feed-needs-face" aria-hidden="true"
+              >${row.avatarFile ? html`<img src=${assetBase + row.avatarFile} alt="" width="28" height="28" loading="lazy" />` : row.name.slice(0, 1).toUpperCase()}</span
+            >
+            <span class="soda-feed-needs-text"
+              ><span class="soda-feed-needs-hl">${row.headline}</span
+              ><span class="soda-feed-needs-meta">${row.role}${row.addressedTo ? ` asks ${row.addressedTo}` : ''}${row.at ? ' · ' + ageText(row.at) : ''}</span></span
+            >
+          </a>
+        </li>`
+      )}
+    </ul>
+    ${older ? html`<p class="soda-feed-needs-older">More may be waiting further down.</p>` : ''}
   </aside>`;
 }
 
@@ -775,6 +747,9 @@ export function describeFeedPost(
   const line = describePostLine(entry, state);
   const key = feedEntryKey(entry);
   const pipeline = type === 'post' ? entry.post?.pipeline : undefined;
+  const outcome = pipeline
+    ? describePostOutcome(pipeline, repository, busy.includes(pipeline.postId), entry.post?.parentId ? 'reply' : 'post')
+    : undefined;
   const ask = entry.payload?.communication;
   // Real urgency (a critical or warning question) and a request for allowance
   // or access keep the attention card.
@@ -802,31 +777,20 @@ export function describeFeedPost(
     avatarFile: feedRolePortraits[role],
     // Inside a repository's own feed its name is implied.
     project: repository.current ? '' : (entry.project ?? repository.label),
-    timeText: entry.at ? formatStamp(entry.at) : `recorded order #${entry.seq}, newest first`,
+    timeText: entry.at ? formatStamp(entry.at) : '',
     pill: type === 'post' ? (entry.post?.parentId ? 'Reply' : 'Post') : feedStateWords[state],
     headline: line.headline,
     detail: line.detail,
-    next: state === 'in_progress' && thread.level !== 'update' ? 'Nothing needed from you' : line.next,
     workItem: line.workItem,
-    links: sourceLinks(entry, repository),
+    links: distinctLinks([...sourceLinks(entry, repository), ...(outcome?.links ?? [])]),
     post: type === 'post' ? entry.post : undefined,
-    outcome: pipeline
-      ? describePostOutcome(
-          pipeline,
-          repository,
-          busy.includes(pipeline.postId),
-          entry.post?.parentId ? 'reply' : 'post'
-        )
-      : undefined,
+    outcome,
     composer: {
       key,
       draft,
       compact: !question,
       ...(question ? {label: 'Your reply'} : {}),
       submitAvailable: draft.trim() !== '' && !busy.includes(key),
-      discussionLink: repository.path === undefined || !entry.issue ? undefined : repository.places?.issue(entry.issue),
-      discussionFactoryStatus:
-        repository.path === undefined || !entry.issue ? undefined : repository.places?.factoryStatus(entry.issue),
     },
     question,
     replies,
@@ -898,7 +862,7 @@ function renderJudgment(judgment: FeedJudgment): TemplateResult {
     ${
       notch
         ? html`<p class="soda-feed-jev-key">
-            <span class="soda-feed-jev-kn"><i></i></span>SodaOS acts on its own from 80%
+            <span class="soda-feed-jev-kn"><i></i></span>Factory acts on its own from 80%
           </p>`
         : ''
     }
@@ -906,7 +870,7 @@ function renderJudgment(judgment: FeedJudgment): TemplateResult {
       sure !== undefined
         ? html`<p class="soda-feed-jev-sure">
             JEV is <strong>${Math.round(sure * 100)}% sure</strong> of this
-            answer${notch ? (sure >= 0.8 ? ', which clears the 80% SodaOS needs' : ', under the 80% SodaOS needs') : ''}
+            answer${notch ? (sure >= 0.8 ? ', which clears the 80% Factory needs' : ', under the 80% Factory needs') : ''}
           </p>`
         : ''
     }
@@ -915,10 +879,10 @@ function renderJudgment(judgment: FeedJudgment): TemplateResult {
 
 function renderPostBody(post: FeedPostDetail | undefined, assetBase = ''): TemplateResult {
   const text = !post
-    ? 'Discussion text unavailable; refresh the feed to load it.'
+    ? 'This post is unavailable.'
     : post.removed
-      ? 'That discussion post was removed. Its pipeline record is kept where stored.'
-      : post.body || 'No post text recorded.';
+      ? 'This post was removed.'
+      : post.body;
   return html`<section aria-label="Discussion text">
     <p class="soda-feed-body-text">${text}${post?.edited ? ' (edited)' : ''}</p>
     ${post?.readFirstBy && !post.removed ? html`<p class="soda-feed-read-first">Read first by ${roleChip(post.readFirstBy, assetBase)}</p>` : ''}
@@ -949,7 +913,7 @@ function renderCardContent(
   const typed = renderRecordAction(entry.payload);
   return html`${judgment ? renderJudgment(judgment) : ''}${
     typed ?? (entry.summary ? html`<p class="soda-feed-component-summary">${entry.summary}</p>` : '')
-  }${entry.ref ? html`<p class="soda-feed-block-note">Candidate <code title=${entry.ref}>${shortFeedID(entry.ref)}</code></p>` : ''}`;
+  }`;
 }
 
 // renderPortrait is the post's face in the timeline gutter, beside the byline
@@ -980,9 +944,10 @@ function renderByline(model: FeedPostModel): TemplateResult {
       <strong>${model.name}</strong
       >${model.role !== model.name ? html`<span class="soda-feed-by-role"> · ${model.role}</span>` : ''}
       <span class="soda-feed-by-meta"
-        >${(model.workItem ?? model.project) ? html`${model.workItem ?? model.project}<i>·</i>` : ''}${changed}${model.timeText}</span
+        >${[model.workItem ?? model.project, changed + model.timeText].filter((part) => part.trim()).map((part, index) => (index ? html`<i>·</i>${part}` : part))}</span
       >
     </p>
+    ${renderMoreMenu('More for this post', model.links)}
   </div>`;
 }
 
@@ -1058,22 +1023,8 @@ export function renderFeedPost(
               ? html`${questionPrompt(question, model.key, questionContext(artifacts, links))}${renderComposer(model.composer)}`
               : renderCardContent(model, artifacts, links, assetBase)
           }
-          ${
-            post || question
-              ? ''
-              : html`<p class="soda-feed-next" data-state=${model.state}>
-                  ${model.state === 'needs_you' ? html`<b class="soda-feed-age">${icon(stateIcons.waiting)}${model.next}</b>` : model.next}
-                </p>`
-          }
           ${own ? renderWithdrawAction(entry.id, questionContext(artifacts, links)) : ''}
           ${renderChanges(model)}
-          ${
-            model.links.length > 0
-              ? html`<p class="soda-feed-source-links">
-                  ${model.links.map((link) => html`<a href=${link.href}>${link.label}</a> `)}
-                </p>`
-              : ''
-          }
         </div>
         <section class="soda-feed-drawer" data-open=${model.replies.open} aria-label="Replies">
           <button

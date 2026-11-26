@@ -84,7 +84,7 @@ export interface FeedThreadItem {
 
 export function whoOf(entry: FeedEntry): string {
   if (entry.author) return entry.author;
-  return roleLabel(entry.actor && !/^\d+$/.test(entry.actor) ? entry.actor : undefined) ?? 'SodaOS';
+  return roleLabel(entry.actor && !/^\d+$/.test(entry.actor) ? entry.actor : undefined) ?? 'Factory';
 }
 
 function clip(text: string, limit = 72): string {
@@ -122,7 +122,6 @@ export function threadFeed(entries: readonly FeedEntry[], focused = false): Feed
 export interface PostLine {
   readonly headline: string;
   readonly detail: string;
-  readonly next: string;
   readonly workItem: string | undefined;
 }
 
@@ -148,7 +147,7 @@ function judgmentHeadline(judgment: FeedJudgment, entry: FeedEntry): string {
     const pr = entry.pr ? `pull request #${entry.pr}` : 'the pull request';
     switch (judgment.effective) {
       case 'ready_to_merge':
-        return `JEV said ${pr} is ready to merge${p}, so SodaOS merges it`;
+        return `JEV said ${pr} is ready to merge${p}, so Factory merges it`;
       case 'review_again':
         return `JEV said ${pr} needs another review${p}`;
       case 'review_allowance_exhausted':
@@ -189,12 +188,12 @@ export function describePostLine(entry: FeedEntry, state: FeedState): PostLine {
     headline = judgmentHeadline(judgment, entry);
     detail =
       judgment.kind === 'delivery'
-        ? "SodaOS merges on its own when JEV's answer reaches 80% and JEV is at least 80% sure. Otherwise it waits for you."
-        : 'SodaOS runs the top pick next. The rest wait their turn.';
+        ? "Factory merges on its own when JEV's answer reaches 80% and JEV is at least 80% sure. Otherwise it waits for you."
+        : 'Factory runs the top pick next. The rest wait their turn.';
   } else if (entry.activity === 'merged') {
-    headline = `SodaOS merged ${entry.pr ? `pull request #${entry.pr}` : 'the pull request'}${entry.payload?.merge?.originalClosedUnix && entry.issue ? ` and closed issue #${entry.issue}` : ''}`;
+    headline = `Factory merged ${entry.pr ? `pull request #${entry.pr}` : 'the pull request'}${entry.payload?.merge?.originalClosedUnix && entry.issue ? ` and closed issue #${entry.issue}` : ''}`;
   } else if (entry.activity === 'completed') {
-    headline = `SodaOS completed ${entry.issue ? `issue #${entry.issue}` : 'the issue'}`;
+    headline = `Factory completed ${entry.issue ? `issue #${entry.issue}` : 'the issue'}`;
   } else if (entry.kind === 'record') {
     const verbs = roleVerbs[roleKey(entry.actor)];
     const reviewer = roleKey(entry.actor) === 'inspector';
@@ -206,14 +205,5 @@ export function describePostLine(entry: FeedEntry, state: FeedState): PostLine {
     else if (verbs && state === 'problem') headline = `${who} hit a problem ${verbs[0]} ${target}`;
     else if (verbs && state === 'waiting') headline = `${who} is waiting to start on ${target}`;
   }
-  const nextFor: Readonly<Record<FeedState, string>> = {
-    needs_you: 'Waits for you',
-    problem: 'Needs attention before dependent work continues',
-    waiting: 'Starts by itself when what it waits for is ready',
-    in_progress: 'This post updates as the work moves',
-    done: 'Nothing needed from you',
-    decided: 'Nothing needed from you',
-    info: 'Nothing needed from you',
-  };
-  return {headline, detail, next: nextFor[state], workItem};
+  return {headline, detail, workItem};
 }

@@ -389,21 +389,6 @@ soda-factory-feed {
 .soda-feed-drawer .soda-feed-outcome {
   margin-block: 8px;
 }
-.soda-feed-thread-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 36px;
-  margin: 0;
-  color: var(--soda-page-muted);
-  font: var(--soda-font-caption);
-}
-.soda-feed-thread-head .soda-feed-icon-button {
-  color: var(--soda-page-muted);
-}
-.soda-feed-thread-head .soda-feed-icon-button:hover {
-  color: var(--soda-page-text);
-}
 .soda-feed-thread-status {
   color: var(--soda-page-muted);
   font: var(--soda-font-caption);
@@ -480,6 +465,11 @@ soda-factory-feed {
 }
 .soda-feed-drawer .soda-feed-compose-actions {
   margin: 0;
+  /* Only the Reply button sits beside the box; the box takes the rest. */
+  flex: none;
+}
+.soda-feed-header > .soda-more-menu {
+  margin-left: auto;
 }
 @media (max-width: 640px) {
   .soda-feed-drawer {
@@ -630,7 +620,6 @@ soda-factory-feed {
 .soda-feed-card
   :is(
     .soda-feed-headline,
-    .soda-feed-source-links,
     .soda-feed-record-details,
     .soda-feed-brief,
     .soda-feed-steps,
@@ -778,14 +767,6 @@ soda-factory-feed {
 .soda-feed-card > section[data-feed-family] > .soda-feed-block-note {
   grid-column: 1 / -1;
   margin-top: -6px;
-}
-.soda-feed-source-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-}
-.soda-feed-card .soda-feed-source-links a {
-  margin: 0;
 }
 .soda-feed
   :is(.soda-feed-record-details, .soda-feed-replies, .soda-feed-thread, .soda-feed-technical-details)
@@ -1137,31 +1118,6 @@ soda-factory-feed {
 .soda-feed-more-content[open] {
   display: grid;
   gap: 14px;
-}
-.soda-feed-card-footer {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px 18px;
-  padding-top: 10px;
-  border-top: 1px solid var(--soda-feed-edge);
-  font: var(--soda-font-caption);
-}
-.soda-feed-card-footer .soda-feed-record-details {
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
-.soda-feed-card-footer .soda-feed-source-links {
-  margin: 0;
-}
-.soda-feed-card-footer:has(details[open]) {
-  display: grid;
-}
-.soda-feed-card-footer details[open] p {
-  font: var(--soda-font-caption);
-  line-height: 1.55;
 }
 .soda-feed-plan-graph,
 .soda-feed-artifacts {
@@ -1630,9 +1586,6 @@ soda-factory-library {
   }
   .soda-feed-answer-options button {
     flex: 1 1 100%;
-  }
-  .soda-feed-card-footer {
-    flex-wrap: wrap;
   }
   .soda-feed-communication .soda-feed-next-action {
     grid-template-columns: minmax(0, 1fr);
@@ -2579,33 +2532,6 @@ soda-factory-library {
 .soda-feed-toolbar h2 {
   margin-inline-end: auto;
 }
-.soda-feed .soda-feed-utility {
-  background: transparent;
-  border: 0;
-  font: var(--soda-font-caption) !important;
-  text-transform: none;
-  letter-spacing: 0;
-  padding: 8px !important;
-}
-.soda-feed-toolbar-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.soda-feed .soda-feed-icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 !important;
-}
-.soda-feed .soda-feed-icon-button svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
 .soda-feed-updated,
 .soda-feed [data-feed-message] {
   font: var(--soda-font-caption);
@@ -2679,19 +2605,6 @@ soda-factory-library {
   font-size: 15px;
   color: var(--soda-page-muted);
   max-width: 78ch;
-}
-.soda-feed-card .soda-feed-card-footer {
-  padding-top: 10px;
-}
-.soda-feed-card .soda-feed-card-footer a {
-  color: var(--soda-page-text);
-  text-decoration: none;
-  font: var(--soda-font-caption);
-}
-.soda-feed-card .soda-feed-card-footer a:hover {
-  color: var(--soda-page-link);
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 .soda-feed-card :is(.soda-feed-replies, .soda-feed-thread) {
   margin-top: 10px;
@@ -2926,29 +2839,6 @@ soda-factory-library {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-.soda-feed-card .soda-feed-card-footer {
-  border-top: 0;
-  margin: 0;
-  padding: 0;
-}
-.soda-feed-next {
-  margin: 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--soda-feed-line);
-  font-size: 14px;
-  color: var(--soda-page-muted);
-}
-.soda-feed-age {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--soda-feed-attn);
-  font-weight: 600;
-}
-.soda-feed-age .soda-feed-ic {
-  width: 13px;
-  height: 13px;
 }
 .soda-feed-changes {
   font-size: 13.5px;
@@ -3204,7 +3094,7 @@ soda-factory-library {
   }
 }
 /* Feed header: the request card comes first, then one toolbar (views on the
-   left; last update, refresh and Knowledge on the right) and a quiet search
+   left) and a quiet search
    row. Views are underline tabs, not buttons. */
 .soda-feed-composer {
   margin: 0 0 24px;
@@ -3380,13 +3270,6 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button[aria-pressed='t
   background: var(--soda-page-text) !important;
   color: var(--soda-page-surface) !important;
 }
-.soda-feed .soda-feed-toolbar-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-  padding-bottom: 2px;
-}
 .soda-feed .soda-feed-toolbar .soda-feed-updated {
   margin: 0 4px 0 0;
   white-space: nowrap;
@@ -3434,11 +3317,6 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-tabs button[aria-pressed='t
   color: var(--soda-page-text);
 }
 @media (max-width: 640px) {
-  .soda-feed .soda-feed-toolbar-actions {
-    order: -1;
-    width: 100%;
-    justify-content: flex-end;
-  }
   .soda-feed-search {
     flex-basis: 100%;
     max-width: none;
@@ -3553,15 +3431,9 @@ html[data-theme^='soda-'] body .soda-feed .soda-feed-composer button[data-post-s
 .soda-feed-outcome-who strong {
   font-weight: 600;
 }
-.soda-feed-authoring-label,
-.soda-feed-authoring-meta {
+.soda-feed-authoring-label {
   color: var(--soda-page-muted);
   font: var(--soda-font-caption);
-}
-.soda-feed-authoring-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
 }
 .soda-feed-outcome-body > button {
   justify-self: start;

@@ -4,7 +4,6 @@ import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryFeedHost, FactoryRepositoryCatalog, FactoryRepositoryLinks} from '../app/navigation.js';
 import {readStored, writeStored} from '../shared/drafts.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
-import {activityTimestamp} from '../shared/format.js';
 import type {FeedCardLinks} from './feed-communication.js';
 import {
   postSourceForEntry,
@@ -40,6 +39,7 @@ import {feedRolePortraits, postRole, roleLabel} from './roles.js';
 import {readRevision} from './revision-record.js';
 import {FeedRevisionEditor} from './revision-editor.js';
 import type {RevisionAddress} from './revision-record.js';
+import {renderMoreMenu} from '../shared/more-menu.js';
 
 export interface FactoryFeedContext {
   transport: FactoryTransport;
@@ -58,7 +58,7 @@ interface Thread {
   busy: boolean;
   message: string;
   // Older pages were appended: a quiet refresh leaves the thread alone so
-  // the reader keeps their place; Refresh replies starts over.
+  // the reader keeps their place.
   pagedOlder: boolean;
 }
 
@@ -83,14 +83,6 @@ export function relativeReplyTime(at: number, now = Date.now()): string {
   return new Date(at * 1000).toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
 }
 
-function shortTime(unix: number): string {
-  const date = new Date(unix * 1000);
-  const today = new Date().toDateString() === date.toDateString();
-  return date.toLocaleString(
-    undefined,
-    today ? {hour: 'numeric', minute: '2-digit'} : {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}
-  );
-}
 
 export class SodaFactoryFeed extends LitElement {
   static properties = {view: {state: true}};
@@ -104,7 +96,6 @@ export class SodaFactoryFeed extends LitElement {
     next: string;
     truncated: boolean;
     pagedBack: boolean;
-    confirmedUnix: number;
     postBusy: string[];
   };
   private current: FactoryFeedContext | undefined;
@@ -114,7 +105,6 @@ export class SodaFactoryFeed extends LitElement {
   private rechecking = false;
   private serial = 0;
   private reading: number | undefined;
-  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private drafts = new Map<string, string>();
   private revisionEditor = new FeedRevisionEditor('');
   private threads = new Map<string, Thread>();
@@ -162,7 +152,6 @@ export class SodaFactoryFeed extends LitElement {
       next: '',
       truncated: false,
       pagedBack: false,
-      confirmedUnix: 0,
       postBusy: [],
     };
   }
@@ -179,8 +168,6 @@ export class SodaFactoryFeed extends LitElement {
       (context?.transport.generation ?? '') === this.generation
     )
       return;
-    clearTimeout(this.refreshTimer);
-    this.refreshTimer = undefined;
     this.serial++;
     this.reading = undefined;
     this.lifetime.abort();
@@ -208,7 +195,6 @@ export class SodaFactoryFeed extends LitElement {
     if (context) {
       void this.reload();
       if (this.focusPost) void this.openSourcePost(this.focusPost);
-      this.startPolling();
     }
   }
 
@@ -226,27 +212,15 @@ export class SodaFactoryFeed extends LitElement {
     return true;
   }
 
+
   private bindingLive(context: FactoryFeedContext, signal = this.lifetime.signal): boolean {
     return signal === this.lifetime.signal && !signal.aborted && this.current === context && this.live(this.serial);
   }
 
-  private startPolling() {
-    clearTimeout(this.refreshTimer);
-    this.refreshTimer = undefined;
-    if (!this.current || this.accessFailure) return;
-    // Feed/status reads revalidate provider access. Passive discovery follows
-    // the background cadence; explicit refresh and posting remain immediate.
-    this.refreshTimer = setTimeout(() => {
-      this.refreshTimer = undefined;
-      if (this.isConnected && document.visibilityState === 'visible' && !this.view.busy) void this.readLatest(false);
-      else this.startPolling();
-    }, 300000);
-  }
-
   private accessMessage() {
     return this.accessFailure === 401
-      ? 'Your session expired. Refresh after signing in to read and post again. Your writing is kept.'
-      : 'Access to this feed changed. Refresh to check your current access. Your writing is kept.';
+      ? 'Your sign-in expired. Sign in again to keep reading and posting. Your writing is kept.'
+      : 'You no longer have access to this feed. Your writing is kept.';
   }
 
   private loseAccess(status: 401 | 403) {
@@ -254,8 +228,6 @@ export class SodaFactoryFeed extends LitElement {
     this.rechecking = false;
     this.serial++;
     this.reading = undefined;
-    clearTimeout(this.refreshTimer);
-    this.refreshTimer = undefined;
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.threads.clear();
@@ -343,6 +315,11 @@ export class SodaFactoryFeed extends LitElement {
     return id(current) ? [current] : [];
   }
 
+  /** The app calls this to keep the feed current; it never interrupts reading. */
+  refresh() {
+    return this.accessFailure || (this.view.readFailed && !this.view.entries.length) ? this.reload() : this.readLatest(false);
+  }
+
   private async reload() {
     const context = this.current;
     if (!context || !this.live(this.serial) || this.view.busy) return;
@@ -420,8 +397,6 @@ export class SodaFactoryFeed extends LitElement {
       return;
     }
     this.reading = serial;
-    clearTimeout(this.refreshTimer);
-    this.refreshTimer = undefined;
     this.view = {...this.view, busy: true, readFailed: false, message: this.view.readFailed ? '' : this.view.message};
     const anchor = Array.from(this.querySelectorAll<HTMLElement>('.soda-feed-post')).find(
       (el) => el.getBoundingClientRect().bottom > 0
@@ -460,7 +435,6 @@ export class SodaFactoryFeed extends LitElement {
         entries: mergeFeedEntries(older, page.entries),
         next: this.view.pagedBack ? this.view.next : page.next,
         truncated: this.view.pagedBack ? this.view.truncated : page.truncated,
-        confirmedUnix: Math.floor(Date.now() / 1000),
         message,
       };
       if (anchor && anchorTop !== undefined) {
@@ -487,7 +461,6 @@ export class SodaFactoryFeed extends LitElement {
     } finally {
       if (this.reading === serial) {
         this.reading = undefined;
-        if (this.live(serial)) this.startPolling();
       }
     }
   }
@@ -507,7 +480,6 @@ export class SodaFactoryFeed extends LitElement {
         next: page.next,
         truncated: page.truncated,
         pagedBack: true,
-        confirmedUnix: Math.floor(Date.now() / 1000),
       };
     } catch (error) {
       if (this.live(serial))
@@ -653,7 +625,7 @@ export class SodaFactoryFeed extends LitElement {
         });
         if (!response.ok) {
           if (response.status === 409)
-            throw Error('Feed subscription changed underneath the write. Refresh before saving again.');
+            throw Error('Someone else changed what this feed follows. Try saving again.');
           throw Error(failureMessage(response.status, 'Could not save the feed subscription.'));
         }
         if (!this.live(serial)) return;
@@ -991,7 +963,7 @@ export class SodaFactoryFeed extends LitElement {
         this.querySelector<HTMLElement>('[data-revision-body]')?.focus();
     } catch {
       if (this.live(serial) && writer.isCurrent(editor))
-        this.view = {...this.view, message: 'Could not load this request. Refresh and try again.'};
+        this.view = {...this.view, message: 'This request could not be loaded.'};
     }
   }
 
@@ -1332,7 +1304,7 @@ export class SodaFactoryFeed extends LitElement {
         next: failed?.next ?? 0,
         busy: false,
         pagedOlder: failed?.pagedOlder ?? false,
-        message: denied && error instanceof Error ? error.message : 'Replies could not be loaded. Try Refresh replies.',
+        message: denied && error instanceof Error ? error.message : 'Replies could not be loaded.',
       });
     }
     this.requestUpdate();
@@ -1341,7 +1313,6 @@ export class SodaFactoryFeed extends LitElement {
   protected render() {
     if (!this.live(this.serial)) return html``;
     const serial = this.serial;
-    const confirmed = activityTimestamp(this.view.confirmedUnix);
     return html`<section
       class="soda-feed"
       aria-label="Feed"
@@ -1364,43 +1335,6 @@ export class SodaFactoryFeed extends LitElement {
       ${this.current?.global ? '' : this.renderProjectPost()}
       <header class="soda-feed-toolbar">
         ${this.accessFailure ? '' : this.renderViews()}
-        <span class="soda-feed-toolbar-actions">
-          ${
-            confirmed
-              ? html`<span class="soda-feed-updated"
-                  >Updated
-                  <time datetime=${confirmed.iso} title=${confirmed.text}
-                    >${shortTime(this.view.confirmedUnix)}</time
-                  ></span
-                >`
-              : ''
-          }
-          <button
-            type="button"
-            class="ui button soda-feed-utility soda-feed-icon-button"
-            aria-label="Refresh feed"
-            title="Refresh feed"
-            ?disabled=${this.view.busy}
-            @click=${() => void this.reload()}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M20 12a8 8 0 1 1-2.34-5.66M20 3v4h-4" />
-            </svg>
-          </button>
-          ${
-            this.ownPlaces()?.knowledge
-              ? html`<a class="soda-feed-utility" href=${this.ownPlaces()?.knowledge?.() ?? ''}>Knowledge</a>`
-              : ''
-          }
-        </span>
       </header>
       ${this.accessFailure ? html`<p role="status" data-feed-access>${this.accessMessage()}</p>` : this.renderFilters()}
       ${
@@ -1422,7 +1356,7 @@ export class SodaFactoryFeed extends LitElement {
           : ''
       }
       <p data-feed-message aria-live="polite">${this.view.message}</p>
-      ${this.view.readFailed && this.view.entries.length ? html`<p class="soda-feed-updated">Showing the last loaded activity. Refresh to check for updates.</p>` : ''}
+      ${this.view.readFailed && this.view.entries.length ? html`<p class="soda-feed-updated">Could not check for new posts. Trying again shortly.</p>` : ''}
       ${this.renderRevision()}
       ${
         this.view.pagedBack
@@ -1595,7 +1529,7 @@ export class SodaFactoryFeed extends LitElement {
     );
     return html`${
         !this.view.labels.listedAll
-          ? html`<p role="status">Some repositories could not be loaded. Refresh to try again.</p>`
+          ? html`<p role="status">Some projects could not be loaded.</p>`
           : ''
       }
       <details class="soda-feed-subscription">
@@ -1750,31 +1684,9 @@ export class SodaFactoryFeed extends LitElement {
       else groups.push({key: reply.postId, items: [reply]});
     }
     return html`<div class="soda-feed-thread">
-      <p class="soda-feed-thread-head">
-        <span role="status"
-          >${thread.busy ? 'Loading replies…' : thread.message || (thread.items.length ? '' : 'No replies yet.')}</span
-        >
-        <button
-          type="button"
-          class="soda-feed-icon-button"
-          aria-label="Refresh replies"
-          title="Refresh replies"
-          ?disabled=${thread.busy}
-          @click=${() => void this.loadReplies(entry)}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M20 12a8 8 0 1 1-2.34-5.66M20 3v4h-4" />
-          </svg>
-        </button>
-      </p>
+      ${thread.message || (thread.busy && !thread.items.length)
+        ? html`<p role="status" class="soda-feed-thread-status">${thread.message || 'Loading replies…'}</p>`
+        : ''}
       <ul class="soda-feed-replies">
         ${repeat(
           groups,
@@ -1804,6 +1716,9 @@ export class SodaFactoryFeed extends LitElement {
   }
 
   private renderReply(entry: FeedEntry, reply: FeedPostDetail): TemplateResult {
+    const outcome = reply.pipeline
+      ? describePostOutcome(reply.pipeline, this.repositoryRef(entry.repository), this.view.postBusy.includes(reply.postId), 'reply')
+      : undefined;
     const portrait = feedRolePortraits[roleLabel(reply.actor) ?? ''];
     const issueHref =
       reply.actor === 'issue_maker' && reply.issueScope
@@ -1849,16 +1764,8 @@ export class SodaFactoryFeed extends LitElement {
                 : html`<p class="soda-feed-body-text">${reply.body}</p>`
         }
         ${
-          reply.pipeline
-            ? renderOutcome(
-                describePostOutcome(
-                  reply.pipeline,
-                  this.repositoryRef(entry.repository),
-                  this.view.postBusy.includes(reply.postId),
-                  'reply'
-                ),
-                this.current?.transport.assetBase
-              )
+          outcome
+            ? html`${renderOutcome(outcome, this.current?.transport.assetBase)}${renderMoreMenu('More for this reply', outcome.links)}`
             : ''
         }
         <button type="button" data-reply-compose=${reply.postId}>Reply</button>
