@@ -194,11 +194,10 @@ export function renderPresentation(
     [
       describeIntervention({
         kind: 'pause',
-        target: presentationRepository,
         enabled: false,
         result: state === 'blocked' ? 'uncertain' : 'idle',
         resultText:
-          state === 'blocked' ? 'No operation was confirmed.' : 'No action adapter is connected in this story.',
+          state === 'blocked' ? 'Not confirmed yet.' : '',
       }),
     ],
     {

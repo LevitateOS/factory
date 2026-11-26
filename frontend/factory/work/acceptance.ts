@@ -160,7 +160,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       !!observation.access.viewer.session_current;
     if (!this.allowed) {
       this.message =
-        'Accepting requirements needs current repository code-write authority and a current session.';
+        'Only people who can change this project can accept its requirements.';
     } else if (!this.busy) void this.resolveIdentity(context, this.bound.serial);
   }
   private async resolveIdentity(context: RequirementsAcceptanceContext, serial: number): Promise<boolean> {
@@ -232,7 +232,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         outcome: '',
       }));
       this.preview = preview;
-      this.message = 'Review the native issue, selected comments and every prerequisite outcome before accepting.';
+      this.message = 'Read the issue and the chosen comments before accepting.';
     } catch (error) {
       if (this.bound.live(serial, context))
         this.message = error instanceof Error ? error.message : 'Requirements preview is unavailable.';
@@ -436,7 +436,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
           @change=${(event: Event) => {
             this.reviewed = (event.target as HTMLInputElement).checked;
           }}
-        />I reviewed the native issue, selected comments and prerequisite outcomes.</label
+        />I read the issue and the chosen comments.</label
       >
       <button
         type="button"
@@ -456,24 +456,24 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       <h3>Issue requirements</h3>
       <p>
         ${issueLink ? html`<a href=${issueLink} target="_blank" rel="noreferrer">Review issue #${context.issue}</a>` : html`Issue #${context.issue}`}.
-        Acceptance uses its exact title and body, plus the comments you select.
+        Accepting uses its title and description, plus any comments you choose.
       </p>
-      <p role="status">${this.message}</p>
-      <fieldset ?disabled=${!this.allowed || !this.ready || this.busy || this.pending !== undefined}>
-        <legend>Optional discussion to include</legend>
+      ${this.message ? html`<p role="status">${this.message}</p>` : ''}
+      ${this.allowed ? html`<fieldset ?disabled=${!this.allowed || !this.ready || this.busy || this.pending !== undefined}>
+        <legend>Comments to include (optional)</legend>
         <label
-          >Requirement comment IDs
+          >Comments that add requirements
           <input .value=${this.sources} @input=${(event: Event) => this.changeSources('sources', event)}
         /></label>
         <label
-          >Resolution comment IDs
+          >Comments that settle questions
           <input .value=${this.resolutions} @input=${(event: Event) => this.changeSources('resolutions', event)}
         /></label>
         <p>
-          Use native comment IDs separated by commas. Leave blank to accept only the issue and prerequisite outcomes.
+          Comment numbers, separated by commas.
         </p>
-        <button type="button" class="ui button" @click=${() => this.loadPreview()}>Review current requirements</button>
-      </fieldset>
+        <button type="button" class="ui button" @click=${() => this.loadPreview()}>Review requirements</button>
+      </fieldset>` : ''}
       ${
         this.pending
           ? html`<p>

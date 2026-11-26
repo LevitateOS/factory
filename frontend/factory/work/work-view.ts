@@ -54,25 +54,9 @@ export interface WorkDetailModel {
   readonly requestedText: string;
   readonly observedText: string;
   readonly failedChecks: readonly string[];
-  readonly blockers: readonly {code: string; resolution: string; endpoint?: string}[];
-  readonly candidate: string;
+  readonly blockers: readonly string[];
   readonly issueLink: string | undefined;
   readonly pullLink: string | undefined;
-}
-
-function blockerEndpoint(blocker: {endpoint_repository?: string; endpoint_issue?: string}): string | undefined {
-  if (blocker.endpoint_repository === undefined || blocker.endpoint_issue === undefined) return undefined;
-  return `repository ${blocker.endpoint_repository} issue #${blocker.endpoint_issue}`;
-}
-
-function describeBlocker(blocker: {
-  code: string;
-  resolution: string;
-  endpoint_repository?: string;
-  endpoint_issue?: string;
-}): {code: string; resolution: string; endpoint?: string} {
-  const endpoint = blockerEndpoint(blocker);
-  return {code: blocker.code, resolution: blocker.resolution, ...(endpoint === undefined ? {} : {endpoint})};
 }
 
 function unreachable(value: never): never {
@@ -150,105 +134,92 @@ function deliveryState(detail: FactoryIssueDetail): DeliveryState {
 }
 
 const deliveryCopy: Record<DeliveryState, string> = {
-  delivered: 'Delivered: merge confirmed and original-issue closure confirmed.',
-  merge_confirmed_closure_pending: 'Merge confirmed, issue closure pending.',
-  checks_failed: 'Checks failed on the exact reviewed candidate.',
-  checks_pending: 'Awaiting required checks on the exact reviewed candidate.',
-  evidence_refused: 'Check evidence refused: the candidate moved or evidence is incomplete.',
+  delivered: 'Done: merged and the issue is closed.',
+  merge_confirmed_closure_pending: 'Merged. Closing the issue.',
+  checks_failed: 'Checks failed.',
+  checks_pending: 'Waiting for checks.',
+  evidence_refused: 'Check results do not match the latest change.',
   cancelled: 'Cancelled.',
   needs_attention: 'Needs attention.',
-  waiting: 'Waiting on prerequisites.',
+  waiting: 'Waiting on other work.',
   working: 'Working.',
   queued: 'Queued.',
-  not_authorized: 'Not authorized.',
-  recorded_complete_without_merge: 'Recorded complete without merge evidence.',
-  unrecorded: 'No recorded work yet.',
+  not_authorized: 'Not allowed.',
+  recorded_complete_without_merge: 'Marked done without a merge.',
+  unrecorded: 'Not started yet.',
   merge_fenced: 'Merge needs attention: its outcome is unknown and a person must resolve it.',
   merge_failed: 'Merge failed.',
-  checks_superseded: 'Checks are for a superseded candidate.',
-  unrecognized: 'Status not recognized by this view.',
+  checks_superseded: 'Checks are for an older version.',
+  unrecognized: 'Status unknown.',
 };
 
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
 function acceptanceCopy(detail: FactoryIssueDetail): {text: string; invalid: boolean} {
-  if (detail.status.withdrawn) return {text: 'Acceptance withdrawn.', invalid: true};
+  if (detail.status.withdrawn) return {text: 'The request was withdrawn.', invalid: true};
   if (!detail.status.valid)
     return {
-      text: `Acceptance invalid${detail.status.reasons.length ? `: ${detail.status.reasons.slice(0, 3).join('; ')}` : '.'}`,
+      text: `The request is not ready${detail.status.reasons.length ? `: ${detail.status.reasons.slice(0, 3).join('; ')}` : '.'}`,
       invalid: true,
     };
-  return {text: 'Acceptance valid.', invalid: false};
+  return {text: '', invalid: false};
 }
 
 function readinessCopy(detail: FactoryIssueDetail): string {
-  if (!detail.readiness) return 'No readiness record.';
-  return `Readiness ${detail.readiness.readiness}: ${detail.readiness.reason}.`;
+  return detail.readiness?.reason ? `${detail.readiness.reason}.` : '';
 }
 
 function checksCopy(detail: FactoryIssueDetail): string {
-  if (!detail.checks) return 'No check assessment recorded.';
-  const stale = detail.checks.stale ? ' Stale: the head was superseded by a newer candidate.' : '';
-  return `Checks ${detail.checks.verdict} on ${detail.checks.head_oid.slice(0, 12)} over base ${detail.checks.base_oid.slice(0, 12)}: ${detail.checks.resolution}${stale}`;
+  if (!detail.checks) return '';
+  return `Checks ${detail.checks.verdict}${detail.checks.resolution ? `: ${detail.checks.resolution}` : '.'}${detail.checks.stale ? ' A newer version has replaced this one.' : ''}`;
 }
 
 function mergeCopy(detail: FactoryIssueDetail): string {
-  if (!detail.merge) return 'No merge recorded.';
-  const commit = detail.merge.merged_commit ? ` at ${detail.merge.merged_commit.slice(0, 12)}` : '';
-  const stale = detail.merge.stale ? ' Stale: the head was superseded by a newer candidate.' : '';
-  return `Merge ${detail.merge.stage}${commit}: ${detail.merge.resolution}${stale}`;
+  if (!detail.merge) return '';
+  return `Merge ${detail.merge.stage}${detail.merge.resolution ? `: ${detail.merge.resolution}` : '.'}${detail.merge.stale ? ' A newer version has replaced this one.' : ''}`;
 }
 
 function attemptCopy(detail: FactoryIssueDetail): string {
-  if (!detail.attempt) return 'No attempt recorded.';
+  if (!detail.attempt) return '';
+	if (detail.publication?.origin === 'external' && detail.attempt.stage === 'retained' && detail.attempt.run === '') return 'Using an existing pull request.';
   const outcome = detail.attempt.outcome ? `, ${detail.attempt.outcome}` : '';
-	if (detail.publication?.origin === 'external' && detail.attempt.stage === 'retained' && detail.attempt.run === '') return 'External PR adoption retained; no initial Builder run.';
-  return `Attempt ${detail.attempt.attempts}: ${detail.attempt.role} ${detail.attempt.stage}${outcome}.`;
+  return `Try ${detail.attempt.attempts}: ${detail.attempt.role} ${detail.attempt.stage}${outcome}.`;
 }
 
 function publicationCopy(detail: FactoryIssueDetail): string {
-  if (!detail.publication) return 'Nothing published yet.';
-  const pr = detail.publication.pr_number ? `PR #${detail.publication.pr_number}` : 'no pull request yet';
-  return (
-	`${detail.publication.origin === 'external' ? 'External PR' : 'Publication'} ${detail.publication.stage}: candidate ${detail.publication.candidate.slice(0, 12)} on ` +
-    `${detail.publication.target_branch}, ${pr}. ${detail.publication.corrections_total} ` +
-    `correction${detail.publication.corrections_total === 1 ? '' : 's'}, ${detail.publication.reviews_total} ` +
-    `review${detail.publication.reviews_total === 1 ? '' : 's'}.`
-  );
+  const publication = detail.publication;
+  if (!publication) return '';
+  const pr = publication.pr_number ? `Pull request #${publication.pr_number}` : 'Pull request not opened yet';
+  return `${pr} into ${publication.target_branch}: ${plural(publication.corrections_total, 'correction')}, ${plural(publication.reviews_total, 'review')}.`;
 }
 
 function reviewCopy(detail: FactoryIssueDetail): string {
-  const publication = detail.publication;
-  if (!publication || publication.reviews_total === 0) return 'No independent review recorded.';
-  const latest = publication.reviews[publication.reviews.length - 1];
-  if (!latest) return `${publication.reviews_total} recorded reviews; latest entry unavailable.`;
-  const effect = latest.effect ? `, effect ${latest.effect}` : '';
+  const latest = detail.publication?.reviews.at(-1);
+  if (!latest) return '';
   if (latest.event === 'COMMENT' && latest.agent_verdict) {
-    const verdict = latest.agent_verdict === 'APPROVED' ? 'clear' :
-      latest.agent_verdict === 'REQUEST_CHANGES' ? 'changes requested' : 'unavailable';
-    return `Latest independent agent inspection: ${verdict} on ${latest.head_oid.slice(0, 12)}, published as a comment${effect}.`;
+    const verdict = latest.agent_verdict === 'APPROVED' ? 'looks good' :
+      latest.agent_verdict === 'REQUEST_CHANGES' ? 'asked for changes' : 'gave no verdict';
+    return `Latest agent review ${verdict}.`;
   }
-  return `Latest independent review: ${latest.event} on ${latest.head_oid.slice(0, 12)}${effect}.`;
+  const event = latest.event === 'APPROVED' ? 'approved' : latest.event === 'CHANGES_REQUESTED' ? 'asked for changes' : 'commented';
+  return `Latest review ${event}.`;
 }
 
 function closureCopy(detail: FactoryIssueDetail): string {
   if (detail.closure.state === 'confirmed') {
     const stamp = activityTimestamp(detail.closure.closed_unix ?? 0);
-    return `Original-issue closure confirmed${stamp ? ` at ${stamp.text}` : ''}.`;
+    return `Issue closed${stamp ? ` ${stamp.text}` : ''}.`;
   }
-  if (detail.closure.state === 'pending') return 'Original-issue closure pending.';
-  return 'Original issue not closed.';
+  return detail.closure.state === 'pending' ? 'Closing the issue.' : '';
 }
 
 function requestedCopy(detail: FactoryIssueDetail): string {
-  if (!detail.requested_retry) return '';
-  return (
-    `Retry requested for run ${detail.requested_retry.prior_run.slice(0, 8)}: ${detail.requested_retry.reason}. ` +
-    'This request is not a confirmed new attempt.'
-  );
+  return detail.requested_retry ? `Another try was requested: ${detail.requested_retry.reason}. It has not started yet.` : '';
 }
 
 function observedCopy(detail: FactoryIssueDetail): string {
   const stamp = activityTimestamp(detail.observed_unix);
-  return stamp ? `Observed ${stamp.text}.` : 'Observation time unknown.';
+  return stamp ? `Updated ${stamp.text}.` : '';
 }
 
 /** The host admits destinations; response URL hints never override its navigation. */
@@ -273,10 +244,6 @@ function detailLinks(
 function failedCheckContexts(detail: FactoryIssueDetail): readonly string[] {
   return (detail.checks?.results ?? []).filter((result) => !result.passed).map((result) => result.context);
 }
-function detailCandidate(detail: FactoryIssueDetail): string {
-  if (!detail.checks) return 'No reviewed candidate recorded.';
-  return `PR #${detail.checks.pr_number} head ${detail.checks.head_oid.slice(0, 12)} over base ${detail.checks.base_oid.slice(0, 12)}`;
-}
 // describeIssueDetail projects one issue's recorded facts to display
 // state. Delivery needs both merge and closure evidence; every other
 // state names the recorded verdict behind it.
@@ -299,8 +266,7 @@ export function describeIssueDetail(detail: FactoryIssueDetail, links: FactoryWo
     requestedText: requestedCopy(detail),
     observedText: observedCopy(detail),
     failedChecks: failedCheckContexts(detail),
-    blockers: (detail.readiness?.blockers ?? []).map(describeBlocker),
-    candidate: detailCandidate(detail),
+    blockers: (detail.readiness?.blockers ?? []).map((blocker) => blocker.resolution),
     issueLink: destinations.issueLink,
     pullLink: destinations.pullLink,
   };
@@ -310,27 +276,23 @@ export function renderWorkDetail(model: WorkDetailModel): TemplateResult {
   return html`
     <section aria-label="Work detail">
       <p role="status">${model.deliveryText}</p>
-      <p>${model.acceptanceText}</p>
-      <p>${model.readinessText}</p>
-      <ul>
-        ${model.blockers.map(
-          (blocker) =>
-            html`<li>${blocker.code}: ${blocker.resolution}${blocker.endpoint ? ` (${blocker.endpoint})` : ''}</li>`
-        )}
-      </ul>
-      <p>${model.attemptText}</p>
-      <p>${model.publicationText}</p>
-      <p>${model.reviewText}</p>
-      <p>${model.checksText}</p>
+      ${model.acceptanceText ? html`<p>${model.acceptanceText}</p>` : ''}
+      ${model.readinessText ? html`<p>${model.readinessText}</p>` : ''}
+      ${model.blockers.length ? html`<ul>
+        ${model.blockers.map((blocker) => html`<li>${blocker}</li>`)}
+      </ul>` : ''}
+      ${model.attemptText ? html`<p>${model.attemptText}</p>` : ''}
+      ${model.publicationText ? html`<p>${model.publicationText}</p>` : ''}
+      ${model.reviewText ? html`<p>${model.reviewText}</p>` : ''}
+      ${model.checksText ? html`<p>${model.checksText}</p>` : ''}
       ${model.failedChecks.length > 0 ? html`<p>Failed checks: ${model.failedChecks.join(', ')}.</p>` : ''}
-      <p>${model.mergeText}</p>
-      <p>${model.closureText}</p>
+      ${model.mergeText ? html`<p>${model.mergeText}</p>` : ''}
+      ${model.closureText ? html`<p>${model.closureText}</p>` : ''}
       ${model.requestedText ? html`<p>${model.requestedText}</p>` : ''}
-      <p>${model.observedText}</p>
-      <p>Reviewed candidate: ${model.candidate}</p>
+      ${model.observedText ? html`<p>${model.observedText}</p>` : ''}
       <p>
-        ${model.issueLink ? html`<a href=${model.issueLink}>Native issue</a>` : 'Native issue link unavailable.'}
-        ${model.pullLink ? html`<a href=${model.pullLink}>Native pull request</a>` : ''}
+        ${model.issueLink ? html`<a href=${model.issueLink}>Issue</a>` : ''}
+        ${model.pullLink ? html`<a href=${model.pullLink}>Pull request</a>` : ''}
       </p>
     </section>
   `;
@@ -397,7 +359,6 @@ export type InterventionAudience = 'owner' | 'collaborator';
 export interface InterventionModel {
   readonly kind: InterventionKind;
   readonly label: string;
-  readonly scope: string;
   readonly impact: string;
   readonly audience: InterventionAudience;
   readonly enabled: boolean;
@@ -410,68 +371,22 @@ export interface InterventionInput {
   readonly enabled: boolean;
   readonly result: InterventionResult;
   readonly resultText: string;
-  readonly target: string;
 }
 
-const interventionCopy: Record<
-  InterventionKind,
-  {label: string; scope: string; impact: string; audience: InterventionAudience}
-> = {
-  pause: {
-    label: 'Pause Factory work',
-    scope: 'This repository',
-    impact: 'Closes dispatch and stops outstanding runs. Retained work and terminals stay.',
-    audience: 'owner',
-  },
-  resume: {
-    label: 'Resume Factory work',
-    scope: 'This repository',
-    impact: 'Reopens dispatch after every recorded run settles.',
-    audience: 'owner',
-  },
-  stop: {
-    label: 'Stop run',
-    scope: 'This run only',
-    impact: 'Retires the run through the operator stop path. Other runs continue.',
-    audience: 'collaborator',
-  },
-  retry: {
-    label: 'Retry run',
-    scope: 'This run only',
-    impact: 'Queues one explicit retry after the prior run settles. No new attempt otherwise.',
-    audience: 'collaborator',
-  },
-  takeover: {
-    label: 'Take over run',
-    scope: 'This run into your checkout',
-    impact: 'Copies retained work into your own project checkout. Requires project membership.',
-    audience: 'collaborator',
-  },
-  project_stop: {
-    label: 'Stop Project for everyone',
-    scope: 'The whole project',
-    impact: 'Stops shared project services for everyone. Needs explicit confirmation.',
-    audience: 'owner',
-  },
+const interventionCopy: Record<InterventionKind, {label: string; impact: string; audience: InterventionAudience}> = {
+  pause: {label: 'Pause work', impact: 'Agents stop starting new work here. Work done so far is kept.', audience: 'owner'},
+  resume: {label: 'Resume work', impact: 'Agents pick up work here again.', audience: 'owner'},
+  stop: {label: 'Stop this run', impact: 'Other runs keep going.', audience: 'collaborator'},
+  retry: {label: 'Try this run again', impact: 'Starts once more after the current run ends.', audience: 'collaborator'},
+  takeover: {label: 'Take over', impact: 'Copies the work so far into your own copy of the project.', audience: 'collaborator'},
+  project_stop: {label: 'Stop project for everyone', impact: 'Stops shared project services for everyone.', audience: 'owner'},
 };
 
-// describeIntervention pairs one authorized control with its exact scope,
-// impact, audience and pending-versus-confirmed result. Owner controls
-// act on the repository or project; collaborator controls act on one
-// run. Requested actions never read as confirmed effects. The owning
-// lifecycle APIs revalidate authority when the control acts.
+// describeIntervention pairs one control with its impact, audience and
+// requested-versus-confirmed result. Requested actions never read as
+// confirmed effects; the owning lifecycle APIs revalidate authority.
 export function describeIntervention(input: InterventionInput): InterventionModel {
-  const copy = interventionCopy[input.kind];
-  return {
-    kind: input.kind,
-    label: copy.label,
-    scope: `${copy.scope}: ${input.target}`,
-    impact: copy.impact,
-    audience: copy.audience,
-    enabled: input.enabled,
-    result: input.result,
-    resultText: input.resultText,
-  };
+  return {kind: input.kind, ...interventionCopy[input.kind], enabled: input.enabled, result: input.result, resultText: input.resultText};
 }
 
 export type InterventionOutcome =
@@ -572,19 +487,16 @@ export function renderInterventions(
     <button type="button" class="ui button" ?disabled=${!model.enabled} @click=${() => commands.act(model.kind)}>
       ${model.label}
     </button>
-    <p>${model.scope}. ${model.impact}</p>
-    <p role="status">${model.resultText}</p>
+    <p>${model.impact}</p>
+    ${model.resultText ? html`<p role="status">${model.resultText}</p>` : ''}
   </li>`;
-  // Owner and collaborator controls render in separate groups: owner
-  // controls act on the repository or project, collaborator controls on
-  // one run. Grouping never changes availability; the owning lifecycle
-  // APIs revalidate authority when a control acts.
-  const group = (audience: InterventionAudience, label: string, note: string) => {
+  // Project-wide controls and controls for one run render apart. Grouping
+  // never changes availability.
+  const group = (audience: InterventionAudience, label: string) => {
     const rows = models.filter((model) => model.audience === audience);
     return rows.length
       ? html`<section aria-label=${label}>
           <h3>${label}</h3>
-          <p>${note}</p>
           <ul>
             ${rows.map(item)}
           </ul>
@@ -592,9 +504,9 @@ export function renderInterventions(
       : '';
   };
   return html`
-    <section aria-label="Factory interventions">
-      ${group('owner', 'Owner controls', 'These controls act on the repository or project.')}
-      ${group('collaborator', 'Collaborator controls', 'These controls act on one run only.')}
+    <section aria-label="Controls">
+      ${group('owner', 'Whole project')}
+      ${group('collaborator', 'This run')}
     </section>
   `;
 }

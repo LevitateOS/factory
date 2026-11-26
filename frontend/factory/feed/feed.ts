@@ -1450,7 +1450,7 @@ export class SodaFactoryFeed extends LitElement {
             @change=${(event: Event) => {
               if (event.target instanceof HTMLInputElement) this.changeFilters({current: event.target.checked});
             }}
-          />Current knowledge only</label
+          />Hide outdated</label
         >
       </form>
     </div>`;

@@ -521,7 +521,7 @@ function renderReadFirstPicker(model: ComposerModel): TemplateResult {
   return html`<label class="soda-feed-read-first-pick"
     >Read first by
     <select data-feed-read-first=${model.key}>
-      <option value="" ?selected=${!model.readFirstBy}>JEV routes it</option>
+      <option value="" ?selected=${!model.readFirstBy}>Anyone</option>
       ${postRoleIds.map((role) => html`<option value=${role} ?selected=${model.readFirstBy === role}>${roleLabel(role)}</option>`)}
     </select></label
   >`;

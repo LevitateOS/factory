@@ -111,7 +111,7 @@ interface RunEntry {
 type InterventionMarks = Record<InterventionKind, {result: InterventionResult; text: string}>;
 
 function idleMarks(): InterventionMarks {
-  const mark = {result: 'idle' as InterventionResult, text: 'Not requested.'};
+  const mark = {result: 'idle' as InterventionResult, text: ''};
   return {pause: mark, resume: mark, stop: mark, retry: mark, takeover: mark, project_stop: mark};
 }
 
@@ -508,7 +508,7 @@ export class SodaFactoryWorkDetail extends LitElement {
   private interventionMarks(kind: InterventionKind) {
     const context = this.bound.current;
     const gate = this.backendGate(kind);
-    const mark = this.marks[kind] ?? {result: 'idle' as InterventionResult, text: 'Not requested.'};
+    const mark = this.marks[kind] ?? {result: 'idle' as InterventionResult, text: ''};
     const runID = kind === 'retry' ? this.retryRunID() : this.selectedRunID();
     return describeIntervention({
       kind,
@@ -520,7 +520,6 @@ export class SodaFactoryWorkDetail extends LitElement {
         (!['retry', 'stop', 'takeover'].includes(kind) || runID !== undefined),
       result: mark.result,
       resultText: !gate.available && mark.result === 'idle' ? `Unavailable: ${gate.reasonText}` : mark.text,
-      target: interventionTarget(context, kind, runID),
     });
   }
   private watchNote(): string {
@@ -585,17 +584,6 @@ export class SodaFactoryWorkDetail extends LitElement {
   }
 }
 customElements.define('soda-factory-work-detail', SodaFactoryWorkDetail);
-
-function interventionTarget(
-  context: WorkDetailContext | undefined,
-  kind: InterventionKind,
-  runID: string | undefined = context?.runID
-): string {
-  if (!context) return 'this work';
-  if (kind === 'pause' || kind === 'resume') return `repository ${context.repository}`;
-  if (kind === 'project_stop') return context.projectID ? `project ${context.projectID}` : 'this project';
-  return runID ? `run ${runID.slice(0, 8)}` : 'no run selected';
-}
 
 async function readDetailIssue(
   context: WorkDetailContext,

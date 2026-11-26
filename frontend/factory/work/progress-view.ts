@@ -159,7 +159,7 @@ export function renderWorkOverview(model: WorkOverviewModel): TemplateResult {
           (row) => html`<li>
             ${row.objective}
             ${row.dependsOn.length > 0 ? html`<span>Depends on: ${row.dependsOn.join(', ')}.</span>` : ''}
-            ${row.issueLink ? html`<a href=${row.issueLink}>Issue #${row.issue}</a>` : 'No native issue mapped yet.'}
+            ${row.issueLink ? html`<a href=${row.issueLink}>Issue #${row.issue}</a>` : 'No issue yet.'}
           </li>`
         )}
       </ul>
@@ -414,7 +414,7 @@ export function describeRequestOverview(
       view.work_items.outcomes_total === 0
         ? 'No accepted product outcomes recorded.'
         : `${view.work_items.outcomes_evidenced} of ${view.work_items.outcomes_total} accepted product outcomes evidenced.`,
-    observedText: observed ? `Observed ${observed.text}.` : 'Observation time unknown.',
+    observedText: observed ? `Updated ${observed.text}.` : '',
   };
 }
 
@@ -483,7 +483,7 @@ export function renderRequestOverview(model: RequestOverviewModel): TemplateResu
       <p>${model.setupText}</p>
       <p>${model.generationText}</p>
       <p>${model.outcomeNote}</p>
-      <p>${model.observedText}</p>
+      ${model.observedText ? html`<p>${model.observedText}</p>` : ''}
       <ul>
         ${model.mappings.map(
           (row) => html`<li>

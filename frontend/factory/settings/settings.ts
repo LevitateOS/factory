@@ -89,7 +89,7 @@ export class SodaFactorySettings extends LitElement {
     return html`<section class="soda-factory-settings" aria-labelledby="settings-title">
       <header>
         <h2 id="settings-title">Settings</h2>
-        <p>${project ? project + ' · ' : ''}Each section saves on its own.</p>
+        ${project ? html`<p>${project}</p>` : ''}
       </header>
       <div class="soda-factory-settings-layout">
         <nav aria-label="Settings sections">

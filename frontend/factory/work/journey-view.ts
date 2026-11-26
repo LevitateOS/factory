@@ -43,7 +43,7 @@ export interface JourneyTaskModel {
 
 export function describeJourneyTask(task: JourneyTask, links: FactoryWorkLinks | undefined): JourneyTaskModel {
   const lane = task.lane === 'unassigned' ? 'no lane yet' : `lane ${task.lane}`;
-  const issue = task.issue === undefined ? 'no native issue mapped yet' : `issue #${task.issue}`;
+  const issue = task.issue === undefined ? 'no issue yet' : `issue #${task.issue}`;
   return {
     text: `Task ${task.key} (${lane}): ${task.state}, ${issue}.`,
     link: task.issue === undefined ? undefined : journeyIssueLink(links, task.issue),
@@ -144,9 +144,7 @@ export function describeJourneyAdoption(
 ): JourneyAdoptionModel {
   return {
     text:
-      `Proposal adoption ${adoption.state}: intent ${adoption.intent.slice(0, 9)} ` +
-      `at revision ${adoption.revision.slice(0, 9)}, bound task ${adoption.task} ` +
-      `on native issue #${adoption.issue_id} (acceptance ${adoption.acceptance.slice(0, 9)}).`,
+      `Plan ${adoption.state}: task ${adoption.task} on issue #${adoption.issue_id}.`,
     link: journeyIssueLink(links, adoption.issue_id),
   };
 }
@@ -164,7 +162,7 @@ export interface JourneyDeliveredTaskModel {
 export function describeJourneyDeliveredTask(delivered: JourneyDeliveredTask): JourneyDeliveredTaskModel {
   return {
     text:
-      `Task ${delivered.task} delivered on native issue #${delivered.issue} ` +
+      `Task ${delivered.task} delivered on issue #${delivered.issue} ` +
       `(acceptance ${delivered.acceptance.slice(0, 9)}): completion ${delivered.completion.slice(0, 9)} ` +
       `via publication ${delivered.publication.slice(0, 9)} (generation ${delivered.generation}).`,
   };
@@ -215,7 +213,7 @@ function journeyHeadline(journey: WorkJourney): string {
     (rows) => rows.length
   )
     ? 'Recorded work history.'
-    : 'No journey sections recorded.';
+    : 'Nothing recorded yet.';
 }
 
 // describeWorkJourney projects one recorded journey to display state.
@@ -239,9 +237,9 @@ export function describeWorkJourney(journey: WorkJourney, links: FactoryWorkLink
 }
 
 function describeJourneyObserved(observedUnix: number): string {
-  if (!Number.isSafeInteger(observedUnix) || observedUnix <= 0) return 'Observation time unrecorded.';
+  if (!Number.isSafeInteger(observedUnix) || observedUnix <= 0) return '';
   const date = new Date(observedUnix * 1000);
-  if (!Number.isFinite(date.getTime())) return 'Observation time unrecorded.';
+  if (!Number.isFinite(date.getTime())) return '';
   return `Observed ${date.toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}.`;
 }
 
@@ -290,7 +288,7 @@ export function renderWorkJourney(model: WorkJourneyModel): TemplateResult {
         'Verified application',
         model.verifications.map((row) => html`${row.text}`)
       )}
-      <p>${model.observedText}</p>
+      ${model.observedText ? html`<p>${model.observedText}</p>` : ''}
     </section>
   `;
 }
