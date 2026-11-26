@@ -70,11 +70,7 @@ if (/Mac/.test(navigator.platform)) {
     void core.invoke(event.detail === 2 ? 'plugin:window|toggle_maximize' : 'plugin:window|start_dragging').catch(() => {});
   });
 }
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) void refresh();
-});
-setInterval(() => {
-  if (!document.hidden) void refresh();
-}, 2000);
+// Local status only; a covered or minimized window keeps its connection current.
+setInterval(() => void refresh(), 2000);
 void refresh();
 void mountDeveloper(core).catch(() => {});

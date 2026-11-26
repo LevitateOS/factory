@@ -879,9 +879,10 @@ corrections are now active; the old feature queue waits for their resolution.
   in `/home/vince/tmp/fdeg-execution6.4F2QOX/run.log`. Provider facts were declared
   and credentials dummy. Native UI compile, typecheck and UI build passed;
   physical UI retry and unresolved-root recovery failures remain unqualified.
-- **A12 — selected behavior implemented; UI build verified.** Hidden windows
-  retire their obsolete UI binding while retaining connection intent. Fresh
-  runtime/account status on return restores the selected account/repository;
+- **A12 — selected behavior implemented; UI build verified.** A covered,
+  minimized or hidden window keeps its connection and local status poll (since
+  2026-11-26; only the feed's GitHub refresh pauses). Fresh runtime/account
+  status restores the selected account/repository after a runtime reset;
   unknown status waits, removed accounts and changed profiles clear the intent,
   and explicit Disconnect prevents automatic reconnection. Runtime-generation
   reset no longer reports an empty account list as observed removal. Typecheck

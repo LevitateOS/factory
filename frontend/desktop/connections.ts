@@ -65,7 +65,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     repositoryOptions = '',
     mounted = '';
   let fragmentObserver: MutationObserver | undefined;
-  const live = (captured: number) => ready && serial === captured && !document.hidden;
+  const live = (captured: number) => ready && serial === captured;
   // Sign-in views live on the Accounts page only while the frame has a context
   // and accepts input; otherwise the desktop shows them outside the frame.
   // While a project opens or resumes, setup stays hidden behind the frame.
@@ -302,7 +302,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     busy = true;
     message = account ? 'Connecting…' : 'Choose a saved account to connect.';
     render();
-    if (!account || !ready || !accountsCurrent || document.hidden) {
+    if (!account || !ready || !accountsCurrent) {
       resumeRequested = !!account;
       busy = false;
       render();
@@ -488,17 +488,6 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
     const route = readRoute();
     if (route) navigate(route);
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      resumeRequested = !!connection;
-      ++serial;
-      product?.suspend();
-      inert(true);
-      busy = false;
-      message = connection ? 'Connection suspended while Factory is hidden.' : 'Choose a saved account to connect.';
-      render();
-    }
-  });
   const api = {
     refresh(available: boolean, generation: number, identity: string | null) {
       const changedProfile = identity !== null && profile !== '' && profile !== identity;
@@ -560,7 +549,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
       }
       if (targetRead) launching = false;
       const stored = known.filter((account) => account.state === 'stored');
-      if (!autoOpened && targetRead && ready && !document.hidden && !connection && !busy && stored.length) {
+      if (!autoOpened && targetRead && ready && !connection && !busy && stored.length) {
         autoOpened = true;
         const last = remembered(),
           github = stored.filter((account) => account.provider === 'github');
@@ -573,7 +562,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp, signIn: SignIn
           return;
         }
       }
-      if (resumeRequested && ready && !document.hidden && !busy && account?.state === 'stored') {
+      if (resumeRequested && ready && !busy && account?.state === 'stored') {
         if (product && selected?.generation === epoch) {
           const current = product, captured = ++serial;
           busy = true; resumeRequested = false;

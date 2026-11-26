@@ -43,14 +43,6 @@ export class GitHubAccounts extends Observed {
     private readonly changed: (accounts: readonly Account[] | undefined) => void = () => {}
   ) {
     super();
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.interaction++;
-        this.accountsCurrent = false;
-        this.changed(undefined);
-        this.notify();
-      }
-    });
   }
   get active() {
     return ['requesting', 'waiting', 'verifying', 'saving'].includes(this.view.phase);
