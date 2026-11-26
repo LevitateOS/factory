@@ -102,7 +102,7 @@
   background: transparent;
   font: 400 15px/20px Barlow, Arial, sans-serif;
 }
-.soda-factory-sidebar nav button:hover:not(:disabled) {
+.soda-factory-sidebar nav button:hover:not(:disabled):not([aria-current="page"]) {
   background: var(--soda-page-hover);
 }
 .soda-factory-sidebar nav button[aria-current="page"] {
@@ -275,7 +275,8 @@
   background: transparent;
   font: 400 15px/20px Barlow, Arial, sans-serif;
 }
-.soda-factory-project nav button:hover:not(:disabled) {
+/* The current tab keeps its own colors on hover. */
+.soda-factory-project nav button:hover:not(:disabled):not([aria-current="page"]) {
   background: var(--soda-page-hover);
 }
 .soda-factory-project nav button[aria-current="page"] {
