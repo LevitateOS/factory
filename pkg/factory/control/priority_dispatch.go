@@ -19,6 +19,9 @@ import (
 // priority_incomplete, never a subset election.
 const PrioritySnapshotChanging = "priority_snapshot_changing"
 
+// priorityRescanKey marks the one same-pass rescan after transient exclusions.
+type priorityRescanKey struct{}
+
 func dispatchPriorityPass(ctx context.Context, deps DispatchDeps, report DispatchReport) DispatchReport {
 	if deps.Priority == nil {
 		return report
@@ -434,6 +437,14 @@ func completePrioritySelection(ctx context.Context, deps DispatchDeps, nativeRev
 			case WaitSource, WaitHarness, WaitPreparation, WaitInputsUnavailable, WaitInputsBusy, WaitInputsStale, WaitInputsIncomplete, WaitCapacity, WaitRepository:
 				if err := deps.Store.DeletePriorityScan(ctx, scan.Repository); err != nil {
 					report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "transient priority scan unretired"})
+					return report
+				}
+				// Observing a member can itself advance it (a retry's
+				// setup is recorded ready only when observed). Scan
+				// once more now instead of a whole passive interval
+				// later, which would outlive a retry setup's deadline.
+				if ctx.Value(priorityRescanKey{}) == nil {
+					return dispatchPriorityInventoryPass(context.WithValue(ctx, priorityRescanKey{}, true), deps, scan.Repository, report)
 				}
 				return report
 			}

@@ -17,12 +17,8 @@ type systemOneArgs struct {
 	CapabilityID string `json:"capability_id,omitempty"`
 }
 
-func (s *factoryCatalogServer) workerConsultations(cap factory.MCPCapability, command string) factoryservice.WorkerConsultations {
-	provider := s.deps.SystemOne
-	if s.deps.SystemOneForWorker != nil {
-		provider = s.deps.SystemOneForWorker(cap, command)
-	}
-	return factoryservice.WorkerConsultations{Provider: provider, Journal: s.deps.ConsultationJournal, Now: s.deps.Now}
+func (s *factoryCatalogServer) workerConsultations(factory.MCPCapability, string) factoryservice.WorkerConsultations {
+	return factoryservice.WorkerConsultations{Provider: s.deps.SystemOne, Journal: s.deps.ConsultationJournal, Now: s.deps.Now}
 }
 
 func (s *factoryCatalogServer) addSystemOneTool(server *mcp.Server, tool factory.MCPTool) {

@@ -89,6 +89,10 @@ const (
 // CommandJEVAsk journals one JEV decision in factory_commands.
 const CommandJEVAsk = "jev.ask"
 
+// JEVJournalKey names the jev.ask row in an agent consultation result, so a
+// plan review can prove that JEV gave the opinion.
+const JEVJournalKey = "jev_ask"
+
 // SystemOneWorkerQuestion is one batched same-primitive question over
 // the shared batch state.
 type SystemOneWorkerQuestion struct {

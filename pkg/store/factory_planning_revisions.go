@@ -31,14 +31,27 @@ func checkIssuePlanReviewTx(ctx context.Context, tx *sql.Tx, cap factory.MCPCapa
 	if json.Unmarshal(raw, &opinion) != nil || opinion.Snapshot != snapshot || opinion.Assignment != owner.ID || opinion.Tool != string(factory.MCPToolSystemOneChoice) || opinion.Status != ConsultationStatusReturned || !factory.IssuePlanReviewAccepted(opinion.Answer) {
 		return ErrAdmissionChanged
 	}
-	// A returned plan review must come from JEV. Factory has no JEV connection yet,
-	// so no review qualifies and implementation stays unavailable.
-	return errors.Join(ErrAdmissionChanged, ErrJudgmentUnavailable)
+	// The opinion must be JEV's: its answer is the one the named jev.ask row
+	// recorded from TypeSafe.
+	id, ok := opinion.Answer[factory.JEVJournalKey].(string)
+	if !ok || !factory.ValidID(id) {
+		return ErrAdmissionChanged
+	}
+	var outcome, finished string
+	if err = tx.QueryRowContext(ctx, `SELECT outcome,finished FROM factory_commands WHERE id=$1 AND type=$2`, id, factory.CommandJEVAsk).Scan(&outcome, &finished); err != nil {
+		return admissionChanged(err)
+	}
+	var receipt struct {
+		State string `json:"state"`
+		Reply struct {
+			Answers map[string]any `json:"answers"`
+		} `json:"reply"`
+	}
+	if finished == "" || json.Unmarshal([]byte(outcome), &receipt) != nil || receipt.State != "answered" || !reflect.DeepEqual(opinion.Answer["answer"], receipt.Reply.Answers["judgment"]) {
+		return ErrAdmissionChanged
+	}
+	return nil
 }
-
-// ErrJudgmentUnavailable reports a step that needs a JEV judgment while Factory
-// has no JEV connection.
-var ErrJudgmentUnavailable = errors.New("JEV is not connected")
 
 func checkImplementationPlanReviewTx(ctx context.Context, tx *sql.Tx, a factory.Assignment) error {
 	if a.Phase != project.ExecutionImplement || a.Subject.Kind != factory.SubjectIssue {

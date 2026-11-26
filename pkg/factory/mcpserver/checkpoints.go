@@ -13,7 +13,7 @@ import (
 
 func (s *factoryCatalogServer) workerResults() factoryservice.WorkerResults {
 	var consultations func(factory.MCPCapability, string) factoryservice.WorkerConsultations
-	if s.deps.SystemOneForWorker != nil {
+	if s.deps.SystemOne != nil {
 		consultations = s.workerConsultations
 	}
 	return factoryservice.WorkerResults{Assignments: s.deps.Assignments, Runs: s.deps.Runs, Current: s.deps.CurrentContext, Receipts: s.deps.CheckpointReceipts, Catalog: s.deps.Catalog, Consultations: consultations, Now: s.now}

@@ -273,7 +273,19 @@ required only for work or checks that look like hacking.
 3. The long-context header stays off, so an oversized post becomes a Problem.
 
 Screens are on the design canvas page "7 · JEV". The Muse stand-in was removed
-in `07e6ea6b`, so every JEV consumer is unwired until these slices land.
+in `07e6ea6b`.
+
+**One JEV for every caller (2026-11-26).** `NativeJEV`
+(`pkg/factory/runtime/native_jev.go`) is the only Go path to JEV. Its `ask`
+journals each request as a `jev.ask` row and handles waits and refusals.
+`native_server.go` gives the same instance to Feed routing, planning, next
+work, context and contributions/delivery, and `native_worker_mcp.go` gives it to
+agent consultations. Callers differ only by purpose. Plan review checks that the
+opinion is the answer recorded in its `jev.ask` row. Verified on the test
+repository: JEV chose context and reviewed issue #64's plan ("complete",
+p=0.76), and the plan was recorded. Still to do from J3: the 0.70/0.30 band
+with the unsure middle going to the user (acceptance stays at confidence ≥ 0.5
+for now), and the J2/J3 controlled-reply native check.
 
 Do the slices in order. Each slice delivers its behavior across Rust, Go and Lit
 before the next one starts.
