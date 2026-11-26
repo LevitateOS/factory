@@ -113,7 +113,7 @@ export function factoryRouteTitle(route: FactoryRoute): string {
     pull: 'Pull request',
     'issue-new': 'New issue',
     issue: 'Issue',
-    'work-detail': 'Work detail',
+    'work-detail': 'Progress',
     plan: 'Work plan',
     library: 'Knowledge',
     watch: 'Watch',

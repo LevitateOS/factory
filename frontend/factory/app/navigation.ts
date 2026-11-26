@@ -6,7 +6,8 @@ export interface FactoryRepositoryLinks {
   request(id: string): string;
   issue(number: string | number): string | undefined;
   pull(number: string | number): string | undefined;
-  factoryStatus(issue?: string | number): string;
+  /** Work progress for one issue, or the Work page without one. */
+  progress(issue?: string | number): string;
   app?(delivery?: string): string;
   knowledge?(item?: string): string;
   settings?(section: string): string;

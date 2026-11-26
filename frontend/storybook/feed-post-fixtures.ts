@@ -161,7 +161,7 @@ export function feedPostStoryPeer(specimens: readonly FeedPostSpecimen[], option
           request: (id) => root + '/requests/' + id,
           issue: (number) => root + '/issues/' + number,
           pull: (number) => root + '/pulls/' + number,
-          factoryStatus: (issue) => root + '/work/issues' + (issue === undefined ? '' : '/' + issue + '?tab=factory'),
+          progress: (issue) => root + '/work/issues' + (issue === undefined ? '' : '/' + issue + '?tab=factory'),
           settings: (section) => root + '/settings#' + section,
         };
       },

@@ -100,7 +100,7 @@ export class DesktopProduct {
       request: (intent) => routeURL({kind: 'work', repository, intent}),
       issue: (issue) => (id(String(issue)) ? routeURL({kind: 'issue', repository, issue: String(issue)}) : undefined),
       pull: (pull) => id(String(pull)) ? routeURL({kind: 'pull', repository, pull: String(pull)}) : undefined,
-      factoryStatus: (issue) =>
+      progress: (issue) =>
         issue
           ? routeURL({kind: 'work-detail', repository, issue: String(issue)})
           : routeURL({kind: 'work', repository}),

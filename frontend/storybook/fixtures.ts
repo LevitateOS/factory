@@ -374,7 +374,7 @@ export function feedStoryPeer(state: FeedStoryState) {
           request: (id) => root + '/requests/' + id,
           issue: (number) => root + '/issues/' + number,
           pull: (number) => root + '/pulls/' + number,
-          factoryStatus: (issue) => root + '/work/issues' + (issue === undefined ? '' : '/' + issue + '?tab=factory'),
+          progress: (issue) => root + '/work/issues' + (issue === undefined ? '' : '/' + issue + '?tab=factory'),
         };
       },
       navigate() {

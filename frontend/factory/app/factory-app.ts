@@ -94,6 +94,23 @@ export interface FactoryAppContext {
   navigate(route: FactoryRoute): void;
 }
 
+/** The header tab a page lives under, when the page is not a tab itself. */
+function parentTab(route: FactoryRoute): FactoryRoute['kind'] | undefined {
+  switch (route.kind) {
+    case 'work-detail':
+    case 'plan':
+    case 'watch':
+      return 'work';
+    case 'issue':
+    case 'issue-new':
+      return 'issues';
+    case 'pull':
+      return 'pulls';
+    default:
+      return undefined;
+  }
+}
+
 /** Production application composition shared by desktop and host integrations.
  * It creates no connection, backend, provider or executor. Hosts own admission. */
 export class SodaFactoryApp extends LitElement {
@@ -326,7 +343,7 @@ export class SodaFactoryApp extends LitElement {
     } catch {
       if (this.live(context, signal)) {
         this.clearScreen();
-        if (this.live(context, signal)) this.message = 'Could not open this view. Refresh to try again.';
+        if (this.live(context, signal)) this.message = 'This page could not open.';
       }
     } finally {
       if (this.live(context, signal)) this.busy = false;
@@ -677,15 +694,15 @@ export class SodaFactoryApp extends LitElement {
       ...(repository
         ? [
             {label: 'Work', route: {kind: 'work' as const, repository}},
-            ...(context && 'issue' in context.route
-              ? [{label: 'Work detail', route: {kind: 'work-detail' as const, repository, issue: context.route.issue}}]
-              : []),
             {label: 'Issues', route: {kind: 'issues' as const, repository}},
             {label: 'Pull requests', route: {kind: 'pulls' as const, repository}},
             {label: 'Knowledge', route: {kind: 'library' as const, repository}},
           ]
         : []),
     ];
+    // A page inside a tab keeps that tab highlighted and offers one way back.
+    const parent = context ? parentTab(context.route) : undefined;
+    const back = repository && parent ? links.find((link) => link.route.kind === parent) : undefined;
     const project = context?.repositoryLabel?.trim();
     const port = context?.projects;
     const listed = port ? this.projectRows ?? [] : [];
@@ -793,7 +810,7 @@ export class SodaFactoryApp extends LitElement {
               ${links.map(
                 (link) => html`<button
                   type="button"
-                  aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && (context?.route.kind === 'issue' || context?.route.kind === 'issue-new')) || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
+                  aria-current=${context?.route.kind === link.route.kind || parent === link.route.kind ? 'page' : 'false'}
                   ?disabled=${!context}
                   @click=${() => this.navigate(link.route)}
                 >
@@ -808,8 +825,9 @@ export class SodaFactoryApp extends LitElement {
           aria-label=${context ? factoryRouteTitle(context.route) : 'Factory'}
           aria-busy=${this.busy ? 'true' : 'false'}
         >
+          ${back ? html`<button type="button" class="soda-factory-back" @click=${() => this.navigate(back.route)}>← ${back.label}</button>` : ''}
           ${this.screen ?? ''}
-          ${context && !this.screen && !this.busy ? html`<button type="button" @click=${() => void this.load(context)}>Refresh view</button>` : ''}
+          ${context && !this.screen && !this.busy ? html`<button type="button" @click=${() => void this.load(context)}>Try again</button>` : ''}
         </main>
       </div>
       <soda-factory-jump .items=${this.jumpItems(context, project, links, foot)}></soda-factory-jump>
