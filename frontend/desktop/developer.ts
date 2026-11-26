@@ -173,7 +173,7 @@ export async function mountDeveloper(core: Core) {
     return {
       role: role(element),
       name: clip(name(element)),
-      text: ['status', 'alert', 'heading'].includes(role(element))
+      text: ['status', 'alert', 'note', 'heading'].includes(role(element))
         ? clip(normalize(element.textContent ?? ''))
         : undefined,
       disabled: disabled(element),

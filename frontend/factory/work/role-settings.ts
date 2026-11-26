@@ -776,7 +776,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           <div>
             <h3>Set up this project</h3>
             <p>Factory uses your Muse login for coding and review and merges with squash into the default branch. You can change any of it after. Automation stays off until you turn it on.</p>
-            ${state.setupBlocked ? html`<p data-tone="warning">${state.setupBlocked}</p>` : ''}
+            ${state.setupBlocked ? html`<p role="note" data-tone="warning">${state.setupBlocked}</p>` : ''}
           </div>
           ${state.setupBlocked ? '' : html`<button type="button" ?disabled=${this.busy} @click=${() => void this.setUp()}>Set up this project</button>`}
         </div>
@@ -786,7 +786,7 @@ export class SodaFactoryRoleSettings extends LitElement {
         <div>
           <h3>${label}</h3>
           <p>${detail}</p>
-          ${block && !on ? html`<p data-tone="warning">Can’t turn on yet. ${block.text}</p>` : ''}
+          ${block && !on ? html`<p role="note" data-tone="warning">Can’t turn on yet. ${block.text}</p>` : ''}
         </div>
         <button type="button" role="switch" aria-label=${label} aria-checked=${on ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.flip(change, state)}>
           <span aria-hidden="true"></span>${on ? 'On' : 'Off'}
