@@ -681,6 +681,7 @@ fn muse_connector(
                 max_model_steps: if live { 1 } else { soda_execution_protocol::MAX_MUSE_MODEL_STEPS },
                 output_bytes: 1024 * 1024,
                 mcp: None,
+                workspace: None,
             },
         )?;
         let directory = connector.directory().to_path_buf();

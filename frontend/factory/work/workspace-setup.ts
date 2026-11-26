@@ -284,23 +284,29 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
           const code = object(refused.error).code;
           if (response.status === 409 && code === 'setup_recovery_unavailable')
             throw new Error('This saved approval predates exact command receipts. Automatic recovery is unavailable. Its records are preserved and setup was not replayed.');
-          if (response.status === 422 && code === 'invalid_setup_input') {
+          // Both refusals are final for this saved approval: drop it so a
+          // fresh approval can be made against the current setup.
+          const final = response.status === 422 && code === 'invalid_setup_input' || response.status === 409 && code === 'setup_changed';
+          if (final) {
             record.settle(command);
             const saved = record.read();
             if (this.live(context, signal)) { this.command = saved.pending; this.recoveryBlocked = saved.blocked; }
-            throw new Error('Review the scripts, tools, source selection and limits. No setup approval was recorded.');
           }
+          if (response.status === 422 && code === 'invalid_setup_input')
+            throw new Error('Review the scripts, tools, source selection and limits. No setup approval was recorded.');
         }
         if (response.status === 409 || response.status === 412)
           throw new Error('Source, permission or approval changed. Review the current setup below.');
         throw new Error('Setup was not confirmed. Its current state is shown below.');
       }
       const next = setupResponse(await readSodaJSON(response));
+      // Recorded is recorded, even if the page moved on meanwhile; a kept
+      // record would block every later approval behind a stale replay.
+      const settled = record.settle(command);
       if (this.live(context, signal)) {
         const consent = form.querySelector<HTMLInputElement>('input[type="checkbox"]');
         if (consent) consent.checked = false;
         this.view = next;
-        const settled = record.settle(command);
         const remaining = record.read();
         this.command = remaining.pending;
         this.recoveryBlocked = remaining.blocked;

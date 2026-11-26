@@ -105,6 +105,7 @@ const (
 	PublishReasonBadObservation = "observation_invalid"
 	PublishReasonTargetOccupied = "target_occupied"
 	PublishReasonUnattributed   = "effect_unattributed"
+	PublishReasonAuthorityGone  = "authority_replaced"
 )
 
 func validPublishReason(reason string) bool {
@@ -112,7 +113,7 @@ func validPublishReason(reason string) bool {
 	case PublishReasonLinked, PublishReasonRefused, PublishReasonInvalid,
 		PublishReasonWithdrawn, PublishReasonFenced, PublishReasonSuperseded,
 		PublishReasonExportFailed, PublishReasonExhausted, PublishReasonBadObservation,
-		PublishReasonTargetOccupied, PublishReasonUnattributed:
+		PublishReasonTargetOccupied, PublishReasonUnattributed, PublishReasonAuthorityGone:
 		return true
 	default:
 		return false

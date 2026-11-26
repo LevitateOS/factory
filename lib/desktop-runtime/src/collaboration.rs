@@ -447,7 +447,8 @@ impl Owner {
                 let mut tasks = JoinSet::new();
                 let tool_state = state.clone();
                 tasks.spawn(async move {
-                    let mut refresh = tokio::time::interval(crate::factory_provider::Tools::REFRESH);
+                    // Half the freshness window, so a ready Muse never reads as stale.
+                    let mut refresh = tokio::time::interval(crate::factory_provider::Tools::REFRESH / 2);
                     refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                     loop {
                         refresh.tick().await;

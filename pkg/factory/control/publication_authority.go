@@ -34,6 +34,14 @@ func (c *Coordinator) publicationAuthority(ctx context.Context, p factory.Public
 		return empty, 0, false
 	}
 	if !current.SameGrants(p.Authority) || policy.TargetBranch != p.TargetBranch {
+		// A replaced requirement or approval decision never becomes the head
+		// again. A publication that has sent nothing under it ends, so the
+		// work can be retried under the current decisions.
+		replaced := current.RequirementsID != p.Authority.RequirementsID || current.ApprovalID != p.Authority.ApprovalID
+		if replaced && !retained && p.Publish.Attempts == 0 && p.PRCreate.Attempts == 0 {
+			c.finishPublication(ctx, p, factory.PublicationFailed, factory.PublishReasonAuthorityGone, report)
+			return empty, 0, false
+		}
 		publicationWait(report, p.ID, "authority_changed")
 		return empty, 0, false
 	}

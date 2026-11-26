@@ -4,7 +4,9 @@ import (
 	"errors"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
+	"github.com/levitateos/factory/pkg/store"
 	"github.com/levitateos/factory/pkg/strictjson"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -74,10 +76,16 @@ func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, "invalid_setup_input", "Review the scripts, tools, source selection and limits. No setup approval was recorded.")
 			return
 		}
+		if errors.Is(err, store.ErrCandidatePreparationConflict) {
+			writeError(w, http.StatusConflict, "setup_changed", "The source, setup or approval changed since this approval was made. Review the current setup.")
+			return
+		}
 		if errors.Is(err, execution.ErrPreparation) {
 			writeError(w, 400, "invalid_setup", "Setup requires a valid command, source, recipe and current workspace owner.")
 			return
 		}
+		// The page can only say "not confirmed"; keep the cause on this computer.
+		log.Printf("factory setup refused: %v", err)
 		if !s.hostError(w, err) {
 			CommandError(w, err)
 		}

@@ -331,6 +331,9 @@ pub(super) fn retained_process(
         {
             return Err(denied());
         }
+        if not_started_reason(&entry.path())?.is_some() {
+            continue;
+        }
         let process: MuseObservation =
             serde_json::from_slice(&read(&entry.path().join("result.json"), HEADER_LIMIT)?)?;
         if process.service != name || !super::hex(&process.invocation, 32) {
@@ -351,8 +354,14 @@ pub(super) fn retained_process(
 /// records must be gone, each judged by exact start time, not PID alone.
 #[cfg(target_os = "macos")]
 pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::Result<()> {
-    let directory = profile.join("native-muse-runs").join(&process.service);
-    super::muse::private(&directory)?;
+    stopped(&profile.join("native-muse-runs").join(&process.service)).map(|_| ())
+}
+/// macOS: refuses while one helper service's connector or any recorded process
+/// is alive; otherwise says whether its native owner ever recorded a process.
+#[cfg(target_os = "macos")]
+fn stopped(directory: &Path) -> io::Result<bool> {
+    super::muse::private(directory)?;
+    let mut recorded = false;
     let live = |pid: i64, start: u64| {
         i32::try_from(pid).ok().filter(|pid| *pid > 1).and_then(super::muse::process_start) == Some(start)
     };
@@ -385,10 +394,62 @@ pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::
                 if live(pid, start) {
                     return Err(denied());
                 }
+                recorded = true;
             }
         }
     }
-    Ok(())
+    Ok(recorded)
+}
+/// A helper service that never started the agent: no terminal result, its
+/// connector has exited and its native owner never recorded a process. The
+/// reason is the connector's own last error line.
+#[cfg(target_os = "macos")]
+fn not_started_reason(directory: &Path) -> io::Result<Option<String>> {
+    match directory.join("result.json").symlink_metadata() {
+        Ok(_) => return Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
+    if stopped(directory)? {
+        return Ok(None);
+    }
+    let log = read(&directory.join("connector.log"), 65536).unwrap_or_default();
+    let reason = String::from_utf8_lossy(&log)
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .map(|line| line.trim_start_matches("Factory Muse connector: ").trim().to_owned())
+        .unwrap_or_else(|| "the agent launcher stopped before starting the agent".into());
+    Ok(Some(reason.chars().take(400).collect()))
+}
+#[cfg(target_os = "linux")]
+fn not_started_reason(_directory: &Path) -> io::Result<Option<String>> {
+    Ok(None)
+}
+/// The reason a run's agent never started, when its only helper service
+/// proves that. A service with a result, or a live one, is not this case.
+pub(super) fn not_started(profile: &Path, run: &str) -> io::Result<Option<String>> {
+    let root = profile.join("native-muse-runs");
+    let entries = match fs::read_dir(&root) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    super::muse::private(&root)?;
+    let mut found = None;
+    for entry in entries {
+        let entry = entry?;
+        let binding: serde_json::Value =
+            serde_json::from_slice(&read(&entry.path().join("binding.json"), 4096)?)?;
+        if binding["run"] != run {
+            continue;
+        }
+        if found.is_some() {
+            return Err(denied());
+        }
+        found = Some(not_started_reason(&entry.path())?);
+    }
+    Ok(found.flatten())
 }
 #[cfg(target_os = "linux")]
 pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::Result<()> {

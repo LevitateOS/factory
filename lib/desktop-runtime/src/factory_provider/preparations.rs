@@ -1121,6 +1121,18 @@ impl Preparations {
         }
         let key = digest(&serde_json::to_vec(native).map_err(io::Error::other)?)[..32].to_owned();
         let directory = self.directory.join(&key);
+        // One app instance owns a profile at a time, so a preparation an ended
+        // instance never retired has no live owner left; retire it here.
+        if instance != self.instance
+            && !directory.join("retired.json").try_exists()?
+            && directory.join("request.json").try_exists()?
+        {
+            let input = Input::decode(load(&directory.join("request.json"))?, &self.profile, instance)?;
+            if input.native != *native || input.key != key {
+                return Err(denied());
+            }
+            retire_input(&input, &directory, &self.profile)?;
+        }
         let marker: Value = load(&directory.join("retired.json"))?;
         if marker["kind"] == "not_started" {
             if marker["root"] != key

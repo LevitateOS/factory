@@ -699,7 +699,7 @@ function parsePostedOutcome(
     try {
       return {kind: 'pending_runs' as const, pending: pendingRuns(posted.value)};
     } catch {
-      return {kind: 'refused' as const, status: posted.status, message: 'Request refused while recording runs.'};
+      // Other conflicts carry their own reason; show it.
     }
   }
   const detail = sodaErrorDetail(posted.value);

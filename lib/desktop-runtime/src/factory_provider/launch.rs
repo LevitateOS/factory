@@ -60,6 +60,7 @@ pub(crate) struct Input {
     pub secret: String,
     pub tools: Vec<String>,
     pub admission: Option<Value>,
+    pub repository: String,
 }
 
 pub(crate) async fn launch(
@@ -136,6 +137,7 @@ pub(crate) async fn launch(
                 prompt,
                 manifest,
                 preparation,
+                input.repository,
                 mcp,
                 cancel,
             )

@@ -348,11 +348,13 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 	if source.Repository != account.repository.ExternalID || source.Base != "" || source.Commit != in.Source || source.Target != target || len(source.Bundle) == 0 || len(source.Bundle) > project.MaxSourceBundle || source.SHA256 != hex.EncodeToString(bundleSum[:]) {
 		return empty, errNativeReadScope
 	}
-	if err = b.store.AdmitRequirementDecision(ctx, requirement); err != nil {
-		return empty, err
-	}
-	if err = b.store.AdmitApprovalDecision(ctx, approval); err != nil {
-		return empty, err
+	if !b.reuseSetupDecisions(ctx, &requirement, &approval) {
+		if err = b.store.AdmitRequirementDecision(ctx, requirement); err != nil {
+			return empty, err
+		}
+		if err = b.store.AdmitApprovalDecision(ctx, approval); err != nil {
+			return empty, err
+		}
 	}
 	requirementDepth, err := b.store.RequirementDepth(ctx, grant.Project)
 	if err != nil {
@@ -397,4 +399,47 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 		}
 	}
 	return b.readSetup(ctx, actor, repository, paths, &preview)
+}
+
+// reuseSetupDecisions keeps the current requirement and approval heads when a
+// repeated approval would record exactly the same content. A fresh decision
+// would change the project's authority and hold work bound to the old one,
+// though nothing the owner approved has changed.
+func (b nativeWorkspaceSetup) reuseSetupDecisions(ctx context.Context, requirement *project.RequirementDecision, approval *project.ApprovalDecision) bool {
+	requirementHead, err := b.store.RequirementHead(ctx, requirement.Project)
+	if err != nil || requirementHead == "" || requirementHead != requirement.Predecessor {
+		return false
+	}
+	approvalHead, err := b.store.ApprovalHead(ctx, approval.Project)
+	if err != nil || approvalHead == "" || approvalHead != approval.Predecessor {
+		return false
+	}
+	currentRequirement, err := b.store.RequirementDecision(ctx, requirementHead)
+	if err != nil {
+		return false
+	}
+	currentApproval, err := b.store.ApprovalDecision(ctx, approvalHead)
+	if err != nil {
+		return false
+	}
+	wantRequirement, wantApproval := *requirement, *approval
+	wantRequirement.ID, wantRequirement.Predecessor = currentRequirement.ID, currentRequirement.Predecessor
+	wantApproval.ID, wantApproval.Predecessor, wantApproval.Requirement = currentApproval.ID, currentApproval.Predecessor, currentRequirement.ID
+	// The command digest names the request that recorded a decision, not
+	// what was approved.
+	if wantRequirement.Recipe != nil && currentRequirement.Recipe != nil {
+		recipe := *wantRequirement.Recipe
+		recipe.CommandDigest = currentRequirement.Recipe.CommandDigest
+		wantRequirement.Recipe = &recipe
+	}
+	same := func(a, b any) bool {
+		left, leftErr := json.Marshal(a)
+		right, rightErr := json.Marshal(b)
+		return leftErr == nil && rightErr == nil && string(left) == string(right)
+	}
+	if !same(wantRequirement, currentRequirement) || !same(wantApproval, currentApproval) {
+		return false
+	}
+	*requirement, *approval = currentRequirement, currentApproval
+	return true
 }

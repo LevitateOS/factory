@@ -20,6 +20,7 @@ mod connector {
     #[cfg(target_os = "linux")]
     use std::path::Component;
     use std::path::Path;
+    use std::path::PathBuf;
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant, UNIX_EPOCH};
 
@@ -141,8 +142,6 @@ mod connector {
             "--worktree",
             "off",
             "--no-session-log",
-            "--disable-write",
-            "--disable-shell",
             "--disable-web-tools",
             "--disable-reminders",
             "--disable-request-user-input",
@@ -166,9 +165,18 @@ mod connector {
         .into_iter()
         .map(OsString::from)
         .collect();
+        // A coding run works in its visible worktree with Muse's own file and
+        // shell tools, inside Muse's sandbox (never disabled). Every other run
+        // gets an empty folder and only the admitted Factory tools.
+        let workspace = request.workspace.as_ref().map(PathBuf::from);
+        if workspace.is_none() {
+            arguments.extend(["--disable-write", "--disable-shell"].map(OsString::from));
+        }
         arguments.extend([
             OsString::from("--workspace"),
-            root.join("work").into_os_string(),
+            workspace.clone().unwrap_or_else(|| root.join("work")).into_os_string(),
+        ]);
+        arguments.extend([
             OsString::from("--prompt-file"),
             root.join("prompt").into_os_string(),
             OsString::from("--model"),
@@ -195,14 +203,16 @@ mod connector {
                     .collect()
             })
             .unwrap_or_default();
-        arguments.extend([
-            OsString::from("-c"),
-            format!("run.toolset={}", serde_json::to_string(&tools)?).into(),
-        ]);
+        if workspace.is_none() {
+            arguments.extend([
+                OsString::from("-c"),
+                format!("run.toolset={}", serde_json::to_string(&tools)?).into(),
+            ]);
+        }
         if let Some(mcp) = &request.mcp {
-            // This is the newly created, empty native facade, not repository
-            // content. Muse requires per-run trust to load the admitted MCP
-            // server; shell/write and the exact tool catalog remain bounded.
+            // Muse requires per-run trust to load the admitted MCP server. It is
+            // the empty facade, or a coding worktree of the owner's own source
+            // (outside-contributor work is review-only and never gets one).
             arguments.push(OsString::from("--trust-workspace"));
             let server = serde_json::json!({"enabled":true,"transport":"streamable_http",
                 "url":format!("http://127.0.0.1:{}/mcp",mcp.port),
@@ -214,8 +224,7 @@ mod connector {
         }
         Ok(arguments)
     }
-    // Offline interface admission uses the same defining argv builder. It can
-    // inspect flags or the shared terminal envelope, never borrow a saved login.
+    // The exact hashed bytes, so a swapped file is never run.
     fn tool_file(path: &Path, expected: &str) -> io::Result<File> {
         let mut file = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
         if !(4..=soda_execution_protocol::MAX_EXECUTABLE).contains(&file.metadata()?.len()) {
@@ -249,45 +258,6 @@ mod connector {
             return Err(refused("Muse protocol executable identity changed"));
         }
         Ok(path.to_path_buf())
-    }
-    fn inspect_tool(path: &Path, expected: &str, mode: &str) -> io::Result<()> {
-        let root = std::env::current_dir()?;
-        private(&root)?;
-        let file = tool_file(path, expected)?;
-        let request = MuseInvocation {
-            run: "0".repeat(32), service: "0".repeat(32),
-            executable: path.to_string_lossy().into_owned(), executable_sha256: expected.into(),
-            prompt: "Factory native protocol probe".into(),
-            harness: soda_execution_protocol::HarnessProfile {
-                model: "factory-protocol-probe".into(), effort: "low".into(), contributor: false,
-            },
-            duration_ms: 1, deadline_unix_ms: 0, max_model_steps: 1, output_bytes: 65536, mcp: None,
-        };
-        let mut argv = arguments(&root, &request)?;
-        match mode {
-            "flags" => argv.push("--help".into()),
-            "login-help" => argv = vec!["login".into(), "--help".into()],
-            "json" => {
-                // Echo exercises MSP without inference. Meta-only knobs are
-                // checked by the flags pass and remain unchanged for real work.
-                let provider = argv.iter().position(|arg| arg == "--provider").ok_or_else(|| refused("Muse provider flag missing"))?;
-                argv[provider + 1] = "echo".into();
-                let mut index = 0;
-                while index < argv.len() {
-                    if ["--model", "--reasoning-effort", "--contributor-mode"].iter().any(|flag| argv[index] == *flag) {
-                        argv.drain(index..index + 2);
-                    } else if argv[index] == "--no-parallel-tool-calls" {
-                        argv.remove(index);
-                    } else { index += 1; }
-                }
-            }
-            _ => return Err(refused("Muse protocol probe mode invalid")),
-        }
-        let error = Command::new(tool_program(path, &file)?)
-            .args(argv).env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
-            .env("HOME", &root).env("TMPDIR", root.join("tmp"))
-            .stdin(Stdio::null()).exec();
-        Err(error)
     }
     /// Runs the verified Muse with the user's own login: `login` to sign in, or
     /// `usage --json`, which answers only when a login is saved.
@@ -392,9 +362,6 @@ mod connector {
         if unsafe { libc::geteuid() } == 0 {
             return Err(refused("Muse connector requires the desktop user"));
         }
-        if args.len() == 5 && args[1] == "--inspect-tool" {
-            return inspect_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?, args[4].to_str().ok_or_else(|| refused("Muse probe mode invalid"))?);
-        }
         if args.len() == 4 && (args[1] == "--login" || args[1] == "--usage") {
             let command: &[&str] = if args[1] == "--login" { &["login"] } else { &["usage", "--json"] };
             return user_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?, command);
@@ -456,7 +423,7 @@ mod connector {
         let process = processes
             .launch(Invocation {
                 executable: &executable,
-                directory: &root.join("work"),
+                directory: &request.workspace.as_ref().map(PathBuf::from).unwrap_or_else(|| root.join("work")),
                 arguments: arguments(&root, &request)?,
                 environment: environment(&tmp, &request),
                 limits: Limits {

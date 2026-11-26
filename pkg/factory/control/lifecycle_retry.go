@@ -66,6 +66,12 @@ func (c *Coordinator) RetryRun(ctx context.Context, commandID, principal, runID 
 	if err != nil {
 		return factory.RetryDecision{}, err
 	}
+	// A settled root's leftover candidate preparations (for example from an
+	// app session that has since ended) are retired before admission checks
+	// that every preparation of the root is quiet.
+	if err = c.stopCandidatePreparationsForRoot(bounded, view.Repository, assignment.ProjectID, view.Issue, assignment.AttemptRoot); err != nil {
+		return factory.RetryDecision{}, err
+	}
 	// Close the settled root before fresh-attempt admission; all immutable
 	// retry and accounting checks keep their rules.
 	if !implementation {

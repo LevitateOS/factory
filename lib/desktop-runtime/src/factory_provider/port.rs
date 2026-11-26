@@ -59,6 +59,9 @@ pub(crate) enum Call {
         tools: Vec<String>,
         #[serde(default)]
         admission: Option<Value>,
+        /// `owner/repo`; names the coding run's visible clone and worktree.
+        #[serde(default)]
+        repository: String,
     },
     Inspect {
         intent: String,
@@ -607,6 +610,7 @@ impl Callbacks<'_> {
                 scope_digest,
                 tools,
                 admission,
+                repository,
             } => {
                 if self
                     .execution_error
@@ -638,6 +642,7 @@ impl Callbacks<'_> {
                         secret,
                         tools,
                         admission,
+                        repository,
                     },
                 )
                 .await

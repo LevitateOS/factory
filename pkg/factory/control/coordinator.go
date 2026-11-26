@@ -110,6 +110,7 @@ type Coordinator struct {
 	progressOnce        sync.Once
 	progressGate        chan struct{}
 	dispatchObservation atomic.Pointer[DispatchObservation]
+	dispatchHeld        atomic.Pointer[string]
 	progressCancel      context.CancelFunc
 	progressDone        chan struct{}
 	// The progress gate protects passive provider polling separately from

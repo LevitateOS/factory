@@ -17,6 +17,21 @@ import (
 // acknowledgement. ContextPending is cleared before any host launch, so it is
 // positive unsent evidence; a missing process receipt alone never qualifies.
 func (s *Store) RecordNativeContextNoStart(ctx context.Context, profile collaboration.ProfileID, intent string) error {
+	return s.recordNativeNoStart(ctx, profile, intent, true, factory.Cancelled, "context preparation ended before native launch")
+}
+
+// RecordNativeNoStart settles a launched run whose agent provably never
+// started (the native owner found no result, no live launcher and no recorded
+// process) as failed with the launcher's reason, so it stops holding its slot.
+func (s *Store) RecordNativeNoStart(ctx context.Context, profile collaboration.ProfileID, intent, reason string) error {
+	summary := []rune("the agent did not start: " + reason)
+	if len(summary) > 480 {
+		summary = summary[:480]
+	}
+	return s.recordNativeNoStart(ctx, profile, intent, false, factory.Failed, string(summary))
+}
+
+func (s *Store) recordNativeNoStart(ctx context.Context, profile collaboration.ProfileID, intent string, pending bool, outcome factory.Outcome, summary string) error {
 	bound, err := execution.ParseNativeIntent(intent)
 	if err != nil || bound.Native.Workspace.Profile != profile {
 		return ErrAdmissionChanged
@@ -31,14 +46,14 @@ func (s *Store) RecordNativeContextNoStart(ctx context.Context, profile collabor
 		return err
 	}
 	var run factory.Run
-	if json.Unmarshal(raw, &run) != nil || run.Validate() != nil || run.ID != bound.Run || !run.ContextPending || run.HasExecutionIdentity() ||
+	if json.Unmarshal(raw, &run) != nil || run.Validate() != nil || run.ID != bound.Run || run.ContextPending != pending || run.HasExecutionIdentity() ||
 		run.Native == nil || run.Native.Intent != intent || run.Native.Provenance.Profile != profile || run.Admission == nil || run.Admission.Native == nil ||
 		!bound.Native.MatchesRecord(*run.Native) || *run.Admission.Native != bound.Native || run.Native.Provenance.Process != nil || run.Native.Provenance.Isolation != nil || run.Native.Provenance.Connector != nil ||
 		run.Native.Provenance.Custody != (execution.NativeCustody{State: execution.NotAcquired}) {
 		return ErrAdmissionChanged
 	}
 	if run.Reconciled {
-		if run.Outcome != factory.Cancelled || !run.Native.Settled() {
+		if run.Outcome != outcome || !run.Native.Settled() {
 			return ErrAdmissionChanged
 		}
 		var minutes int
@@ -86,7 +101,7 @@ func (s *Store) RecordNativeContextNoStart(ctx context.Context, profile collabor
 	if !native.Advances(*run.Native) {
 		return execution.ErrRunChanged
 	}
-	run.Native, run.Outcome, run.Reconciled, run.Summary = &native, factory.Cancelled, true, "context preparation ended before native launch"
+	run.Native, run.Outcome, run.Reconciled, run.Summary = &native, outcome, true, summary
 	if run.Validate() != nil {
 		return ErrAdmissionChanged
 	}

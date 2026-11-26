@@ -242,25 +242,4 @@ impl Receipts {
             expected_head: head.into(),
         })
     }
-    pub fn pending(&self) -> io::Result<Vec<Command>> {
-        let mut commands = Vec::new();
-        for entry in std::fs::read_dir(&self.root)? {
-            let name = entry?.file_name();
-            let Some(key) = name.to_str().and_then(|s| s.strip_suffix(".request")) else {
-                continue;
-            };
-            if !super::hex(key, 64) || commands.len() >= 256 {
-                return Err(denied());
-            }
-            let command: Command =
-                serde_json::from_slice(&self.read(&format!("{key}.request"), MAX_COMMAND)?)?;
-            if !command.retains_receipt() || command.receipt_key()? != key {
-                return Err(denied());
-            }
-            if self.reply(&command)?.is_none() {
-                commands.push(command);
-            }
-        }
-        Ok(commands)
-    }
 }

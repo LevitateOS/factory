@@ -457,9 +457,13 @@ impl NativeRecovery {
             .intent
             .ok_or_else(|| refused("native recovery intent missing"))?;
         if intent.muse_login() {
-            let result = evidence
-                .muse
-                .ok_or_else(|| refused("native CLI receipt missing"))?;
+            let Some(result) = evidence.muse else {
+                let reason = super::muse_receipt::not_started(&self.context.directory, &self.run.id)?
+                    .ok_or_else(|| refused("native CLI receipt missing"))?;
+                self.context.current()?;
+                self.retire_cli_bundle(&intent)?;
+                return self.record_no_start(&intent, &reason).await;
+            };
             if !result.root_retired && self.original_instance() == self.context.instance {
                 return Err(refused("current CLI MCP owner retirement unconfirmed"));
             }
@@ -468,27 +472,7 @@ impl NativeRecovery {
                 self.record_evidence().await?;
             }
             self.context.current()?;
-            if intent.has_tasks() {
-                if !result.root_retired {
-                    super::Broker::recover_task_receipts(
-                        &self.context.directory,
-                        &intent.scope()?,
-                        &intent.retained_manifest(&self.context.directory)?,
-                        &soda_execution_protocol::workspace::Parent::from_muse(&result.process),
-                    )?;
-                }
-                super::Broker::retire_bundle(
-                    self.broker_run(),
-                    &self.context.profile,
-                    &self.run.native.bundle_sha256,
-                )?;
-            } else {
-                super::Broker::retire_unlaunched(
-                    self.broker_run(),
-                    &self.context.profile,
-                    &self.run.native.bundle_sha256,
-                )?;
-            }
+            self.retire_cli_bundle(&intent)?;
             super::muse_receipt::mark_retired(&self.context.directory, &intent, &result.process)?;
             return self
                 .record_root(&intent, &result.process.invocation, "", false)
@@ -538,6 +522,35 @@ impl NativeRecovery {
         )
         .await
     }
+    fn retire_cli_bundle(&self, intent: &LaunchIntent) -> io::Result<()> {
+        let (run, profile, source) = (
+            self.broker_run(),
+            &self.context.profile,
+            &self.run.native.bundle_sha256,
+        );
+        if intent.has_tasks() {
+            super::Broker::retire_bundle(run, profile, source)?;
+        } else {
+            super::Broker::retire_unlaunched(run, profile, source)?;
+        }
+        Ok(())
+    }
+
+    /// Go settles a run whose agent provably never started as failed, with
+    /// the launcher's reason, instead of leaving it waiting forever.
+    async fn record_no_start(&self, intent: &LaunchIntent, reason: &str) -> io::Result<()> {
+        let body = serde_json::to_vec(
+            &serde_json::json!({"intent":intent.raw(),"invocation":"","acquisition_id":"","not_started":reason}),
+        )?;
+        let response = self
+            .products
+            .retire_recovery(&body)
+            .await
+            .map_err(|_| refused("native no-start record unavailable"))?;
+        self.context.current()?;
+        self.acknowledgement(response, "native_root_retirement_recorded")
+    }
+
     async fn record_root(
         &self,
         intent: &LaunchIntent,

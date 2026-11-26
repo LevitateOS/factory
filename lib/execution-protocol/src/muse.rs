@@ -25,6 +25,11 @@ pub struct MuseInvocation {
     pub max_model_steps: u8,
     pub output_bytes: usize,
     pub mcp: Option<MuseMcp>,
+    /// A coding run's worktree. Muse works there with its own file and shell
+    /// tools, inside its sandbox; absent, Muse gets an empty folder and only
+    /// the admitted Factory tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -57,6 +62,11 @@ impl MuseInvocation {
             && (1..=14_400_000).contains(&self.duration_ms)
             && (1..=MAX_MUSE_MODEL_STEPS).contains(&self.max_model_steps)
             && (1..=MAX_OUTPUT).contains(&self.output_bytes)
+            && self.workspace.as_ref().is_none_or(|path| {
+                std::path::Path::new(path).is_absolute()
+                    && path.len() <= 4096
+                    && !path.chars().any(char::is_control)
+            })
             && self.mcp.as_ref().is_none_or(|mcp| {
                 let mut unique = BTreeSet::new();
                 mcp.port != 0

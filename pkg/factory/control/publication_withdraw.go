@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"slices"
 	"time"
 
@@ -125,6 +126,16 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 		p, err := c.Store.PublicationByID(scopeContext, wait.ID)
 		if err == nil {
 			report.Waits = append(report.Waits, DispatchWait{Repository: p.Repository, Issue: p.Issue, Reason: wait.Reason})
+		}
+	}
+	// The owner-facing projection keeps only known reason codes; the local log
+	// keeps the raw reasons so a held publication stays diagnosable.
+	if len(publication.Waits)+len(publication.Errors) > 0 {
+		if encoded, err := json.Marshal(struct {
+			Waits  []PublishWait  `json:"waits,omitempty"`
+			Errors []PublishError `json:"errors,omitempty"`
+		}{publication.Waits, publication.Errors}); err == nil {
+			log.Printf("factory publication held: %s", encoded)
 		}
 	}
 	for _, failure := range publication.Errors {

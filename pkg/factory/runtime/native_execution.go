@@ -46,7 +46,7 @@ func (p NativeExecution) InspectTool(ctx context.Context, family string) (execut
 		return empty, err
 	}
 	checked := time.Unix(selected.CheckedAtUnix, 0)
-	if selected.Channel != "muse-stable" || time.Since(checked) > 5*time.Minute || checked.After(time.Now().Add(5*time.Second)) {
+	if selected.Channel != "installed" || time.Since(checked) > 5*time.Minute || checked.After(time.Now().Add(5*time.Second)) {
 		return empty, execution.ErrProvenance
 	}
 	observed := execution.ToolObservation{Kind: collaboration.Native, Native: &selected.Tool}

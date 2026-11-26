@@ -249,6 +249,7 @@ func (c *Coordinator) observeDispatch(ctx context.Context, report DispatchReport
 		next.Errors = append(next.Errors, dispatchObservationReason(failure.Repository, failure.Issue, failure.Reason, failure.Detail))
 	}
 	c.dispatchObservation.Store(&next)
+	c.logDispatchHeld(report)
 	for _, failure := range next.Errors {
 		if failure.Reason == "priority_incomplete" {
 			// This is the same bounded, redacted projection exposed to owners.
@@ -546,4 +547,24 @@ func (c *Coordinator) dispatchAfterIntake(ctx context.Context) {
 		return
 	}
 	_ = c.Dispatch(ctx)
+}
+
+// logDispatchHeld says why work waits, with Factory's own detail, once per
+// change rather than every pass. The log stays on this computer.
+func (c *Coordinator) logDispatchHeld(report DispatchReport) {
+	if len(report.Waits)+len(report.Errors) == 0 {
+		c.dispatchHeld.Store(nil)
+		return
+	}
+	encoded, err := json.Marshal(struct {
+		Waits  []DispatchWait  `json:"waits"`
+		Errors []DispatchError `json:"errors"`
+	}{report.Waits, report.Errors})
+	if err != nil {
+		return
+	}
+	held := string(encoded)
+	if previous := c.dispatchHeld.Swap(&held); previous == nil || *previous != held {
+		log.Printf("factory dispatch held: %s", held)
+	}
 }

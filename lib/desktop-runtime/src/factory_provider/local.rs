@@ -569,3 +569,16 @@ pub(crate) fn next_run(profile: &str) -> io::Result<Option<(String, String, Prof
     }
     Ok(None)
 }
+
+/// A staged run's own folder, for files that live and retire with the run.
+pub(crate) fn run_directory(run: &str, profile: &str) -> io::Result<PathBuf> {
+    let directory = place(Kind::Run, profile, run)?;
+    if !directory.join("bundle").is_file() {
+        return Err(refused("run source is not staged"));
+    }
+    Ok(directory)
+}
+/// The staged source bundle of a run.
+pub(crate) fn run_bundle(run: &str, profile: &str) -> io::Result<PathBuf> {
+    Ok(run_directory(run, profile)?.join("bundle"))
+}

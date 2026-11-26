@@ -20,43 +20,43 @@ import (
 
 var _ execution.RunLauncher = NativeExecution{}
 
-func (p NativeExecution) authorizeLaunch(ctx context.Context, request execution.LaunchRequest) (factory.MCPCapability, []string, error) {
+func (p NativeExecution) authorizeLaunch(ctx context.Context, request execution.LaunchRequest) (factory.MCPCapability, []string, string, error) {
 	var empty factory.MCPCapability
 	if p.Store == nil || request.Validate() != nil || request.Kind != collaboration.Native || request.Native.Authentication == "" && request.Native.CredentialSHA256 == "" || request.Native.Workspace.Profile != p.Config.Profile || request.Native.Workspace.InstanceID != p.Instance {
-		return empty, nil, execution.ErrLaunch
+		return empty, nil, "", execution.ErrLaunch
 	}
 	if project.ExecutionManifestRequired(request.Input.Run.ExecutionPhase) {
 		if !p.SupportsTaskSource(request.Native.Authentication) {
-			return empty, nil, errors.Join(execution.ErrLaunch, execution.ErrTaskUnavailable)
+			return empty, nil, "", errors.Join(execution.ErrLaunch, execution.ErrTaskUnavailable)
 		}
 	}
 	cap, err := p.Store.AuthorizeFactoryLaunch(ctx, request)
 	if err != nil {
-		return empty, nil, err
+		return empty, nil, "", err
 	}
 	run, err := p.Store.FactoryRun(ctx, request.Address().Run)
 	if err != nil {
-		return empty, nil, err
+		return empty, nil, "", err
 	}
 	assignment, err := p.Store.Assignment(ctx, cap.AssignmentID)
 	if err != nil {
-		return empty, nil, err
+		return empty, nil, "", err
 	}
 	preparation, err := p.Store.Preparation(ctx, request.Input.Run.Preparation)
 	if err != nil {
-		return empty, nil, err
+		return empty, nil, "", err
 	}
 	expected, err := control.BuildMCPCapability(assignment, run, preparation)
 	if err != nil || expected.ScopeDigest() != cap.ScopeDigest() {
-		return empty, nil, execution.ErrLaunch
+		return empty, nil, "", execution.ErrLaunch
 	}
 	valid, err := NativeMCPSecretVerifier(p.Config, p.Instance)(ctx, cap, request.Input.MCP.Secret)
 	if err != nil || !valid {
-		return empty, nil, execution.ErrLaunch
+		return empty, nil, "", execution.ErrLaunch
 	}
 	tools, err := mcpserver.BoundToolNames(ctx, p.workerDependencies(ctx), cap)
 	if err != nil {
-		return empty, nil, err
+		return empty, nil, "", err
 	}
 	var automatic *factory.ExternalPullAdoption
 	if assignment.ExternalPlanning != nil && assignment.ExternalPlanning.Request.Automatic {
@@ -66,26 +66,31 @@ func (p NativeExecution) authorizeLaunch(ctx context.Context, request execution.
 		if readErr == nil {
 			policy, policyErr := p.Store.RepositoryPolicy(ctx, assignment.Repository)
 			if policyErr != nil {
-				return empty, nil, policyErr
+				return empty, nil, "", policyErr
 			}
 			if captured, ok := publication.AutomaticExternalAdoption(policy); ok {
 				automatic = &captured
 			}
 		} else if !errors.Is(readErr, store.ErrNotFound) {
-			return empty, nil, readErr
+			return empty, nil, "", readErr
 		}
 	}
 	if automatic != nil {
 		if err = (NativeReviews{NativeInputSource{p}}).CheckAutomaticExternalPull(ctx, *automatic); err != nil {
-			return empty, nil, err
+			return empty, nil, "", err
 		}
 		// Provider I/O cannot retain a policy or source that was withdrawn.
 		current, currentErr := p.Store.AuthorizeFactoryLaunch(ctx, request)
 		if currentErr != nil || current.ScopeDigest() != cap.ScopeDigest() {
-			return empty, nil, errors.Join(execution.ErrLaunch, currentErr)
+			return empty, nil, "", errors.Join(execution.ErrLaunch, currentErr)
 		}
 	}
-	return cap, tools, nil
+	// The run's `owner/repo` names its visible clone and worktree on this computer.
+	repository, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(assignment.Repository))
+	if err != nil {
+		return empty, nil, "", err
+	}
+	return cap, tools, repository.Name, nil
 }
 
 // Reuse the defining admission immediately before a host-controlled worker
@@ -108,7 +113,7 @@ func nativeLaunchAdmission(p NativeExecution) http.Handler {
 			return
 		}
 		request := input.Request
-		cap, _, err := p.authorizeLaunch(r.Context(), request)
+		cap, _, _, err := p.authorizeLaunch(r.Context(), request)
 		if err != nil {
 			nativeResponse(w, 403, map[string]string{"error": "native_launch_admission_unavailable"})
 			return
@@ -137,7 +142,7 @@ func nativeLaunchAdmission(p NativeExecution) http.Handler {
 
 func (p NativeExecution) LaunchRun(ctx context.Context, request execution.LaunchRequest) (execution.RunObservation, error) {
 	var empty execution.RunObservation
-	cap, tools, err := p.authorizeLaunch(ctx, request)
+	cap, tools, repository, err := p.authorizeLaunch(ctx, request)
 	if err != nil {
 		return empty, err
 	}
@@ -159,12 +164,13 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 		ScopeDigest string                   `json:"scope_digest"`
 		Tools       []string                 `json:"tools"`
 		Admission   *execution.LaunchRequest `json:"admission,omitempty"`
+		Repository  string                   `json:"repository"`
 	}{"launch", intent, request.Input.ExecutionManifest, request.Input.Prompt, cap.ID, request.Input.MCP.Secret, cap.ScopeDigest(), tools, func() *execution.LaunchRequest {
 		if request.Controller != nil {
 			return &request
 		}
 		return nil
-	}()}, &reply)
+	}(), repository}, &reply)
 	if err != nil {
 		return empty, err
 	}

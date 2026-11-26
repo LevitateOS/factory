@@ -25,12 +25,14 @@ pub(crate) mod recovery;
 mod response;
 mod run;
 mod start;
+mod task_workspace;
+pub use task_workspace::TaskWorkspace;
 mod tool;
 pub(crate) mod work;
 mod workspace_receipts;
 pub use attempt::{AttemptObservation, AttemptPhase, RunExecution, RunView};
 pub use broker::{
-    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, BrokerPreparation, RelayAttestation, TaskWorkspace,
+    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, BrokerPreparation, RelayAttestation,
 };
 pub use custody::{read_custody, CustodyObservation, CustodyState, RunCustody};
 pub use executions::{

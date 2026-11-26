@@ -156,6 +156,7 @@ impl MuseAttempt {
         prompt: Vec<u8>,
         manifest: Vec<u8>,
         preparation: PreparedSourceRef,
+        repository: String,
         mcp: WorkerMcp,
         cancellation: AgentCancellation,
     ) -> io::Result<Self> {
@@ -189,18 +190,23 @@ impl MuseAttempt {
             cancellation.clone(),
             deadline,
         )?;
+        // A coding run works directly in its visible worktree.
         let workspace = if manifest.is_empty() {
             None
         } else {
             Some(Arc::new(Mutex::new(Some(
-                super::Broker::prepare_task_workspace(
+                super::TaskWorkspace::prepare(
                     &profile,
                     &scope,
                     &manifest,
+                    &repository,
                     cancellation.with_deadline(deadline),
                 )?,
             ))))
         };
+        let worktree = workspace.as_ref().and_then(|owner| {
+            owner.lock().ok()?.as_ref().map(|owner| owner.path().to_string_lossy().into_owned())
+        });
         let state = Arc::new(Mutex::new(State {
             phase: AttemptPhase::Starting,
             process: None,
@@ -240,6 +246,7 @@ impl MuseAttempt {
                             max_model_steps: MAX_MUSE_MODEL_STEPS,
                             output_bytes: MAX_OUTPUT,
                             mcp: Some(mcp.configuration.clone()),
+                            workspace: worktree,
                         },
                     )?;
                     let mut cancelling = false;
@@ -286,9 +293,6 @@ impl MuseAttempt {
                         let mut workspace = workspace
                             .lock()
                             .map_err(|_| io::Error::other("Muse workspace unavailable"))?;
-                        if let Some(owner) = workspace.as_ref() {
-                            owner.recover_pending()?;
-                        }
                         workspace.take();
                     }
                     let candidate =

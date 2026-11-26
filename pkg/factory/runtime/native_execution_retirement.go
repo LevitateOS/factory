@@ -28,6 +28,7 @@ func nativeExecutionRetirement(config NativeConfig, instance string, db *store.S
 			Invocation     string `json:"invocation"`
 			Acquisition    string `json:"acquisition_id"`
 			ContextPending bool   `json:"context_pending,omitempty"`
+			NotStarted     string `json:"not_started,omitempty"`
 		}
 		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 65536), &input) != nil {
 			nativeResponse(w, 400, map[string]string{"error": "invalid_native_retirement"})
@@ -36,7 +37,13 @@ func nativeExecutionRetirement(config NativeConfig, instance string, db *store.S
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 		var err error
-		if input.ContextPending {
+		if input.NotStarted != "" {
+			if input.Invocation != "" || input.Acquisition != "" || input.ContextPending {
+				nativeResponse(w, 400, map[string]string{"error": "invalid_native_retirement"})
+				return
+			}
+			err = db.RecordNativeNoStart(ctx, config.Profile, input.Intent, input.NotStarted)
+		} else if input.ContextPending {
 			if input.Invocation != "" || input.Acquisition != "" {
 				nativeResponse(w, 400, map[string]string{"error": "invalid_native_retirement"})
 				return
