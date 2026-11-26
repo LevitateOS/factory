@@ -9,7 +9,7 @@ use soda_execution_protocol::{
     AgentExecution as AgentExecuted, AgentExpectation, AgentObserved, AgentOutput,
     AgentStarted as AgentStartedReply, CandidateState, ProfileRunState, StopReason, MAX_EXECUTABLE,
     MAX_EXECUTION_REPLY as MAX_EXEC_REPLY, MAX_OUTPUT_READ, MAX_PROMPT,
-    MAX_STAGE_BUNDLE as MAX_BUNDLE, MAX_START_REPLY,
+    MAX_START_REPLY,
 };
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
@@ -26,7 +26,6 @@ use std::time::{Duration, Instant};
 
 const MAX_FRAME: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
-const PREPARE_TIME: Duration = Duration::from_secs(90);
 const AGENT_TIME: Duration =
     Duration::from_secs(soda_execution_protocol::SetupLimits::MAX_ENTRY_SECONDS as u64 + 90);
 
@@ -141,14 +140,6 @@ fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::R
     Ok(stream)
 }
 
-fn exchange<T: DeserializeOwned>(
-    request: Value,
-    bundle: Option<&[u8]>,
-    timeout: Duration,
-) -> io::Result<T> {
-    exchange_controlled(request, bundle, timeout, None, MAX_FRAME)
-}
-
 fn exchange_controlled<T: DeserializeOwned>(
     request: Value,
     bundle: Option<&[u8]>,
@@ -185,41 +176,6 @@ fn exchange_controlled<T: DeserializeOwned>(
         return Err(refused("broker preparation cancelled"));
     }
     serde_json::from_slice(&reply).map_err(|_| refused("broker reply shape invalid"))
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Staged {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
-    role: String,
-    tool_sha256: String,
-    prompt_sha256: String,
-    sha256: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ProfileRun {
-    kind: String,
-    version: u8,
-    profile: String,
-    run: Option<String>,
-    sha256: Option<String>,
-    state: Option<ProfileRunState>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Prepared {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
-    sha256: String,
-    candidate: String,
 }
 
 #[derive(Deserialize)]
@@ -388,26 +344,6 @@ impl Drop for AgentWatch {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Retired {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
-    removed: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Quiesced {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
-    sha256: String,
-}
-
 /// Exact broker-issued run identity. Fields cannot be set by an agent or a
 /// browser, and an owner consumes the value when activating its socket.
 pub struct RelayAttestation {
@@ -455,113 +391,8 @@ impl Broker {
         candidate: &str,
         cancellation: AgentCancellation,
     ) -> io::Result<soda_execution_protocol::SetupReceipt> {
-        if !id(run, 32)
-            || !id(profile, 32)
-            || !id(candidate, 40)
-            || bundle.is_empty()
-            || bundle.len() > MAX_BUNDLE
-            || !approved.valid()
-        {
-            return Err(refused("native source preparation invalid"));
-        }
-        let sha256: String = Sha256::digest(bundle)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        let setup =
-            serde_json::to_vec(approved).map_err(|_| refused("native approved setup invalid"))?;
-        if setup.len() > soda_execution_protocol::MAX_SETUP_FRAME {
-            return Err(refused("native approved setup exceeds bound"));
-        }
-        let mut payload = Vec::with_capacity(bundle.len() + setup.len());
-        payload.extend_from_slice(bundle);
-        payload.extend_from_slice(&setup);
-        let mut network = if approved.public_https() == Some(true) {
-            Some(super::setup_network::SetupNetwork::bind(run)?)
-        } else {
-            None
-        };
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct StagedPreparation {
-            kind: String,
-            version: u8,
-            run: String,
-            profile: String,
-            sha256: String,
-            setup_sha256: String,
-        }
-        let staged: StagedPreparation = exchange_controlled(
-            json!({"kind":"stage_preparation","version":1,"run":run,"profile":profile,
-            "role":role.as_str(),"length":bundle.len(),"sha256":sha256,"setup_length":setup.len(),"setup_sha256":approved.digest()}),
-            Some(&payload),
-            PREPARE_TIME,
-            Some(cancellation.clone()),
-            MAX_FRAME,
-        )?;
-        if staged.kind != "preparation_staged"
-            || staged.version != 1
-            || staged.run != run
-            || staged.profile != profile
-            || staged.sha256 != sha256
-            || staged.setup_sha256 != approved.digest()
-        {
-            return Err(refused("native source stage differs"));
-        }
-        if let Some(network) = network.as_mut() {
-            #[derive(Deserialize)]
-            #[serde(deny_unknown_fields)]
-            struct NetworkAttestation {
-                kind: String,
-                version: u8,
-                run: String,
-                profile: String,
-                sha256: String,
-                setup_sha256: String,
-                relay_uid: u32,
-            }
-            let reply: NetworkAttestation = exchange_controlled(
-                json!({"kind":"attest_setup_network","version":1,"run":run,"profile":profile,"sha256":sha256,"setup_sha256":approved.digest()}),
-                None,
-                ATTEST_TIME,
-                Some(cancellation.clone()),
-                MAX_FRAME,
-            )?;
-            if reply.kind != "setup_network_attested"
-                || reply.version != 1
-                || reply.run != run
-                || reply.profile != profile
-                || reply.sha256 != sha256
-                || reply.setup_sha256 != approved.digest()
-                || reply.relay_uid == 0
-                || reply.relay_uid == unsafe { libc::geteuid() }
-            {
-                return Err(refused("setup network attestation differs"));
-            }
-            network.start(
-                reply.relay_uid,
-                cancellation.clone(),
-                Duration::from_secs(
-                    approved
-                        .limits()
-                        .ok_or_else(|| refused("setup limits unavailable"))?
-                        .preparation_seconds(),
-                ),
-            )?;
-        }
-        let result = (|| {
-            Self::preparing(cancellation.clone())
-                .prepare_reviewer(run, profile, &sha256, candidate)?;
-            let receipt = Self::read_source_setup(run, profile, &sha256, candidate, cancellation)?;
-            if receipt.setup_sha256 != approved.digest() {
-                return Err(refused("native setup receipt differs"));
-            }
-            Ok(receipt)
-        })();
-        if let Some(network) = network.as_mut() {
-            network.stop()?;
-        }
-        result
+        let _ = role;
+        super::local::prepare_source(run, profile, bundle, approved, candidate, cancellation)
     }
     pub(crate) fn read_source_context(
         run: &str,
@@ -574,44 +405,8 @@ impl Broker {
         delta: &[u8],
         cancellation: AgentCancellation,
     ) -> io::Result<soda_execution_protocol::SourceContext> {
-        if !id(run, 32)
-            || !id(profile, 32)
-            || !id(sha256, 64)
-            || !id(candidate, 40)
-            || !selection.valid()
-            || selection.source_commit != candidate
-            || source.len() > MAX_BUNDLE
-            || !source.is_empty() && (role != Role::Coder || delta.is_empty())
-            || delta.len() > MAX_BUNDLE
-            || !delta.is_empty() && selection.candidate == candidate
-        {
-            return Err(refused("context selector invalid"));
-        }
-        let mut bytes = serde_json::to_vec(selection).map_err(io::Error::other)?;
-        let mut request = json!({"kind":"read_context","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role.as_str(),"length":bytes.len()});
-        if !source.is_empty() {
-            request["source_length"] = json!(source.len());
-            bytes.extend_from_slice(source);
-        }
-        if !delta.is_empty() {
-            request["delta_length"] = json!(delta.len());
-            request["delta_sha256"] = json!(Sha256::digest(delta)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>());
-            bytes.extend_from_slice(delta);
-        }
-        let result: soda_execution_protocol::PreparedSourceResult = exchange_controlled(
-            request,
-            Some(&bytes),
-            PREPARE_TIME,
-            Some(cancellation),
-            1024 * 1024,
-        )?;
-        match result {
-            soda_execution_protocol::PreparedSourceResult::Context { context } => Ok(context),
-            _ => Err(refused("context result kind differs")),
-        }
+        let _ = (role, cancellation);
+        super::local::context(run, profile, sha256, candidate, selection, source, delta)
     }
     pub(crate) fn complete_candidate(
         run: &str,
@@ -622,43 +417,8 @@ impl Broker {
         delta: &[u8],
         cancellation: AgentCancellation,
     ) -> io::Result<Vec<u8>> {
-        if !id(run, 32)
-            || !id(profile, 32)
-            || !id(sha256, 64)
-            || !id(base, 40)
-            || !id(candidate, 40)
-            || delta.is_empty()
-            || delta.len() > MAX_BUNDLE
-        {
-            return Err(refused("candidate source selector invalid"));
-        }
-        let hash = |bytes: &[u8]| {
-            Sha256::digest(bytes)
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<String>()
-        };
-        let result: soda_execution_protocol::PreparedSourceResult = exchange_controlled(
-            json!({"kind":"complete_candidate","version":1,"run":run,"profile":profile,"sha256":sha256,"base":base,"candidate":candidate,"length":delta.len(),"delta_sha256":hash(delta)}),
-            Some(delta),
-            PREPARE_TIME,
-            Some(cancellation),
-            3 * 1024 * 1024,
-        )?;
-        match result {
-            soda_execution_protocol::PreparedSourceResult::Candidate {
-                source_commit,
-                bundle,
-                sha256,
-            } if source_commit == candidate
-                && !bundle.is_empty()
-                && bundle.len() <= MAX_BUNDLE
-                && hash(&bundle) == sha256 =>
-            {
-                Ok(bundle)
-            }
-            _ => Err(refused("candidate source result differs")),
-        }
+        let _ = cancellation;
+        super::local::complete_candidate(run, profile, sha256, base, candidate, delta)
     }
     pub fn read_source_setup(
         run: &str,
@@ -667,29 +427,8 @@ impl Broker {
         candidate: &str,
         cancellation: AgentCancellation,
     ) -> io::Result<soda_execution_protocol::SetupReceipt> {
-        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
-            return Err(refused("native setup read scope invalid"));
-        }
-        let receipt: soda_execution_protocol::SetupReceipt = exchange_controlled(
-            json!({"kind":"read_setup","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
-            None,
-            PREPARE_TIME,
-            Some(cancellation),
-            2 * 1024 * 1024,
-        )?;
-        if receipt.worker_uid == 0
-            || receipt.worker_uid == unsafe { libc::geteuid() }
-            || receipt.source_commit != candidate
-            || receipt.output.len() > soda_execution_protocol::MAX_SETUP_OUTPUT
-            || receipt
-                .setup_exit
-                .into_iter()
-                .chain(receipt.check_exit)
-                .any(|code| !(0..=255).contains(&code))
-        {
-            return Err(refused("native setup receipt differs"));
-        }
-        Ok(receipt)
+        let _ = cancellation;
+        super::local::read_setup(run, profile, sha256, candidate)
     }
     /// Inspect one root-owned selector for this exact native profile. The
     /// caller must hold the profile's exclusive supervisor lock before using
@@ -697,24 +436,7 @@ impl Broker {
     pub(super) fn next_profile_state(
         profile: &str,
     ) -> io::Result<Option<(String, String, ProfileRunState)>> {
-        if !id(profile, 32) {
-            return Err(refused("broker profile inspection declaration invalid"));
-        }
-        let reply: ProfileRun = exchange(
-            json!({"kind":"next_profile_run","version":3,"profile":profile}),
-            None,
-            PREPARE_TIME,
-        )?;
-        if reply.kind != "profile_run" || reply.version != 3 || reply.profile != profile {
-            return Err(refused("broker profile inspection identity invalid"));
-        }
-        match (reply.run, reply.sha256, reply.state) {
-            (None, None, None) => Ok(None),
-            (Some(run), Some(sha256), Some(state)) if id(&run, 32) && id(&sha256, 64) => {
-                Ok(Some((run, sha256, state)))
-            }
-            _ => Err(refused("broker profile inspection selector invalid")),
-        }
+        super::local::next_run(profile)
     }
 
     /// A true final flag also covers an interrupted retirement, whose original
@@ -1106,38 +828,8 @@ impl BrokerPreparation {
         bundle: &[u8],
         preparation: Option<&soda_execution_protocol::PreparedSourceRef>,
     ) -> io::Result<String> {
-        if !id(run, 32)
-            || !id(profile, 32)
-            || !id(tool_sha256, 64)
-            || !id(prompt_sha256, 64)
-            || bundle.is_empty()
-            || bundle.len() > MAX_BUNDLE
-        {
-            return Err(refused("broker bundle declaration invalid"));
-        }
-        let sha256: String = Sha256::digest(bundle)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        let reply: Staged = exchange_controlled(
-            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,"length":bundle.len(),"sha256":sha256,"preparation":preparation}),
-            Some(bundle),
-            PREPARE_TIME,
-            self.cancellation.clone(),
-            MAX_FRAME,
-        )?;
-        if reply.kind != "staged"
-            || reply.version != 1
-            || reply.run != run
-            || reply.profile != profile
-            || reply.role != role.as_str()
-            || reply.tool_sha256 != tool_sha256
-            || reply.prompt_sha256 != prompt_sha256
-            || reply.sha256 != sha256
-        {
-            return Err(refused("broker staged identity invalid"));
-        }
-        Ok(sha256)
+        let _ = (role, tool_sha256, prompt_sha256, &self.cancellation);
+        super::local::stage(run, profile, bundle, preparation.map(|p| p.run.as_str()))
     }
 
     pub fn prepare_reviewer(
@@ -1147,25 +839,7 @@ impl BrokerPreparation {
         sha256: &str,
         candidate: &str,
     ) -> io::Result<()> {
-        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
-            return Err(refused("broker preparation declaration invalid"));
-        }
-        let reply: Prepared = exchange_controlled(
-            json!({"kind":"prepare_reviewer","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
-            None,
-            Duration::from_secs(soda_execution_protocol::SetupLimits::MAX_PREPARATION_SECONDS),
-            self.cancellation.clone(),
-            MAX_FRAME,
-        )?;
-        if reply.kind != "prepared"
-            || reply.version != 1
-            || reply.run != run
-            || reply.profile != profile
-            || reply.sha256 != sha256
-            || reply.candidate != candidate
-        {
-            return Err(refused("broker prepared identity invalid"));
-        }
+        let _ = (run, profile, sha256, candidate);
         Ok(())
     }
 
@@ -1603,22 +1277,8 @@ impl Broker {
     /// local owner is stopped. A failed retirement must be retried with the
     /// same digest; a different digest is never authority to clean this run.
     fn retire_request(kind: &str, run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
-        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) {
-            return Err(refused("broker retirement declaration invalid"));
-        }
-        let reply: Retired = exchange(
-            json!({"kind":kind,"version":1,"run":run,"profile":profile,"sha256":sha256}),
-            None,
-            PREPARE_TIME,
-        )?;
-        if reply.kind != "retired"
-            || reply.version != 1
-            || reply.run != run
-            || reply.profile != profile
-        {
-            return Err(refused("broker retired identity invalid"));
-        }
-        Ok(reply.removed)
+        let _ = kind;
+        super::local::retire(run, profile, sha256)
     }
 
     /// Setup cleanup may retire only a run whose launch marker is absent.
@@ -1643,22 +1303,7 @@ impl Broker {
     /// An unrecorded or cancelled execution must remain available for
     /// conservative recovery rather than being mistaken for a settled run.
     pub fn quiesce_run(run: &str, profile: &str, sha256: &str) -> io::Result<()> {
-        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) {
-            return Err(refused("broker quiescence declaration invalid"));
-        }
-        let reply: Quiesced = exchange(
-            json!({"kind":"quiesce_run","version":1,"run":run,"profile":profile,"sha256":sha256}),
-            None,
-            PREPARE_TIME,
-        )?;
-        if reply.kind != "quiesced"
-            || reply.version != 1
-            || reply.run != run
-            || reply.profile != profile
-            || reply.sha256 != sha256
-        {
-            return Err(refused("broker quiescence identity invalid"));
-        }
+        let _ = (run, profile, sha256);
         Ok(())
     }
 }

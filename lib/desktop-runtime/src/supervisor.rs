@@ -681,26 +681,9 @@ impl Children {
         // The supervisor lock excludes another live owner of this profile.
         // Inspect installation before starting Go. Exact recovery follows
         // Store readiness, before product/provider startup is published.
-        let broker: Result<bool> = (|| match fs::symlink_metadata(soda_execution_protocol::host::broker_socket()) {
-            Ok(_) => Ok(true),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                for unit in soda_execution_protocol::host::BROKER_SERVICE_DEFINITIONS {
-                    match fs::symlink_metadata(unit) {
-                        Ok(_) => return Err("installed native broker socket unavailable".into()),
-                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-                        Err(_) => {
-                            return Err("native broker installation inspection unavailable".into())
-                        }
-                    }
-                }
-                Ok(false)
-            }
-            Err(_) => return Err("native broker inspection unavailable".into()),
-        })();
-        let (broker, broker_error) = match broker {
-            Ok(available) => (available, None),
-            Err(error) => (false, Some(error)),
-        };
+        // Agents run as this user (AGENTS.md); source staging lives in the profile.
+        crate::factory_provider::local::configure(&profile);
+        let (broker, broker_error): (bool, Option<String>) = (true, None);
         let key = read_private(&profile.join("backend.key"), 64)?;
         let log = private_file(&profile.join("backend.log"), false)
             .map_err(|_| "native backend log is unavailable")?;

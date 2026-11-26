@@ -42,10 +42,14 @@ each leaving the app working:
 
 1. **Runs without the broker (Rust).** A same-user clone/worktree owner replaces
    `Staged::source`, `prepare_source`, `complete_candidate`, `read_source_context`
-   and `read_source_setup`; readiness and recovery stop requiring the broker;
-   Linux spawns Muse directly instead of `systemd-run --user`. Check: on this
-   Mac without relying on the installed broker, one investigation run completes
-   on the disposable repo and `git worktree list` shows its worktree.
+   and `read_source_setup`; readiness and recovery stop requiring the broker.
+   Done (`factory_provider/local.rs`): on this Mac the app starts ready and
+   recovers without the broker, and approved setup/check for both roles ran as
+   the user under `<profile>/native-local` and passed. Product runs are only
+   coder (still on the broker task workspace until slice 2) and reviewer (needs
+   an open PR), so the first full agent run is slice 2's check. Linux still
+   starts Muse via `systemd-run --user` (the user's own manager); moved to
+   slice 3 with the Linux helper's process tracking.
 2. **Implement in the worktree, publish through the existing Go path.** Serve
    the task protocol (Start/Checkpoint/Final) in-process against the worktree;
    the coder drops `--disable-write`/`--disable-shell`. Check: one connected run
