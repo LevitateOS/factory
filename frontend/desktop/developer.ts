@@ -103,8 +103,8 @@ export async function mountDeveloper(core: Core) {
     }
   };
   // Roles named by their text, as in ARIA, plus status and alert so their messages are readable.
-  const nameFromContent = ['button', 'link', 'heading', 'alert', 'status', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option'];
-  const clickable = ['button', 'link', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab'];
+  const nameFromContent = ['button', 'link', 'heading', 'alert', 'status', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option', 'switch'];
+  const clickable = ['button', 'link', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'switch'];
   const secret = (element: HTMLElement) =>
     element instanceof HTMLInputElement && ['password', 'file', 'hidden'].includes(element.type);
   const name = (element: HTMLElement): string => {
@@ -184,7 +184,7 @@ export async function mountDeveloper(core: Core) {
       checked:
         element instanceof HTMLInputElement && ['checkbox', 'radio'].includes(element.type)
           ? element.checked
-          : undefined,
+          : element.hasAttribute('aria-checked') ? element.getAttribute('aria-checked') === 'true' : undefined,
       focused: element === document.activeElement,
       offscreen: rect.bottom <= 0 || rect.top >= innerHeight || rect.right <= 0 || rect.left >= innerWidth,
       type: element.getAttribute('type') ?? element.tagName.toLowerCase(),

@@ -147,7 +147,7 @@
   flex-direction: column;
   gap: 2px;
   box-sizing: border-box;
-  width: 240px;
+  width: 280px;
   padding: 6px;
   border: 1px solid var(--soda-page-edge);
   color: var(--soda-page-text);
@@ -185,6 +185,40 @@
   font: var(--soda-font-caption);
   color: var(--soda-page-muted);
   overflow-wrap: anywhere;
+}
+.soda-factory-root .soda-factory-context-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.soda-factory-root .soda-factory-context-menu > button:disabled {
+  color: var(--soda-page-muted);
+}
+/* Ticks for checked items, and the chosen value beside an item that opens a side menu. */
+.soda-factory-menu-check {
+  flex: none;
+  width: 16px;
+  text-align: center;
+}
+[aria-checked="true"] > .soda-factory-menu-check::before {
+  content: "\2713";
+}
+.soda-factory-menu-value {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--soda-page-muted);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.soda-factory-context-menu > p[data-tone="warning"] {
+  margin: 0 4px 4px 30px;
+  color: var(--soda-page-warning);
+}
+.soda-factory-context-menu[popover].soda-factory-submenu {
+  width: 200px;
 }
 .soda-factory-wordmark {
   display: flex;

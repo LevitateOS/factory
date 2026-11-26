@@ -102,9 +102,9 @@ export function progressStoryPeer(
         const change = JSON.parse(String(init.body));
         if (change.expected_revision !== (configured ? policy.revision : 0)) return Response.json({}, {status: 409});
         policyChanges.push(change);
-        policy = configured
-          ? {...policy, roles: change.roles, judgments: change.judgments, automation_reviewer: change.automation_reviewer, revision: policy.revision + 1}
-          : {...policy, ...change, revision: 1};
+        // Actor slots keep their stored kinds; every other field is saved as sent.
+        const fields = Object.fromEntries(Object.entries(change).filter(([key]) => key !== 'expected_revision' && !key.endsWith('_actor')));
+        policy = configured ? {...policy, ...fields, revision: policy.revision + 1} : {...policy, ...change, revision: 1};
         configured = true;
         return Response.json({state: 'applied'});
       }

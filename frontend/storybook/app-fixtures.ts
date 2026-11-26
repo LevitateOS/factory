@@ -131,7 +131,8 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
       }
       if (path.startsWith('factory/feed')) return feed.context.transport.request(path, init);
       if (path.startsWith('factory/library')) return library.context.transport.request(path, init);
-      if (route.kind === 'settings') return settingsRequest(path, init);
+      // The Feed's project menu reads the same saved settings as the Settings page.
+      if (route.kind === 'settings' || route.kind === 'feed') return settingsRequest(path, init);
       if (route.kind === 'watch') return watch.context.transport.request(path, init);
       if (route.kind === 'work-detail') return detail.context.transport.request(path, init);
       return progress.overview.transport.request(path, init);

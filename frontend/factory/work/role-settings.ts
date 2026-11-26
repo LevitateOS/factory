@@ -3,7 +3,7 @@ import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import './workspace-setup.js';
 
-interface RoleContext {
+export interface RoleContext {
   readonly transport: FactoryTransport;
   readonly repository: string;
   readonly actor?: string;
@@ -49,6 +49,8 @@ interface Settings {
   sources: SpendingSource[];
   editable: boolean;
   bindings: Record<string, unknown>[];
+  /** What the server says still stops new work, such as dispatch_closed. */
+  missing: string[];
   options: {targetBranch: string; mergeMethods: string[]; nativeSetup: boolean; controllerGrantRequired: boolean} | undefined;
 }
 interface SetupDraft {
@@ -152,6 +154,8 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
     : [];
   const editable = object(object(access.editable).policy).editable === true;
   const bindings = Array.isArray(status.native_bindings) ? status.native_bindings.map(object) : [];
+  const effective = status.effective == null ? {} : object(status.effective);
+  const missing = Array.isArray(effective.missing) ? effective.missing.filter((value): value is string => typeof value === 'string') : [];
   const available = status.policy_options == null ? undefined : object(status.policy_options);
   const options =
     available && Array.isArray(available.merge_methods)
@@ -164,7 +168,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
           ),
         }
       : undefined;
-  if (status.policy === null) return {policy: null, accounts, sources, editable, bindings, options};
+  if (status.policy === null) return {policy: null, accounts, sources, editable, bindings, missing, options};
   const policy = object(status.policy);
   check(policy.repository === repository && Number.isSafeInteger(policy.revision) && Number(policy.revision) > 0);
   const stored = object(policy.roles),
@@ -183,7 +187,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
       model: selection.model,
     } as Selection;
   }
-  return {policy, roles, accounts, sources, editable, bindings, options};
+  return {policy, roles, accounts, sources, editable, bindings, missing, options};
 }
 
 const covers = (accounts: readonly Account[], role: Role, connection: string) =>
@@ -311,6 +315,7 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
     merge_actor: policyActor(policy.merge_actor),
 	...(policy.execution_actor==null?{}:{execution_actor:policyActor(policy.execution_actor)}),
     ...(resolve.actor_id && resolve.actor_id !== '0' ? {resolve_actor: policyActor(resolve)} : {}),
+    automation_reviewer: policy.automation_reviewer == null ? null : policyActor(policy.automation_reviewer),
   };
 }
 
@@ -318,6 +323,142 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
 function policySelections(roles: Selections) {
   return {roles, judgments: null};
 }
+
+/** What a refused policy save means, in plain words. */
+function saveRefusal(status: number) {
+  return new RoleSaveError(
+    status === 400
+      ? 'These settings were rejected. Check the branch, CI checks and logins.'
+      : status === 409 || status === 412
+        ? 'These settings changed somewhere else. The latest is shown; try again.'
+        : status === 403
+          ? 'You can’t change these settings.'
+          : 'The save could not be confirmed. The latest is shown.',
+    status
+  );
+}
+
+export type AutomationRole = Role;
+export const automationRoles = roleNames;
+
+/** Something that stops automation from turning on, and the Settings field that fixes it. */
+export interface AutomationBlock {
+  readonly text: string;
+  /** The aria-label of the Settings control to fix it with, when there is one. */
+  readonly field?: string;
+}
+
+/** One project's automation switch and its quick choices, as the project
+ * menu and the top of Settings show them. */
+export interface AutomationState {
+  readonly on: boolean;
+  readonly pickUpPulls: boolean;
+  readonly editable: boolean;
+  /** Why automation can't turn on; undefined when it can. */
+  readonly blocked?: AutomationBlock;
+  /** Why pull requests can't be picked up; undefined when they can. */
+  readonly blockedPulls?: AutomationBlock;
+  readonly targetBranch: string;
+  readonly logins: Record<Role, string>;
+  readonly loginChoices: Record<Role, readonly {readonly connection: string; readonly label: string}[]>;
+  readonly merge: string;
+  readonly mergeChoices: readonly {readonly value: string; readonly label: string}[];
+}
+
+export type AutomationChange =
+  | {readonly on: boolean}
+  | {readonly pickUpPulls: boolean}
+  | {readonly role: Role; readonly login: string}
+  | {readonly merge: string};
+
+// A login can run a role when it already covers it or saving can authorize it.
+const eligibleLogin = (view: Settings, role: Role, account: string) =>
+  covers(view.accounts, role, account) || view.sources.some((source) => source.connection === account && source.authorizable);
+
+/** The logins a role can use: this computer's Muse logins and any already authorized for it. */
+function loginChoices(view: Settings, role: Role) {
+  const logins = new Set([
+    ...view.sources.filter((login) => login.authorizable).map((login) => login.connection),
+    ...view.accounts.filter((account) => account.active && account.roles.includes(role)).map((account) => account.connection),
+  ]);
+  return [...logins].map((connection) => ({connection, label: view.sources.find((source) => source.connection === connection)?.label ?? connection}));
+}
+
+function automationBlock(view: Settings, roles: Selections | undefined): AutomationBlock | undefined {
+  const policy = view.policy;
+  if (!policy || !roles) return {text: 'Finish setting up this project first.'};
+  if (!view.editable) return {text: 'You can’t change this project’s settings with this account.'};
+  for (const role of Object.keys(roleNames) as Role[]) {
+    const account = roles[role].account, name = roleNames[role];
+    if (!account) return {text: `Choose a ${name.toLowerCase()} login first.`, field: `${name} login`};
+    if (!eligibleLogin(view, role, account)) return {text: `The ${name.toLowerCase()} login can’t run work. Choose another.`, field: `${name} login`};
+  }
+  // The server merges automatically only after named CI checks pass.
+  if (!Array.isArray(policy.required_checks) || !policy.required_checks.length)
+    return {text: 'Name the CI checks that must pass before merging.', field: 'Required CI checks'};
+  return undefined;
+}
+
+export function automationState(view: Settings): AutomationState {
+  const policy = view.policy, roles = view.roles;
+  const blocked = automationBlock(view, roles);
+  const blockedPulls = blocked ?? (view.options?.controllerGrantRequired
+    ? {text: 'Picking up pull requests isn’t available in Fountain.'}
+    : roles!['soda-coder'].account !== roles!['soda-reviewer'].account
+      ? {text: 'Use the same login for coding and review first.', field: 'Review login'}
+      : undefined);
+  const merge = typeof policy?.merge_method === 'string' ? policy.merge_method : '';
+  return {
+    // One switch: off when the settings say so or when someone paused the project.
+    on: policy?.enabled === true && policy.paused !== true && !view.missing.includes('dispatch_closed'),
+    pickUpPulls: policy?.automatic_external_pulls === true,
+    editable: view.editable,
+    ...(blocked ? {blocked} : {}),
+    ...(blockedPulls ? {blockedPulls} : {}),
+    targetBranch: typeof policy?.target_branch === 'string' ? policy.target_branch.replace(/^refs\/heads\//, '') : '',
+    logins: {'soda-coder': roles?.['soda-coder'].account ?? '', 'soda-reviewer': roles?.['soda-reviewer'].account ?? ''},
+    loginChoices: {'soda-coder': loginChoices(view, 'soda-coder'), 'soda-reviewer': loginChoices(view, 'soda-reviewer')},
+    merge,
+    mergeChoices: [...new Set([...(view.options?.mergeMethods ?? []), ...(merge ? [merge] : [])])].map((value) => ({value, label: mergeLabels[value] ?? value})),
+  };
+}
+
+export async function readAutomation(context: RoleContext, signal: AbortSignal) {
+  return automationState(await readSettings(context, signal));
+}
+
+/** Saves one automation choice on top of the latest saved settings and
+ * returns the confirmed state. Turning automation on also resumes a project
+ * someone paused, so the one switch is the whole answer. Rejects with a
+ * plain-language message when it can't. */
+export async function changeAutomation(context: RoleContext, signal: AbortSignal, change: AutomationChange): Promise<AutomationState> {
+  const view = await readSettings(context, signal);
+  const before = automationState(view);
+  if (!view.policy || !view.roles || !view.editable) throw new RoleSaveError(before.blocked?.text ?? 'You can’t change these settings.', 403);
+  if ('on' in change && change.on && before.blocked) throw new RoleSaveError(before.blocked.text, 400);
+  if ('pickUpPulls' in change && change.pickUpPulls && before.blockedPulls) throw new RoleSaveError(before.blockedPulls.text, 400);
+  const roles = 'role' in change ? {...view.roles, [change.role]: {...view.roles[change.role], account: change.login}} : view.roles;
+  const payload = policyChange(view.policy, roles);
+  if ('on' in change) Object.assign(payload, {enabled: change.on, paused: false});
+  if ('pickUpPulls' in change) payload.automatic_external_pulls = change.pickUpPulls;
+  if ('merge' in change) payload.merge_method = change.merge;
+  if ('role' in change) await authorizeLogins(context, signal, view.accounts, roles);
+  const response = await context.transport.request(`repositories/${context.repository}/factory/policy`, {method: 'PUT', signal, body: JSON.stringify(payload)});
+  if (!response.ok) throw saveRefusal(response.status);
+  let confirmed = await readSettings(context, signal);
+  check(!!confirmed.policy && Number(confirmed.policy.revision) > Number(view.policy.revision));
+  if ('on' in change && change.on && confirmed.missing.includes('dispatch_closed')) {
+    const resumed = await context.transport.request(`repositories/${context.repository}/factory/actions`, {method: 'POST', signal, body: JSON.stringify({action: 'resume'})});
+    confirmed = await readSettings(context, signal);
+    if (!resumed.ok || confirmed.missing.includes('dispatch_closed'))
+      throw new RoleSaveError('Automation is on, but new work stays paused until stopped runs finish. Check the Work page.', resumed.status);
+  }
+  return automationState(confirmed);
+}
+
+/** The message to show for a failed automation change. */
+export const automationFailure = (error: unknown) =>
+  error instanceof RoleSaveError ? error.message : 'That change could not be confirmed. The latest is shown.';
 
 /** Shared editor. Choosing a login for a role and saving authorizes that login
  * for the roles that use it; it never connects an account or picks a replacement. */
@@ -328,7 +469,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     setup: {state: true},
     limits: {state: true},
     automationReviewer: {state: true},
-    automaticExternalPulls: {state: true},
     workspaceOpened: {state: true},
     busy: {state: true},
     message: {state: true},
@@ -340,7 +480,6 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private setup: SetupDraft;
   declare private limits: LimitDraft;
   declare private automationReviewer: boolean;
-  declare private automaticExternalPulls: boolean;
   declare private workspaceOpened: boolean;
   private current: RoleContext | undefined;
   private generation = '';
@@ -351,7 +490,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.limits = {active_minutes: '', review_rounds: '', correction_cycles: ''};
     this.busy = false;
     this.automationReviewer = false;
-    this.automaticExternalPulls = false;
     this.workspaceOpened = false;
     this.message = '';
   }
@@ -373,7 +511,6 @@ export class SodaFactoryRoleSettings extends LitElement {
     this.current = context;
     this.generation = context?.transport.generation ?? '';
     this.view = this.roles = undefined;
-    this.automaticExternalPulls = false;
     this.workspaceOpened = false;
     this.busy = false;
     this.message = '';
@@ -407,7 +544,6 @@ export class SodaFactoryRoleSettings extends LitElement {
       if (this.live(context, signal)) {
         this.view = view;
         this.automationReviewer = !!view.policy && samePolicyActor(view.policy.automation_reviewer, view.policy.review_actor);
-        this.automaticExternalPulls = view.policy?.automatic_external_pulls === true;
         this.roles = view.roles ?? {
           'soda-coder': {account: '', harness: 'muse', model: ''},
           'soda-reviewer': {account: '', harness: 'muse', model: ''},
@@ -418,8 +554,9 @@ export class SodaFactoryRoleSettings extends LitElement {
           review_rounds: limits ? String(limits.review_rounds) : '',
           correction_cycles: limits ? String(limits.correction_cycles) : '',
         };
-        if (!view.policy)
-          this.setup = {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false, controllerGrant: ''};
+        this.setup = view.policy
+          ? {...this.setup, checks: Array.isArray(view.policy.required_checks) ? view.policy.required_checks.join('\n') : '', method: typeof view.policy.merge_method === 'string' ? view.policy.merge_method : ''}
+          : {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false, controllerGrant: ''};
       }
     } catch {
       if (this.live(context, signal)) {
@@ -473,34 +610,17 @@ export class SodaFactoryRoleSettings extends LitElement {
       max_children: this.view?.policy ? object(this.view.policy.attempt_limits).max_children : 0,
     };
   }
-  private automaticPullsReady() {
-    const roles = this.roles;
-    if (!roles || this.view?.options?.controllerGrantRequired === true) return false;
-    const account = roles['soda-coder'].account;
-    return !!account && roles['soda-reviewer'].account === account &&
-      (Object.keys(roleNames) as Role[]).every(role => this.validSelection(role, false)) &&
-      !!this.selectedLimits();
-  }
   private async save(event: SubmitEvent) {
     event.preventDefault();
     const context = this.current,
       signal = this.lifetime.signal,
       view = this.view,
-      disabling = event.submitter?.getAttribute('value') === 'disable',
-      enrolling = event.submitter?.getAttribute('value') === 'enroll',
-      roles = disabling ? view?.roles : this.roles;
+      roles = this.roles;
     const limits = this.selectedLimits();
-    if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal) || (!disabling && !limits)) return;
-    if (!disabling && this.automaticExternalPulls && !this.automaticPullsReady()) return;
+    if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal) || !limits) return;
     const initial = view.policy === null,
       actors = initial ? this.initialActors() : undefined;
-    if (initial && (disabling || enrolling)) return;
-    if (
-      !disabling && !(Object.keys(roleNames) as Role[]).every(
-        (role) => this.validSelection(role, initial)
-      )
-    )
-      return;
+    if (!(Object.keys(roleNames) as Role[]).every((role) => this.validSelection(role, initial))) return;
     if (initial && (!actors || !this.setup.useAccount || !view.options?.mergeMethods.includes(this.setup.method)))
       return;
     const payload = view.policy
@@ -513,44 +633,29 @@ export class SodaFactoryRoleSettings extends LitElement {
           automatic_external_pulls: false,
           target_branch: this.setup.targetBranch,
           merge_method: this.setup.method,
-          required_checks: this.checks(),
           ...actors,
         };
-    if (enrolling || disabling) payload.enabled = enrolling;
-    if (!initial && !disabling && view.options?.controllerGrantRequired && this.setup.controllerGrant) {
+    Object.assign(payload, {required_checks: this.checks(), merge_method: this.setup.method});
+    if (!initial && view.options?.controllerGrantRequired && this.setup.controllerGrant) {
       const replacements = this.initialActors();
       if (!replacements) return;
       Object.assign(payload, replacements);
       if ('resolve_actor' in payload && payload.resolve_actor) payload.resolve_actor = {...object(payload.resolve_actor), controller_grant_id: this.setup.controllerGrant};
     }
-    if (!disabling) Object.assign(payload, {attempt_limits: limits});
-    if (!disabling) payload.automatic_external_pulls = this.automaticExternalPulls;
+    Object.assign(payload, {attempt_limits: limits});
     const reviewIdentity = object(payload).review_actor;
-    const automationReviewer = disabling ? !!view.policy?.automation_reviewer : this.automationReviewer;
-    Object.assign(payload, {automation_reviewer: disabling
-      ? view.policy?.automation_reviewer == null ? null : policyActor(view.policy.automation_reviewer)
-      : automationReviewer && reviewIdentity ? policyActor(reviewIdentity) : null});
+    const automationReviewer = this.automationReviewer;
+    Object.assign(payload, {automation_reviewer: automationReviewer && reviewIdentity ? policyActor(reviewIdentity) : null});
     this.busy = true;
     this.message = '';
     try {
-      if (!disabling) await this.authorizeLogins(context, signal, view, roles);
+      await this.authorizeLogins(context, signal, view, roles);
       const response = await context.transport.request(`repositories/${context.repository}/factory/policy`, {
         method: 'PUT',
         signal,
         body: JSON.stringify(payload),
       });
-      if (!response.ok) {
-        throw new RoleSaveError(
-          response.status === 400
-            ? 'Policy settings were rejected. Check the branch, CI checks and role choices.'
-            : response.status === 409 || response.status === 412
-              ? 'These settings changed somewhere else. The latest is shown; save again.'
-              : response.status === 403
-                ? 'You can’t change these settings.'
-                : 'The save could not be confirmed. The latest is shown.',
-          response.status
-        );
-      }
+      if (!response.ok) throw saveRefusal(response.status);
       const confirmed = await this.read(context, signal);
       check(
         confirmed.policy && Number(confirmed.policy.revision) > Number(payload.expected_revision) && confirmed.roles
@@ -568,29 +673,23 @@ export class SodaFactoryRoleSettings extends LitElement {
         )
       );
       check(confirmed.policy.enabled === payload.enabled);
-      check(confirmed.policy.automatic_external_pulls === payload.automatic_external_pulls);
-      if (!disabling) {
-        const savedLimits = object(confirmed.policy.attempt_limits);
-        check(['active_minutes', 'review_rounds', 'correction_cycles'].every(key => savedLimits[key] === object(limits)[key]));
-      }
+      check(JSON.stringify(confirmed.policy.required_checks) === JSON.stringify(submitted.required_checks));
+      const savedLimits = object(confirmed.policy.attempt_limits);
+      check(['active_minutes', 'review_rounds', 'correction_cycles'].every(key => savedLimits[key] === object(limits)[key]));
       if (initial)
         check(
           confirmed.policy.enabled === false &&
             confirmed.policy.target_branch === payload.target_branch &&
-            confirmed.policy.merge_method === payload.merge_method &&
-            JSON.stringify(confirmed.policy.required_checks) === JSON.stringify(payload.required_checks)
+            confirmed.policy.merge_method === payload.merge_method
         );
       if (this.live(context, signal)) {
         this.view = confirmed;
         this.roles = confirmed.roles;
-        this.automaticExternalPulls = confirmed.policy.automatic_external_pulls === true;
-        this.message = initial ? 'Repository policy saved with automation disabled.'
-          : enrolling ? 'Automation policy enrolled. Existing pauses and execution prerequisites still apply.'
-            : disabling ? 'Automation policy disabled. Existing work may still need retirement.' : 'Role selections saved.';
+        this.message = 'Settings saved.';
       }
     } catch (error) {
       if (this.live(context, signal)) {
-        const note = error instanceof RoleSaveError ? error.message : 'The save could not be confirmed. The latest is shown.';
+        const note = automationFailure(error);
         this.message = note;
         // Anything but a rejected form may have changed what is saved: show it.
         if (!(error instanceof RoleSaveError && error.status === 400)) {
@@ -602,6 +701,48 @@ export class SodaFactoryRoleSettings extends LitElement {
       if (this.live(context, signal)) this.busy = false;
     }
   }
+  /** Flips the automation switch or the pull-request choice and shows what is saved now.
+   * When something blocks turning on, it says what and moves to the field that fixes it. */
+  private async flip(change: AutomationChange, state: AutomationState) {
+    const context = this.current,
+      signal = this.lifetime.signal;
+    if (!context || this.busy || !this.live(context, signal)) return;
+    const block = 'on' in change && change.on ? state.blocked : 'pickUpPulls' in change && change.pickUpPulls ? state.blockedPulls : undefined;
+    if (block) {
+      this.message = block.text;
+      if (block.field) this.querySelector<HTMLElement>(`[aria-label="${block.field}"]`)?.focus();
+      return;
+    }
+    this.busy = true;
+    this.message = '';
+    let note = '';
+    try {
+      await changeAutomation(context, signal, change);
+    } catch (error) {
+      note = automationFailure(error);
+    }
+    if (!this.live(context, signal)) return;
+    this.busy = false;
+    await this.refresh(note);
+  }
+  private automation(view: Settings) {
+    const state = automationState(view);
+    const row = (label: string, detail: string, on: boolean, change: AutomationChange, block: AutomationBlock | undefined) =>
+      html`<div class="soda-factory-automation-row">
+        <div>
+          <h3>${label}</h3>
+          <p>${detail}</p>
+          ${block && !on ? html`<p data-tone="warning">Can’t turn on yet. ${block.text}</p>` : ''}
+        </div>
+        <button type="button" role="switch" aria-label=${label} aria-checked=${on ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.flip(change, state)}>
+          <span aria-hidden="true"></span>${on ? 'On' : 'Off'}
+        </button>
+      </div>`;
+    return html`<section class="soda-factory-automation" aria-label="Automation">
+      ${row('Automation', `Agents take accepted issues, open pull requests, review them and merge into ${state.targetBranch || 'the default branch'}.`, state.on, {on: !state.on}, state.blocked)}
+      ${row('Pick up pull requests', 'Take over pull requests from people who can write to this repository when they close an accepted issue.', state.pickUpPulls, {pickUpPulls: !state.pickUpPulls}, state.blocked ? undefined : state.blockedPulls)}
+    </section>`;
+  }
   protected render() {
     if (!this.current) return html``;
     const view = this.view,
@@ -611,7 +752,6 @@ export class SodaFactoryRoleSettings extends LitElement {
       view?.editable &&
       roles &&
       this.selectedLimits() &&
-      (!this.automaticExternalPulls || this.automaticPullsReady()) &&
       (Object.keys(roleNames) as Role[]).every(
         (role) => this.validSelection(role, initial)
       ) &&
@@ -619,10 +759,13 @@ export class SodaFactoryRoleSettings extends LitElement {
         (!!this.initialActors() &&
           this.setup.useAccount &&
           !!this.setup.targetBranch &&
-          this.checks().length > 0 &&
-          this.checks().length <= 32 &&
-          view.options?.mergeMethods.includes(this.setup.method)));
+          this.checks().length > 0)) &&
+      this.checks().length <= 32 &&
+      (!view.policy?.enabled || this.checks().length > 0) &&
+      (initial ? !!view.options?.mergeMethods.includes(this.setup.method) : !!this.setup.method);
     return html`<section aria-label="Agent role settings">
+      ${view ? this.automation(view) : ''}
+      <p role="status">${this.message}</p>
       ${view?.options?.nativeSetup ? this.workspaceOpened
         ? html`<soda-factory-workspace-setup .context=${this.current}></soda-factory-workspace-setup>`
         : html`<button type="button" @click=${() => { this.workspaceOpened = true; }}>Workspace setup</button>` : ''}
@@ -631,7 +774,6 @@ export class SodaFactoryRoleSettings extends LitElement {
         Choose the model and Muse login for each role. Saving lets that login run those roles. Factory does not
         switch logins automatically.
       </p>
-      <p role="status">${this.message}</p>
       ${!view && this.message && !this.busy ? html`<button type="button" @click=${() => this.refresh()}>Try again</button>` : ''}
       ${view?.sources.map((source) => source.tool
         ? html`<div role="status">
@@ -649,11 +791,8 @@ export class SodaFactoryRoleSettings extends LitElement {
               ${
                 initial
                   ? html`<fieldset ?disabled=${this.busy || !view.editable}>
-                      <legend>Set up repository automation</legend>
-                      <p>
-                        Save the full pipeline policy with automation disabled. Execution setup is still
-                        required.
-                      </p>
+                      <legend>Set up this project</legend>
+                      <p>Choose where agents merge. Automation stays off until you turn it on above.</p>
                       <label
                         >Target branch
                         <input
@@ -668,31 +807,6 @@ export class SodaFactoryRoleSettings extends LitElement {
                           }}
                       /></label>
                       <label
-                        >Required CI checks
-                        <textarea
-                          aria-label="Required CI checks"
-                          .value=${this.setup.checks}
-                          required
-                          placeholder="One exact check name per line"
-                          @input=${(event: Event) => {
-                            this.setup = {...this.setup, checks: (event.target as HTMLTextAreaElement).value};
-                          }}
-                        ></textarea>
-                      </label>
-                      <label
-                        >Merge method
-                        <select
-                          aria-label="Automation merge method"
-                          required
-                          @change=${(event: Event) => {
-                            this.setup = {...this.setup, method: (event.target as HTMLSelectElement).value};
-                          }}
-                        >
-                          <option value="" .selected=${!this.setup.method}>Choose an enabled method</option>
-                          ${(view.options?.mergeMethods ?? []).map((method) => html`<option .value=${method} .selected=${method === this.setup.method}>${mergeLabels[method]}</option>`)}
-                        </select></label
-                      >
-                      <label
                         ><input
                           type="checkbox"
                           .checked=${this.setup.useAccount}
@@ -706,6 +820,35 @@ export class SodaFactoryRoleSettings extends LitElement {
                     </fieldset>`
                   : ''
               }
+              <fieldset ?disabled=${this.busy || !view.editable}>
+                <legend>Merging</legend>
+                <label
+                  >Required CI checks
+                  <textarea
+                    aria-label="Required CI checks"
+                    .value=${this.setup.checks}
+                    ?required=${initial || view.policy?.enabled === true}
+                    placeholder="One exact check name per line"
+                    @input=${(event: Event) => {
+                      this.setup = {...this.setup, checks: (event.target as HTMLTextAreaElement).value};
+                    }}
+                  ></textarea>
+                </label>
+                <p>Agents merge only after these checks pass. Automation can't turn on without at least one.</p>
+                <label
+                  >Merge as
+                  <select
+                    aria-label="Merge as"
+                    required
+                    @change=${(event: Event) => {
+                      this.setup = {...this.setup, method: (event.target as HTMLSelectElement).value};
+                    }}
+                  >
+                    <option value="" .selected=${!this.setup.method}>Choose how to merge</option>
+                    ${automationState(view).mergeChoices.map((choice) => html`<option .value=${choice.value} .selected=${choice.value === this.setup.method}>${choice.label}</option>`)}
+                  </select></label
+                >
+              </fieldset>
               ${view.options?.controllerGrantRequired ? html`
                 <label>Fountain operation grant
                   <input aria-label="Fountain operation grant" maxlength="32" pattern="[a-f0-9]{32}" ?required=${initial}
@@ -775,33 +918,8 @@ export class SodaFactoryRoleSettings extends LitElement {
                   ${logins.length === 0 ? html`<p>Sign in to Muse on this computer to choose a login.</p>` : ''}
                 </fieldset>`;
               })}
-              <fieldset ?disabled=${this.busy || !view.editable}>
-                <legend>Automatic external pull requests</legend>
-                <label><input
-                  type="checkbox"
-                  aria-label="Automatically adopt eligible same-repository pull requests"
-                  .checked=${this.automaticExternalPulls}
-                  ?disabled=${view.options?.controllerGrantRequired === true || (!this.automaticExternalPulls && !this.automaticPullsReady())}
-                  @change=${(event: Event) => {this.automaticExternalPulls = (event.target as HTMLInputElement).checked;}}
-                />Automatically adopt eligible same-repository pull requests.</label>
-                <p>Adoption requires the PR author to be a current repository writer and exactly one explicitly accepted issue linked through the provider's structured closing links. Factory verifies the current head, base and policy target and keeps the existing finite attempt limits. Fork pull requests require an explicit command.</p>
-                <p>Select one login shared by Coding and Review. Populate the finite execution limits before enabling this choice.</p>
-                <p>This choice is separate from policy enrollment and automatic issue polling.</p>
-                ${view.options?.controllerGrantRequired ? html`<p>Automatic external pull request adoption is unavailable in Fountain.</p>` : ''}
-              </fieldset>
-              <p>
-                Only Muse is currently supported.
-                ${initial ? 'Automation stays disabled until execution setup is ready.' : 'Saving retains the other automation policy settings and existing attempt captures.'}
-              </p>
-              <button type="submit" value="save" ?disabled=${this.busy || !canSave}>
-                ${initial ? 'Save disabled automation policy' : 'Save role selections'}
-              </button>
-              ${!initial ? html`
-                <p>Policy enrollment permits the full automated delivery workflow. Placement, reviewed setup and available execution are checked before dispatch.</p>
-                ${view.policy?.enabled
-                  ? html`<button type="submit" value="disable" formnovalidate ?disabled=${this.busy || !view.editable}>Disable automation policy</button>`
-                  : html`<button type="submit" value="enroll" ?disabled=${this.busy || !canSave}>Enroll automation policy</button>`}
-              ` : ''}
+              <p>Only Muse is currently supported.</p>
+              <button type="submit" value="save" ?disabled=${this.busy || !canSave}>Save settings</button>
               ${!view.editable ? html`<p>You cannot change this repository's role settings with the current connection.</p>` : ''}
             </form>`
           : this.busy
